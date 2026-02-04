@@ -1,0 +1,56 @@
+module Exchange1D
+
+using Plots
+using Distributions: cdf, FDist
+using LinearAlgebra
+using LsqFit
+using Measurements: Measurements
+using NMRTools
+using Statistics
+
+export exchange1d
+using ..NMRAnalysis: analyse
+using ..NMRAnalysis: register_analysis!, MultiFileRule
+using ..NMRAnalysis: get1dregionandnoise
+
+function exchange1d(filenames::Vector{String})
+    spectra = loadnmr.(filenames)
+
+    # Placeholder for actual exchange analysis logic...
+    @info "Analyzing exchange data from files: $(filenames)"
+
+    # select a slice of an experiment to display, and select integration region with get1dregionandnoise
+    # slice = ...
+    # roi, noiseroi = get1dregionandnoise(slice)
+
+    # look for R1 calibration experiment and analyse it, if found
+    # r1fit = relaxation1d(R1_spectrum, roi, noiseroi)
+    # R1 = r1fit.rate    # this value includes uncertainty
+
+    # select exchange models to fit and compare
+    # terminalmenu...
+
+    # fit each model in turn
+
+    # compare model fits
+
+    return (pars=rand(3), plt=plot(rand(10), rand(10)))  # Return dummy parameters and a plot
+end
+
+function __init__()
+    # Register analysis rule for R1rho and CEST experiments
+    rule = MultiFileRule(expts -> begin
+                             oneD = filter(e -> "1d" in e.types, expts)
+                             matched = filter(e -> ("r1rho" in e.types || "cest" in e.types),
+                                              oneD)
+                             matched2 = filter(e -> ("relaxation" in e.types &&
+                                                     "R1" in e.features), oneD)
+                             combined = vcat(matched, matched2)
+                             length(combined) > 0 ? combined : nothing
+                         end,
+                         expts -> exchange1d([e.filename for e in expts]),
+                         "Exchange analysis (R1ρ and CEST)")
+    return register_analysis!(rule)
+end
+
+end
