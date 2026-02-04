@@ -27,3 +27,4 @@ docs/site/
 Manifest.toml
 
 out*/
+.claude/settings.local.json
