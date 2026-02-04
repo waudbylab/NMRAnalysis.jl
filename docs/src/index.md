@@ -15,7 +15,18 @@ used in biomolecular NMR:
 - 2D relaxation measurements (T1, T2) (`relaxation2d(experimentfiles, relaxationtimes)`)
 - Heteronuclear NOE (`hetnoe2d(planefilenames, saturation)`)
 
-Some utility functions are also provided:
+## Automatic Analysis Dispatch
+
+The `analyse()` function provides automatic detection and dispatch of appropriate analysis routines based on experiment metadata:
+
+```julia
+analyse(filename)           # Analyse a single experiment
+analyse([file1, file2, ...]) # Analyse multiple experiments
+```
+
+When multiple analysis options are available, an interactive menu is presented to select which analyses to run. See [Analysis Rules](@ref) for details on extending the dispatch system.
+
+## Utility Functions
 
 - `viscosity(solvent, T)`: Estimate solution viscosity at given temperature. Solvent can be `:h2o` or `:d2o`.
 
