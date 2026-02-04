@@ -21,6 +21,8 @@ Optional annotations:
 """
 function analyse_1d_nutation(filename)
     expt = loadnmr(filename)
+    hasannotations(expt) ||
+        throw(ArgumentError("Experiment must have annotations for calibration"))
 
     ref_p, ref_pl = referencepulse(expt, annotations(expt, :calibration, :channel))
     cal_pl = annotations(expt, :calibration, :power)
@@ -52,6 +54,7 @@ function analyse_1d_nutation(filename)
     inhomogeneity = R / (2π * nut_hz)
 
     pulse90 = 1 / (4 * nut_hz) # in s
+    @info "Nutation calibration results for $filename:"
     @info " - Power level: $(db(cal_pl)) dB"
     @info " - Nutation frequency ν₁: $nut_hz Hz"
     @info " - 90° pulse length: $(1e6*pulse90) µs"

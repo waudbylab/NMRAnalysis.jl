@@ -10,11 +10,12 @@ using Reexport
 using Statistics
 
 include("fileselection.jl")
+include("regions1d.jl")
 include("analyse.jl")
 include("viscosity.jl")
 include("calibration.jl")
 include("diffusion.jl")
-include("relaxation.jl")
+include("relaxation1d.jl")
 include("tract.jl")
 
 include("gui2d/GUI2D.jl")
@@ -26,7 +27,7 @@ include("precompile.jl")
 export analyse, register_analysis!, MultiFileRule
 export viscosity
 export diffusion
-export relaxation
+export relaxation1d
 export tract
 
 include("R1rho/R1rho.jl")
@@ -52,10 +53,11 @@ NMRAnalysis.jl (v$(pkgversion(NMRAnalysis)))
 # Generic Analysis (alpha)
 
 - analyse(filename)
+- analyse([filename1, filename2, ...])
 
 # 1D Experiment Analysis Routines
 
-- relaxation([filename])
+- relaxation1d([filename])
 - diffusion([filename])
 - tract([trosy_filename, antitrosy_filename])
 - r1rho([directory_path]; minvSL=250, maxvSL=1e6, scalefactor=:automatic)
