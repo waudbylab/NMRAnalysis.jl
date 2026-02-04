@@ -33,6 +33,9 @@ export tract
 include("R1rho/R1rho.jl")
 using .R1rho
 
+include("exchange1d/Exchange1D.jl")
+using .Exchange1D
+
 @reexport using .GUI2D: MaybeVector
 @reexport using .GUI2D: intensities2d, relaxation2d, recovery2d, modelfit2d # IntensityExperiment
 @reexport using .GUI2D: hetnoe2d # HetNOEExperiment
