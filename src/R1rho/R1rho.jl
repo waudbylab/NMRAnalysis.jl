@@ -13,7 +13,7 @@ using Random
 using Statistics
 
 export r1rho, setupR1rhopowers
-using ..NMRAnalysis: select_expts, analyse
+using ..NMRAnalysis: select_expts, analyse_1d_calibration
 using ..NMRAnalysis: register_analysis!, MultiFileRule
 
 include("dataset.jl")
@@ -86,7 +86,20 @@ end
 function __init__()
     # Register primitives here - this gets called when the module is loaded
     # register the function with MonteCarloMeasurements as a primative
-    return register_primitive(safesqrt)
+    register_primitive(safesqrt)
+
+    # Register analysis rule for on-resonance R1rho experiments
+    rule = MultiFileRule(expts -> begin
+                             matched = filter(e -> "r1rho" in e.types &&
+                                                       "1d" in e.types &&
+                                                       "on_resonance" in
+                                                       e.features,
+                                              expts)
+                             length(matched) > 0 ? matched : nothing
+                         end,
+                         expts -> r1rho([e.filename for e in expts]),
+                         "On-resonance R1ρ dispersion")
+    return register_analysis!(rule)
 end
 
 end

@@ -23,7 +23,7 @@ using .GUI2D
 using PrecompileTools
 include("precompile.jl")
 
-export analyse
+export analyse, register_analysis!, MultiFileRule
 export viscosity
 export diffusion
 export relaxation

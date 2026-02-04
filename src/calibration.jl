@@ -1,23 +1,8 @@
-function analyse_1d_calibration(filename)
-    types, features = types_and_features(filename)
-    return analyse_1d_calibration(filename, types, features)
-end
-
-function analyse_1d_calibration(filename, types, features)
-    "calibration" in types ||
-        error("analyse_1d_calibration called for non-calibration experiment")
-    result = nothing
-    if "1d" in types && "nutation" in features
-        @info "Analysing calibration by nutation on $filename"
-        result = analyse_1d_nutation(filename) # named tuple with :plt, :pulse90, :nut_hz
-    end
-    if isnothing(result)
-        @info "No specific calibration analysis implemented for features: $(join(features, ", "))"
-        return
-    end
-    display(result.plt)
-    return result
-end
+# Register analysis rule for 1D nutation calibration experiments
+register_analysis!(["1d", "calibration"],
+                   ["nutation"],
+                   exp -> analyse_1d_nutation(exp.filename),
+                   "1D nutation calibration")
 
 """
     analyse_1d_nutation(filename)
