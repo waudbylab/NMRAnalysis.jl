@@ -119,7 +119,7 @@ function observe_z(model::AbstractModel, M)
 end
 
 """
-    observe_effective(model::AbstractModel, M, Ω, ω1, spinpars)
+    observe_effective(model::AbstractModel, M, Ω, ω1, spinpars; flip=false)
 
 Extract the magnetization component along the effective field direction.
 
@@ -132,11 +132,12 @@ along the effective field, which is what actually decays exponentially.
 - `Ω`: Carrier offset (rad/s)
 - `ω1`: Spin-lock field strength (rad/s)
 - `spinpars`: Spin parameters (for chemical shifts)
+- `flip`: If true, observe along the flipped effective field (θ + 180°)
 
 # Returns
 - Total magnetization along effective field (scalar)
 """
-function observe_effective(model::AbstractModel, M, Ω, ω1, spinpars)
+function observe_effective(model::AbstractModel, M, Ω, ω1, spinpars; flip=false)
     n = nstates(model)
     total = 0.0
 
@@ -146,6 +147,11 @@ function observe_effective(model::AbstractModel, M, Ω, ω1, spinpars)
 
         # Tilt angle of effective field from z-axis
         θ = atan(ω1, Ω_eff)
+
+        # For flip=true, add 180° to observe along opposite direction
+        if flip
+            θ += π
+        end
 
         # Magnetization components for this state
         Mx = M[3(i - 1) + 1]
