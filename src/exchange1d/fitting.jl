@@ -1,15 +1,12 @@
 # Fitting infrastructure for exchange analysis
 
-using LsqFit
-using Distributions: cdf, FDist
-
 """
     PackedParameters
 
 Metadata for unpacking fitted parameters back to NamedTuples.
 """
 struct PackedParameters
-    indices::Vector{Tuple{Symbol, Any}}  # (source, key) for each packed parameter
+    indices::Vector{Tuple{Symbol,Any}}  # (source, key) for each packed parameter
     n_model::Int                          # Number of model parameters
     n_spin::Int                           # Number of spin parameters
 end
@@ -27,7 +24,7 @@ Parameters are transformed to fitting space using their transform functions.
 """
 function pack(modelpars, spinpars)
     params = Float64[]
-    indices = Tuple{Symbol, Any}[]
+    indices = Tuple{Symbol,Any}[]
 
     # Pack model parameters
     for (name, p) in pairs(modelpars)
@@ -70,8 +67,8 @@ Unpack parameter vector back to NamedTuples with fitted values.
 """
 function unpack(x, metadata::PackedParameters, modelpars, spinpars)
     # Create mutable copies as Dicts
-    mp = Dict{Symbol, Parameter}(pairs(modelpars))
-    sp = Dict{Symbol, Any}(pairs(spinpars))
+    mp = Dict{Symbol,Parameter}(pairs(modelpars))
+    sp = Dict{Symbol,Any}(pairs(spinpars))
 
     for (i, (src, key)) in enumerate(metadata.indices)
         if src == :model
@@ -152,7 +149,7 @@ function residuals(exp::AbstractExperiment, model::AbstractModel, modelpars, spi
     !hasdata(exp) && return Float64[]
 
     pred = predict(exp, model, modelpars, spinpars)
-    (exp.intensity .- pred) ./ exp.σ
+    return (exp.intensity .- pred) ./ exp.σ
 end
 
 """
@@ -213,7 +210,7 @@ function fit_exchange(experiments::Vector{<:AbstractExperiment}, model::Abstract
     function objective(x)
         mp, sp = unpack(x, metadata, modelpars, spinpars)
         r = vcat([residuals(exp, model, mp, sp) for exp in experiments]...)
-        sum(abs2, r)
+        return sum(abs2, r)
     end
 
     # Get bounds
@@ -226,11 +223,11 @@ function fit_exchange(experiments::Vector{<:AbstractExperiment}, model::Abstract
     # Model function for LsqFit (dummy x argument)
     function model_func(_, p)
         mp, sp = unpack(p, metadata, modelpars, spinpars)
-        vcat([predict(exp, model, mp, sp) for exp in experiments if hasdata(exp)]...)
+        return vcat([predict(exp, model, mp, sp) for exp in experiments if hasdata(exp)]...)
     end
 
     # Fit using LsqFit
-    fit = curve_fit(model_func, 1:ndata, ydata, weights.^2, x0; lower=lower, upper=upper)
+    fit = curve_fit(model_func, 1:ndata, ydata, weights .^ 2, x0; lower=lower, upper=upper)
 
     if !fit.converged
         @warn "Fit did not converge"
@@ -257,7 +254,7 @@ Named tuple with:
 - `comparisons`: Vector of pairwise F-test results
 - `aic`: Dict of AIC values for each model
 """
-function compare_models(results::Dict{<:AbstractModel, FitResult})
+function compare_models(results::Dict{<:AbstractModel,FitResult})
     comparisons = NamedTuple[]
 
     # Pairwise F-test for nested models (NoExchange nested in TwoState)
@@ -278,16 +275,15 @@ function compare_models(results::Dict{<:AbstractModel, FitResult})
         F = ((rss_null - rss_full) / (df_null - df_full)) / (rss_full / df_full)
         p_value = 1 - cdf(FDist(df_null - df_full, df_full), F)
 
-        push!(comparisons, (
-            null_model = NoExchange(),
-            full_model = TwoState(),
-            F = F,
-            p_value = p_value,
-        ))
+        push!(comparisons,
+              (null_model=NoExchange(),
+               full_model=TwoState(),
+               F=F,
+               p_value=p_value))
     end
 
     # AIC for all models
-    aic_values = Dict{AbstractModel, Float64}()
+    aic_values = Dict{AbstractModel,Float64}()
     for (model, result) in results
         ndata = result.ndata
         # AIC = n*ln(RSS/n) + 2k
@@ -331,7 +327,7 @@ function display_fit_result(result::FitResult)
     println("  χ² = $(round(result.χ2, digits=2))")
     println("  Reduced χ² = $(round(result.χ2 / (result.ndata - result.npars), digits=3))")
     println("  Data points = $(result.ndata)")
-    println("  Free parameters = $(result.npars)")
+    return println("  Free parameters = $(result.npars)")
 end
 
 """

@@ -1,7 +1,5 @@
 # Bloch-McConnell equations for chemical exchange
 
-using LinearAlgebra: exp
-
 """
     build_bloch_mcconnell(model::AbstractModel, modelpars, spinpars, Ω, ω1)
 
@@ -45,11 +43,9 @@ function build_bloch_mcconnell(model::AbstractModel, modelpars, spinpars, Ω, ω
         # dMx/dt = -R2*Mx - Ω_eff*My
         # dMy/dt = Ω_eff*Mx - R2*My - ω1*Mz
         # dMz/dt = ω1*My - R1*Mz + R1*Mz_eq
-        L[idx, idx] = [
-            -R2     -Ω_eff   0
-             Ω_eff  -R2     -ω1
-             0       ω1     -R1
-        ]
+        L[idx, idx] = [-R2 -Ω_eff 0
+                       Ω_eff -R2 -ω1
+                       0 ω1 -R1]
 
         # Inhomogeneous term: R1 relaxation back to equilibrium
         # The equilibrium z-magnetization for state i is p0[i]
@@ -98,7 +94,7 @@ function simulate(model::AbstractModel, modelpars, spinpars, Ω, ω1, t, M0)
     M_ext = exp(L * t) * M0_ext
 
     # Return magnetization components (drop the constant)
-    return M_ext[1:end-1]
+    return M_ext[1:(end - 1)]
 end
 
 """
@@ -115,7 +111,7 @@ Extract the observable z-magnetization (sum over all states).
 """
 function observe_z(model::AbstractModel, M)
     n = nstates(model)
-    sum(M[3i] for i in 1:n)
+    return sum(M[3i] for i in 1:n)
 end
 
 """

@@ -41,12 +41,12 @@ Calculate equilibrium populations for each state.
 Returns a vector of length nstates(model).
 """
 function calculate_p0(::NoExchange, modelpars)
-    [1.0]
+    return [1.0]
 end
 
 function calculate_p0(::TwoState, modelpars)
     pB = value(modelpars.pB)
-    [1 - pB, pB]
+    return [1 - pB, pB]
 end
 
 """
@@ -57,7 +57,7 @@ Returns an nstates × nstates matrix where K[i,j] is the rate from state j to st
 Rows sum to zero (conservation of magnetization).
 """
 function calculate_K(::NoExchange, modelpars)
-    zeros(1, 1)
+    return zeros(1, 1)
 end
 
 function calculate_K(::TwoState, modelpars)
@@ -72,8 +72,8 @@ function calculate_K(::TwoState, modelpars)
     # K matrix: dM/dt includes K*M
     # K[i,j] = rate from j to i (off-diagonal)
     # K[i,i] = -sum of rates out of i (diagonal)
-    [-kAB  kBA
-      kAB -kBA]
+    return [-kAB kBA
+            kAB -kBA]
 end
 
 """
@@ -82,14 +82,12 @@ end
 Return default model parameters as a NamedTuple of Parameters.
 """
 function default_modelpars(::NoExchange)
-    NamedTuple()
+    return NamedTuple()
 end
 
 function default_modelpars(::TwoState)
-    (
-        kex = Parameter(500.0; transform=LOG_TRANSFORM, bounds=(1.0, 1e6)),
-        pB = Parameter(0.05; bounds=(0.001, 0.5)),
-    )
+    return (kex=Parameter(500.0; transform=LOG_TRANSFORM, bounds=(1.0, 1e6)),
+            pB=Parameter(0.05; bounds=(0.001, 0.5)))
 end
 
 """
@@ -99,3 +97,54 @@ Return a human-readable name for the model.
 """
 modelname(::NoExchange) = "No Exchange"
 modelname(::TwoState) = "Two-State Exchange"
+
+"""
+    select_models_menu()
+
+Display multi-select menu for model selection.
+"""
+function select_models_menu()
+    options = ["No exchange (null model)",
+               "Two-state exchange"]
+    menu = MultiSelectMenu(options)
+    choices = request("Select models to fit:", menu)
+
+    models = AbstractModel[]
+    1 in choices && push!(models, NoExchange())
+    2 in choices && push!(models, TwoState())
+
+    if isempty(models)
+        error("No models selected")
+    end
+
+    return models
+end
+
+"""
+    prompt_model_parameters(model::NoExchange)
+
+No parameters needed for NoExchange model.
+"""
+function prompt_model_parameters(::NoExchange)
+    return NamedTuple()
+end
+
+"""
+    prompt_model_parameters(model::TwoState)
+
+Prompt user for two-state exchange parameters (kex, pB).
+"""
+function prompt_model_parameters(::TwoState)
+    println("Enter initial parameter estimates for two-state exchange:")
+
+    print("  Exchange rate kex (s⁻¹) [default 500]: ")
+    kex_input = readline()
+    kex = isempty(strip(kex_input)) ? 500.0 : parse(Float64, kex_input)
+
+    print("  Minor state population pB [default 0.05]: ")
+    pB_input = readline()
+    pB = isempty(strip(pB_input)) ? 0.05 : parse(Float64, pB_input)
+
+    return (kex=Parameter(kex; transform=LOG_TRANSFORM, bounds=(1.0, 1e6)),
+            pB=Parameter(pB; bounds=(0.001, 0.5)))
+end
