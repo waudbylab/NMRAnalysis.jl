@@ -13,7 +13,8 @@ using Random
 using Statistics
 
 export r1rho, setupR1rhopowers
-using ..NMRAnalysis: select_expts, analyse_1d_calibration
+using ..NMRAnalysis: select_expts, analyse
+using ..NMRAnalysis: register_analysis!, MultiFileRule
 
 include("dataset.jl")
 include("power.jl")
