@@ -20,7 +20,7 @@ function setupR1rhopowers(calibration_experiment_file="")
         pldb1 = parse(Float64, readline())
         pl1 = Power(pldb1, :dB)
     else
-        calibration = analyse_1d_calibration(calibration_experiment_file)
+        calibration = analyse(calibration_experiment_file)
         p1 = Measurements.value(calibration.pulse90)
         pl1 = calibration.power_level
     end
