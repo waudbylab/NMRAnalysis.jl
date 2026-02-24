@@ -1,4 +1,16 @@
 """
+    integrate!(prob::ExchangeProblem, peakppm, noiseppm, ppmwidth)
+
+Integrate all experiments in the problem at the given peak and noise positions.
+"""
+function integrate!(prob::ExchangeProblem, peakppm, noiseppm, ppmwidth)
+    for expt in prob.experiments
+        integrate!(expt, peakppm, noiseppm, ppmwidth)
+    end
+    return nothing
+end
+
+"""
     simulate!(prob::ExchangeProblem, params::ComponentArray)
 
 Simulate predicted values for all experiments in the problem.

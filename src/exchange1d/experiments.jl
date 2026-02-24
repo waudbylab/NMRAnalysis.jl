@@ -27,3 +27,42 @@ field_label(expt::AbstractExperiment) = field_label(expt.field_teslas)
 
 include("expt-r1.jl")
 include("expt-cest.jl")
+
+"""
+    load_experiment(filename) -> AbstractExperiment
+
+Load an NMR experiment file and return the appropriate concrete experiment type
+based on its annotations.
+
+Dispatches on `annotations(spec, :experiment_type)` and `annotations(spec, :features)`:
+- `"relaxation"` + `"R1"` → `R1Experiment`
+- `"saturation_transfer"` + `"CEST"` → `CESTExperiment` (not yet implemented)
+"""
+function load_experiment(filename)
+    spec = loadnmr(filename)
+    hasannotations(spec) ||
+        throw(ArgumentError("$filename has no annotations — cannot classify experiment"))
+
+    types = annotations(spec, :experiment_type)
+    features = annotations(spec, :features)
+
+    if "relaxation" in types && "R1" in features
+        return R1Experiment(filename)
+    elseif "saturation_transfer" in types && "CEST" in features
+        error("CEST loading not yet implemented")
+    else
+        throw(ArgumentError("Cannot classify experiment $filename " *
+                            "(types=$types, features=$features)"))
+    end
+end
+
+"""
+    ExchangeProblem(filenames::Vector{String}, model::AbstractModel)
+
+Construct an ExchangeProblem by loading experiments from filenames.
+Each file is classified and loaded via `load_experiment`.
+"""
+function ExchangeProblem(filenames::Vector{String}, model::AbstractModel)
+    experiments = AbstractExperiment[load_experiment(f) for f in filenames]
+    return ExchangeProblem(experiments, model)
+end

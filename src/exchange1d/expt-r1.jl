@@ -44,8 +44,7 @@ function integrate!(expt::R1Experiment, peakppm, noiseppm, ppmwidth)
     # integrate noise region
     noiseselector = (noiseppm - ppmwidth / 2) .. (noiseppm + ppmwidth / 2)
     n = sum(spec[noiseselector, :]; dims=F1Dim)
-    @info n
-    @info NMRTools.data(n)
+
     noise = vec(data(n))
     noise = std(noise)
 
