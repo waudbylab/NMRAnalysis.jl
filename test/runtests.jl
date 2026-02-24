@@ -6,6 +6,10 @@ using SafeTestsets
     include("maybevector_test.jl")
 end
 
+@safetestset "Exchange1D" begin
+    include("exchange1d_test.jl")
+end
+
 @safetestset "diffusion test" begin
     include("diffusion_test.jl")
 end

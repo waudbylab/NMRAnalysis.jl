@@ -4,9 +4,9 @@
 Module for 1D chemical exchange analysis using Bloch-McConnell equations.
 
 Supports R1ρ relaxation dispersion and CEST experiments with:
-- NoExchange (null model) and TwoState exchange models
-- Full Bloch-McConnell simulation
-- Model comparison via F-test and AIC
+- NoExchange (null model), TwoState, and TwoStateBinding exchange models
+- Full Bloch-McConnell Liouvillian construction
+- Joint fitting of multiple experiment types
 """
 module Exchange1D
 
@@ -19,24 +19,19 @@ using Plots
 using REPL.TerminalMenus
 using Statistics
 
-export exchange1d
-
 # Import from parent module
 using ..NMRAnalysis: analyse, register_analysis!, MultiFileRule
 using ..NMRAnalysis: get1dregionandnoise, relaxation1d
 
 # Include submodules in dependency order
 include("fitting-with-errors.jl")
-include("misc.jl")
 include("types.jl")
+include("misc.jl")
 include("models.jl")
 include("experiments.jl")
-
-export AbstractModel, NoExchangeModel, TwoStateModel, TwoStateBindingModel
-export nstates, modelname
-export AbstractExperiment, CESTExperiment, R1Experiment
-export AbstractR1RhoExperiment, OnResR1RhoExperiment, OffResR1RhoExperiment
-export exchange1d
+include("liouvillian.jl")
+include("params.jl")
+include("problem.jl")
 
 # """
 #     exchange1d(filenames::Vector{String})
