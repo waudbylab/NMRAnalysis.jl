@@ -7,5 +7,5 @@ nmolecules(::NoExchangeModel) = 1
 molecules(::NoExchangeModel) = Dict(:X => "observed")
 default_params(::NoExchangeModel) = ComponentArray()
 
-exchange_matrix(::NoExchangeModel, params, sampleconcentrations) = zeros(1, 1)
-populations(::NoExchangeModel, params, sampleconcentrations) = [1.0]
+exchange_matrix(::NoExchangeModel, params, expt) = zeros(1, 1)
+populations(::NoExchangeModel, params, expt) = [1.0]

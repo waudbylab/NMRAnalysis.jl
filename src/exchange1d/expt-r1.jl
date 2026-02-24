@@ -23,7 +23,7 @@ function R1Experiment(filename)
         throw(ArgumentError("Experiment $filename is not a 1D experiment"))
     "relaxation" in annotations(spec, :experiment_type) ||
         throw(ArgumentError("Experiment $filename is not a relaxation experiment"))
-    type = annotations(spec, :relaxation, :experiment_type)
+    type = annotations(spec, :relaxation, :type)
     type == "R1" ||
         throw(ArgumentError("Experiment $filename is not an R1 relaxation experiment"))
 

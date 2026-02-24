@@ -18,11 +18,11 @@ observed species (:X) and binding partner (:Y) via the quadratic
 binding equation. Molecule names are looked up in `sampleconcentrations`
 using `model.moleculemap`.
 """
-function exchange_matrix(model::TwoStateBindingModel, params, sampleconcentrations)
+function exchange_matrix(model::TwoStateBindingModel, params, expt)
     Kd = params.model.Kd
     koff = params.model.koff
 
-    Xt, Yt = _lookup_concentrations(model, sampleconcentrations)
+    Xt, Yt = _lookup_concentrations(model, sampleconcentrations(expt))
     pB = _binding_fraction(Kd, Xt, Yt)
     pA = 1 - pB
     kon_eff = koff * pB / pA   # effective pseudo-first-order on-rate
@@ -31,9 +31,9 @@ function exchange_matrix(model::TwoStateBindingModel, params, sampleconcentratio
             kon_eff -koff]
 end
 
-function populations(model::TwoStateBindingModel, params, sampleconcentrations)
+function populations(model::TwoStateBindingModel, params, expt)
     Kd = params.model.Kd
-    Xt, Yt = _lookup_concentrations(model, sampleconcentrations)
+    Xt, Yt = _lookup_concentrations(model, sampleconcentrations(expt))
     pB = _binding_fraction(Kd, Xt, Yt)
     return [1 - pB, pB]
 end

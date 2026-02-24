@@ -1,65 +1,50 @@
 """
-    liouvillian(model, params, field_teslas, bf_hz, offset_hz, spinlock_hz, sampleconcentrations)
+    liouvillian(model, params, expt::AbstractExperiment, offset_hz, spinlock_hz)
 
-Build the 3N × 3N Bloch-McConnell Liouvillian matrix for N exchanging states.
-
-The magnetisation vector is ordered as [Mx₁, My₁, Mz₁, ..., MxN, MyN, MzN].
-
-# Arguments
-- `model`: exchange model (determines number of states and kinetic matrix)
-- `params`: ComponentArray with `model` and `spin` sections
-- `field_teslas`: magnetic field strength in Tesla (for parameter lookup keys)
-- `bf_hz`: base (Larmor) frequency in Hz for the observed nucleus (for ppm → Hz)
-- `offset_hz`: spin-lock carrier offset in Hz
-- `spinlock_hz`: spin-lock field amplitude in Hz
-- `sampleconcentrations`: Dict mapping molecule names to concentrations (for binding models)
-
-Chemical shifts are stored as ppm in `params.spin.delta` and converted to Hz
-using `bf_hz`. R2 is per-state per-field in `params.spin.R2_<field>`.
-R1 is shared across states per-field in `params.spin.R1_<field>` (length-1 vector).
+Convenience method that extracts field_teslas, bf_hz, and sample concentrations
+from the experiment.
 """
-function liouvillian(model::AbstractModel, params, field_teslas::Float64, bf_hz::Float64,
-                     offset_hz, spinlock_hz, sampleconcentrations)
-    N = nstates(model)
-    fl = field_label(field_teslas)
+function liouvillian(model, params, expt, spinlock_ppm, spinlock_hz)
+    fl = field_label(expt)
 
+    Δδ = params.spin.delta .- spinlock_ppm
+    Ωi = Δδ .* expt.spec[1, :bf] * 1e-6
+    ω = 2π * Ωi
+
+    R1_key = Symbol("R1_", fl)
+    R2_key = Symbol("R2_", fl)
+    R1 = params.spin[R1_key][1]
+    R2 = params.spin[R2_key]
+
+    ω1 = 2π * spinlock_hz
+
+    # @info Δδ, Ωi, ω, R1, R2, ω1
+
+    N = nstates(model)
     L = zeros(3N, 3N)
 
-    omega1 = 2π * spinlock_hz
-
-    R2_key = Symbol("R2_", fl)
-    R1_key = Symbol("R1_", fl)
-
     for i in 1:N
-        # chemical shift offset in Hz, converted from ppm
-        delta_ppm = params.spin.delta[i]
-        delta_hz = 1e-6 * delta_ppm * bf_hz
-        Omega_i = 2π * (delta_hz - offset_hz)
-
         # block indices for state i
         ix = 3(i - 1) + 1  # Mx
         iy = 3(i - 1) + 2  # My
         iz = 3(i - 1) + 3  # Mz
 
         # chemical shift evolution: couples Mx ↔ My
-        L[ix, iy] = -Omega_i
-        L[iy, ix] = Omega_i
+        L[ix, iy] = ω[i]
+        L[iy, ix] = -ω[i]
 
         # spin-lock field along x: couples My ↔ Mz
-        L[iy, iz] = -omega1
-        L[iz, iy] = omega1
+        L[iy, iz] = -ω1
+        L[iz, iy] = ω1
 
         # relaxation
-        R2_i = params.spin[R2_key][i]
-        R1_i = params.spin[R1_key][1]  # R1 is shared across states (stored as scalar)
-
-        L[ix, ix] = -R2_i
-        L[iy, iy] = -R2_i
-        L[iz, iz] = -R1_i
+        L[ix, ix] = -R2[i]
+        L[iy, iy] = -R2[i]
+        L[iz, iz] = -R1
     end
 
     # exchange: K ⊗ I₃
-    K = exchange_matrix(model, params, sampleconcentrations)
+    K = exchange_matrix(model, params, expt)
     for i in 1:N, j in 1:N
         kij = K[i, j]
         if kij != 0
@@ -73,14 +58,65 @@ function liouvillian(model::AbstractModel, params, field_teslas::Float64, bf_hz:
 end
 
 """
-    liouvsillian(model, params, expt::AbstractExperiment, offset_hz, spinlock_hz)
+    liouvillian(model, params, expt::AbstractExperiment, offset_hz, spinlock_hz)
 
 Convenience method that extracts field_teslas, bf_hz, and sample concentrations
 from the experiment.
 """
-function liouvillian(model::AbstractModel, params, expt::AbstractExperiment,
-                     offset_hz, spinlock_hz)
-    bf_hz = metadata(expt.spec, 1, :bf)
-    return liouvillian(model, params, expt.field_teslas, bf_hz, offset_hz, spinlock_hz,
-                       expt.sampleconcentrations)
+function liouvillian_inhom(model, params, expt, spinlock_ppm, spinlock_hz)
+    fl = field_label(expt)
+
+    Δδ = params.spin.delta .- spinlock_ppm
+    Ωi = Δδ .* expt.spec[1, :bf] * 1e-6
+    ω = 2π * Ωi
+
+    R1_key = Symbol("R1_", fl)
+    R2_key = Symbol("R2_", fl)
+    R1 = params.spin[R1_key][1]
+    R2 = params.spin[R2_key]
+
+    ω1 = 2π * spinlock_hz
+
+    # @info Δδ, Ωi, ω, R1, R2, ω1
+
+    N = nstates(model)
+    L = zeros(3N + 1, 3N + 1)
+
+    for i in 1:N
+        # block indices for state i
+        ix = 3(i - 1) + 1  # Mx
+        iy = 3(i - 1) + 2  # My
+        iz = 3(i - 1) + 3  # Mz
+
+        # chemical shift evolution: couples Mx ↔ My
+        L[ix, iy] = ω[i]
+        L[iy, ix] = -ω[i]
+
+        # spin-lock field along x: couples My ↔ Mz
+        L[iy, iz] = -ω1
+        L[iz, iy] = ω1
+
+        # relaxation
+        L[ix, ix] = -R2[i]
+        L[iy, iy] = -R2[i]
+        L[iz, iz] = -R1
+    end
+
+    # exchange: K ⊗ I₃
+    K = exchange_matrix(model, params, expt)
+    for i in 1:N, j in 1:N
+        kij = K[j, i]
+        if kij != 0
+            for d in 0:2  # Mx, My, Mz all exchange identically
+                L[3(i - 1) + 1 + d, 3(j - 1) + 1 + d] += kij
+            end
+        end
+    end
+
+    p0 = populations(model, params, expt)
+    for i in 1:N
+        L[3(i - 1) + 3, 3N + 1] = R1 * p0[i]  # Mz initialised to population
+    end
+    # @info L, K, p0
+    return L
 end

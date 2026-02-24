@@ -48,8 +48,8 @@ function load_experiment(filename)
 
     if "relaxation" in types && "R1" in features
         return R1Experiment(filename)
-    elseif "saturation_transfer" in types && "CEST" in features
-        error("CEST loading not yet implemented")
+    elseif "cest" in types
+        return CESTExperiment(filename)
     else
         throw(ArgumentError("Cannot classify experiment $filename " *
                             "(types=$types, features=$features)"))
