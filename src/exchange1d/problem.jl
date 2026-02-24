@@ -92,14 +92,26 @@ function fit(prob::ExchangeProblem, params0::ComponentArray)
     n_params = length(p0)
     dof = n_obs - n_params
 
-    return (
-        params = pfit_uncertain,
-        params_value = pfit,
-        chi2 = chi2,
-        reduced_chi2 = chi2 / dof,
-        covariance = covar,
-        nobs = n_obs,
-        nparams = n_params,
-        dof = dof,
-    )
+    return (params=pfit_uncertain,
+            params_value=pfit,
+            chi2=chi2,
+            reduced_chi2=chi2 / dof,
+            cov=covar,
+            nobs=n_obs,
+            nparams=n_params,
+            dof=dof,
+            plots=plot_result(prob, (params=pfit_uncertain, params_value=pfit)))
+end
+
+"""
+    plot_result(prob::ExchangeProblem, fit_result)
+
+Plot all experiments in the problem using the fitted parameters from `fit_result`
+(as returned by `fit`). Returns a vector of plots, one per experiment.
+"""
+function plot_result(prob::ExchangeProblem, fit_result, kwargs...)
+    params = fit_result.params_value
+    simulate!(prob, params)  # update predicted_intensities for all experiments
+    plots = [plot_result(expt, fit_result; kwargs...) for expt in prob.experiments]
+    return plots
 end

@@ -19,7 +19,11 @@ function R1Experiment(filename)
                    gyromagneticratio(metadata(spec, 1, :nucleus))
     field_teslas = round(field_teslas; digits=2)
 
-    type = annotations(spec, :relaxation, :type)
+    "1d" in annotations(spec, :experiment_type) ||
+        throw(ArgumentError("Experiment $filename is not a 1D experiment"))
+    "relaxation" in annotations(spec, :experiment_type) ||
+        throw(ArgumentError("Experiment $filename is not a relaxation experiment"))
+    type = annotations(spec, :relaxation, :experiment_type)
     type == "R1" ||
         throw(ArgumentError("Experiment $filename is not an R1 relaxation experiment"))
 
@@ -112,4 +116,66 @@ function simulate!(expt::R1Experiment, ::AbstractModel, params::ComponentArray)
     end
 
     return nothing
+end
+
+"""
+    plot_result(expt::R1Experiment, params; kwargs...)
+
+Plot an R1 experiment with observed data (error bars), fitted curve, and residuals.
+
+Upper panel: normalised intensities vs delay time with fit overlay.
+Lower panel: weighted residuals (observed - predicted) / σ.
+"""
+function plot_result(expt::R1Experiment, fit_result; kwargs...)
+    params = fit_result.params
+    param_values = fit_result.params_value
+    tau = expt.delays
+    yobs = expt.observed_intensities
+    ypred = expt.predicted_intensities
+
+    # fitted rate for title
+    fl = field_label(expt)
+    R1 = params.spin[Symbol("R1_", fl)][1]
+    R1_value = param_values.spin[Symbol("R1_", fl)][1]
+
+    # smooth fitted curve
+    x = LinRange(0, maximum(tau) * 1.1, 100)
+    tag = Symbol("R1_", fl)
+    I0 = param_values.nuisance[Symbol(tag, "_I0")]
+    if expt.fitting_model == :inversion_recovery
+        inv_factor = param_values.nuisance[Symbol(tag, "_inv_factor")]
+        yfit = I0 .* (1 .- inv_factor .* exp.(-x .* R1_value))
+    else
+        yfit = I0 .* exp.(-x .* R1_value)
+    end
+
+    # weighted residuals
+    wres = (Measurements.value.(yobs) .- ypred) ./ Measurements.uncertainty.(yobs)
+
+    # upper panel: data + fit
+    p1 = scatter(tau, yobs;
+                 label="observed",
+                 frame=:box,
+                 xlabel="",
+                 ylabel="Normalised intensity",
+                 title="R1 = $R1 s⁻¹",
+                 grid=nothing,
+                 kwargs...)
+    plot!(p1, x, yfit;
+          label="fit",
+          z_order=:back)
+    hline!(p1, [0]; color=:black, lw=0.5, primary=false)
+
+    # lower panel: residuals
+    p2 = scatter(tau, wres;
+                 label=false,
+                 frame=:box,
+                 xlabel="Delay / s",
+                 ylabel="Residual / σ",
+                 grid=nothing,
+                 markersize=4)
+    hline!(p2, [0]; color=:black, lw=0.5, ls=:dash, primary=false)
+
+    plt = plot(p1, p2; layout=grid(2, 1; heights=[0.75, 0.25]), link=:x)
+    return plt
 end
