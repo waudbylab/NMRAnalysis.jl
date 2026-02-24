@@ -94,6 +94,7 @@ function fit(prob::ExchangeProblem, params0::ComponentArray)
 
     return (params=pfit_uncertain,
             params_value=pfit,
+            params0=ComponentArray(copy(p0), ax),
             chi2=chi2,
             reduced_chi2=chi2 / dof,
             cov=covar,

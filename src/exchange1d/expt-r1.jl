@@ -153,7 +153,7 @@ function plot_result(expt::R1Experiment, fit_result; kwargs...)
     wres = (Measurements.value.(yobs) .- ypred) ./ Measurements.uncertainty.(yobs)
     wrange = maximum(abs, wres) * 1.2
     # upper panel: data + fit
-    p1 = scatter(tau, yobs; legend=nothing,
+    p1 = scatter(tau, yobs; ms=3, legend=nothing,
                  label="observed",
                  frame=:box,
                  #  xlabel="Relaxation time / s",
@@ -172,10 +172,10 @@ function plot_result(expt::R1Experiment, fit_result; kwargs...)
               ylabel="Residual / σ",
               grid=nothing,
               markersize=4)
-    hspan!(p2, [-2, 2]; color=:grey90, lw=0, primary=false)
-    hspan!(p2, [-1, 1]; color=:grey70, lw=0, primary=false)
+    hspan!(p2, [-2, 2]; color=:limegreen, alpha=0.3, lw=0, la=0, primary=false)
+    hspan!(p2, [-1, 1]; color=:limegreen, alpha=0.5, lw=0, la=0, primary=false)
     hline!(p2, [0]; color=:black, lw=0.5, primary=false)
-    scatter!(p2, tau, wres)
+    scatter!(p2, tau, wres; ms=3)
     ylims!(p2, -wrange, wrange)
 
     plt = plot(p1, p2; layout=grid(2, 1; heights=[0.75, 0.25]), link=:x)

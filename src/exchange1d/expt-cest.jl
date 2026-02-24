@@ -134,7 +134,7 @@ function plot_result(expt::CESTExperiment, fit_result; kwargs...)
               grid=nothing,
               kwargs...)
 
-    scatter!(p1, x, yobs; label="observed")
+    scatter!(p1, x, yobs; label="observed", ms=3)
     plot!(p1, x, ypred; label="fit")
     vline!(p1, params_value.spin.delta; ls=:dash, label="peak positions")
     hline!(p1, [0.0]; primary=false, color=:black, lw=0.5)
@@ -147,10 +147,10 @@ function plot_result(expt::CESTExperiment, fit_result; kwargs...)
               legend=nothing,
               kwargs...)
     wres = (Measurements.value.(yobs) .- ypred) ./ Measurements.uncertainty.(yobs)
-    hspan!(p2, [-2, 2]; color=:grey90, lw=0, primary=false)
-    hspan!(p2, [-1, 1]; color=:grey70, lw=0, primary=false)
+    hspan!(p2, [-2, 2]; color=:limegreen, alpha=0.3, lw=0, la=0, primary=false)
+    hspan!(p2, [-1, 1]; color=:limegreen, alpha=0.5, lw=0, la=0, primary=false)
     hline!(p2, [0]; color=:black, lw=0.5, primary=false)
-    scatter!(p2, x, wres)
+    scatter!(p2, x, wres; ms=3)
     vline!(p2, params_value.spin.delta; ls=:dash, label="peak positions", c=3)
     ylims!(p2, -maximum(abs, wres) * 1.2, maximum(abs, wres) * 1.2)
 
