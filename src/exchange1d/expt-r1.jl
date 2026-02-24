@@ -151,30 +151,32 @@ function plot_result(expt::R1Experiment, fit_result; kwargs...)
 
     # weighted residuals
     wres = (Measurements.value.(yobs) .- ypred) ./ Measurements.uncertainty.(yobs)
-
+    wrange = maximum(abs, wres) * 1.2
     # upper panel: data + fit
-    p1 = scatter(tau, yobs;
+    p1 = scatter(tau, yobs; legend=nothing,
                  label="observed",
                  frame=:box,
-                 xlabel="",
-                 ylabel="Normalised intensity",
+                 #  xlabel="Relaxation time / s",
+                 ylabel="Intensity",
                  title="R1 = $R1 s⁻¹",
                  grid=nothing,
                  kwargs...)
     plot!(p1, x, yfit;
-          label="fit",
-          z_order=:back)
+          label="fit")
     hline!(p1, [0]; color=:black, lw=0.5, primary=false)
 
     # lower panel: residuals
-    p2 = scatter(tau, wres;
-                 label=false,
-                 frame=:box,
-                 xlabel="Delay / s",
-                 ylabel="Residual / σ",
-                 grid=nothing,
-                 markersize=4)
-    hline!(p2, [0]; color=:black, lw=0.5, ls=:dash, primary=false)
+    p2 = plot(; legend=nothing,
+              frame=:box,
+              xlabel="Relaxation time / s",
+              ylabel="Residual / σ",
+              grid=nothing,
+              markersize=4)
+    hspan!(p2, [-2, 2]; color=:grey90, lw=0, primary=false)
+    hspan!(p2, [-1, 1]; color=:grey70, lw=0, primary=false)
+    hline!(p2, [0]; color=:black, lw=0.5, primary=false)
+    scatter!(p2, tau, wres)
+    ylims!(p2, -wrange, wrange)
 
     plt = plot(p1, p2; layout=grid(2, 1; heights=[0.75, 0.25]), link=:x)
     return plt

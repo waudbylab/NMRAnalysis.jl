@@ -125,17 +125,35 @@ function plot_result(expt::CESTExperiment, fit_result; kwargs...)
     ypred = expt.predicted_intensities
 
     params = fit_result.params
+    params_value = fit_result.params_value
 
-    p1 = plot(; frame=:box,
-              xlabel="Saturation frequency (ppm)",
+    p1 = plot(; frame=:box, legend=nothing,
+              #   xlabel="Saturation frequency (ppm)",
               ylabel="Normalised intensity",
-              title="",
+              title="CEST ($(Int(round(expt.ν1, digits=0))) Hz, $(Int(round(expt.saturation_time * 1000, digits=0))) ms saturation)",
               grid=nothing,
               kwargs...)
 
-    plot!(p1, x, ypred; label="fit")
     scatter!(p1, x, yobs; label="observed")
-    # vline!(p1, params.spin.delta; label="peak positions")
-    # hline!(p1, [0.0]; primary=false, color=:black, lw=0.5)
-    return p1
+    plot!(p1, x, ypred; label="fit")
+    vline!(p1, params_value.spin.delta; ls=:dash, label="peak positions")
+    hline!(p1, [0.0]; primary=false, color=:black, lw=0.5)
+
+    p2 = plot(; frame=:box,
+              xlabel="Saturation frequency (ppm)",
+              ylabel="Residual / σ",
+              title="",
+              grid=nothing,
+              legend=nothing,
+              kwargs...)
+    wres = (Measurements.value.(yobs) .- ypred) ./ Measurements.uncertainty.(yobs)
+    hspan!(p2, [-2, 2]; color=:grey90, lw=0, primary=false)
+    hspan!(p2, [-1, 1]; color=:grey70, lw=0, primary=false)
+    hline!(p2, [0]; color=:black, lw=0.5, primary=false)
+    scatter!(p2, x, wres)
+    vline!(p2, params_value.spin.delta; ls=:dash, label="peak positions", c=3)
+    ylims!(p2, -maximum(abs, wres) * 1.2, maximum(abs, wres) * 1.2)
+
+    plt = plot(p1, p2; layout=grid(2, 1; heights=[0.75, 0.25]), link=:x)
+    return plt
 end
