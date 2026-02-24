@@ -2,6 +2,10 @@ using NMRAnalysis
 using Test
 using SafeTestsets
 
+@safetestset "MaybeVector" begin
+    include("maybevector_test.jl")
+end
+
 @safetestset "diffusion test" begin
     include("diffusion_test.jl")
 end

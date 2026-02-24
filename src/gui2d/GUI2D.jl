@@ -9,9 +9,9 @@ using Measurements
 using NativeFileDialog
 using NMRTools
 using OrderedCollections
+using ..MaybeVectorModule
 
 include("util.jl")
-include("maybevector.jl")
 include("types.jl")
 include("parameters.jl")
 include("specdata.jl")
@@ -26,7 +26,7 @@ include("keyboard.jl")
 include("files.jl")
 include("visualisation.jl")
 
-export MaybeVector
+export MaybeVector, SingleElementVector, StandardVector
 # export gui!
 
 # export IntensityExperiment

@@ -18,6 +18,9 @@ include("diffusion.jl")
 include("relaxation1d.jl")
 include("tract.jl")
 
+include("maybevector/MaybeVector.jl")
+using .MaybeVectorModule
+
 include("gui2d/GUI2D.jl")
 using .GUI2D
 
@@ -36,7 +39,7 @@ using .R1rho
 include("exchange1d/Exchange1D.jl")
 using .Exchange1D
 
-@reexport using .GUI2D: MaybeVector
+@reexport using .MaybeVectorModule: MaybeVector, SingleElementVector, StandardVector
 @reexport using .GUI2D: intensities2d, relaxation2d, recovery2d, modelfit2d # IntensityExperiment
 @reexport using .GUI2D: hetnoe2d # HetNOEExperiment
 @reexport using .GUI2D: cest2d # CESTExperiment
