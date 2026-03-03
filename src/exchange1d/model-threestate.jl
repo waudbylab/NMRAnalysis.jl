@@ -3,6 +3,7 @@ end
 
 modelname(::ThreeStateModel) = "Three-state exchange"
 nstates(::ThreeStateModel) = 3
+states(::ThreeStateModel) = ["A", "B", "C"]
 nmolecules(::ThreeStateModel) = 1
 molecules(::ThreeStateModel) = Dict(:X => "observed")
 function default_params(::ThreeStateModel)

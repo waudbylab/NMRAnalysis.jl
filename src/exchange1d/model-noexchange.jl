@@ -3,6 +3,7 @@ end
 
 modelname(::NoExchangeModel) = "No exchange"
 nstates(::NoExchangeModel) = 1
+states(::NoExchangeModel) = ["A"]
 nmolecules(::NoExchangeModel) = 1
 molecules(::NoExchangeModel) = Dict(:X => "observed")
 default_params(::NoExchangeModel) = ComponentArray()
