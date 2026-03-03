@@ -40,13 +40,13 @@ function exchange1d(filenames::Vector{String})
     # ── 5. Parameters + fit loop ────────────────────────────────────────
     p0 = default_params(prob)
     while true
-        p0 = _prompt_params(p0)
+        p0 = _prompt_params(p0, prob)
         p0 === nothing && return nothing
 
         @info "Fitting..."
         result = fit(prob, p0)
-        _print_result(result)
-        display(plot(result.plots...; size=(1200, 800)))
+        _print_result(result, prob)
+        display(_combined_plot(result.plots))
 
         action = _prompt_after_fit()
         if action == :save
@@ -208,15 +208,20 @@ end
 # ═══════════════════════════════════════════════════════════════════════════
 
 """
-    _prompt_params(p0) -> ComponentArray or nothing
+    _prompt_params(p0, prob) -> ComponentArray or nothing
 
 Interactive parameter editor. Returns edited parameters, or nothing if cancelled.
 """
-function _prompt_params(p0::ComponentArray)
+function _prompt_params(p0::ComponentArray, prob::ExchangeProblem)
+    state_labels = states(prob.model)
+    fields = _unique_fields(prob.experiments)
+
     while true
         items = _flatten_params_items(p0)
-        maxlen = maximum(item -> length(item.label), items)
-        menu_items = [rpad(item.label, maxlen + 2) * "= " * _format_value(item.value) for item in items]
+        labels = [_pretty_label(item, state_labels, fields) for item in items]
+        maxlen = maximum(length, labels)
+        menu_items = [rpad(label, maxlen + 2) * "= " * _format_value(item.value)
+                      for (label, item) in zip(labels, items)]
         push!(menu_items, "▶ Continue to fit")
         push!(menu_items, "✕ Cancel")
 
@@ -229,7 +234,8 @@ function _prompt_params(p0::ComponentArray)
         choice == length(menu_items) - 1 && break
 
         item = items[choice]
-        print("  New value for $(item.label) [$(item.value)]: ")
+        label = labels[choice]
+        print("  New value for $(label) [$(item.value)]: ")
         input = strip(readline())
         if !isempty(input)
             newval = tryparse(Float64, input)
@@ -245,7 +251,7 @@ end
 
 """
 A flattened parameter item: individual scalar elements, with array elements expanded.
-- `label`: display name (e.g. "spin.delta[1]")
+- `label`: internal name (e.g. "spin.delta[1]")
 - `flat_index`: index into the underlying flat data array of the ComponentArray
 - `value`: the scalar value
 - `section`: top-level section name (e.g. "model", "spin", "nuisance")
@@ -287,42 +293,206 @@ function _set_param!(ca::ComponentArray, flat_index::Int, value)
 end
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Step 6: Display results + post-fit prompt
+# Pretty parameter labels
 # ═══════════════════════════════════════════════════════════════════════════
 
-function _print_result(result)
-    items = _flatten_params_items(result.params)
-    maxlen = maximum(item -> length(item.label), items)
-    w = max(maxlen + 4, 16)
+const _PARAM_DISPLAY_NAMES = Dict(
+    "delta" => "δ",
+    "R2" => "R₂",
+    "R1" => "R₁",
+    "kex" => "kex",
+    "pB" => "pB",
+    "pC" => "pC",
+    "koffB" => "koff,B",
+    "koffC" => "koff,C",
+    "koff" => "koff",
+    "Kd" => "Kd",
+    "R1_I0" => "I₀ (R₁)",
+    "R1_inv_factor" => "Inversion factor (R₁)",
+)
 
-    println()
-    println("═" ^ 60)
-    println("  Fit results")
-    println("═" ^ 60)
+const _SECTION_TITLES = Dict(
+    "model" => "Exchange parameters",
+    "spin" => "Spin parameters",
+    "nuisance" => "Nuisance parameters",
+)
 
-    prev_section = ""
-    for item in items
-        if item.section != prev_section
-            prev_section != "" && println("  ", "─" ^ 56)
-            prev_section = item.section
-        end
-        println("  ", rpad(item.label, w), _format_value(item.value))
+"""Collect unique magnetic field strengths from experiments."""
+function _unique_fields(experiments)
+    fields = Float64[]
+    for expt in experiments
+        expt.field_teslas ∉ fields && push!(fields, expt.field_teslas)
+    end
+    return sort!(fields)
+end
+
+"""Format a field strength for display, e.g. 22.31 → \"22.31 T\"."""
+function _format_field(field_teslas::Float64)
+    s = string(round(field_teslas; digits=2))
+    s = rstrip(rstrip(s, '0'), '.')
+    return s * " T"
+end
+
+"""
+    _pretty_label(item, state_labels, unique_fields) -> String
+
+Convert an internal parameter label like `spin.R2_22p31T[1]` to a
+human-readable label like `R₂ (A)` or `R₂ (A) [22.31 T]`.
+"""
+function _pretty_label(item::_ParamItem, state_labels::Vector{String},
+                       unique_fields::Vector{Float64})
+    # strip section prefix
+    name = item.label
+    prefix = item.section * "."
+    if startswith(name, prefix)
+        name = name[length(prefix)+1:end]
     end
 
-    println("  ", "─" ^ 56)
-    println("  ", rpad("chi2", w), round(result.chi2; digits=2))
-    println("  ", rpad("reduced chi2", w), round(result.reduced_chi2; digits=4))
-    println("  ", rpad("nobs", w), result.nobs)
-    println("  ", rpad("nparams", w), result.nparams)
-    println("  ", rpad("dof", w), result.dof)
-    println("═" ^ 60)
-    println()
+    # extract array index
+    state_idx = nothing
+    m = match(r"\[(\d+)\]$", name)
+    if m !== nothing
+        state_idx = parse(Int, m[1])
+        name = name[1:m.offset-1]
+    end
+
+    # strip field label (e.g. _22p31T)
+    show_field = length(unique_fields) > 1
+    field_val = nothing
+    for f in unique_fields
+        fl = string(field_label(f))
+        if occursin(fl, name)
+            name = replace(name, fl => "")
+            name = replace(name, "__" => "_")
+            name = strip(name, '_')
+            field_val = f
+            break
+        end
+    end
+
+    # map to display name
+    pretty = get(_PARAM_DISPLAY_NAMES, name, name)
+
+    # add state label
+    if state_idx !== nothing
+        if state_idx <= length(state_labels)
+            pretty *= " ($(state_labels[state_idx]))"
+        else
+            pretty *= " [$state_idx]"
+        end
+    end
+
+    # add field if multiple fields present
+    if show_field && field_val !== nothing
+        pretty *= " [$(_format_field(field_val))]"
+    end
+
+    return pretty
 end
 
 """Format a value for display — handles Measurement and plain numbers."""
 _format_value(v::Measurement) = string(v)
 _format_value(v::Float64) = string(v)
 _format_value(v) = string(v)
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Step 6: Display results + post-fit prompt
+# ═══════════════════════════════════════════════════════════════════════════
+
+function _print_result(result, prob::ExchangeProblem)
+    state_labels = states(prob.model)
+    fields = _unique_fields(prob.experiments)
+
+    items0 = _flatten_params_items(result.params0)
+    items_fit = _flatten_params_items(result.params)
+
+    println()
+    printstyled("═" ^ 60 * "\n"; bold=true)
+    printstyled("  Exchange 1D Fit Results\n"; bold=true)
+    printstyled("  Model: $(modelname(prob.model))\n"; bold=true)
+    printstyled("═" ^ 60 * "\n"; bold=true)
+
+    # print tables grouped by section
+    sections = unique(item.section for item in items_fit)
+    for section in sections
+        sec_items0 = filter(i -> i.section == section, items0)
+        sec_items = filter(i -> i.section == section, items_fit)
+        title = get(_SECTION_TITLES, section, section)
+
+        println()
+        printstyled("  $title\n"; bold=true, color=:cyan)
+
+        labels = [_pretty_label(item, state_labels, fields) for item in sec_items]
+        initial = [_format_value(item.value) for item in sec_items0]
+        fitted = [_format_value(item.value) for item in sec_items]
+        tdata = hcat(labels, initial, fitted)
+
+        pretty_table(tdata;
+            header=["Parameter", "Initial", "Fitted"],
+            alignment=[:l, :r, :r],
+            tf=tf_unicode_rounded,
+            crop=:none,
+            header_crayon=Crayon(bold=true),
+        )
+    end
+
+    # fit statistics
+    println()
+    printstyled("  Fit statistics\n"; bold=true, color=:cyan)
+    stats = [
+        "χ²"          string(round(result.chi2; digits=2));
+        "Reduced χ²"  string(round(result.reduced_chi2; digits=4));
+        "Observations" string(result.nobs);
+        "Parameters"   string(result.nparams);
+        "DOF"          string(result.dof)
+    ]
+    pretty_table(stats;
+        header=["Statistic", "Value"],
+        alignment=[:l, :r],
+        tf=tf_unicode_rounded,
+        crop=:none,
+        header_crayon=Crayon(bold=true),
+    )
+    println()
+end
+
+"""
+    _combined_plot(plots) -> Plot
+
+Create a combined figure from individual experiment plots, with scaled font sizes
+and figure dimensions so that the result is legible even with many experiments.
+"""
+function _combined_plot(plots)
+    n = length(plots)
+    ncols = min(n, 4)
+    nrows = ceil(Int, n / ncols)
+
+    # scale figure: each experiment column ~350px wide, each row pair ~280px tall
+    w = max(1200, ncols * 350)
+    h = max(800, nrows * 280)
+
+    plt = plot(plots...; size=(w, h))
+
+    for sp in plt.subplots
+        sp[:titlefontsize] = 8
+
+        # font sizes must be set on each axis object directly
+        for axis in (:xaxis, :yaxis)
+            sp[axis].plotattributes[:guidefontsize] = 7
+            sp[axis].plotattributes[:tickfontsize] = 6
+        end
+
+        # shorten long CEST titles:
+        # "CEST (500 Hz, 1000 ms saturation)" → "500 Hz, 1000 ms"
+        t = sp[:title]
+        if t isa AbstractString
+            m = match(r"^CEST \((.+?) saturation\)$", t)
+            m !== nothing && (sp[:title] = m[1])
+        end
+    end
+
+    return plt
+end
 
 """Prompt user after fit: save, adjust parameters, or quit."""
 function _prompt_after_fit()
@@ -350,7 +520,7 @@ function _save_results(result, prob::ExchangeProblem)
     prepare_outputfolder(outputfolder)
 
     # save combined plot
-    plt = plot(result.plots...; size=(1200, 800))
+    plt = _combined_plot(result.plots)
     savefig(plt, joinpath(outputfolder, "exchange1d_fit.pdf"))
     @info "Saved $(joinpath(outputfolder, "exchange1d_fit.pdf"))"
 
@@ -363,53 +533,67 @@ function _save_results(result, prob::ExchangeProblem)
     # save parameters as text
     paramfile = joinpath(outputfolder, "exchange1d_params.txt")
     open(paramfile, "w") do io
-        println(io, "Exchange 1D fit results")
-        println(io, "=" ^ 60)
-        println(io)
-
-        println(io, "Model: $(modelname(prob.model))")
-        println(io, "Experiments:")
-        for expt in prob.experiments
-            println(io, "  $(short_expt_path(expt)) ($(typeof(expt).name.name), $(expt.field_teslas) T)")
-        end
-        println(io)
-
-        # initial parameters
-        items0 = _flatten_params_items(result.params0)
-        maxlen = maximum(item -> length(item.label), items0)
-        items_fit = _flatten_params_items(result.params)
-        maxlen = max(maxlen, maximum(item -> length(item.label), items_fit))
-        w = max(maxlen + 4, 16)
-
-        println(io, "Initial parameters:")
-        prev_section = ""
-        for item in items0
-            if item.section != prev_section
-                prev_section != "" && println(io, "  ", "-" ^ 56)
-                prev_section = item.section
-            end
-            println(io, "  ", rpad(item.label, w), _format_value(item.value))
-        end
-
-        println(io)
-        println(io, "Fitted parameters:")
-        prev_section = ""
-        for item in items_fit
-            if item.section != prev_section
-                prev_section != "" && println(io, "  ", "-" ^ 56)
-                prev_section = item.section
-            end
-            println(io, "  ", rpad(item.label, w), _format_value(item.value))
-        end
-
-        println(io)
-        println(io, "chi2:          $(result.chi2)")
-        println(io, "reduced chi2:  $(result.reduced_chi2)")
-        println(io, "nobs:          $(result.nobs)")
-        println(io, "nparams:       $(result.nparams)")
-        println(io, "dof:           $(result.dof)")
+        _write_result(io, result, prob)
     end
     @info "Saved $paramfile"
 
     return nothing
+end
+
+"""Write fit results to an IO stream (text file) using PrettyTables."""
+function _write_result(io::IO, result, prob::ExchangeProblem)
+    state_labels = states(prob.model)
+    fields = _unique_fields(prob.experiments)
+
+    items0 = _flatten_params_items(result.params0)
+    items_fit = _flatten_params_items(result.params)
+
+    println(io, "Exchange 1D Fit Results")
+    println(io, "=" ^ 60)
+    println(io)
+    println(io, "Model: $(modelname(prob.model))")
+    println(io, "Experiments:")
+    for expt in prob.experiments
+        println(io, "  $(short_expt_path(expt))  $(typeof(expt).name.name), $(_format_field(expt.field_teslas))")
+    end
+
+    # tables grouped by section
+    sections = unique(item.section for item in items_fit)
+    for section in sections
+        sec_items0 = filter(i -> i.section == section, items0)
+        sec_items = filter(i -> i.section == section, items_fit)
+        title = get(_SECTION_TITLES, section, section)
+
+        println(io)
+        println(io, title)
+
+        labels = [_pretty_label(item, state_labels, fields) for item in sec_items]
+        initial = [_format_value(item.value) for item in sec_items0]
+        fitted = [_format_value(item.value) for item in sec_items]
+        tdata = hcat(labels, initial, fitted)
+
+        pretty_table(io, tdata;
+            header=["Parameter", "Initial", "Fitted"],
+            alignment=[:l, :r, :r],
+            tf=tf_unicode_rounded,
+            crop=:none,
+        )
+    end
+
+    # fit statistics
+    println(io)
+    println(io, "Fit statistics")
+    stats = [
+        "χ²"          string(round(result.chi2; digits=2));
+        "Reduced χ²"  string(round(result.reduced_chi2; digits=4));
+        "Observations" string(result.nobs);
+        "Parameters"   string(result.nparams);
+        "DOF"          string(result.dof)
+    ]
+    pretty_table(io, stats;
+        header=["Statistic", "Value"],
+        alignment=[:l, :r],
+        tf=tf_unicode_rounded,
+        crop=:none,
+    )
 end

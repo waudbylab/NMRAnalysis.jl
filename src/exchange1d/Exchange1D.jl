@@ -17,6 +17,7 @@ using LsqFit
 using Measurements
 using NMRTools
 using Plots
+using PrettyTables
 using REPL.TerminalMenus
 using Statistics
 
