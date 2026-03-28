@@ -13,7 +13,7 @@ using NMRAnalysis
 analyse(["data/101", "data/102", "data/103"])
 ```
 
-See [Automatic Analysis Dispatch](@ref) below for details on how `analyse()` works.
+See [The `analyse()` function](@ref) below for details on how automatic dispatch works.
 
 ### Direct launch with a directory
 
@@ -136,7 +136,7 @@ The `exchange1d()` function returns a `FitResult` with the following fields:
 | `dof` | `Int` | Degrees of freedom |
 | `prob` | `ExchangeProblem` | Reference to the fitted problem |
 
-## Automatic Analysis Dispatch
+## The `analyse()` function
 
 The `analyse()` function provides a convenient way to automatically detect and run appropriate analysis routines based on experiment metadata.
 
