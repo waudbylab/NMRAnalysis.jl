@@ -1,8 +1,7 @@
 """
     liouvillian(model, params, expt::AbstractExperiment, offset_hz, spinlock_hz)
 
-Convenience method that extracts field_teslas, bf_hz, and sample concentrations
-from the experiment.
+Form the Liouvillian matrix for a given model, parameters, and experiment.
 """
 function liouvillian(model, params, expt, spinlock_ppm, spinlock_hz)
     fl = field_label(expt)
@@ -44,7 +43,7 @@ function liouvillian(model, params, expt, spinlock_ppm, spinlock_hz)
     end
 
     # exchange: K ⊗ I₃
-    K = exchange_matrix(model, params, expt)
+    K = exchangematrix(model, params, expt)
     for i in 1:N, j in 1:N
         kij = K[i, j]
         if kij != 0
@@ -58,10 +57,9 @@ function liouvillian(model, params, expt, spinlock_ppm, spinlock_hz)
 end
 
 """
-    liouvillian(model, params, expt::AbstractExperiment, offset_hz, spinlock_hz)
+    liouvillian_inhom(model, params, expt::AbstractExperiment, offset_hz, spinlock_hz)
 
-Convenience method that extracts field_teslas, bf_hz, and sample concentrations
-from the experiment.
+Form the inhomogeneous Liouvillian matrix for a given model, parameters, and experiment.
 """
 function liouvillian_inhom(model, params, expt, spinlock_ppm, spinlock_hz)
     fl = field_label(expt)
@@ -103,7 +101,7 @@ function liouvillian_inhom(model, params, expt, spinlock_ppm, spinlock_hz)
     end
 
     # exchange: K ⊗ I₃
-    K = exchange_matrix(model, params, expt)
+    K = exchangematrix(model, params, expt)
     for i in 1:N, j in 1:N
         kij = K[j, i]
         if kij != 0

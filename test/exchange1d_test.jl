@@ -1,12 +1,12 @@
 using NMRAnalysis
 import NMRAnalysis.Exchange1D:
-    NoExchangeModel, TwoStateModel, TwoStateBindingModel,
-    R1Experiment, CESTExperiment, ExchangeProblem,
-    nstates, modelname, nmolecules,
-    exchange_matrix, populations, default_params,
-    default_spin_params, default_nuisance_params,
-    field_label, liouvillian,
-    simulate!, residuals, fit
+                               NoExchangeModel, TwoStateModel, TwoStateBindingModel,
+                               R1Experiment, CESTExperiment, ExchangeProblem,
+                               nstates, modelname, nmolecules,
+                               exchangematrix, populations, defaultparams,
+                               default_spin_params, default_nuisance_params,
+                               field_label, liouvillian,
+                               simulate!, residuals, fit
 using ComponentArrays
 using Measurements
 using LinearAlgebra
@@ -24,8 +24,8 @@ using Test
         @test nstates(model) == 1
         @test modelname(model) == "No exchange"
 
-        params = ComponentArray(; model=default_params(model))
-        K = exchange_matrix(model, params, Dict{String,Float64}())
+        params = ComponentArray(; model=defaultparams(model))
+        K = exchangematrix(model, params, Dict{String,Float64}())
         @test size(K) == (1, 1)
         @test K[1, 1] == 0.0
 
@@ -38,9 +38,8 @@ using Test
         @test nstates(model) == 2
 
         params = ComponentArray(;
-            model=ComponentArray(; kex=1000.0, pB=0.05),
-        )
-        K = exchange_matrix(model, params, Dict{String,Float64}())
+                                model=ComponentArray(; kex=1000.0, pB=0.05),)
+        K = exchangematrix(model, params, Dict{String,Float64}())
         @test size(K) == (2, 2)
 
         # column sums must be zero (conservation of magnetisation)
@@ -57,16 +56,14 @@ using Test
     end
 
     @testset "TwoStateBindingModel" begin
-        model = TwoStateBindingModel(Dict(:X => "protein", :Y => "ligand"))
+        model = TwoStateBindingModel(Dict(:A => "protein", :X => "ligand"))
         @test nstates(model) == 2
         @test nmolecules(model) == 2
 
-        params = ComponentArray(;
-            model=ComponentArray(; Kd=100.0, koff=5000.0),
-        )
+        params = ComponentArray(; model=ComponentArray(; Kd=100.0, koff=5000.0))
         conc = Dict("protein" => 100.0, "ligand" => 200.0)
 
-        K = exchange_matrix(model, params, conc)
+        K = exchangematrix(model, params, conc)
         @test size(K) == (2, 2)
         @test sum(K; dims=1) ≈ zeros(1, 2) atol = 1e-10
 
@@ -76,7 +73,7 @@ using Test
 
         # empty moleculemap should error
         model_empty = TwoStateBindingModel()
-        @test_throws ArgumentError exchange_matrix(model_empty, params, conc)
+        @test_throws ArgumentError exchangematrix(model_empty, params, conc)
     end
 
     @testset "Binding fraction" begin
@@ -99,14 +96,10 @@ using Test
 
     @testset "Liouvillian - NoExchange" begin
         model = NoExchangeModel()
-        params = ComponentArray(;
-            model=ComponentArray(),
-            spin=ComponentArray(;
-                delta=[0.0],
-                R2_14p1T=[15.0],
-                R1_14p1T=[1.5],
-            ),
-        )
+        params = ComponentArray(; model=ComponentArray(),
+                                spin=ComponentArray(; delta=[0.0],
+                                                    R2_14p1T=[15.0],
+                                                    R1_14p1T=[1.5],),)
 
         L = liouvillian(model, params, 14.1, 600e6, 0.0, 500.0, Dict{String,Float64}())
         @test size(L) == (3, 3)
@@ -124,14 +117,10 @@ using Test
     @testset "Liouvillian - TwoState" begin
         model = TwoStateModel()
         N = nstates(model)
-        params = ComponentArray(;
-            model=ComponentArray(; kex=1000.0, pB=0.05),
-            spin=ComponentArray(;
-                delta=[-62.0, -58.0],
-                R2_14p1T=[15.0, 150.0],
-                R1_14p1T=[1.5],
-            ),
-        )
+        params = ComponentArray(; model=ComponentArray(; kex=1000.0, pB=0.05),
+                                spin=ComponentArray(; delta=[-62.0, -58.0],
+                                                    R2_14p1T=[15.0, 150.0],
+                                                    R1_14p1T=[1.5],),)
 
         L = liouvillian(model, params, 14.1, 600e6, -60.0 * 600.0, 500.0,
                         Dict{String,Float64}())
@@ -154,14 +143,10 @@ using Test
     @testset "Liouvillian eigenvalues" begin
         # for no exchange, eigenvalues should be related to R1, R2
         model = NoExchangeModel()
-        params = ComponentArray(;
-            model=ComponentArray(),
-            spin=ComponentArray(;
-                delta=[0.0],
-                R2_14p1T=[15.0],
-                R1_14p1T=[1.5],
-            ),
-        )
+        params = ComponentArray(; model=ComponentArray(),
+                                spin=ComponentArray(; delta=[0.0],
+                                                    R2_14p1T=[15.0],
+                                                    R1_14p1T=[1.5],),)
 
         # on-resonance with no spin-lock: eigenvalues = -R2, -R2, -R1
         L = liouvillian(model, params, 14.1, 600e6, 0.0, 0.0, Dict{String,Float64}())
@@ -180,16 +165,11 @@ using Test
                             observed, predicted, :exponential_decay)
 
         model = NoExchangeModel()
-        params = ComponentArray(;
-            model=ComponentArray(),
-            spin=ComponentArray(;
-                R2_14p1T=[15.0],
-                R1_14p1T=[2.0],
-            ),
-            nuisance=ComponentArray(;
-                R1_14p1T_I0=1.0,
-            ),
-        )
+        params = ComponentArray(; model=ComponentArray(),
+                                spin=ComponentArray(; R2_14p1T=[15.0],
+                                                    R1_14p1T=[2.0],),
+                                nuisance=ComponentArray(;
+                                                        R1_14p1T_I0=1.0,),)
 
         simulate!(expt, model, params)
 
@@ -201,23 +181,17 @@ using Test
     @testset "R1 simulate! - inversion recovery" begin
         delays = [0.05, 0.1, 0.2, 0.5, 1.0, 2.0]
         observed = [-0.8 ± 0.02, -0.5 ± 0.02, 0.0 ± 0.02,
-                     0.5 ± 0.02, 0.8 ± 0.02, 0.95 ± 0.02]
+                    0.5 ± 0.02, 0.8 ± 0.02, 0.95 ± 0.02]
         predicted = zeros(length(delays))
         expt = R1Experiment(nothing, 14.1, Dict{String,Float64}(), delays,
                             observed, predicted, :inversion_recovery)
 
         model = NoExchangeModel()
-        params = ComponentArray(;
-            model=ComponentArray(),
-            spin=ComponentArray(;
-                R2_14p1T=[15.0],
-                R1_14p1T=[2.0],
-            ),
-            nuisance=ComponentArray(;
-                R1_14p1T_I0=1.0,
-                R1_14p1T_inv_factor=2.0,
-            ),
-        )
+        params = ComponentArray(; model=ComponentArray(),
+                                spin=ComponentArray(; R2_14p1T=[15.0],
+                                                    R1_14p1T=[2.0],),
+                                nuisance=ComponentArray(; R1_14p1T_I0=1.0,
+                                                        R1_14p1T_inv_factor=2.0,),)
 
         simulate!(expt, model, params)
 
@@ -241,14 +215,14 @@ using Test
         @test r[3] ≈ (0.3 - 0.28) / noise
     end
 
-    @testset "default_params - structure" begin
+    @testset "defaultparams - structure" begin
         expt = R1Experiment(nothing, 14.1, Dict{String,Float64}(),
                             [0.1, 0.2, 0.5],
                             [1.0 ± 0.02, 0.8 ± 0.02, 0.5 ± 0.02],
                             zeros(3), :exponential_decay)
 
         prob = ExchangeProblem([expt], TwoStateModel())
-        params = default_params(prob)
+        params = defaultparams(prob)
 
         # model section
         @test haskey(params, :model)
@@ -271,21 +245,21 @@ using Test
         @test params.nuisance[Symbol("R1_", fl, "_I0")] == 1.0
     end
 
-    @testset "default_params - inversion recovery" begin
+    @testset "defaultparams - inversion recovery" begin
         expt = R1Experiment(nothing, 14.1, Dict{String,Float64}(),
                             [0.1, 0.2, 0.5],
                             [1.0 ± 0.02, 0.8 ± 0.02, 0.5 ± 0.02],
                             zeros(3), :inversion_recovery)
 
         prob = ExchangeProblem([expt], NoExchangeModel())
-        params = default_params(prob)
+        params = defaultparams(prob)
 
         fl = field_label(14.1)
         @test params.nuisance[Symbol("R1_", fl, "_I0")] == 1.0
         @test params.nuisance[Symbol("R1_", fl, "_inv_factor")] == 2.0
     end
 
-    @testset "default_params - multiple fields" begin
+    @testset "defaultparams - multiple fields" begin
         expt1 = R1Experiment(nothing, 14.1, Dict{String,Float64}(),
                              [0.1], [1.0 ± 0.02], zeros(1),
                              :exponential_decay)
@@ -294,7 +268,7 @@ using Test
                              :exponential_decay)
 
         prob = ExchangeProblem([expt1, expt2], TwoStateModel())
-        params = default_params(prob)
+        params = defaultparams(prob)
 
         fl1 = field_label(14.1)
         fl2 = field_label(18.79)
@@ -322,16 +296,11 @@ using Test
 
         prob = ExchangeProblem([expt], NoExchangeModel())
 
-        params = ComponentArray(;
-            model=ComponentArray(),
-            spin=ComponentArray(;
-                R2_14p1T=[15.0],
-                R1_14p1T=[R1_true],
-            ),
-            nuisance=ComponentArray(;
-                R1_14p1T_I0=I0_true,
-            ),
-        )
+        params = ComponentArray(; model=ComponentArray(),
+                                spin=ComponentArray(; R2_14p1T=[15.0],
+                                                    R1_14p1T=[R1_true],),
+                                nuisance=ComponentArray(;
+                                                        R1_14p1T_I0=I0_true,),)
 
         # simulate should fill predicted_intensities
         simulate!(prob, params)

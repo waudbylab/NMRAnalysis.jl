@@ -38,7 +38,7 @@ function exchange1d(filenames::Vector{String})
     _prompt_integration!(prob)
 
     # ── 5. Parameters + fit loop ────────────────────────────────────────
-    p0 = default_params(prob)
+    p0 = defaultparams(prob)
     while true
         p0 = _prompt_params(p0, prob)
         p0 === nothing && return nothing
@@ -159,21 +159,22 @@ function _prompt_integration!(prob::ExchangeProblem)
     @info "Spectral range: $ppm_min to $ppm_max ppm"
 
     peakppm = _prompt_value("Peak position in ppm", default_peak) do v
-        ppm_min ≤ v ≤ ppm_max || error("Peak position $v ppm is outside spectral range ($ppm_min to $ppm_max)")
+        return ppm_min ≤ v ≤ ppm_max ||
+            error("Peak position $v ppm is outside spectral range ($ppm_min to $ppm_max)")
     end
 
     ppmwidth = _prompt_value("Integration width in ppm", 0.1) do v
-        v > 0 || error("Width must be positive")
+        return v > 0 || error("Width must be positive")
     end
 
     noiseppm = _prompt_value("Noise position in ppm", nothing) do v
         lo, hi = v - ppmwidth / 2, v + ppmwidth / 2
-        ppm_min ≤ lo && hi ≤ ppm_max ||
+        return ppm_min ≤ lo && hi ≤ ppm_max ||
             error("Noise region $lo..$hi ppm is outside spectral range ($ppm_min to $ppm_max)")
     end
 
     @info "Integrating: peak=$peakppm ppm, noise=$noiseppm ppm, width=$ppmwidth ppm"
-    integrate!(prob, peakppm, noiseppm, ppmwidth)
+    return integrate!(prob, peakppm, noiseppm, ppmwidth)
 end
 
 """Prompt for a Float64 value with optional default and validation. Retries on error."""
@@ -296,26 +297,22 @@ end
 # Pretty parameter labels
 # ═══════════════════════════════════════════════════════════════════════════
 
-const _PARAM_DISPLAY_NAMES = Dict(
-    "delta" => "δ",
-    "R2" => "R₂",
-    "R1" => "R₁",
-    "kex" => "kex",
-    "pB" => "pB",
-    "pC" => "pC",
-    "koffB" => "koff,B",
-    "koffC" => "koff,C",
-    "koff" => "koff",
-    "Kd" => "Kd",
-    "R1_I0" => "I₀ (R₁)",
-    "R1_inv_factor" => "Inversion factor (R₁)",
-)
+const _PARAM_DISPLAY_NAMES = Dict("delta" => "δ",
+                                  "R2" => "R₂",
+                                  "R1" => "R₁",
+                                  "kex" => "kex",
+                                  "pB" => "pB",
+                                  "pC" => "pC",
+                                  "koffB" => "koff,B",
+                                  "koffC" => "koff,C",
+                                  "koff" => "koff",
+                                  "Kd" => "Kd",
+                                  "R1_I0" => "I₀ (R₁)",
+                                  "R1_inv_factor" => "Inversion factor (R₁)")
 
-const _SECTION_TITLES = Dict(
-    "model" => "Exchange parameters",
-    "spin" => "Spin parameters",
-    "nuisance" => "Nuisance parameters",
-)
+const _SECTION_TITLES = Dict("model" => "Exchange parameters",
+                             "spin" => "Spin parameters",
+                             "nuisance" => "Nuisance parameters")
 
 """Collect unique magnetic field strengths from experiments."""
 function _unique_fields(experiments)
@@ -345,7 +342,7 @@ function _pretty_label(item::_ParamItem, state_labels::Vector{String},
     name = item.label
     prefix = item.section * "."
     if startswith(name, prefix)
-        name = name[length(prefix)+1:end]
+        name = name[(length(prefix) + 1):end]
     end
 
     # extract array index
@@ -353,7 +350,7 @@ function _pretty_label(item::_ParamItem, state_labels::Vector{String},
     m = match(r"\[(\d+)\]$", name)
     if m !== nothing
         state_idx = parse(Int, m[1])
-        name = name[1:m.offset-1]
+        name = name[1:(m.offset - 1)]
     end
 
     # strip field label (e.g. _22p31T)
@@ -407,10 +404,10 @@ function _print_result(result, prob::ExchangeProblem)
     items_fit = _flatten_params_items(result.params)
 
     println()
-    printstyled("═" ^ 60 * "\n"; bold=true)
+    printstyled("═"^60 * "\n"; bold=true)
     printstyled("  Exchange 1D Fit Results\n"; bold=true)
     printstyled("  Model: $(modelname(prob.model))\n"; bold=true)
-    printstyled("═" ^ 60 * "\n"; bold=true)
+    printstyled("═"^60 * "\n"; bold=true)
 
     # print tables grouped by section
     sections = unique(item.section for item in items_fit)
@@ -428,32 +425,28 @@ function _print_result(result, prob::ExchangeProblem)
         tdata = hcat(labels, initial, fitted)
 
         pretty_table(tdata;
-            header=["Parameter", "Initial", "Fitted"],
-            alignment=[:l, :r, :r],
-            tf=tf_unicode_rounded,
-            crop=:none,
-            header_crayon=Crayon(bold=true),
-        )
+                     header=["Parameter", "Initial", "Fitted"],
+                     alignment=[:l, :r, :r],
+                     tf=tf_unicode_rounded,
+                     crop=:none,
+                     header_crayon=Crayon(; bold=true),)
     end
 
     # fit statistics
     println()
     printstyled("  Fit statistics\n"; bold=true, color=:cyan)
-    stats = [
-        "χ²"          string(round(result.chi2; digits=2));
-        "Reduced χ²"  string(round(result.reduced_chi2; digits=4));
-        "Observations" string(result.nobs);
-        "Parameters"   string(result.nparams);
-        "DOF"          string(result.dof)
-    ]
+    stats = ["χ²" string(round(result.chi2; digits=2));
+             "Reduced χ²" string(round(result.reduced_chi2; digits=4));
+             "Observations" string(result.nobs);
+             "Parameters" string(result.nparams);
+             "DOF" string(result.dof)]
     pretty_table(stats;
-        header=["Statistic", "Value"],
-        alignment=[:l, :r],
-        tf=tf_unicode_rounded,
-        crop=:none,
-        header_crayon=Crayon(bold=true),
-    )
-    println()
+                 header=["Statistic", "Value"],
+                 alignment=[:l, :r],
+                 tf=tf_unicode_rounded,
+                 crop=:none,
+                 header_crayon=Crayon(; bold=true),)
+    return println()
 end
 
 """
@@ -533,7 +526,7 @@ function _save_results(result, prob::ExchangeProblem)
     # save parameters as text
     paramfile = joinpath(outputfolder, "exchange1d_params.txt")
     open(paramfile, "w") do io
-        _write_result(io, result, prob)
+        return _write_result(io, result, prob)
     end
     @info "Saved $paramfile"
 
@@ -549,12 +542,13 @@ function _write_result(io::IO, result, prob::ExchangeProblem)
     items_fit = _flatten_params_items(result.params)
 
     println(io, "Exchange 1D Fit Results")
-    println(io, "=" ^ 60)
+    println(io, "="^60)
     println(io)
     println(io, "Model: $(modelname(prob.model))")
     println(io, "Experiments:")
     for expt in prob.experiments
-        println(io, "  $(short_expt_path(expt))  $(typeof(expt).name.name), $(_format_field(expt.field_teslas))")
+        println(io,
+                "  $(short_expt_path(expt))  $(typeof(expt).name.name), $(_format_field(expt.field_teslas))")
     end
 
     # tables grouped by section
@@ -573,27 +567,23 @@ function _write_result(io::IO, result, prob::ExchangeProblem)
         tdata = hcat(labels, initial, fitted)
 
         pretty_table(io, tdata;
-            header=["Parameter", "Initial", "Fitted"],
-            alignment=[:l, :r, :r],
-            tf=tf_unicode_rounded,
-            crop=:none,
-        )
+                     header=["Parameter", "Initial", "Fitted"],
+                     alignment=[:l, :r, :r],
+                     tf=tf_unicode_rounded,
+                     crop=:none,)
     end
 
     # fit statistics
     println(io)
     println(io, "Fit statistics")
-    stats = [
-        "χ²"          string(round(result.chi2; digits=2));
-        "Reduced χ²"  string(round(result.reduced_chi2; digits=4));
-        "Observations" string(result.nobs);
-        "Parameters"   string(result.nparams);
-        "DOF"          string(result.dof)
-    ]
-    pretty_table(io, stats;
-        header=["Statistic", "Value"],
-        alignment=[:l, :r],
-        tf=tf_unicode_rounded,
-        crop=:none,
-    )
+    stats = ["χ²" string(round(result.chi2; digits=2));
+             "Reduced χ²" string(round(result.reduced_chi2; digits=4));
+             "Observations" string(result.nobs);
+             "Parameters" string(result.nparams);
+             "DOF" string(result.dof)]
+    return pretty_table(io, stats;
+                        header=["Statistic", "Value"],
+                        alignment=[:l, :r],
+                        tf=tf_unicode_rounded,
+                        crop=:none,)
 end

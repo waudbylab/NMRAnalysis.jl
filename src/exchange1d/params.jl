@@ -1,5 +1,5 @@
 """
-    default_params(prob::ExchangeProblem) -> ComponentArray
+    defaultparams(prob::ExchangeProblem) -> ComponentArray
 
 Assemble a default parameter ComponentArray from the model and experiments.
 
@@ -13,17 +13,17 @@ The returned ComponentArray has three sections:
 - `spin`: chemical shifts (delta, ppm) and field-dependent relaxation rates
 - `nuisance`: per-experiment amplitude and fitting parameters
 """
-function default_params(prob::ExchangeProblem)
+function defaultparams(prob::ExchangeProblem)
     N = nstates(prob.model)
 
     spin_pairs = _collect_pairs(expt -> default_spin_params(expt, N), prob.experiments)
     nuisance_pairs = _collect_pairs(default_nuisance_params, prob.experiments)
 
     return ComponentArray(;
-        model=default_params(prob.model),
-        spin=ComponentArray(; spin_pairs...),
-        nuisance=isempty(nuisance_pairs) ? ComponentArray() : ComponentArray(; nuisance_pairs...),
-    )
+                          model=defaultparams(prob.model),
+                          spin=ComponentArray(; spin_pairs...),
+                          nuisance=isempty(nuisance_pairs) ? ComponentArray() :
+                                   ComponentArray(; nuisance_pairs...),)
 end
 
 """Collect pairs from all experiments, keeping the first occurrence of each key."""

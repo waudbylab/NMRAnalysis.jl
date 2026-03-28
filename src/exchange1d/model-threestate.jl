@@ -5,12 +5,12 @@ modelname(::ThreeStateModel) = "Three-state exchange"
 nstates(::ThreeStateModel) = 3
 states(::ThreeStateModel) = ["A", "B", "C"]
 nmolecules(::ThreeStateModel) = 1
-molecules(::ThreeStateModel) = Dict(:X => "observed")
-function default_params(::ThreeStateModel)
+molecules(::ThreeStateModel) = Dict(:A => "observed")
+function defaultparams(::ThreeStateModel)
     return ComponentArray(; koffB=1000.0, pB=0.02, koffC=500.0, pC=0.01)
 end
 
-function exchange_matrix(::ThreeStateModel, params, expt)
+function exchangematrix(::ThreeStateModel, params, expt)
     pB = params.model.pB
     pC = params.model.pC
     pA = 1 - pB - pC
