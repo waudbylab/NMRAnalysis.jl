@@ -12,6 +12,7 @@ used in biomolecular NMR:
 - 1D diffusion (`diffusion()`)
 - 1D TRACT (`tract()`)
 - 1D 19F R1rho relaxation dispersion (`r1rho()`)
+- 1D chemical exchange analysis via CEST and R1 (`exchange1d()`)
 - 2D relaxation measurements (T1, T2) (`relaxation2d(experimentfiles, relaxationtimes)`)
 - Heteronuclear NOE (`hetnoe2d(planefilenames, saturation)`)
 
