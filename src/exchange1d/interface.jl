@@ -45,12 +45,14 @@ function exchange1d(filenames::Vector{String})
 
         @info "Fitting..."
         result = fit(prob, p0)
-        _print_result(result, prob)
-        display(_combined_plot(result.plots))
+        display(result)
+
+        plots = plot(result)
+        display(combineplots(plots))
 
         action = _prompt_after_fit()
         if action == :save
-            _save_results(result, prob)
+            _save_results(result)
             return result
         elseif action == :adjust
             continue  # loop back to edit p0 (the initial parameters)
@@ -393,69 +395,16 @@ _format_value(v::Float64) = string(v)
 _format_value(v) = string(v)
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Step 6: Display results + post-fit prompt
+# Step 6: Plotting + post-fit prompt
 # ═══════════════════════════════════════════════════════════════════════════
 
-function _print_result(result, prob::ExchangeProblem)
-    state_labels = states(prob.model)
-    fields = _unique_fields(prob.experiments)
-
-    items0 = _flatten_params_items(result.params0)
-    items_fit = _flatten_params_items(result.params)
-
-    println()
-    printstyled("═"^60 * "\n"; bold=true)
-    printstyled("  Exchange 1D Fit Results\n"; bold=true)
-    printstyled("  Model: $(modelname(prob.model))\n"; bold=true)
-    printstyled("═"^60 * "\n"; bold=true)
-
-    # print tables grouped by section
-    sections = unique(item.section for item in items_fit)
-    for section in sections
-        sec_items0 = filter(i -> i.section == section, items0)
-        sec_items = filter(i -> i.section == section, items_fit)
-        title = get(_SECTION_TITLES, section, section)
-
-        println()
-        printstyled("  $title\n"; bold=true, color=:cyan)
-
-        labels = [_pretty_label(item, state_labels, fields) for item in sec_items]
-        initial = [_format_value(item.value) for item in sec_items0]
-        fitted = [_format_value(item.value) for item in sec_items]
-        tdata = hcat(labels, initial, fitted)
-
-        pretty_table(tdata;
-                     header=["Parameter", "Initial", "Fitted"],
-                     alignment=[:l, :r, :r],
-                     tf=tf_unicode_rounded,
-                     crop=:none,
-                     header_crayon=Crayon(; bold=true),)
-    end
-
-    # fit statistics
-    println()
-    printstyled("  Fit statistics\n"; bold=true, color=:cyan)
-    stats = ["χ²" string(round(result.chi2; digits=2));
-             "Reduced χ²" string(round(result.reduced_chi2; digits=4));
-             "Observations" string(result.nobs);
-             "Parameters" string(result.nparams);
-             "DOF" string(result.dof)]
-    pretty_table(stats;
-                 header=["Statistic", "Value"],
-                 alignment=[:l, :r],
-                 tf=tf_unicode_rounded,
-                 crop=:none,
-                 header_crayon=Crayon(; bold=true),)
-    return println()
-end
-
 """
-    _combined_plot(plots) -> Plot
+    combineplots(plots) -> Plot
 
 Create a combined figure from individual experiment plots, with scaled font sizes
 and figure dimensions so that the result is legible even with many experiments.
 """
-function _combined_plot(plots)
+function combineplots(plots)
     n = length(plots)
     ncols = min(n, 4)
     nrows = ceil(Int, n / ncols)
@@ -504,7 +453,7 @@ end
 # Step 7: Save results
 # ═══════════════════════════════════════════════════════════════════════════
 
-function _save_results(result, prob::ExchangeProblem)
+function _save_results(result::FitResult)
     print("Save results to folder: ")
     input = strip(readline())
     isempty(input) && return nothing
@@ -512,13 +461,13 @@ function _save_results(result, prob::ExchangeProblem)
     outputfolder = input
     prepare_outputfolder(outputfolder)
 
-    # save combined plot
-    plt = _combined_plot(result.plots)
+    # save plots
+    plots = plot(result)
+    plt = combineplots(plots)
     savefig(plt, joinpath(outputfolder, "exchange1d_fit.pdf"))
     @info "Saved $(joinpath(outputfolder, "exchange1d_fit.pdf"))"
 
-    # save individual experiment plots
-    for (i, p) in enumerate(result.plots)
+    for (i, p) in enumerate(plots)
         savefig(p, joinpath(outputfolder, "exchange1d_expt_$i.pdf"))
         @info "Saved $(joinpath(outputfolder, "exchange1d_expt_$i.pdf"))"
     end
@@ -526,64 +475,9 @@ function _save_results(result, prob::ExchangeProblem)
     # save parameters as text
     paramfile = joinpath(outputfolder, "exchange1d_params.txt")
     open(paramfile, "w") do io
-        return _write_result(io, result, prob)
+        return show(io, MIME("text/plain"), result)
     end
     @info "Saved $paramfile"
 
     return nothing
-end
-
-"""Write fit results to an IO stream (text file) using PrettyTables."""
-function _write_result(io::IO, result, prob::ExchangeProblem)
-    state_labels = states(prob.model)
-    fields = _unique_fields(prob.experiments)
-
-    items0 = _flatten_params_items(result.params0)
-    items_fit = _flatten_params_items(result.params)
-
-    println(io, "Exchange 1D Fit Results")
-    println(io, "="^60)
-    println(io)
-    println(io, "Model: $(modelname(prob.model))")
-    println(io, "Experiments:")
-    for expt in prob.experiments
-        println(io,
-                "  $(short_expt_path(expt))  $(typeof(expt).name.name), $(_format_field(expt.field_teslas))")
-    end
-
-    # tables grouped by section
-    sections = unique(item.section for item in items_fit)
-    for section in sections
-        sec_items0 = filter(i -> i.section == section, items0)
-        sec_items = filter(i -> i.section == section, items_fit)
-        title = get(_SECTION_TITLES, section, section)
-
-        println(io)
-        println(io, title)
-
-        labels = [_pretty_label(item, state_labels, fields) for item in sec_items]
-        initial = [_format_value(item.value) for item in sec_items0]
-        fitted = [_format_value(item.value) for item in sec_items]
-        tdata = hcat(labels, initial, fitted)
-
-        pretty_table(io, tdata;
-                     header=["Parameter", "Initial", "Fitted"],
-                     alignment=[:l, :r, :r],
-                     tf=tf_unicode_rounded,
-                     crop=:none,)
-    end
-
-    # fit statistics
-    println(io)
-    println(io, "Fit statistics")
-    stats = ["χ²" string(round(result.chi2; digits=2));
-             "Reduced χ²" string(round(result.reduced_chi2; digits=4));
-             "Observations" string(result.nobs);
-             "Parameters" string(result.nparams);
-             "DOF" string(result.dof)]
-    return pretty_table(io, stats;
-                        header=["Statistic", "Value"],
-                        alignment=[:l, :r],
-                        tf=tf_unicode_rounded,
-                        crop=:none,)
 end

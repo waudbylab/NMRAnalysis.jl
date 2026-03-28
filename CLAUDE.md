@@ -92,3 +92,8 @@ function_name(filenames::Vector{String}; options...)
 - Extensive validation of input parameters
 - Graceful handling of file selection cancellation
 - Informative error messages for common issues
+
+### Naming Conventions
+- Follow the Julia style guide: function names should be lowercase without underscores (e.g. `plot(results)`, not `plot_result(results)`)
+- Do NOT prefix private/internal functions with `_`. Just use unexported names.
+- Avoid underscores in function names entirely — use concatenated lowercase words (e.g. `combineplots`, `defaultparams`, `formatvalue`)

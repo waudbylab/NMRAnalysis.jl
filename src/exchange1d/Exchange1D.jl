@@ -36,6 +36,7 @@ include("liouvillian.jl")
 include("params.jl")
 include("problem.jl")
 include("interface.jl")
+include("results.jl")
 
 # Registration with analysis system
 function __init__()

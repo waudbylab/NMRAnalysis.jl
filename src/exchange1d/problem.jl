@@ -45,19 +45,12 @@ function residuals(prob::ExchangeProblem, params::ComponentArray)
 end
 
 """
-    fit(prob::ExchangeProblem, params0::ComponentArray) -> NamedTuple
+    fit(prob::ExchangeProblem, params0::ComponentArray) -> FitResult
 
 Fit all experiments jointly using least-squares optimisation.
 
-Returns a NamedTuple with:
-- `params`: fitted parameters with uncertainties (ComponentArray{Measurement})
-- `params_value`: fitted parameters without uncertainties (ComponentArray{Float64}), for plotting
-- `chi2`: chi-squared statistic
-- `reduced_chi2`: chi-squared / degrees of freedom
-- `covariance`: parameter covariance matrix
-- `nobs`: number of observations
-- `nparams`: number of fitted parameters
-- `dof`: degrees of freedom
+Returns a `FitResult` containing fitted parameters (with uncertainties),
+fit statistics, and a reference to the problem for display and plotting.
 """
 function fit(prob::ExchangeProblem, params0::ComponentArray)
     p0 = collect(params0)
@@ -84,7 +77,7 @@ function fit(prob::ExchangeProblem, params0::ComponentArray)
     pfit = ComponentArray(result.param, ax)
     covar = try
         vcov(result)
-    catch eachcol
+    catch e
         @error "Failed to compute covariance matrix"
         zeros(length(p0), length(p0))
     end
@@ -97,16 +90,9 @@ function fit(prob::ExchangeProblem, params0::ComponentArray)
     n_params = length(p0)
     dof = n_obs - n_params
 
-    return (params=pfit_uncertain,
-            params_value=pfit,
-            params0=ComponentArray(copy(p0), ax),
-            chi2=chi2,
-            reduced_chi2=chi2 / dof,
-            cov=covar,
-            nobs=n_obs,
-            nparams=n_params,
-            dof=dof,
-            plots=plot_result(prob, (params=pfit_uncertain, params_value=pfit)))
+    return FitResult(pfit_uncertain, pfit, ComponentArray(copy(p0), ax),
+                     chi2, chi2 / dof, covar,
+                     n_obs, n_params, dof, prob)
 end
 
 """
