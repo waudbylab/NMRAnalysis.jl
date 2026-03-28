@@ -82,7 +82,12 @@ function fit(prob::ExchangeProblem, params0::ComponentArray)
 
     # reconstruct as ComponentArrays
     pfit = ComponentArray(result.param, ax)
-    covar = vcov(result)
+    covar = try
+        vcov(result)
+    catch eachcol
+        @error "Failed to compute covariance matrix"
+        zeros(length(p0), length(p0))
+    end
     pfit_uncertain = ComponentArray(Measurements.correlated_values(result.param, covar), ax)
 
     # chi2 from weighted residuals

@@ -68,8 +68,7 @@ end
 """
     default_spin_params(expt::R1Experiment, nstates) -> Vector{Pair{Symbol,Any}}
 
-Return spin parameter entries needed by this R1 experiment: R1 (shared, length-1)
-and R2 (per-state) for the experiment's field.
+Return spin parameter entries needed by this R1 experiment: R1 (shared, length=1)
 """
 function default_spin_params(expt::R1Experiment, nstates)
     fl = field_label(expt)

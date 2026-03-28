@@ -18,9 +18,9 @@ function exchangematrix(::ThreeStateModel, params, expt)
     koffC = params.model.koffC
     konB = koffB * pB / pA
     konC = koffC * pC / pA
-    return [-konB-konC konB konC;
-            koffB -koffB 0.0;
-            koffC 0.0 -koffC]
+    return [-konB-konC koffB koffC;
+            konB -koffB 0.0;
+            konC 0.0 -koffC]
 end
 
 function populations(::ThreeStateModel, params, expt)
