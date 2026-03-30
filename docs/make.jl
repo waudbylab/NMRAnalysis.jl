@@ -30,6 +30,13 @@ makedocs(;
          authors="Chris Waudby",
          warnonly=[:missing_docs],)
 
-deploydocs(;
-           repo="github.com/waudbygroup/NMRAnalysis.jl.git",
-           devbranch="main",)
+# detect branch in make.jl
+if get(ENV, "GITHUB_REF", "") == "refs/heads/new-exchange"
+    devurl = "new-exchange"
+else
+    devurl = "dev"
+end
+
+deploydocs(; repo="github.com/waudbygroup/NMRAnalysis.jl.git",
+           devbranch="main",
+           devurl=devurl)
