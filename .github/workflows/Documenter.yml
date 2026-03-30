@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - new-exchange
     tags: '*'
   pull_request:
 jobs:
