@@ -1,6 +1,7 @@
 function componentnames(spec::NMRData)
     components = sample(spec, :sample, :components)
-    return [component["name"] for component in components]
+    isnothing(components) && return String[]
+    return [component["name"] for component in components if haskey(component, "name")]
 end
 componentnames(expt::AbstractExperiment) = componentnames(expt.spec)
 
@@ -11,8 +12,19 @@ Extract a Dict mapping molecule names to concentrations from the NMR sample meta
 """
 function sampleconcentrations(spec::NMRData)
     components = sample(spec, :sample, :components)
-    return Dict(component["name"] => component["concentration_or_amount"]
-                for component in components)
+    isnothing(components) && return Dict{String,Float64}()
+    result = Dict{String,Float64}()
+    for component in components
+        name = get(component, "name", nothing)
+        conc = get(component, "concentration_or_amount", nothing)
+        isnothing(name) && continue
+        if isnothing(conc)
+            @warn "Component \"$name\" has no concentration_or_amount defined — skipping"
+            continue
+        end
+        result[name] = conc
+    end
+    return result
 end
 sampleconcentrations(expt::AbstractExperiment) = sampleconcentrations(expt.spec)
 
