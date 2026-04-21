@@ -111,4 +111,4 @@ diffusion("/Users/chris/NMR/project_data/106")
 ## Getting Help
 
 - Use the built-in help system with `?function_name`
-- Please report any problems or suggestions at [https://github.com/waudbygroup/NMRAnalysis.jl/issues](https://github.com/waudbygroup/NMRAnalysis.jl/issues)
+- Please report any problems or suggestions at [https://github.com/waudbylab/NMRAnalysis.jl/issues](https://github.com/waudbylab/NMRAnalysis.jl/issues)

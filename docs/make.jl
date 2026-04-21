@@ -28,5 +28,5 @@ makedocs(;
          warnonly=[:missing_docs],)
 
 deploydocs(;
-           repo="github.com/waudbygroup/NMRAnalysis.jl.git",
+           repo="github.com/waudbylab/NMRAnalysis.jl.git",
            devbranch="main",)
