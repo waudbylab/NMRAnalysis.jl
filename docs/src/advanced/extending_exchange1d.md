@@ -202,31 +202,59 @@ end
 
 New experiment types require implementing several dispatch methods and updating the experiment classifier.
 
+### Overview of required functions
+
+Every experiment type must implement these functions:
+
+| Function | Purpose |
+|----------|---------|
+| `YourExperiment(filename)` | Constructor: load NMR data and initialise the experiment |
+| `default_spin_params(expt, nstates)` | Declare spin system parameters needed (chemical shifts, relaxation rates) |
+| `default_nuisance_params(expt)` | Declare per-experiment fitting parameters (e.g. amplitude scaling) |
+| `integrate!(expt, peakppm, noiseppm, ppmwidth)` | Extract observables from spectrum data |
+| `simulate!(expt, model, params)` | Compute predicted observables from model parameters |
+| `plot_result(expt, fit_result)` | Create diagnostic plots of data vs fit |
+
+Additionally, if your experiment uses the conventional field names, generic accessor functions will work automatically. Otherwise you may need to override:
+
+| Accessor | Default implementation | Override if... |
+|----------|------------------------|----------------|
+| `field_teslas(expt)` | `expt.field_teslas` | field is stored differently |
+| `sampleconcentrations(expt)` | `expt.sampleconcentrations` | concentrations stored differently |
+| `residuals(expt)` | compares `expt.observed` vs `expt.predicted` | using different field names |
+
 ### Step 1: Create the experiment file
 
 Create a new file `src/exchange1d/expt-yourtype.jl`.
 
 ### Step 2: Define the struct
 
-All experiment types must include these fields:
+Your experiment struct must be a subtype of `AbstractExperiment`. The internal structure is up to you, but following these conventions allows generic accessor functions to work without overrides:
 
 ```julia
 struct YourExperiment <: AbstractExperiment
-    spec::Any                                    # NMRData object
+    # Conventional fields (generic accessors exist for these):
+    spec::Any                                     # NMRData object
     field_teslas::Float64                         # Magnetic field strength
     sampleconcentrations::Dict{String,Float64}    # Molecule concentrations
-    # Experiment-specific fields:
-    your_variable::Vector{Float64}                # e.g. delays, offsets
-    observed_intensities::Vector{Measurement{Float64}}
-    predicted_intensities::Vector{Float64}
+    observed::Vector{Measurement{Float64}}        # Observables with uncertainties
+    predicted::Vector{Float64}                    # Model predictions
+
+    # Experiment-specific fields (structure is up to you):
+    offsets::Vector{Float64}                      # e.g. saturation offsets for CEST
+    spinlock_powers::Vector{Float64}              # e.g. for R1ρ dispersion
+    # ... whatever your experiment needs
 end
 ```
+
+!!! note
+    The `observed` and `predicted` fields store whatever quantities are compared during fitting. For direct intensity experiments (e.g. CEST), these are normalised intensities. For relaxation dispersion experiments (e.g. R1ρ), these might be fitted relaxation rates extracted from intensity decays at each spinlock power.
 
 ### Step 3: Implement required functions
 
 #### Constructor from filename
 
-Load and validate the NMR data, extract metadata from annotations:
+Load and validate the NMR data, extract metadata from annotations, and initialise any experiment-specific fields:
 
 ```julia
 function YourExperiment(filename)
@@ -239,14 +267,17 @@ function YourExperiment(filename)
                    gyromagneticratio(metadata(spec, 1, :nucleus))
     field_teslas = round(field_teslas; digits=2)
 
-    # Validate and extract experiment-specific data from annotations
-    your_variable = annotations(spec, :your_type, :your_key)
+    # Extract experiment-specific data from annotations
+    # (the structure here depends entirely on your experiment type)
+    offsets = annotations(spec, :cest, :offsets)
 
-    observed_intensities = [0.0 ± 0.0 for _ in your_variable]
-    predicted_intensities = zeros(Float64, length(your_variable))
+    # Initialise observed/predicted arrays
+    npoints = length(offsets)
+    observed = [0.0 ± 0.0 for _ in 1:npoints]
+    predicted = zeros(Float64, npoints)
 
     return YourExperiment(spec, field_teslas, sampleconcentrations(spec),
-                          your_variable, observed_intensities, predicted_intensities)
+                          observed, predicted, offsets)
 end
 ```
 
@@ -279,7 +310,7 @@ end
 
 #### `integrate!(expt::YourExperiment, peakppm, noiseppm, ppmwidth)`
 
-Extract peak and noise integrals from the spectrum, updating `observed_intensities` with `Measurement` values (value ± uncertainty):
+Extract observables from the spectrum data, updating `observed` with `Measurement` values (value ± uncertainty). The exact processing depends on the experiment type:
 
 ```julia
 function integrate!(expt::YourExperiment, peakppm, noiseppm, ppmwidth)
@@ -298,13 +329,16 @@ function integrate!(expt::YourExperiment, peakppm, noiseppm, ppmwidth)
     noise /= scale
     integrals /= scale
 
-    return expt.observed_intensities .= integrals .± noise
+    return expt.observed .= integrals .± noise
 end
 ```
 
+!!! tip
+    For direct intensity experiments (CEST, R1 calibration), `integrate!` extracts normalised intensities. For relaxation dispersion experiments (R1ρ, CPMG), you may need additional processing — for example, fitting exponential decays to intensity series at each spinlock power to extract observed relaxation rates. In such cases, `integrate!` would perform both the integration and the per-condition fitting to populate `observed` with rates rather than raw intensities.
+
 #### `simulate!(expt::YourExperiment, model::AbstractModel, params::ComponentArray)`
 
-Compute predicted intensities from the model and parameters. Update `predicted_intensities` in-place:
+Compute predicted observables from the model and parameters. Update `predicted` in-place to match the format of `observed`:
 
 ```julia
 function simulate!(expt::YourExperiment, model::AbstractModel, params::ComponentArray)
@@ -318,25 +352,28 @@ function simulate!(expt::YourExperiment, model::AbstractModel, params::Component
     for i in eachindex(expt.your_variable)
         L = liouvillian(model, params, expt, offset, rf_field)
         # ... propagate and extract observable ...
-        expt.predicted_intensities[i] = result
+        expt.predicted[i] = result
     end
 
     return nothing
 end
 ```
 
+!!! note
+    The `predicted` values must be in the same units as `observed`. For intensity-based experiments, simulate the expected intensity profile. For rate-based experiments like R1ρ dispersion, compute the predicted relaxation rates (e.g. from analytical expressions or Liouvillian eigenvalue analysis) that will be compared against the experimentally determined rates.
+
 #### `plot_result(expt::YourExperiment, fit_result; kwargs...)`
 
-Create a diagnostic plot showing observed data, fitted curve, and residuals:
+Create a diagnostic plot showing observed data, fitted values, and residuals:
 
 ```julia
 function plot_result(expt::YourExperiment, fit_result; kwargs...)
     x = expt.your_variable
-    yobs = expt.observed_intensities
-    ypred = expt.predicted_intensities
+    yobs = expt.observed
+    ypred = expt.predicted
 
     # Upper panel: data + fit
-    p1 = scatter(x, yobs; ylabel="Intensity", kwargs...)
+    p1 = scatter(x, yobs; ylabel="Observable", kwargs...)
     plot!(p1, x, ypred)
 
     # Lower panel: weighted residuals
@@ -346,6 +383,9 @@ function plot_result(expt::YourExperiment, fit_result; kwargs...)
     return plot(p1, p2; layout=grid(2, 1; heights=[0.75, 0.25]))
 end
 ```
+
+!!! tip
+    Choose axis labels appropriate to your experiment type. For CEST, the y-axis might be "Intensity" vs saturation offset. For R1ρ dispersion, it would be "R₁ρ (s⁻¹)" vs spinlock power or effective field.
 
 ### Step 4: Include the file
 
