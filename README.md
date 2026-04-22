@@ -5,6 +5,8 @@
 [![CI](https://github.com/waudbylab/NMRAnalysis.jl/actions/workflows/Runtests.yml/badge.svg)](https://github.com/waudbylab/NMRAnalysis.jl/actions/workflows/Runtests.yml)
 [![DOI](https://zenodo.org/badge/665599660.svg)](https://doi.org/10.5281/zenodo.15667046)
 
+![NMRAnalysis logo](logo.png)
+
 NMRAnalysis.jl is a library for analysis of NMR experiments. This includes 1D experiments:
 - diffusion
 - relaxation
