@@ -1,6 +1,6 @@
 name = "NMRAnalysis"
 uuid = "e8f11e50-668f-4bdf-b40b-95f76662da30"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Chris Waudby", "Sophia Hazlett"]
 
 [deps]
@@ -34,7 +34,7 @@ LinearAlgebra = "1"
 LsqFit = "0.15"
 Measurements = "2"
 MonteCarloMeasurements = "1"
-NMRTools = "0.2.5"
+NMRTools = "0.2.11"
 NativeFileDialog = "0.2.1"
 OrderedCollections = "1"
 Plots = "1.40"
