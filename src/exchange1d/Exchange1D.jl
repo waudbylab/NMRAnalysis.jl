@@ -45,11 +45,15 @@ function __init__()
                              cest = filter(e -> "cest" in e.types, oneD)
                              r1cal = filter(e -> "relaxation" in e.types &&
                                                 "R1" in e.features, oneD)
-                             combined = vcat(cest, r1cal)
-                             length(cest) > 0 ? combined : nothing
+                             onres = filter(e -> "r1rho" in e.types &&
+                                                "on_resonance" in e.features, oneD)
+                             offres = filter(e -> "r1rho" in e.types &&
+                                                "off_resonance" in e.features, oneD)
+                             combined = vcat(cest, r1cal, onres, offres)
+                             (length(cest) > 0 || length(offres) > 0) ? combined : nothing
                          end,
                          expts -> exchange1d([e.filename for e in expts]),
-                         "Exchange analysis (CEST + R1)")
+                         "Exchange analysis (CEST / R1rho)")
     return register_analysis!(rule)
 end
 
