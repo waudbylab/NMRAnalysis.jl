@@ -39,6 +39,8 @@ field_label(expt::AbstractExperiment) = field_label(expt.field_teslas)
 
 include("expt-r1.jl")
 include("expt-cest.jl")
+include("expt-r1rho-onres.jl")
+include("expt-r1rho-offres.jl")
 
 """
     load_experiment(filename) -> AbstractExperiment
@@ -62,6 +64,10 @@ function load_experiment(filename)
         return R1Experiment(filename)
     elseif "cest" in types
         return CESTExperiment(filename)
+    elseif "r1rho" in types && "on_resonance" in features
+        return R1rhoOnResExperiment(filename)
+    elseif "r1rho" in types && "off_resonance" in features
+        return R1rhoOffResExperiment(filename)
     else
         throw(ArgumentError("Cannot classify experiment $filename " *
                             "(types=$types, features=$features)"))
