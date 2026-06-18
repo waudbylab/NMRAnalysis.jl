@@ -8,7 +8,8 @@ function referencespectra!(state, xl1, xl2)
         _, i = findmax(ys)
         peakposition = xs[i]
         # shift spectrum to move peak to reference shift
-        dx = refshift - peakposition
-        add_offset(spec, F1Dim, dx)
+        # dx = refshift - peakposition
+        # add_offset(spec, F1Dim, dx)
+        return spec = reference(spec, F1Dim, peakposition => refshift)
     end
 end
