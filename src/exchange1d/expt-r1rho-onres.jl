@@ -76,10 +76,10 @@ function integrate!(expt::R1rhoOnResExperiment, peakppm, noiseppm, ppmwidth)
 
     # fit to exponential decays
     expdecay(t, p) = @. p[1] * exp(-p[2] * t)
-    p0 = [1.0, 20.]
+    p0 = [1.0, 20.0]
 
-    for i = 1:length(expt.νSL)
-        y = vec(data(integrals[1, i, :])) 
+    for i in 1:length(expt.νSL)
+        y = vec(data(integrals[1, i, :]))
         fitres = curve_fit(expdecay, expt.TSL, y, p0)
         R = coef(fitres)[2] ± stderror(fitres)[2]
         expt.observed_intensities[i] = R
@@ -95,8 +95,11 @@ function simulate!(expt::R1rhoOnResExperiment, model, params)
                         spinlock_ppm,
                         expt.νSL[k])
         # Exact R1rho from least negative eigenvalue of L
-        evals = real.(eigen(L).values)
-        R1rho = -maximum(evals[evals .< 0])
+        # evals = real.(eigen(L).values)
+        # R1rho = -maximum(evals[evals .< 0])
+
+        # Compute R1rho from inverse of trace of inverse L (Koss)
+        R1rho = -1/tr(inv(L))
 
         expt.predicted_intensities[k] = R1rho
     end
@@ -126,5 +129,4 @@ function plot_result(expt::R1rhoOnResExperiment, fit_result; kwargs...)
 
     return plot(p1, p2; layout=grid(2, 1; heights=[0.75, 0.25]))
 end
-
 

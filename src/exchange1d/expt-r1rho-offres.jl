@@ -93,13 +93,17 @@ function simulate!(expt::R1rhoOffResExperiment, model, params)
                         expt.offsets_ppm[k],
                         expt.νSL)
 
-        evals = real.(eigen(L).values)
-        neg_evals = evals[evals .< 0]
-        if isempty(neg_evals)
-            expt.predicted_intensities[k] = 1000.0
-            continue
-        end
-        R1rho = -maximum(neg_evals)
+        # evals = real.(eigen(L).values)
+        # neg_evals = evals[evals .< 0]
+        # if isempty(neg_evals)
+        #     expt.predicted_intensities[k] = 1000.0
+        #     continue
+        # end
+        # R1rho = -maximum(neg_evals)
+
+        # Compute R1rho from inverse of trace of inverse L (Koss)
+        R1rho = -1/tr(inv(L))
+
         expt.predicted_intensities[k] = R1rho
     end
 end
@@ -116,7 +120,7 @@ function plot_result(expt::R1rhoOffResExperiment, fit_result; kwargs...)
     p1 = scatter(expt.offsets_ppm, yobs;
                  xlabel="Spin-lock offset / ppm",
                  ylabel="R₁ρ / s⁻¹",
-                 frame=:box, legend=nothing, grid=nothing,kwargs...)
+                 frame=:box, legend=nothing, grid=nothing, kwargs...)
     plot!(p1, expt.offsets_ppm[sortidx], ypred[sortidx]; lw=2)
     vline!(p1, params_value.spin.delta; ls=:dash, label="peak positions")
 
