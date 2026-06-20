@@ -4,6 +4,12 @@ function preparestate(expt::Experiment)
 
     state[:mode] = Observable(:normal) # options = :normal, :renaming, :renamingstart, :moving, :fitting
 
+    # Background-fit control. :fit_generation is bumped whenever the fit inputs change (peaks,
+    # radii, fitting toggled off, window closed); an in-flight fit checks it and aborts if it no
+    # longer matches the generation it started with. :fit_task holds the current fit task.
+    state[:fit_generation] = Observable(0)
+    state[:fit_task] = Observable{Union{Task,Nothing}}(nothing)
+
     state[:total_peaks] = Observable(length(expt.peaks[]))
 
     state[:current_slice] = Observable(1)

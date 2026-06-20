@@ -230,6 +230,20 @@ function addhanders!(g, state, expt::FixedPeakExperiment)
     on(events(g[:fig]).unicode_input) do character
         return process_unicode_input(expt, state, character)
     end
+
+    # window cleanup on close. window_open fires `false` when the window is closed; without
+    # explicit cleanup GLMakie can leave an invisible window frame behind (notably on macOS),
+    # which otherwise requires a manual GLMakie.closeall(). We also cancel any in-flight fit so a
+    # background task isn't left writing into a closed window's state.
+    on(events(g[:fig].scene).window_open) do isopen
+        isopen && return
+        @debug "Window closed - cleaning up"
+        state[:fit_generation][] += 1
+        # closeall() clears the ghost frame. The app shows one GUI at a time, so closing all
+        # GLMakie windows here is acceptable; switch to a targeted screen close if multiple
+        # simultaneous windows are ever needed.
+        return GLMakie.closeall()
+    end
 end
 
 function renamepeak!(expt, state, initiator)
