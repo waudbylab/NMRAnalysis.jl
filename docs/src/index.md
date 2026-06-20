@@ -6,8 +6,8 @@ It provides both 1D command-line workflows and 2D interactive graphical interfac
 designed to make common NMR analyses straightforward without sacrificing flexibility.
 
 !!! note "Active development"
-    NMRAnalysis.jl is actively developed and extended. The core analysis functions are
-    stable and in routine use, but the API may evolve as new features are added.
+    NMRAnalysis.jl is under active development. Features and API may change as the
+    package evolves.
 
 ## What's available
 

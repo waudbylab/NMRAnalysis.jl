@@ -35,30 +35,7 @@ Get help on any function with `?`:
 ?r1rho
 ```
 
-## 1D Experiments
-
-### Diffusion (DOSY)
-
-```julia
-diffusion("106")              # analyse experiment 106
-diffusion()                   # select folder interactively
-```
-
-See [Diffusion](@ref "1D Diffusion Analysis") for a full walkthrough.
-
-### R1 / R2 Relaxation
-
-```julia
-relaxation("5")               # exponential decay or inversion recovery
-```
-
-See [Relaxation](@ref "1D Relaxation Analysis") for details.
-
-### TRACT
-
-```julia
-tract()                       # select TROSY and anti-TROSY experiments interactively
-```
+## Examples
 
 ### ¹⁹F R1ρ Relaxation Dispersion
 
@@ -70,20 +47,7 @@ r1rho("11"; minvSL=500)       # filter low spin-lock powers
 
 See the [R1ρ Tutorial](@ref "19F R1ρ acquisition & analysis") for a step-by-step guide.
 
-## 2D Experiments
-
-All 2D analysis functions open an interactive graphical window. Use the mouse to pick
-peaks and the keyboard shortcuts described in the [2D Overview](@ref "Overview") to
-navigate and manage peaks.
-
-### Peak fitting (positions, linewidths, amplitudes)
-
-```julia
-fit2d("expno/pdata/1")                              # single spectrum
-fit2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"])  # series of spectra
-```
-
-### Relaxation (T1 / T2)
+### 2D Relaxation (T1 / T2)
 
 ```julia
 relaxation2d(
@@ -92,26 +56,8 @@ relaxation2d(
 )
 ```
 
-### Heteronuclear NOE
-
-```julia
-hetnoe2d(
-    ["ref/pdata/1", "sat/pdata/1"],
-    [false, true]
-)
-```
-
-### CPMG Relaxation Dispersion
-
-```julia
-cpmg2d("11/pdata/1"; Trelax=0.04, vCPMG=[0, 25, 50, 100, 200, 500])
-```
-
-### CEST
-
-```julia
-cest2d("11/pdata/1"; B1=15, Tsat=0.3)
-```
+An interactive graphical window opens for peak picking and fitting. See
+[Relaxation (T1/T2)](@ref "Relaxation (T1/T2)") for details.
 
 ## Next Steps
 
