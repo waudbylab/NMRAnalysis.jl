@@ -97,9 +97,9 @@ using whichever backend is active, so it is interactive under GLMakie and can be
 saved with `save("summary.pdf", fig)` under CairoMakie:
 
 ```julia
-fig = summaryplot(expt)                       # default parameter, current experiment
-fig = summaryplot("run1/results.csv", :R20)   # a specific parameter from a file
-fig = summaryplot(["a/results.csv", "b/results.csv"], :PRE)  # stacked panels
+fig = summaryplot(expt)                                   # default parameter, current experiment
+fig = summaryplot("run1/results.csv"; param=:R20)         # a specific parameter from a file
+fig = summaryplot(["a/results.csv", "b/results.csv"]; param=:PRE)  # stacked panels
 ```
 
 Backbone/amide peaks are shown as a scatter of value vs residue number; when

@@ -226,7 +226,7 @@ end
 # --- plotting --------------------------------------------------------------
 
 """
-    summaryplot(source, param=<default>; ylabel, title, include_unassigned)
+    summaryplot(source; param=<default>, ylabel, title, include_unassigned)
 
 Plot a fitted parameter against residue number.
 
@@ -255,7 +255,7 @@ Uses whichever Makie backend is active and returns the `Figure`, so the result
 displays interactively under GLMakie and can be saved with
 `save("summary.pdf", fig)` under CairoMakie.
 """
-function summaryplot(source, param=nothing; ylabel=nothing, title="",
+function summaryplot(source; param=nothing, ylabel=nothing, title="",
                      include_unassigned=false)
     sources = source isa AbstractVector ? collect(source) : [source]
     params = _paramper(sources, param)
@@ -273,8 +273,10 @@ function summaryplot(source, param=nothing; ylabel=nothing, title="",
         ax = Axis(fig[i, 1];
                   xlabel=(i == n ? (usebar ? "" : "Residue number") : ""),
                   ylabel=ylabels[i],
-                  title=(n > 1 ? ds.name : title))
+                  title=(n > 1 ? ds.name : title),
+                  xgridvisible=false, ygridvisible=false)
         _drawdataset!(ax, ds, usebar)
+        hlines!(ax, [0]; linewidth=0)  # invisible: forces zero into the y-range
         push!(axes, ax)
     end
     # share the residue axis across stacked scatter panels
@@ -297,8 +299,7 @@ function _drawdataset!(ax, ds::SummaryDataset, usebar)
         plt = barplot!(ax, xs, ys)
         errorbars!(ax, xs, ys, es; whiskerwidth=6, color=:black)
         ax.xticks = (xs, [p.label for p in points])
-        ax.xticklabelrotation = π / 2
-        ax.xticklabelsize = 9
+        ax.xticklabelrotation = π / 4
         return plt
     else
         xs = [Float64(p.resnum) for p in points]
