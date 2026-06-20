@@ -39,7 +39,7 @@ NMRAnalysis.jl is a Julia package for analysis of NMR experiments, specifically 
 
 #### 2D Experiment Analysis
 All 2D functions are provided by the GUI2D module:
-- `intensities2d()` - Basic intensity measurements
+- `fit2d()` - Peak analysis (positions, linewidths, amplitudes)
 - `relaxation2d()` - Relaxation parameter fitting
 - `recovery2d()` - Recovery experiments
 - `modelfit2d()` - Model fitting interface

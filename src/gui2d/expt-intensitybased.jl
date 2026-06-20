@@ -45,11 +45,30 @@ end
 visualisationtype(expt::IntensityExperiment) = expt.visualisation
 
 """
-    intensities2d(inputfilenames)
+    fit2d(inputfilenames)
 
-Create an intensity analysis experiment.
+Start an interactive GUI for peak analysis of a single 2D spectrum or a series of 2D
+spectra. Each peak is fitted to a 2D Lorentzian lineshape; no physical model is applied
+to the amplitudes across spectra.
+
+Use this function to measure peak positions, linewidths, and amplitudes for downstream
+analysis, or when none of the built-in physical models ([`relaxation2d`](@ref),
+[`recovery2d`](@ref), [`modelfit2d`](@ref)) are appropriate.
+
+# Arguments
+- `inputfilenames`: A single path string or vector of path strings pointing to processed
+  Bruker data directories (e.g. `"expno/pdata/1"`).
+
+# Example
+```julia
+# Single spectrum
+fit2d("109/pdata/1")
+
+# Series of spectra (e.g. titration or temperature series)
+fit2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"])
+```
 """
-function intensities2d(inputfilenames)
+function fit2d(inputfilenames)
     specdata = preparespecdata(inputfilenames, IntensityExperiment)
     peaks = Observable(Vector{Peak}())
 
@@ -61,10 +80,34 @@ function intensities2d(inputfilenames)
 end
 
 """
-    relaxation2d(inputfilenames, relaxationtimes::Vector{Float64})
-    relaxation2d(inputfilenames, taufilename::String)
+    relaxation2d(inputfilenames, relaxationtimes)
 
-Create a relaxation analysis experiment. Data will be fitted to an exponential decay model.
+Start an interactive GUI for measuring R1 or R2 relaxation rates from a series of 2D
+spectra. Peak amplitudes are fitted to a mono-exponential decay:
+
+```math
+I(\\tau) = A \\exp(-R\\tau)
+```
+
+where ``R`` is the relaxation rate (s⁻¹) and ``A`` is the peak amplitude. The software
+does not distinguish R1 from R2 — the appropriate interpretation depends on the experiment.
+
+# Arguments
+- `inputfilenames`: Vector of path strings to processed Bruker data directories, one per
+  relaxation delay.
+- `relaxationtimes`: Vector of delay times in seconds, or a string giving a path to a
+  text file containing the delays (one per line; lines beginning with `#` are ignored).
+
+# Example
+```julia
+relaxation2d(
+    ["11/pdata/1", "12/pdata/1", "13/pdata/1", "14/pdata/1"],
+    [0.010, 0.030, 0.060, 0.100]
+)
+
+# Reading delays from a file
+relaxation2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"], "vclist.txt")
+```
 """
 function relaxation2d(inputfilenames, relaxationtimes)
     specdata = preparespecdata(inputfilenames, IntensityExperiment)
@@ -96,10 +139,34 @@ function relaxation2d(inputfilenames, relaxationtimes)
 end
 
 """
-    recovery2d(inputfilenames, relaxationtimes::Vector{Float64})
-    recovery2d(inputfilenames, taufilename::String)
+    recovery2d(inputfilenames, relaxationtimes)
 
-Create an intensity analysis experiment fitted to magnetisation recovery.
+Start an interactive GUI for measuring longitudinal relaxation from an inversion recovery
+or saturation recovery experiment. Peak amplitudes are fitted to a magnetisation recovery
+model:
+
+```math
+I(\\tau) = A\\left(1 - C\\exp(-R\\tau)\\right)
+```
+
+where ``R`` is the recovery rate (s⁻¹), ``A`` is the equilibrium amplitude, and ``C``
+is the recovery factor. For an ideal inversion recovery experiment ``C = 2``; for
+saturation recovery ``C = 1``.
+
+# Arguments
+- `inputfilenames`: A single path string (pseudo-3D dataset) or vector of path strings
+  (one file per delay) pointing to processed Bruker data directories.
+- `relaxationtimes`: Vector of delay times in seconds, or a string giving a path to a
+  text file containing the delays (one per line; lines beginning with `#` are ignored).
+
+# Example
+```julia
+t = [0.1, 0.2, 0.4, 0.7, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0]
+recovery2d("33/pdata/1", t)
+
+# Reading delays from a file
+recovery2d("33/pdata/1", "vdlist.txt")
+```
 """
 function recovery2d(inputfilenames, relaxationtimes)
     specdata = preparespecdata(inputfilenames, IntensityExperiment)

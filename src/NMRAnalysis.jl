@@ -33,7 +33,7 @@ include("R1rho/R1rho.jl")
 using .R1rho
 
 @reexport using .GUI2D: MaybeVector
-@reexport using .GUI2D: intensities2d, relaxation2d, recovery2d, modelfit2d # IntensityExperiment
+@reexport using .GUI2D: fit2d, relaxation2d, recovery2d, modelfit2d # IntensityExperiment
 @reexport using .GUI2D: hetnoe2d # HetNOEExperiment
 @reexport using .GUI2D: cest2d # CESTExperiment
 @reexport using .GUI2D: cpmg2d # CPMGExperiment
@@ -63,7 +63,7 @@ NMRAnalysis.jl (v$(pkgversion(NMRAnalysis)))
 
 # 2D Experiment Analysis Routines
 
-- intensities2d(inputfilenames)
+- fit2d(inputfilenames)
 - relaxation2d(inputfilenames, relaxationtimes | taufilename)
 - recovery2d(inputfilenames, relaxationtimes | taufilename)
 - modelfit2d(inputfilenames, xvalues, equation, parameters)
