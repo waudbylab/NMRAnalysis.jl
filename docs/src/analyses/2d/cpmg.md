@@ -1,9 +1,5 @@
 # CPMG Relaxation Dispersion
 
-```@docs
-cpmg2d
-```
-
 CPMG (Carr-Purcell-Meiboom-Gill) relaxation dispersion experiments detect conformational
 exchange processes on the microsecond-to-millisecond timescale. The effective transverse
 relaxation rate R₂,eff depends on the CPMG pulse frequency νCPMG: residues undergoing

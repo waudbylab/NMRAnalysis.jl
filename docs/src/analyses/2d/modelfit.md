@@ -1,9 +1,5 @@
 # Custom Model Fitting
 
-```@docs
-modelfit2d
-```
-
 The `modelfit2d` function fits peak amplitudes across a series of 2D spectra to an
 arbitrary user-supplied equation. This is useful when none of the built-in models
 (exponential decay, recovery) describe your experiment.

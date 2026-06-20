@@ -1,8 +1,4 @@
-# 2D Peak Fitting
-
-```@docs
-fit2d
-```
+# Simple 2D Fitting
 
 The `fit2d` function opens an interactive GUI for fitting peaks in a single 2D spectrum
 or a series of 2D spectra. Each peak is fitted to a 2D Lorentzian lineshape; no physical
@@ -18,11 +14,11 @@ cases include:
   temperature series, or time course without assuming a model
 - **Saturation transfer difference**: compare reference and irradiated spectra
 - **Solvent exposure**: measure intensity ratios between samples with and without a
-  paramagnetic probe (see also [`pre2d`](@ref) for a full PRE analysis)
+  paramagnetic probe (see also [`pre2d`](pre.md) for a full PRE analysis)
 
 For data that follow a known physical model, consider the more specific functions:
-[`relaxation2d`](@ref) (exponential decay), [`recovery2d`](@ref) (magnetisation
-recovery), or [`modelfit2d`](@ref) (arbitrary equation).
+[`relaxation2d`](relaxation.md) (exponential decay), [`recovery2d`](magnetisationrecovery.md) (magnetisation
+recovery), or [`modelfit2d`](modelfit.md) (arbitrary equation).
 
 ![Screenshot from peak fitting to a single 2D](../../assets/intensity2d.png)
 
@@ -55,4 +51,4 @@ for a series there is one per spectrum.
 
 See [Peak Lists and Output Files](fileformats.md) for the full format, the
 recommended labelling conventions, and how to reload a file as input. Use
-[`summaryplot`](@ref) to plot amplitudes or linewidths against residue number.
+[`summaryplot`](summary.md) to plot amplitudes or linewidths against residue number.

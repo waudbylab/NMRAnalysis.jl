@@ -1,9 +1,5 @@
 # CEST
 
-```@docs
-cest2d
-```
-
 CEST (Chemical Exchange Saturation Transfer) experiments detect the presence of minor
 conformational states through their effect on the major-state peak intensity. A weak
 radiofrequency field is applied at a variable saturation offset; when the offset matches

@@ -16,9 +16,9 @@ Command-line tools for routine 1D experiments:
 
 | Function | Experiment |
 |----------|-----------|
-| [`diffusion()`](@ref) | DOSY / diffusion coefficient measurement |
-| [`relaxation()`](@ref) | R1 and R2 relaxation (exponential or inversion-recovery fit) |
-| [`tract()`](@ref) | TRACT experiment for rotational correlation time |
+| [`diffusion()`](analyses/diffusion.md) | DOSY / diffusion coefficient measurement |
+| [`relaxation()`](analyses/relaxation.md) | R1 and R2 relaxation (exponential or inversion-recovery fit) |
+| [`tract()`](analyses/tract.md) | TRACT experiment for rotational correlation time |
 | `r1rho()` | ¹⁹F R1ρ relaxation dispersion |
 
 ### 2D Analyses
@@ -26,15 +26,15 @@ Interactive graphical interfaces for 2D and pseudo-3D experiments:
 
 | Function | Experiment |
 |----------|-----------|
-| [`fit2d()`](@ref) | Peak fitting: positions, linewidths, and amplitudes |
-| [`relaxation2d()`](@ref) | R1 / R2 relaxation from a series of 2D spectra |
-| [`recovery2d()`](@ref) | Inversion or saturation recovery |
-| [`modelfit2d()`](@ref) | Custom model fitting |
-| [`hetnoe2d()`](@ref) | Heteronuclear NOE |
-| [`cpmg2d()`](@ref) | CPMG relaxation dispersion |
-| [`cest2d()`](@ref) | CEST (Chemical Exchange Saturation Transfer) |
-| [`pre2d()`](@ref) | Paramagnetic relaxation enhancement |
-| [`ccr2d()`](@ref) | Cross-correlated relaxation |
+| [`fit2d()`](analyses/2d/fit.md) | Peak fitting: positions, linewidths, and amplitudes |
+| [`relaxation2d()`](analyses/2d/relaxation.md) | R1 / R2 relaxation from a series of 2D spectra |
+| [`recovery2d()`](analyses/2d/magnetisationrecovery.md) | Inversion or saturation recovery |
+| [`modelfit2d()`](analyses/2d/modelfit.md) | Custom model fitting |
+| [`hetnoe2d()`](analyses/2d/hetnoe.md) | Heteronuclear NOE |
+| [`cpmg2d()`](analyses/2d/cpmg.md) | CPMG relaxation dispersion |
+| [`cest2d()`](analyses/2d/cest.md) | CEST (Chemical Exchange Saturation Transfer) |
+| [`pre2d()`](analyses/2d/pre.md) | Paramagnetic relaxation enhancement |
+| [`ccr2d()`](analyses/2d/ccr.md) | Cross-correlated relaxation |
 
 All 2D functions share the same interactive GUI — see the [2D Overview](analyses/2d/overview.md) for
 a guide to the interface and common workflow.
@@ -44,11 +44,11 @@ a guide to the interface and common workflow.
 NMRAnalysis.jl is part of a suite of Julia packages for NMR data handling developed
 by the [Waudby lab](https://waudbylab.org):
 
-- **[NMRTools.jl](https://github.com/waudbylab/NMRTools.jl)** — the foundation for
+- **[NMRTools.jl](https://waudbylab.org/NMRTools.jl)** — the foundation for
   NMR data import and processing in Julia. NMRAnalysis.jl is built on top of NMRTools
   for all data loading, axis handling, and spectral processing.
 
-- **[NMRScreen.jl](https://github.com/waudbylab/NMRScreen.jl)** — tools for
+- **[NMRScreen.jl](https://waudbylab.org/NMRScreen.jl)** — tools for
   fragment and ligand screening by NMR, including automated analysis of large
   compound libraries.
 

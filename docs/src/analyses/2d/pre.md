@@ -1,8 +1,4 @@
-# Paramagnetic Relaxation Enhancement (PRE)
-
-```@docs
-pre2d
-```
+# Paramagnetic Relaxation Enhancements (PREs)
 
 !!! warning "Under development"
     PRE fitting in NMRAnalysis.jl is under active development. Results should be

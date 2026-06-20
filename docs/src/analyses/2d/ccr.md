@@ -1,9 +1,5 @@
 # Cross-Correlated Relaxation (CCR)
 
-```@docs
-ccr2d
-```
-
 Cross-correlated relaxation (CCR) experiments measure the interference between two
 relaxation mechanisms — for example, between dipole-dipole coupling and chemical shift
 anisotropy — and are used to determine bond vector orientations, order parameters, and

@@ -91,7 +91,7 @@ are read — see [Peak Lists and Output Files](fileformats.md).
 
 ## Summary plots
 
-[`summaryplot`](@ref) plots a fitted parameter against residue number,
+[`summaryplot`](summary.md) plots a fitted parameter against residue number,
 from a live experiment or one or more saved `results.csv` files. See the
 [Summary Plots](summary.md) page for full details and examples.
 

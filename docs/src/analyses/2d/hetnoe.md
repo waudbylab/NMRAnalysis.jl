@@ -1,9 +1,5 @@
 # Heteronuclear NOE
 
-```@docs
-hetnoe2d
-```
-
 The heteronuclear NOE (hetNOE) experiment measures cross-relaxation between ¹H and a
 heteronucleus (typically ¹⁵N or ¹³C). It is widely used as a sensitive reporter of
 fast internal dynamics: rigid residues typically show hetNOE values close to the maximum

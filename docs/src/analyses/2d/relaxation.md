@@ -1,9 +1,5 @@
 # Relaxation Analysis (T1 / T2)
 
-```@docs
-relaxation2d
-```
-
 The `relaxation2d` function measures R1 or R2 relaxation rates from a series of 2D
 spectra recorded with increasing relaxation delays. Peak amplitudes are fitted to a
 mono-exponential decay:

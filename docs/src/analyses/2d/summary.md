@@ -42,9 +42,3 @@ fig = summaryplot(["wt/", "mutant/"]; param=:R20, ylabel="R₂⁰ / s⁻¹")
 # Per-panel parameters
 fig = summaryplot([expt_relax, expt_noe]; param=[:R2, :hetnoe])
 ```
-
-## API reference
-
-```@docs
-summaryplot
-```

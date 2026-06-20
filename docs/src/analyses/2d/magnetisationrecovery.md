@@ -1,8 +1,4 @@
-# Recovery Analysis
-
-```@docs
-recovery2d
-```
+# Magnetisation Recovery
 
 The `recovery2d` function measures longitudinal relaxation from an inversion recovery or
 saturation recovery experiment. Peak amplitudes are fitted to a magnetisation recovery

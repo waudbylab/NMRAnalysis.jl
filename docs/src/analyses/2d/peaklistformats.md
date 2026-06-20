@@ -1,8 +1,25 @@
-# Peak Lists and Output Files
+# Peak Lists and Output File Formats
 
 All 2D analyses read a peak list as input and write their results to a single
 file. This page describes both, and the recommended (but not enforced) way to
 label peaks.
+
+## Recommended labelling
+
+Any labelling convention is accepted — the parser never rejects a label. However, the
+following conventions let the software extract residue numbers and atom types
+for sorting and summary plots:
+
+| Group | Pattern | Examples |
+|-------|---------|----------|
+| Backbone amides | one-letter code + residue number | `G10`, `S11`, `I13` |
+| Methyls / sidechains | … + atom name | `I13CD1`, `L26CD1`, `L26CD2`, `V70CG1`, `M98CE` |
+| Nucleic-acid atoms | … + atom name | `A12C8`, `G5C1'` |
+
+Peaks whose label does not begin with a standard residue code — including the
+default `X1`, `X2`, … given to newly picked, unassigned peaks — are assigned a
+**negative** residue number and are omitted from residue-number summary plots by
+default.
 
 ## Input: peak lists
 
@@ -74,31 +91,11 @@ result first. Existing files are backed up with an `.old` extension before being
 overwritten.
 
 `results.csv` is both the results table (for plotting and downstream analysis,
-e.g. with [`summaryplot`](#Plotting-summaries)) and a valid input file (for
+e.g. with [`summaryplot`](summary.md)) and a valid input file (for
 reloading peak positions).
-
-## Recommended labelling
-
-Any labelling convention is accepted — the parser never rejects a label. The
-following conventions let the software extract residue numbers and atom types
-for sorting and summary plots:
-
-| Group | Pattern | Examples |
-|-------|---------|----------|
-| Backbone amides | one-letter code + residue number | `G10`, `S11`, `I13` |
-| Methyls / sidechains | … + atom name | `I13CD1`, `L26CD1`, `L26CD2`, `V70CG1`, `M98CE` |
-| Nucleic-acid atoms | … + atom name | `A12C8`, `G5C1'` |
-
-Atom names are recorded verbatim in upper case (so stereospecific methyls such
-as `L26CD1` and `L26CD2` remain distinct).
-
-Peaks whose label does not begin with a standard residue code — including the
-default `X1`, `X2`, … given to newly picked, unassigned peaks — are assigned a
-**negative** residue number and are omitted from residue-number summary plots by
-default.
 
 ## Plotting summaries
 
-[`summaryplot`](@ref) plots a fitted parameter against residue number, from a
+[`summaryplot`](summary.md) plots a fitted parameter against residue number, from a
 live experiment or one or more saved `results.csv` files. See the
-[2D analysis overview](overview.md) for examples.
+[Summary Plots](summary.md) page for full details and examples.
