@@ -30,7 +30,7 @@ export MaybeVector
 # export gui!
 
 # export IntensityExperiment
-export intensities2d
+export peaks2d
 export relaxation2d
 export recovery2d
 export modelfit2d

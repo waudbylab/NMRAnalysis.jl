@@ -1,14 +1,45 @@
 """
     pre2d(inputfilenames, paramagnetic_concs, expttype, Trelax)
 
-Create a PRE experiment from files and experimental parameters and launch analysis interface.
-`expttype` should be `:hsqc` or `:hmqc`. `Trelax` is the timing during which relaxation
-can occur during the sequence (magnetisation transfer delays etc) - this is specific to
-the pulse sequence used.
+!!! warning "Under development"
+    PRE fitting is under active development. Results should be validated carefully before
+    use in publication.
 
-Can be used to analyse solvent PREs, in which case concentrations should be specified -
-or to analyse protein PREs, in which case concentrations should be set to 0 and 1 for
-diamagnetic and paramagnetic states respectively.
+Start an interactive GUI for analysing paramagnetic relaxation enhancement (PRE)
+experiments. The fitted PRE rate Γ (s⁻¹ per unit concentration) accounts for both
+linebroadening and intensity attenuation across the series of spectra.
+
+# Arguments
+- `inputfilenames`: Vector of path strings to processed Bruker data directories, one per
+  concentration point.
+- `paramagnetic_concs`: Vector of paramagnetic agent concentrations, one per spectrum.
+  Use `0` for the diamagnetic reference. For protein PREs (diamagnetic/paramagnetic pair),
+  use `[0, 1]`; for solvent PRE titrations, provide the actual concentrations in any
+  consistent unit (e.g. mM).
+- `expttype`: Either `:hsqc` or `:hmqc`. In an HMQC experiment, PRE-induced broadening
+  also affects the indirect-dimension linewidth (R2y); in an HSQC it affects only R2x.
+- `Trelax`: Total magnetisation transfer time (seconds) during which PRE-induced
+  relaxation accumulates. This is pulse-sequence-specific (typically twice the INEPT delay
+  for HSQC, or longer for HMQC).
+
+# Examples
+```julia
+# Protein PRE: diamagnetic and paramagnetic samples
+pre2d(
+    ["diamagnetic/pdata/1", "paramagnetic/pdata/1"],
+    [0, 1],
+    :hsqc,
+    0.010
+)
+
+# Solvent PRE titration
+pre2d(
+    ["0mM/pdata/1", "1mM/pdata/1", "5mM/pdata/1", "10mM/pdata/1"],
+    [0.0, 1.0, 5.0, 10.0],
+    :hmqc,
+    0.0089
+)
+```
 """
 function pre2d(inputfilenames, paramagnetic_concs, expttype, Trelax)
     expt = PREExperiment(inputfilenames, paramagnetic_concs, expttype, Trelax)
