@@ -38,6 +38,7 @@ using .R1rho
 @reexport using .GUI2D: cest2d # CESTExperiment
 @reexport using .GUI2D: cpmg2d # CPMGExperiment
 @reexport using .GUI2D: pre2d # PREExperiment
+@reexport using .GUI2D: ccr2d # CCRExperiment
 
 @reexport using .R1rho: r1rho, setupR1rhopowers
 
@@ -67,6 +68,7 @@ NMRAnalysis.jl (v$(pkgversion(NMRAnalysis)))
 - recovery2d(inputfilenames, relaxationtimes | taufilename)
 - modelfit2d(inputfilenames, xvalues, equation, parameters)
 - hetnoe2d(inputfilenames, saturationlist)
+- ccr2d(decay_experiments, buildup_experiments, Trelax)
 - cest2d(inputfilenames; B1, Tsat)
 - cpmg2d(inputfilename; Trelax, vCPMG | ncyc)
 

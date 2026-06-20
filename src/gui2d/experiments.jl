@@ -34,6 +34,7 @@ include("expt-hetnoe.jl")
 include("expt-PRE.jl")
 include("expt-cest.jl")
 include("expt-cpmg.jl")
+include("expt-ccr.jl")
 
 # generic functions
 
