@@ -183,18 +183,40 @@ function _defaultparam(path::AbstractString)
     return Symbol("amp[1]")
 end
 
-function _resolveparam(source, param)
-    source isa AbstractVector && return _resolveparam(first(source), param)
-    param isa Symbol && return param
-    return _defaultparam(source)
-end
-
-_todatasets(source::AbstractVector, param; kw...) =
-    [_onedataset(s, param; kw...) for s in source]
-_todatasets(source, param; kw...) = [_onedataset(source, param; kw...)]
-
 _onedataset(s::FixedPeakExperiment, param; kw...) = summary_dataset(s, param; kw...)
 _onedataset(s::AbstractString, param; kw...) = summary_dataset(s, param; kw...)
+
+# Resolve one parameter per source. `param` may be:
+#   nothing                  -> each source's own default (primaryparam / first
+#                               derived column), so heterogeneous experiments
+#                               (e.g. relaxation + hetNOE) each plot their own;
+#   a Symbol                 -> the same parameter for every source;
+#   a vector (Symbol/nothing)-> one per source, nothing meaning that source's default.
+function _paramper(sources, param)
+    if param === nothing
+        return [_defaultparam(s) for s in sources]
+    elseif param isa Symbol
+        return fill(param, length(sources))
+    elseif param isa AbstractVector
+        length(param) == length(sources) ||
+            error("Got $(length(param)) parameters for $(length(sources)) sources")
+        return [p === nothing ? _defaultparam(s) : Symbol(p) for (s, p) in zip(sources, param)]
+    else
+        error("`param` must be a Symbol, a vector of Symbols, or nothing")
+    end
+end
+
+function _ylabelper(params, ylabel)
+    if ylabel === nothing
+        return [paramlabel(p) for p in params]
+    elseif ylabel isa AbstractVector
+        length(ylabel) == length(params) ||
+            error("Got $(length(ylabel)) ylabels for $(length(params)) panels")
+        return [y === nothing ? paramlabel(p) : string(y) for (p, y) in zip(params, ylabel)]
+    else
+        return fill(string(ylabel), length(params))
+    end
+end
 
 # --- plotting --------------------------------------------------------------
 
@@ -204,15 +226,23 @@ _onedataset(s::AbstractString, param; kw...) = summary_dataset(s, param; kw...)
 Plot a fitted parameter against residue number.
 
 `source` may be a live experiment, a saved `results.csv` (or its folder), or a
-vector of any of these. `param` defaults to the experiment's
-[`primaryparam`](@ref) (or the first derived column of a file).
+vector of any of these (which gives vertically stacked panels).
 
-- With backbone/amide labels → a scatter plot of value vs residue number, with
-  error bars.
-- When any atom-typed labels are present (e.g. methyls `I13CD1`, `L26CD2`) → a
-  bar plot ordered by `(residue, atom)` with peak labels as tick marks, so
-  stereospecific pairs don't overlap.
-- A vector `source` → vertically stacked panels sharing the residue axis.
+`param` selects which parameter to plot:
+- omitted/`nothing` → each source's own default (its [`primaryparam`](@ref) or
+  first derived column), so a mix of experiment types — e.g. relaxation and
+  hetNOE — each plot their own result;
+- a single `Symbol` → the same parameter for every source;
+- a vector → one parameter per source (a `nothing` entry uses that source's
+  default).
+
+`ylabel` likewise may be a single label applied to all panels or a vector of
+per-panel labels; by default each panel is labelled from its parameter.
+
+- Backbone/amide labels → a scatter of value vs residue number with error bars.
+- Any atom-typed labels (e.g. methyls `I13CD1`, `L26CD2`) → a bar plot ordered
+  by `(residue, atom)` with peak labels as ticks, so stereospecific pairs don't
+  overlap. Decided per panel.
 - Unassigned peaks (the default `X#` names) are omitted unless every peak is
   unassigned, or `include_unassigned=true`.
 
@@ -222,25 +252,28 @@ displays interactively under GLMakie and can be saved with
 """
 function summaryplot(source, param=nothing; ylabel=nothing, title="",
                      include_unassigned=false)
-    param = _resolveparam(source, param)
-    datasets = _todatasets(source, param; include_unassigned=include_unassigned)
+    sources = source isa AbstractVector ? collect(source) : [source]
+    params = _paramper(sources, param)
+    ylabels = _ylabelper(params, ylabel)
 
-    # consistent plot kind across all panels
-    usebar = any(ds -> has_atom_labels(p.label for p in ds.points), datasets)
-    ylab = something(ylabel, paramlabel(param))
+    datasets = [_onedataset(s, p; include_unassigned=include_unassigned)
+                for (s, p) in zip(sources, params)]
 
     fig = Figure()
     axes = Axis[]
     n = length(datasets)
+    panelbar = [has_atom_labels(p.label for p in ds.points) for ds in datasets]
     for (i, ds) in enumerate(datasets)
+        usebar = panelbar[i]
         ax = Axis(fig[i, 1];
                   xlabel=(i == n ? (usebar ? "" : "Residue number") : ""),
-                  ylabel=ylab,
+                  ylabel=ylabels[i],
                   title=(n > 1 ? ds.name : title))
         _drawdataset!(ax, ds, usebar)
         push!(axes, ax)
     end
-    n > 1 && !usebar && linkxaxes!(axes...)
+    # share the residue axis across stacked scatter panels
+    n > 1 && !any(panelbar) && linkxaxes!(axes...)
 
     return fig
 end
