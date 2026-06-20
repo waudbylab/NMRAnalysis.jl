@@ -78,7 +78,7 @@ end
 """
     summary_dataset(expt, param; name, include_unassigned) -> SummaryDataset
 
-Collect `param` (default: the experiment's [`primaryparam`](@ref)) for every peak
+Collect `param` (default: the experiment's `primaryparam`) for every peak
 in a live experiment.
 """
 function summary_dataset(expt::FixedPeakExperiment, param::Symbol=primaryparam(expt);
@@ -234,7 +234,7 @@ Plot a fitted parameter against residue number.
 vector of any of these (which gives vertically stacked panels).
 
 `param` selects which parameter to plot:
-- omitted/`nothing` → each source's own default (its [`primaryparam`](@ref) or
+- omitted/`nothing` → each source's own default (its `primaryparam` or
   first derived column), so a mix of experiment types — e.g. relaxation and
   hetNOE — each plot their own result;
 - a single `Symbol` → the same parameter for every source;

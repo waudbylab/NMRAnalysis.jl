@@ -163,7 +163,7 @@ end
 
 Build the column-name `header` and the `rows` (each a vector of strings) for the
 results file. Derived (post-fit) parameters are appended with the experiment's
-primary parameter first (see [`primaryparam`](@ref)).
+primary parameter first (see `primaryparam`).
 """
 function resultstable(expt)
     n = nslices(expt)

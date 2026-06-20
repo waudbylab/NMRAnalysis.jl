@@ -91,25 +91,9 @@ are read — see [Peak Lists and Output Files](fileformats.md).
 
 ## Summary plots
 
-[`summaryplot`](@ref) plots a fitted parameter against residue number, from a live
-experiment or one or more saved `results.csv` files. It is an ordinary Makie plot
-using whichever backend is active, so it is interactive under GLMakie and can be
-saved with `save("summary.pdf", fig)` under CairoMakie:
-
-```julia
-fig = summaryplot(expt)                                   # default parameter, current experiment
-fig = summaryplot("run1/results.csv"; param=:R20)         # a specific parameter from a file
-fig = summaryplot(["a/results.csv", "b/results.csv"]; param=:PRE)  # stacked panels
-```
-
-Backbone/amide peaks are shown as a scatter of value vs residue number; when
-atom-typed labels (e.g. methyls) are present the plot becomes a bar chart ordered
-by residue with peak-label ticks. A vector of sources gives vertically stacked
-panels.
-
-```@docs
-summaryplot
-```
+[`summaryplot`](@ref) plots a fitted parameter against residue number,
+from a live experiment or one or more saved `results.csv` files. See the
+[Summary Plots](summary.md) page for full details and examples.
 
 ## Adjusting the Fitting Region
 
