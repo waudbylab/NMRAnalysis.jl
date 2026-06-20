@@ -56,6 +56,16 @@ function process_keyboardbutton(expt, state, event)
             return (Consume())
         end
         return Consume(false)
+    elseif state[:mode][] == :fitting
+        if event.action == Keyboard.press && event.key == Keyboard.escape
+            # cancel the in-flight fit - the running fit's residual will see the bumped
+            # generation and abort. No new fit will run, so clear the fitting status
+            # here to restore the UI to :normal.
+            state[:fit_generation][] += 1
+            state[:mode][] = :normal
+            return Consume()
+        end
+        return Consume(false)
     end
 end
 

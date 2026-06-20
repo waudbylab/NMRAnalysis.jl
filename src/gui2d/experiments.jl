@@ -38,6 +38,16 @@ include("expt-ccr.jl")
 
 # generic functions
 
+"""Maximum wall-clock time (seconds) allowed for a single cluster fit before it is aborted.
+
+Interactive fitting re-runs on every peak move, so a hard cap keeps the GUI responsive even
+if convergence is slow. The residual function checks elapsed time on every iteration."""
+const FIT_TIME_BUDGET = 5.0
+
+"""Thrown from within a fit's residual function to abort an in-flight fit (because the inputs
+changed, the time budget was exceeded, or the user cancelled). Caught silently in `fit!(expt)`."""
+struct FitCancelled <: Exception end
+
 """
     nslices(expt::Experiment)
 
@@ -62,6 +72,10 @@ function setupexptobservables!(expt)
     expt.yradius[] = clamp(4 * yres, 0.1, 0.8)
     on(expt.peaks) do _
         @debug "Peaks changed"
+        # N.B. do NOT bump :fit_generation here - this observer also fires on the
+        # fit's own completion notify(expt.peaks). Genuine user changes reach
+        # fit!(expt) (via the touched chain), which bumps the generation itself and
+        # supersedes any in-flight fit.
         mask!(expt)
         cluster!(expt)
         return simulate!(expt)
@@ -88,11 +102,17 @@ function setupexptobservables!(expt)
         @debug "Fitting changed"
         if expt.isfitting[]
             fit!(expt)
+        else
+            # fitting toggled off - cancel any in-flight fit (this bypasses fit!,
+            # so bump the generation and clear the fitting status ourselves)
+            expt.state[][:fit_generation][] += 1
+            expt.state[][:mode][] = :normal
         end
     end
     on(expt.xradius) do _
         @debug "X radius changed"
-        # update xradius for all peaks
+        # update xradius for all peaks (notify reaches fit!, which supersedes any
+        # in-flight fit)
         for peak in expt.peaks[]
             peak.xradius.val = expt.xradius[]
             peak.touched.val = true
@@ -101,7 +121,8 @@ function setupexptobservables!(expt)
     end
     on(expt.yradius) do _
         @debug "Y radius changed"
-        # update yradius for all peaks
+        # update yradius for all peaks (notify reaches fit!, which supersedes any
+        # in-flight fit)
         for peak in expt.peaks[]
             peak.yradius.val = expt.yradius[]
             peak.touched.val = true
@@ -189,26 +210,52 @@ function fit!(expt::Experiment)
     end
     anythingchanged || return
 
-    @async begin
-        expt.state[][:mode][] = :fitting
-        sleep(0.1) # allow time for mode change to be processed
-    end
-    @async begin # do fitting in a separate task
-        sleep(0.1) # allow time for mode change to be processed
-        # iterate over touched clusters and fit
-        for i in 1:length(expt.clusters[])
-            if expt.touched[][i]
-                fit!(expt.clusters[][i], expt)
-                postfit!(expt.clusters[][i], expt)
+    # Bump the fit generation. This supersedes any fit already running: that task's residual
+    # function will see the new generation on its next iteration and abort via FitCancelled,
+    # and its results will not be committed (the notify below is generation-guarded).
+    mygen = (expt.state[][:fit_generation][] += 1)
+
+    # Run the fit off the GUI's critical path. With multiple threads we use a real background
+    # thread (Threads.@spawn) so the GUI stays fully responsive; single-threaded we fall back to
+    # @async, relying on the yield() inside the residual to give the event loop cycles so the fit
+    # can still be cancelled. The fitting code only writes peak parameter arrays in place (without
+    # notify), so the only visible update is the generation-guarded notify(expt.peaks) at the end.
+    runfit = function ()
+        try
+            expt.state[][:mode][] = :fitting
+            t0 = time()
+            # iterate over touched clusters and fit
+            for i in 1:length(expt.clusters[])
+                if expt.touched[][i]
+                    fit!(expt.clusters[][i], expt, mygen, t0)
+                    postfit!(expt.clusters[][i], expt)
+                end
+            end
+            postfitglobal!(expt)
+            @debug "Fit finished - notifying peaks" #maxlog=10
+            # Only commit results if this fit is still the current one - a superseded fit must
+            # not push stale results to the display.
+            if expt.state[][:fit_generation][] == mygen
+                notify(expt.peaks)
+            end
+        catch e
+            e isa FitCancelled || rethrow()
+            @debug "Fit cancelled (generation $mygen superseded)"
+        finally
+            # Reset the status background only if we are still the current fit; a newer fit will
+            # manage its own mode. Guarantees the mode resets even on cancellation/error.
+            if expt.state[][:fit_generation][] == mygen
+                expt.state[][:mode][] = :normal
             end
         end
-
-        postfitglobal!(expt)
-        @debug "Fit finished - notifying peaks" #maxlog=10
-        notify(expt.peaks)
-
-        expt.state[][:mode][] = :normal
     end
+
+    if Threads.nthreads() > 1
+        expt.state[][:fit_task][] = Threads.@spawn runfit()
+    else
+        expt.state[][:fit_task][] = @async runfit()
+    end
+    return expt.state[][:fit_task][]
 end
 
 # placeholder functions for additional fitting following spectrum fit
@@ -227,7 +274,8 @@ end
 """Global fitting of entire experiment following spectrum fit - defaults to no action"""
 postfitglobal!(expt::Experiment) = nothing
 
-function fit!(cluster::Vector{Int}, expt::Experiment)
+function fit!(cluster::Vector{Int}, expt::Experiment, mygen=expt.state[][:fit_generation][],
+              t0=time())
     @debug "Fitting cluster $cluster" #maxlog=10
     peaks = [expt.peaks[][i] for i in cluster]
 
@@ -235,6 +283,8 @@ function fit!(cluster::Vector{Int}, expt::Experiment)
     p0 = pack(peaks, :initial)
     pmin = pack(peaks, :min)
     pmax = pack(peaks, :max)
+    # lmfit (levenberg_marquardt) throws if p0 lies outside the bounds, so clamp first
+    p0 = clamp.(p0, pmin, pmax)
 
     # get mask and bounds
     m = mask(cluster, expt)
@@ -254,6 +304,14 @@ function fit!(cluster::Vector{Int}, expt::Experiment)
     # create residual function
     function resid(p)
         @debug "resid (start)" maxlog = 10
+        # Abort if this fit has been superseded (peaks/radii changed, fitting toggled off, or
+        # window closed) or if it has exceeded its time budget. The residual is evaluated every
+        # LM iteration, so it is the natural place to hook cancellation.
+        (expt.state[][:fit_generation][] != mygen) && throw(FitCancelled())
+        (time() - t0 > FIT_TIME_BUDGET) && throw(FitCancelled())
+        # Single-threaded: yield so the GUI event loop gets a chance to run (and register a
+        # cancellation) between iterations. Harmless under multithreading.
+        Threads.nthreads() == 1 && yield()
         unpack!(copy(p), peaks, :value)
         for i in 1:nslices(expt)
             fill!(zsim[i], 0.0)
@@ -263,7 +321,15 @@ function fit!(cluster::Vector{Int}, expt::Experiment)
         return zobs - zsimm
     end
     @debug "running fit" maxlog = 10
-    sol = LsqFit.lmfit(resid, p0, Float64[])
+    # Box-constrained, runtime-bounded fit. Bounds keep peak positions within their radius and
+    # R2 within sensible limits. Loose tolerances + maxIter are appropriate for interactive
+    # re-fitting; :finite (the default) matches the Float64-routed residual - a ForwardDiff
+    # Jacobian would be identically zero here. The wall-clock cap is enforced inside `resid` via
+    # FIT_TIME_BUDGET.
+    sol = LsqFit.lmfit(resid, p0, Float64[];
+                       lower=pmin, upper=pmax,
+                       autodiff=:finite,
+                       maxIter=50, x_tol=1e-4, g_tol=1e-6)
     pfit = coef(sol)
     perr = stderror(sol)
     @debug "fit complete" pfit maxlog = 10
