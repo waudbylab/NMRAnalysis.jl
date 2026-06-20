@@ -21,26 +21,21 @@ spectrum:
 
 ## Usage
 
-Provide paired reference and saturated spectra. Each reference spectrum must be
-immediately followed by its saturated counterpart in the file list, and the corresponding
-`saturationlist` entry must be `false` (reference) or `true` (saturated).
+Provide paired reference and saturated spectra. `reference` and `saturated` can
+each be a single filename or a list of filenames; when lists are provided, results
+are averaged across all pairs.
 
 ```julia
 using NMRAnalysis
 
 # Single reference / saturated pair
-hetnoe2d(
-    ["ref/pdata/1", "sat/pdata/1"],
-    [false, true]
-)
+hetnoe2d("expno1/pdata/231", "expno1/pdata/232")
 
 # Multiple pairs (results are averaged across pairs)
-hetnoe2d([
-    "expno1/pdata/231",   # reference
-    "expno1/pdata/232",   # saturated
-    "expno2/pdata/231",   # reference
-    "expno2/pdata/232",   # saturated
-], [false, true, false, true])
+hetnoe2d(
+    ["expno1/pdata/231", "expno2/pdata/231"],  # references
+    ["expno1/pdata/232", "expno2/pdata/232"],  # saturated
+)
 ```
 
 ## Output

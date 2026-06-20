@@ -1,25 +1,36 @@
 """
-    hetnoe2d(inputfilenames, saturationlist)
+    hetnoe2d(reference, saturated)
 
 Start interactive GUI for analyzing 2D heteronuclear NOE data.
 
-# Arguments
-- `inputfilenames`: List of NMR data files as processed data directories
-- `saturationlist`: List of boolean flags indicating which spectra are saturated (true) or reference (false)
+`reference` and `saturated` can each be a single filename or a list of filenames.
+When lists are provided, results are averaged across all pairs.
 
-The lists must be paired - each reference spectrum should be followed by its saturated counterpart.
-
-# Example:
+# Examples
 ```julia
-hetnoe2d([
-    "path/to/expno1/pdata/231",  # reference
-    "path/to/expno1/pdata/232",  # saturated
-    "path/to/expno2/pdata/231",  # reference
-    "path/to/expno2/pdata/232",  # saturated
-], [false, true, false, true])
+# Single reference / saturated pair
+hetnoe2d("expno1/pdata/231", "expno1/pdata/232")
+
+# Multiple pairs (results are averaged across pairs)
+hetnoe2d(
+    ["expno1/pdata/231", "expno2/pdata/231"],  # references
+    ["expno1/pdata/232", "expno2/pdata/232"],  # saturated
+)
 ```
 """
-function hetnoe2d(planefilenames, saturationlist)
+function hetnoe2d(reference::AbstractString, saturated::AbstractString)
+    return hetnoe2d([reference, saturated], [false, true])
+end
+
+function hetnoe2d(reference::AbstractVector, saturated::AbstractVector)
+    length(reference) == length(saturated) ||
+        throw(ArgumentError("reference and saturated lists must have equal length"))
+    planefilenames = collect(Iterators.flatten(zip(reference, saturated)))
+    saturationlist = repeat([false, true], length(reference))
+    return hetnoe2d(planefilenames, saturationlist)
+end
+
+function hetnoe2d(planefilenames, saturationlist::AbstractVector{Bool})
     expt = HetNOEExperiment(planefilenames, saturationlist)
     return gui!(expt)
 end
