@@ -216,8 +216,8 @@ vector of any of these. `param` defaults to the experiment's
 - Unassigned peaks (the default `X#` names) are omitted unless every peak is
   unassigned, or `include_unassigned=true`.
 
-Uses whichever Makie backend is active and returns a normal Makie figure object,
-so the result displays interactively under GLMakie and can be saved with
+Uses whichever Makie backend is active and returns the `Figure`, so the result
+displays interactively under GLMakie and can be saved with
 `save("summary.pdf", fig)` under CairoMakie.
 """
 function summaryplot(source, param=nothing; ylabel=nothing, title="",
@@ -232,21 +232,17 @@ function summaryplot(source, param=nothing; ylabel=nothing, title="",
     fig = Figure()
     axes = Axis[]
     n = length(datasets)
-    local lastplt
     for (i, ds) in enumerate(datasets)
         ax = Axis(fig[i, 1];
                   xlabel=(i == n ? (usebar ? "" : "Residue number") : ""),
                   ylabel=ylab,
                   title=(n > 1 ? ds.name : title))
-        lastplt = _drawdataset!(ax, ds, usebar)
+        _drawdataset!(ax, ds, usebar)
         push!(axes, ax)
     end
     n > 1 && !usebar && linkxaxes!(axes...)
 
-    # FigureAxisPlot (so the result destructures as fig,ax,plt and auto-displays
-    # like a normal Makie plot) isn't re-exported into this module, so reference
-    # it via the backend's Makie. Stacked multi-panel returns the Figure.
-    return n == 1 ? CairoMakie.Makie.FigureAxisPlot(fig, axes[1], lastplt) : fig
+    return fig
 end
 
 function _drawdataset!(ax, ds::SummaryDataset, usebar)
