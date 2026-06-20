@@ -72,8 +72,10 @@ function setupexptobservables!(expt)
     expt.yradius[] = clamp(4 * yres, 0.1, 0.8)
     on(expt.peaks) do _
         @debug "Peaks changed"
-        # invalidate any in-flight fit - peaks have been added/moved/deleted
-        expt.state[][:fit_generation][] += 1
+        # N.B. do NOT bump :fit_generation here - this observer also fires on the
+        # fit's own completion notify(expt.peaks). Genuine user changes reach
+        # fit!(expt) (via the touched chain), which bumps the generation itself and
+        # supersedes any in-flight fit.
         mask!(expt)
         cluster!(expt)
         return simulate!(expt)
@@ -101,15 +103,16 @@ function setupexptobservables!(expt)
         if expt.isfitting[]
             fit!(expt)
         else
-            # fitting toggled off - cancel any in-flight fit
+            # fitting toggled off - cancel any in-flight fit (this bypasses fit!,
+            # so bump the generation and clear the fitting status ourselves)
             expt.state[][:fit_generation][] += 1
+            expt.state[][:mode][] = :normal
         end
     end
     on(expt.xradius) do _
         @debug "X radius changed"
-        # invalidate any in-flight fit - bounds/mask have changed
-        expt.state[][:fit_generation][] += 1
-        # update xradius for all peaks
+        # update xradius for all peaks (notify reaches fit!, which supersedes any
+        # in-flight fit)
         for peak in expt.peaks[]
             peak.xradius.val = expt.xradius[]
             peak.touched.val = true
@@ -118,9 +121,8 @@ function setupexptobservables!(expt)
     end
     on(expt.yradius) do _
         @debug "Y radius changed"
-        # invalidate any in-flight fit - bounds/mask have changed
-        expt.state[][:fit_generation][] += 1
-        # update yradius for all peaks
+        # update yradius for all peaks (notify reaches fit!, which supersedes any
+        # in-flight fit)
         for peak in expt.peaks[]
             peak.yradius.val = expt.yradius[]
             peak.touched.val = true
