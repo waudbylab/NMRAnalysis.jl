@@ -40,19 +40,18 @@ The number of input spectra must match the number of relaxation delays.
 
 ## Output
 
-Clicking **Save to folder** writes fitted relaxation rates to `fit-results.txt`. Columns
-include:
+Clicking **Save to folder** writes all results to `results.csv`. Alongside peak
+positions, linewidths and the amplitude for each delay, the derived columns are:
 
 | Column | Description |
 |--------|-------------|
-| `label` | Peak label |
-| `R_value` | Fitted relaxation rate R (s⁻¹) |
-| `R_uncertainty` | Uncertainty in R (s⁻¹) |
-| `A_value` | Fitted amplitude A |
-| `A_uncertainty` | Uncertainty in A |
+| `R`, `R_err` | Fitted relaxation rate R (s⁻¹) and uncertainty |
+| `A`, `A_err` | Fitted amplitude A and uncertainty |
 
-The `fit.peaks` file additionally contains fitted peak positions, linewidths, and the
-amplitude for each delay.
+The rate is labelled generically as `R`; the software does not distinguish R₁
+from R₂. See [Peak Lists and Output Files](fileformats.md) for the full format.
+Plot R against residue number with `summaryplot(expt)`; pass `ylabel="R₂ / s⁻¹"`
+to label the axis as appropriate for your experiment.
 
 ## Noise Estimation
 

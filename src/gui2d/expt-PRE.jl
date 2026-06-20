@@ -87,6 +87,8 @@ struct PREExperiment <: FixedPeakExperiment
     end
 end
 
+primaryparam(::PREExperiment) = :PRE
+
 """
     PREExperiment(inputfilenames, paramagnetic_concs, expttype, Trelax)
 

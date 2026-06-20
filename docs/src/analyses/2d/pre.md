@@ -68,10 +68,12 @@ pre2d(
 
 ## Output
 
-Clicking **Save to folder** writes the fitted PRE rate to `fit-results.txt`:
+Clicking **Save to folder** writes all results to `results.csv`. The derived
+column is:
 
 | Column | Description |
 |--------|-------------|
-| `label` | Peak label |
-| `PRE_value` | Fitted PRE rate Γ (s⁻¹ per unit concentration) |
-| `PRE_uncertainty` | Uncertainty in Γ |
+| `PRE`, `PRE_err` | Fitted PRE rate Γ (s⁻¹ per unit concentration) and uncertainty |
+
+See [Peak Lists and Output Files](fileformats.md) for the full format. Plot Γ
+against residue number with `summaryplot(expt)`.

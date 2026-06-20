@@ -75,6 +75,7 @@ end
 
 struct CCRVisualisation <: VisualisationStrategy end
 visualisationtype(::CCRExperiment) = CCRVisualisation()
+primaryparam(::CCRExperiment) = :eta
 
 """
     CCRExperiment(decay_expts, buildup_expts, T)

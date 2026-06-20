@@ -73,28 +73,27 @@ Clicking **Save to folder** writes the following files:
 
 | File | Contents |
 |------|---------|
-| `fit.peaks` | Fitted peak positions (δ₁, δ₂), linewidths (R2x, R2y), and amplitudes for all slices |
-| `initial.peaks` | User-specified initial peak positions |
-| `fit-results.txt` | Derived experiment-specific parameters (relaxation rates, NOE values, etc.) |
+| `results.csv` | One row per peak: positions (δ₁, δ₂), linewidths (R2x, R2y), per-plane amplitudes, and any derived experiment parameters (relaxation rates, NOE values, …), each with uncertainties |
 | `peak_LABEL.pdf` | Per-peak publication-quality fit plot for each labelled peak |
 | `spectrum-fit-N.pdf` | 2D contour plot with fitted lineshapes overlaid, one file per slice |
 
-All files are tab-separated with comment headers documenting experiment metadata. Existing
-files are backed up with an `.old` extension before being overwritten.
+`results.csv` has experiment metadata in `#`-comment lines above an ordinary
+header row, so it opens directly in spreadsheets and `pandas`. Existing files are
+backed up with an `.old` extension before being overwritten. See
+[Peak Lists and Output Files](fileformats.md) for the full column description.
 
 ## Loading and Resuming Analysis
 
-Peak lists can be reloaded between sessions using the **Load peak list** button. This reads
-a `fit.peaks` or `initial.peaks` file and restores all peak positions and labels. The file
-format is a tab-separated text file:
+The **Load peak list** button restores peak positions and labels from a saved
+`results.csv` (or a simple `label x y` text file), so you can resume work later or
+seed a new analysis from existing positions. Only the `label`, `x` and `y` columns
+are read — see [Peak Lists and Output Files](fileformats.md).
 
-```
-# label  residue  x    y    R2x   R2y   amp1  amp2  ...
-G10      10       8.4  121  30.1  15.2  450   430   ...
-```
+## Summary plots
 
-This allows you to save work mid-session and resume later, or to use peak positions from
-one experiment as a starting point for another.
+[`summaryplot`](@ref) plots a fitted parameter against residue number,
+from a live experiment or one or more saved `results.csv` files. See the
+[Summary Plots](summary.md) page for full details and examples.
 
 ## Adjusting the Fitting Region
 

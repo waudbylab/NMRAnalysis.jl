@@ -65,6 +65,16 @@ npeaks(expt::Experiment) = length(expt.peaks[])
 hasfixedpositions(expt::FixedPeakExperiment) = true
 hasfixedpositions(expt::MovingPeakExperiment) = false
 
+"""
+    primaryparam(expt) -> Symbol
+
+The experiment's primary derived (post-fit) result. It is written first among
+the derived columns in `results.csv` and is the default parameter plotted by
+`summaryplot`. Defaults to `:amp` (peak amplitude) for experiments that derive
+no post-fit parameters (e.g. plain `fit2d`).
+"""
+primaryparam(::Experiment) = :amp
+
 function setupexptobservables!(expt)
     xres = abs(expt.specdata.x[1][2] - expt.specdata.x[1][1])
     yres = abs(expt.specdata.y[1][2] - expt.specdata.y[1][1])

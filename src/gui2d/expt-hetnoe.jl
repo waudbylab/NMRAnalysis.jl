@@ -63,6 +63,7 @@ end
 
 struct HetNOEVisualisation <: VisualisationStrategy end
 visualisationtype(::HetNOEExperiment) = HetNOEVisualisation()
+primaryparam(::HetNOEExperiment) = :hetnoe
 
 """
     HetNOEExperiment(planefilenames, saturation)

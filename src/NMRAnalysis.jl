@@ -39,6 +39,7 @@ using .R1rho
 @reexport using .GUI2D: cpmg2d # CPMGExperiment
 @reexport using .GUI2D: pre2d # PREExperiment
 @reexport using .GUI2D: ccr2d # CCRExperiment
+@reexport using .GUI2D: summaryplot
 
 @reexport using .R1rho: r1rho, setupR1rhopowers
 
