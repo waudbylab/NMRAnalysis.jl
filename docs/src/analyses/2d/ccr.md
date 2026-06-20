@@ -54,5 +54,5 @@ columns are:
 | `eta`, `eta_err` | Fitted CCR rate η (s⁻¹) and uncertainty |
 | `amp`, `amp_err` | Reference amplitude and uncertainty |
 
-See [Peak Lists and Output Files](fileformats.md) for the full format. Plot η
+See [Peak Lists and Output Files](peaklistformats.md) for the full format. Plot η
 against residue number with `summaryplot(expt)`.

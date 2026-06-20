@@ -45,7 +45,7 @@ positions, linewidths and the amplitude for each delay, the derived columns are:
 | `A`, `A_err` | Fitted amplitude A and uncertainty |
 
 The rate is labelled generically as `R`; the software does not distinguish R₁
-from R₂. See [Peak Lists and Output Files](fileformats.md) for the full format.
+from R₂. See [Peak Lists and Output Files](peaklistformats.md) for the full format.
 Plot R against residue number with `summaryplot(expt)`; pass `ylabel="R₂ / s⁻¹"`
 to label the axis as appropriate for your experiment.
 

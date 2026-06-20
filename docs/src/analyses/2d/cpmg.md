@@ -41,7 +41,7 @@ cpmg2d("11/pdata/1"; Trelax=0.04, ncyc=ncyc)
 Clicking **Save to folder** writes all results to `results.csv`. Each row is one
 peak, with the per-plane amplitudes (`amp[1]`, `amp[2]`, …) from which the R₂,eff
 dispersion profile is computed, and the derived reference rate `R20`, `R20_err`
-(R₂,₀, s⁻¹). See [Peak Lists and Output Files](fileformats.md) for the full
+(R₂,₀, s⁻¹). See [Peak Lists and Output Files](peaklistformats.md) for the full
 format.
 
 !!! note

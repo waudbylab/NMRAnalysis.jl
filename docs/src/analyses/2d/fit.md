@@ -49,6 +49,6 @@ residue/atom information, fitted chemical shifts (`x`, `y`), linewidths
 uncertainty column. For a single-spectrum analysis there is one amplitude column;
 for a series there is one per spectrum.
 
-See [Peak Lists and Output Files](fileformats.md) for the full format, the
+See [Peak Lists and Output Files](peaklistformats.md) for the full format, the
 recommended labelling conventions, and how to reload a file as input. Use
 [`summaryplot`](summary.md) to plot amplitudes or linewidths against residue number.

@@ -32,4 +32,4 @@ Clicking **Save to folder** writes all results to `results.csv`. Each row is one
 peak, with the per-offset amplitudes (`amp[1]`, `amp[2]`, …) that make up the
 Z-spectrum (normalised intensity ``I(\omega_\text{sat})/I_0``), plus the fitted
 `R1`/`R2` rates and uncertainties. See
-[Peak Lists and Output Files](fileformats.md) for the full format.
+[Peak Lists and Output Files](peaklistformats.md) for the full format.

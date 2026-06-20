@@ -42,6 +42,6 @@ positions, linewidths and amplitudes, the derived columns are:
 | `A`, `A_err` | Equilibrium amplitude A and uncertainty |
 | `C`, `C_err` | Recovery factor C and uncertainty |
 
-See [Peak Lists and Output Files](fileformats.md) for the full format.
+See [Peak Lists and Output Files](peaklistformats.md) for the full format.
 Plot R against residue number with `summaryplot(expt)` (or
 `summaryplot("results.csv")`).

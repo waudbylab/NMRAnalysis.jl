@@ -71,5 +71,5 @@ column is:
 |--------|-------------|
 | `PRE`, `PRE_err` | Fitted PRE rate Γ (s⁻¹ per unit concentration) and uncertainty |
 
-See [Peak Lists and Output Files](fileformats.md) for the full format. Plot Γ
+See [Peak Lists and Output Files](peaklistformats.md) for the full format. Plot Γ
 against residue number with `summaryplot(expt)`.

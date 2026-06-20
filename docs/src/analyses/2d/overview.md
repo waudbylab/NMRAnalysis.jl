@@ -80,14 +80,14 @@ Clicking **Save to folder** writes the following files:
 `results.csv` has experiment metadata in `#`-comment lines above an ordinary
 header row, so it opens directly in spreadsheets and `pandas`. Existing files are
 backed up with an `.old` extension before being overwritten. See
-[Peak Lists and Output Files](fileformats.md) for the full column description.
+[Peak Lists and Output Files](peaklistformats.md) for the full column description.
 
 ## Loading and Resuming Analysis
 
 The **Load peak list** button restores peak positions and labels from a saved
 `results.csv` (or a simple `label x y` text file), so you can resume work later or
 seed a new analysis from existing positions. Only the `label`, `x` and `y` columns
-are read — see [Peak Lists and Output Files](fileformats.md).
+are read — see [Peak Lists and Output Files](peaklistformats.md).
 
 ## Summary plots
 

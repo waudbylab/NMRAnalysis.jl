@@ -35,5 +35,5 @@ Common mathematical functions available in equations include `sin`, `cos`, `exp`
 Clicking **Save to folder** writes all results to `results.csv`. The derived
 columns are named after the parameters given in the `parameters` argument (each
 with an `_err` uncertainty column). See
-[Peak Lists and Output Files](fileformats.md) for the full format, and use
+[Peak Lists and Output Files](peaklistformats.md) for the full format, and use
 `summaryplot(expt; param=:paramname)` to plot a parameter against residue number.
