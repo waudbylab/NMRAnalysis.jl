@@ -22,7 +22,7 @@ function hetnoe2d(reference::AbstractString, saturated::AbstractString)
     return hetnoe2d([reference, saturated], [false, true])
 end
 
-function hetnoe2d(reference::AbstractVector, saturated::AbstractVector)
+function hetnoe2d(reference::AbstractVector{String}, saturated::AbstractVector{String})
     length(reference) == length(saturated) ||
         throw(ArgumentError("reference and saturated lists must have equal length"))
     planefilenames = collect(Iterators.flatten(zip(reference, saturated)))

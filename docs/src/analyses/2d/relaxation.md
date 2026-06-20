@@ -12,7 +12,7 @@ where ``R`` is the relaxation rate (s⁻¹) and ``A`` is the peak amplitude. The
 does not distinguish between R1 and R2 — the appropriate interpretation depends on the
 experiment used to collect the data.
 
-<!-- screenshot: assets/relaxation2d.png -->
+![Screenshot from relaxation analysis](../../assets/screenshot-relaxation2d.png)
 
 ## Usage
 

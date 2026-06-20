@@ -13,7 +13,7 @@ spectrum:
 \text{hetNOE} = \frac{I_\text{sat}}{I_\text{ref}}
 ```
 
-<!-- screenshot: assets/hetnoe2d.png -->
+![Screenshot from heteronuclear NOE analysis](../../assets/screenshot-hetnoe2d.png)
 
 ## Usage
 
