@@ -44,6 +44,14 @@ end
 
 visualisationtype(expt::IntensityExperiment) = expt.visualisation
 
+# Primary derived parameter: amplitude when no model is fitted, the relaxation
+# rate :R for exponential/recovery fits, otherwise the first model parameter.
+function primaryparam(expt::IntensityExperiment)
+    expt.model isa NoFitting && return :amp
+    names = Symbol.(expt.model.param_names)
+    return :R in names ? :R : first(names)
+end
+
 """
     fit2d(inputfilenames)
 

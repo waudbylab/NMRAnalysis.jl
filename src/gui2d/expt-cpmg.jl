@@ -77,6 +77,7 @@ end
 
 struct CPMGVisualisation <: VisualisationStrategy end
 visualisationtype(::CPMGExperiment) = CPMGVisualisation()
+primaryparam(::CPMGExperiment) = :R20
 
 """
     CPMGExperiment(inputfilename, Trelax, vCPMG)

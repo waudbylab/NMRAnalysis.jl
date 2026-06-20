@@ -37,15 +37,15 @@ paths alongside the corresponding delay values.
 
 ## Output
 
-Clicking **Save to folder** writes fitted parameters to `fit-results.txt`. Columns
-include:
+Clicking **Save to folder** writes all results to `results.csv`. Alongside peak
+positions, linewidths and amplitudes, the derived columns are:
 
 | Column | Description |
 |--------|-------------|
-| `label` | Peak label |
-| `R_value` | Fitted recovery rate R (s⁻¹) |
-| `R_uncertainty` | Uncertainty in R (s⁻¹) |
-| `A_value` | Equilibrium amplitude A |
-| `A_uncertainty` | Uncertainty in A |
-| `C_value` | Recovery factor C |
-| `C_uncertainty` | Uncertainty in C |
+| `R`, `R_err` | Fitted recovery rate R (s⁻¹) and uncertainty |
+| `A`, `A_err` | Equilibrium amplitude A and uncertainty |
+| `C`, `C_err` | Recovery factor C and uncertainty |
+
+See [Peak Lists and Output Files](fileformats.md) for the full format.
+Plot R against residue number with `summaryplot(expt)` (or
+`summaryplot("results.csv")`).

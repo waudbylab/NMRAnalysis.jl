@@ -50,10 +50,13 @@ rate acts.
 
 ## Output
 
-Clicking **Save to folder** writes the fitted CCR rate to `fit-results.txt`:
+Clicking **Save to folder** writes all results to `results.csv`. The derived
+columns are:
 
 | Column | Description |
 |--------|-------------|
-| `label` | Peak label |
-| `CCR_value` | Fitted CCR rate η (s⁻¹) |
-| `CCR_uncertainty` | Uncertainty in η |
+| `eta`, `eta_err` | Fitted CCR rate η (s⁻¹) and uncertainty |
+| `amp`, `amp_err` | Reference amplitude and uncertainty |
+
+See [Peak Lists and Output Files](fileformats.md) for the full format. Plot η
+against residue number with `summaryplot(expt)`.

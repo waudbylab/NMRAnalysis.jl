@@ -45,10 +45,13 @@ hetnoe2d([
 
 ## Output
 
-Clicking **Save to folder** writes hetNOE values to `fit-results.txt`:
+Clicking **Save to folder** writes all results to `results.csv`. The derived
+columns are:
 
 | Column | Description |
 |--------|-------------|
-| `label` | Peak label |
-| `hetNOE_value` | Measured hetNOE = I_sat / I_ref |
-| `hetNOE_uncertainty` | Propagated uncertainty |
+| `hetnoe`, `hetnoe_err` | Measured hetNOE = I_sat / I_ref and uncertainty |
+| `amp`, `amp_err` | Reference amplitude and uncertainty |
+
+See [Peak Lists and Output Files](fileformats.md) for the full format. Plot the
+hetNOE against residue number with `summaryplot(expt)`.

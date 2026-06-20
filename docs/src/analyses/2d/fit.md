@@ -47,16 +47,12 @@ subdirectories containing `2rr` files).
 
 ## Output
 
-Clicking **Save to folder** writes peak positions, linewidths, and amplitudes to
-`fit.peaks`. Each row corresponds to one peak; columns include:
+Clicking **Save to folder** writes one row per peak to `results.csv` — labels,
+residue/atom information, fitted chemical shifts (`x`, `y`), linewidths
+(`R2x`, `R2y`) and per-plane amplitudes (`amp[1]`, `amp[2]`, …), each with an
+uncertainty column. For a single-spectrum analysis there is one amplitude column;
+for a series there is one per spectrum.
 
-| Column | Description |
-|--------|-------------|
-| `label` | Peak label (editable in the GUI) |
-| `residue` | Residue number extracted from label |
-| `x`, `y` | Fitted chemical shifts (ppm) |
-| `R2x`, `R2y` | Fitted linewidths in the direct and indirect dimensions (s⁻¹) |
-| `amp1`, `amp2`, … | Fitted amplitude for each input spectrum |
-
-For a single-spectrum analysis, there is one amplitude column. For a series, there is one
-column per spectrum.
+See [Peak Lists and Output Files](fileformats.md) for the full format, the
+recommended labelling conventions, and how to reload a file as input. Use
+[`summaryplot`](@ref) to plot amplitudes or linewidths against residue number.

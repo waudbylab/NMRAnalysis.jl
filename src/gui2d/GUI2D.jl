@@ -25,6 +25,7 @@ include("mouse.jl")
 include("keyboard.jl")
 include("files.jl")
 include("visualisation.jl")
+include("summary.jl")
 
 export MaybeVector
 # export gui!
@@ -49,5 +50,8 @@ export pre2d
 
 # export CCRExperiment
 export ccr2d
+
+# results-summary plotting
+export summaryplot
 
 end
