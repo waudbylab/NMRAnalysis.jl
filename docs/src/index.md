@@ -1,32 +1,61 @@
 # NMRAnalysis.jl
 
-A Julia package for analysis of NMR data, with particular focus on relaxation, diffusion, screening and
-protein dynamics experiments.
+NMRAnalysis.jl is a Julia package for interactive analysis of biomolecular NMR experiments,
+with a particular focus on relaxation, diffusion, exchange, and protein dynamics measurements.
+It provides both 1D command-line workflows and 2D interactive graphical interfaces, and is
+designed to make common NMR analyses straightforward without sacrificing flexibility.
 
-!!! note
-    This package is under active development and its features and syntax may change.
+!!! note "Active development"
+    NMRAnalysis.jl is actively developed and extended. The core analysis functions are
+    stable and in routine use, but the API may evolve as new features are added.
 
-NMRAnalysis.jl provides tools for analysing various types of NMR experiments commonly
-used in biomolecular NMR:
+## What's available
 
-- 1D diffusion (`diffusion()`)
-- 1D TRACT (`tract()`)
-- 1D 19F R1rho relaxation dispersion (`r1rho()`)
-- 2D relaxation measurements (T1, T2) (`relaxation2d(experimentfiles, relaxationtimes)`)
-- Heteronuclear NOE (`hetnoe2d(planefilenames, saturation)`)
+### 1D Analyses
+Command-line tools for routine 1D experiments:
 
-## Automatic Analysis Dispatch
+| Function | Experiment |
+|----------|-----------|
+| [`diffusion()`](@ref) | DOSY / diffusion coefficient measurement |
+| [`relaxation()`](@ref) | R1 and R2 relaxation (exponential or inversion-recovery fit) |
+| [`tract()`](@ref) | TRACT experiment for rotational correlation time |
+| [`r1rho()`](@ref) | ¹⁹F R1ρ relaxation dispersion |
 
-The `analyse()` function provides automatic detection and dispatch of appropriate analysis routines based on experiment metadata:
+### 2D Analyses
+Interactive graphical interfaces for 2D and pseudo-3D experiments:
 
-```julia
-analyse(filename)           # Analyse a single experiment
-analyse([file1, file2, ...]) # Analyse multiple experiments
-```
+| Function | Experiment |
+|----------|-----------|
+| [`fit2d()`](@ref) | Peak fitting: positions, linewidths, and amplitudes |
+| [`relaxation2d()`](@ref) | R1 / R2 relaxation from a series of 2D spectra |
+| [`recovery2d()`](@ref) | Inversion or saturation recovery |
+| [`modelfit2d()`](@ref) | Custom model fitting |
+| [`hetnoe2d()`](@ref) | Heteronuclear NOE |
+| [`cpmg2d()`](@ref) | CPMG relaxation dispersion |
+| [`cest2d()`](@ref) | CEST (Chemical Exchange Saturation Transfer) |
+| [`pre2d()`](@ref) | Paramagnetic relaxation enhancement |
+| [`ccr2d()`](@ref) | Cross-correlated relaxation |
 
-When multiple analysis options are available, an interactive menu is presented to select which analyses to run. See [Analysis Rules](@ref) for details on extending the dispatch system.
+All 2D functions share the same interactive GUI — see [Overview](@ref "Overview") for
+a guide to the interface and common workflow.
 
-## Utility Functions
+## Ecosystem
 
-- `viscosity(solvent, T)`: Estimate solution viscosity at given temperature. Solvent can be `:h2o` or `:d2o`.
+NMRAnalysis.jl is part of a suite of Julia packages for NMR data handling developed
+by the [Waudby lab](https://waudbylab.org):
 
+- **[NMRTools.jl](https://github.com/waudbylab/NMRTools.jl)** — the foundation for
+  NMR data import and processing in Julia. NMRAnalysis.jl is built on top of NMRTools
+  for all data loading, axis handling, and spectral processing.
+
+- **[NMRScreen.jl](https://github.com/waudbylab/NMRScreen.jl)** — tools for
+  fragment and ligand screening by NMR, including automated analysis of large
+  compound libraries.
+
+## Contributing
+
+NMRAnalysis.jl is developed and maintained by the
+[Waudby lab](https://waudbylab.org) at University College London.
+Contributions are warmly welcomed — whether that's bug reports, new analysis
+routines, documentation improvements, or example datasets. Please open an issue
+or pull request on [GitHub](https://github.com/waudbylab/NMRAnalysis.jl).
