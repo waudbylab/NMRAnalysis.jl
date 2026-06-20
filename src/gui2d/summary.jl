@@ -243,7 +243,10 @@ function summaryplot(source, param=nothing; ylabel=nothing, title="",
     end
     n > 1 && !usebar && linkxaxes!(axes...)
 
-    return n == 1 ? FigureAxisPlot(fig, axes[1], lastplt) : fig
+    # FigureAxisPlot (so the result destructures as fig,ax,plt and auto-displays
+    # like a normal Makie plot) isn't re-exported into this module, so reference
+    # it via the backend's Makie. Stacked multi-panel returns the Figure.
+    return n == 1 ? CairoMakie.Makie.FigureAxisPlot(fig, axes[1], lastplt) : fig
 end
 
 function _drawdataset!(ax, ds::SummaryDataset, usebar)
