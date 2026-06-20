@@ -107,10 +107,15 @@ function summary_dataset(path::AbstractString, param::Symbol;
     file = _resultsfile(path)
     header, rows = _readtable(file)
 
+    # Arrayed parameters are written per plane as e.g. amp[1], amp[2]; if the
+    # bare name (`amp`) is requested, default to the first index (`amp[1]`),
+    # matching how a live experiment plots the first slice.
     pcol = findfirst(==(string(param)), header)
+    isnothing(pcol) && (pcol = findfirst(==("$(param)[1]"), header))
     isnothing(pcol) &&
         error("Parameter \"$param\" not found in $file. Available: $(available_params(path))")
-    ecol = findfirst(==("$(param)_err"), header)
+    pname = header[pcol]
+    ecol = findfirst(==("$(pname)_err"), header)
     lcol = something(findfirst(==("label"), header), 1)
 
     points = SummaryPoint[]
@@ -289,8 +294,8 @@ function _drawdataset!(ax, ds::SummaryDataset, usebar)
         xs = collect(1:length(points))
         ys = [p.value for p in points]
         es = [p.uncertainty for p in points]
-        plt = barplot!(ax, xs, ys; color=(:steelblue, 0.8))
-        errorbars!(ax, xs, ys, es; whiskerwidth=6)
+        plt = barplot!(ax, xs, ys)
+        errorbars!(ax, xs, ys, es; whiskerwidth=6, color=:black)
         ax.xticks = (xs, [p.label for p in points])
         ax.xticklabelrotation = π / 2
         ax.xticklabelsize = 9
@@ -299,7 +304,7 @@ function _drawdataset!(ax, ds::SummaryDataset, usebar)
         xs = [Float64(p.resnum) for p in points]
         ys = [p.value for p in points]
         es = [p.uncertainty for p in points]
-        errorbars!(ax, xs, ys, es; whiskerwidth=6, color=:grey40)
+        errorbars!(ax, xs, ys, es; whiskerwidth=6, color=:black)
         plt = scatter!(ax, xs, ys; color=:steelblue)
         return plt
     end
