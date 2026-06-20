@@ -45,7 +45,7 @@ r1rho("11")                   # specify experiment directly
 r1rho("11"; minvSL=500)       # filter low spin-lock powers
 ```
 
-See the [R1ρ Tutorial](@ref "19F R1ρ acquisition & analysis") for a step-by-step guide.
+See the [R1ρ Tutorial](tutorials/r1rho.md) for a step-by-step guide.
 
 ### 2D Relaxation (T1 / T2)
 
@@ -57,13 +57,13 @@ relaxation2d(
 ```
 
 An interactive graphical window opens for peak picking and fitting. See
-[Relaxation (T1/T2)](@ref "Relaxation (T1/T2)") for details.
+[Relaxation (T1/T2)](analyses/2d/relaxation.md) for details.
 
 ## Next Steps
 
-- **[1D Analysis](@ref "Diffusion")** — detailed guides for each 1D experiment type
-- **[2D Analysis](@ref "Overview")** — interactive GUI reference and per-experiment guides
-- **[Tutorials](@ref "19F R1ρ acquisition & analysis")** — step-by-step worked examples
+- **[1D Analysis](analyses/diffusion.md)** — detailed guides for each 1D experiment type
+- **[2D Analysis](analyses/2d/overview.md)** — interactive GUI reference and per-experiment guides
+- **[Tutorials](tutorials/r1rho.md)** — step-by-step worked examples
 
 ## Getting Help
 

@@ -19,7 +19,7 @@ Command-line tools for routine 1D experiments:
 | [`diffusion()`](@ref) | DOSY / diffusion coefficient measurement |
 | [`relaxation()`](@ref) | R1 and R2 relaxation (exponential or inversion-recovery fit) |
 | [`tract()`](@ref) | TRACT experiment for rotational correlation time |
-| [`r1rho()`](@ref) | ¹⁹F R1ρ relaxation dispersion |
+| `r1rho()` | ¹⁹F R1ρ relaxation dispersion |
 
 ### 2D Analyses
 Interactive graphical interfaces for 2D and pseudo-3D experiments:
@@ -36,7 +36,7 @@ Interactive graphical interfaces for 2D and pseudo-3D experiments:
 | [`pre2d()`](@ref) | Paramagnetic relaxation enhancement |
 | [`ccr2d()`](@ref) | Cross-correlated relaxation |
 
-All 2D functions share the same interactive GUI — see [Overview](@ref "Overview") for
+All 2D functions share the same interactive GUI — see the [2D Overview](analyses/2d/overview.md) for
 a guide to the interface and common workflow.
 
 ## Ecosystem
