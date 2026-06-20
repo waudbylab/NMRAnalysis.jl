@@ -242,7 +242,16 @@ function addhanders!(g, state, expt::FixedPeakExperiment)
         # closeall() clears the ghost frame. The app shows one GUI at a time, so closing all
         # GLMakie windows here is acceptable; switch to a targeted screen close if multiple
         # simultaneous windows are ever needed.
-        return GLMakie.closeall()
+        #
+        # This observer fires from inside the renderloop's poll cycle, so calling closeall()
+        # synchronously tears down the GL context while the renderloop is still running it
+        # ("Context is not alive anymore!"). Defer it to a separate task (as a manual REPL
+        # closeall() would be) and let the closing window's own teardown settle first.
+        @async begin
+            sleep(0.2)
+            GLMakie.closeall()
+        end
+        return
     end
 end
 
