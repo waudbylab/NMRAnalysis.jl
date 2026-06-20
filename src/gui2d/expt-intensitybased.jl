@@ -45,7 +45,7 @@ end
 visualisationtype(expt::IntensityExperiment) = expt.visualisation
 
 """
-    peaks2d(inputfilenames)
+    fit2d(inputfilenames)
 
 Start an interactive GUI for peak analysis of a single 2D spectrum or a series of 2D
 spectra. Each peak is fitted to a 2D Lorentzian lineshape; no physical model is applied
@@ -62,13 +62,13 @@ analysis, or when none of the built-in physical models ([`relaxation2d`](@ref),
 # Example
 ```julia
 # Single spectrum
-peaks2d("109/pdata/1")
+fit2d("109/pdata/1")
 
 # Series of spectra (e.g. titration or temperature series)
-peaks2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"])
+fit2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"])
 ```
 """
-function peaks2d(inputfilenames)
+function fit2d(inputfilenames)
     specdata = preparespecdata(inputfilenames, IntensityExperiment)
     peaks = Observable(Vector{Peak}())
 

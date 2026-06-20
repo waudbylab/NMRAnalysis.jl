@@ -19,7 +19,7 @@ makedocs(;
                                "Calibration (1D)" => "analyses/calibration.md",
                                "R1ρ (1D)" => "analyses/r1rho.md",
                                "2D Experiments" => ["Overview" => "analyses/2d/overview.md",
-                                   "Peak Analysis" => "analyses/2d/peaks.md",
+                                   "Peak Fitting" => "analyses/2d/fit.md",
                                    "Relaxation (T1/T2)" => "analyses/2d/relaxation.md",
                                    "Recovery" => "analyses/2d/recovery.md",
                                    "Custom Model" => "analyses/2d/modelfit.md",

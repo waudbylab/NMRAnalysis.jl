@@ -5,7 +5,7 @@ relaxation, exchange, and NOE measurements. All functions follow the same patter
 load one or more processed 2D spectra, open an interactive window for peak picking and
 fitting, and export results to a folder of your choice.
 
-The [experiment-specific pages](@ref "Peak Analysis") describe the available functions
+The [experiment-specific pages](@ref "Peak Fitting") describe the available functions
 and the theory behind each analysis. This page covers the shared GUI features common to
 all of them.
 

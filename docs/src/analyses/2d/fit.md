@@ -1,21 +1,28 @@
-# Peak Analysis
+# 2D Peak Fitting
 
 ```@docs
-peaks2d
+fit2d
 ```
 
-The `peaks2d` function opens an interactive GUI for picking peaks in a single 2D spectrum
-or a series of 2D spectra, fitting each peak to a 2D Lorentzian lineshape. No physical
+The `fit2d` function opens an interactive GUI for fitting peaks in a single 2D spectrum
+or a series of 2D spectra. Each peak is fitted to a 2D Lorentzian lineshape; no physical
 model is applied to the amplitudes across spectra — all measured quantities (peak
 positions, linewidths, and amplitudes) are reported directly.
 
-Typical use cases include:
+This makes `fit2d` a flexible starting point for many different experiments. Typical use
+cases include:
 
-- **Chemical shift mapping**: track peak positions across a titration or temperature series
-- **Linewidth analysis**: measure R2x and R2y linewidths across conditions
-- **Intensity ratios**: compare peak amplitudes without assuming a model (e.g. saturation
-  transfer difference, solvent exposure)
-- **Reference peak list**: build a peak list for use with other analysis functions
+- **Single spectrum**: measure chemical shifts and linewidths, or build a peak list for
+  use with other analysis functions
+- **Intensity series**: compare peak amplitudes across a concentration titration,
+  temperature series, or time course without assuming a model
+- **Saturation transfer difference**: compare reference and irradiated spectra
+- **Solvent exposure**: measure intensity ratios between samples with and without a
+  paramagnetic probe (see also [`pre2d`](@ref) for a full PRE analysis)
+
+For data that follow a known physical model, consider the more specific functions:
+[`relaxation2d`](@ref) (exponential decay), [`recovery2d`](@ref) (magnetisation
+recovery), or [`modelfit2d`](@ref) (arbitrary equation).
 
 ![Screenshot from peak fitting to a single 2D](../../assets/intensity2d.png)
 
@@ -25,10 +32,10 @@ Typical use cases include:
 using NMRAnalysis
 
 # Single spectrum
-peaks2d("expno/pdata/1")
+fit2d("expno/pdata/1")
 
 # Series of spectra — track peaks across multiple experiments
-peaks2d([
+fit2d([
     "expno1/pdata/1",
     "expno2/pdata/1",
     "expno3/pdata/1",
