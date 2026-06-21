@@ -1,4 +1,4 @@
-function gui!(expt::FixedPeakExperiment)
+function gui!(expt::Experiment)
     GLMakie.activate!(; title="NMRAnalysis.jl (v$(string(pkgversion(GUI2D))))",
                       focus_on_show=true)
 
@@ -113,7 +113,7 @@ function gui!(expt::FixedPeakExperiment)
     return g[:fig]
 end
 
-function addhanders!(g, state, expt::FixedPeakExperiment)
+function addhanders!(g, state, expt::Experiment)
     g[:fig].scene.backgroundcolor = lift(state[:mode]) do mode
         if mode == :fitting
             RGBAf(1.0, 0.63, 0.48, 1.0)      # :salmon

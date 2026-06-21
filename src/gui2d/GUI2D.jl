@@ -36,6 +36,9 @@ export relaxation2d
 export recovery2d
 export modelfit2d
 
+# export MovingExperiment
+export movingfit2d
+
 # export HetNOEExperiment
 export hetnoe2d
 

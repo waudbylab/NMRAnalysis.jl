@@ -30,6 +30,7 @@ Expected fields:
 
 # implementations
 include("expt-intensitybased.jl")
+include("expt-moving.jl")
 include("expt-hetnoe.jl")
 include("expt-PRE.jl")
 include("expt-cest.jl")
