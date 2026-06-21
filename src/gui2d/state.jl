@@ -70,19 +70,26 @@ function preparestate(expt::Experiment)
     state[:labels] = Observable{Vector{String}}([])
     state[:oldlabel] = Observable("")
     state[:peakcolours] = Observable{Vector{Symbol}}([])
+    # Per-peak handle sizes; the selected/moused-over peak is enlarged for grab feedback. Kept
+    # in lockstep with peakcolours (set .val before positions notify) so lengths always match.
+    state[:initialpeaksizes] = Observable{Vector{Float64}}([])
     on(state[:current_peaks]) do d
         # onany(state[:current_peaks], state[:current_peak_idx]) do d, idx
         @debug "current peaks changed"
         idx = state[:current_peak_idx][]
         cols = map(t -> t ? :red : :blue, d[:touched])
+        sizes = fill(15.0, length(cols))
         if idx > 0
             cols[idx] = :lime
+            sizes[idx] = 24.0
         end
         state[:peakcolours].val = cols
+        state[:initialpeaksizes].val = sizes
         state[:labels].val = d[:labels]
         state[:positions][] = d[:positions]
         state[:initialpositions][] = d[:initialpositions]
         notify(state[:peakcolours])
+        notify(state[:initialpeaksizes])
         notify(state[:labels])
     end
 
@@ -90,10 +97,15 @@ function preparestate(expt::Experiment)
         @debug "current peak index changed to $idx - updating colours"
         d = state[:current_peaks][]
         cols = map(t -> t ? :red : :blue, d[:touched])
+        sizes = fill(15.0, length(cols))
         if idx > 0
             cols[idx] = :lime
+            sizes[idx] = 24.0
         end
-        state[:peakcolours][] = cols
+        state[:peakcolours].val = cols
+        state[:initialpeaksizes].val = sizes
+        notify(state[:initialpeaksizes])
+        notify(state[:peakcolours])
     end
 
     state[:current_peak_info] = lift(idx -> peakinfotext(expt, idx),

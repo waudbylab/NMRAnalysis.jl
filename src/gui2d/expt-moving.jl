@@ -427,6 +427,9 @@ function add_moving_overlays!(g, state, expt::MovingPeakExperiment)
                                  color=state[:trajectorycolours], linewidth=2.5)
     g[:plttrajectorypts] = scatter!(ax, state[:trajectories];
                                     color=state[:trajectorycolours], markersize=7)
+    # Above the contours/context, but below the drag handle (z=10) so the handle stays pickable.
+    translate!(g[:plttrajectories], 0, 0, 2)
+    translate!(g[:plttrajectorypts], 0, 0, 2)
 
     # --- faint context: every plane's contours, off by default ---
     # Drawn above the (opaque white) mask heatmap so they remain visible; the small positive z

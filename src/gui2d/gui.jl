@@ -91,8 +91,13 @@ function gui!(expt::Experiment)
                           offset=(8, 0),
                           align=(:left, :center),
                           color=:black)
-    g[:pltinitialpeaks] = scatter!(g[:axcontour], state[:initialpositions]; markersize=15,
+    # The drag handle. The moused-over/selected peak is enlarged (see state.jl) for grab
+    # feedback, and the handle is kept at the top z-level so it stays pickable above the
+    # trajectory/context overlays.
+    g[:pltinitialpeaks] = scatter!(g[:axcontour], state[:initialpositions];
+                                   markersize=state[:initialpeaksizes],
                                    color=state[:peakcolours])
+    translate!(g[:pltinitialpeaks], 0, 0, 10)
 
     # moving-peak overlays (per-plane position trajectories + faint context planes);
     # a no-op for fixed-position experiments
