@@ -109,10 +109,17 @@ function addpeak!(expt::MovingExperiment, initialposition::Point2f, label="",
     newpeak = Peak(positions, label, xradius, yradius)
 
     # per-plane linewidths and amplitudes
-    R2x = Parameter("R2x", MaybeVector(fill(30.0, n)); minvalue=1.0, maxvalue=100.0)
-    R2y = Parameter("R2y", MaybeVector(fill(15.0, n)); minvalue=1.0, maxvalue=100.0)
-
     x0, y0 = initialposition
+    # Initial linewidths from the radii: take half the radius as a FWHM estimate and convert to
+    # an R2 rate (R2 = π·FWHM in Hz), clamped to the fit bounds. Adapts to each dimension's
+    # frequency scale rather than using a fixed guess.
+    xaxis = dims(expt.specdata.nmrdata[1], F1Dim)
+    yaxis = dims(expt.specdata.nmrdata[1], F2Dim)
+    R2x = Parameter("R2x", MaybeVector(fill(r2_from_radius(xaxis, xradius, x0), n));
+                    minvalue=1.0, maxvalue=100.0)
+    R2y = Parameter("R2y", MaybeVector(fill(r2_from_radius(yaxis, yradius, y0), n));
+                    minvalue=1.0, maxvalue=100.0)
+
     amp0 = map(1:n) do i
         ix = findnearest(expt.specdata.x[i], x0)
         iy = findnearest(expt.specdata.y[i], y0)
@@ -149,12 +156,35 @@ function trackmaximum(expt::MovingPeakExperiment, i, xc, yc)
     return (x[xi[idx[1]]], y[yi[idx[2]]])
 end
 
-# Set both the fitted and initial position of one plane (so it displays and seeds the refit).
-function setpeakposition!(peak::Peak, i, x, y)
+# Set both the fitted and initial position of one plane (so it displays and seeds the refit),
+# and resample the amplitude at the new position.
+function setpeakposition!(expt::MovingPeakExperiment, peak::Peak, i, x, y)
     peak.parameters[:x].initialvalue[][i] = x
     peak.parameters[:x].value[][i] = x
     peak.parameters[:y].initialvalue[][i] = y
     peak.parameters[:y].value[][i] = y
+    reinitialise_amplitude!(expt, peak, i)
+    return
+end
+
+# R2 rate (s⁻¹) for an initial linewidth guess: half the search radius taken as a FWHM, converted
+# from Hz (R2 = π·FWHM), clamped to the fit bounds.
+function r2_from_radius(axis, radius, pos)
+    Δhz = abs(hz(pos + radius, axis) - hz(pos, axis))
+    return clamp(π * Δhz / 2, 1.0, 100.0)
+end
+
+# Resample plane `i`'s amplitude from the spectrum at the peak's current initial position. After
+# the per-plane R2 scaling in simulatepeakplane!, the fitted amplitude is the peak height, so the
+# nearest grid intensity is a good seed - kept current whenever the position moves.
+function reinitialise_amplitude!(expt::MovingPeakExperiment, peak::Peak, i)
+    x0 = peak.parameters[:x].initialvalue[][i]
+    y0 = peak.parameters[:y].initialvalue[][i]
+    ix = findnearest(expt.specdata.x[i], x0)
+    iy = findnearest(expt.specdata.y[i], y0)
+    a = expt.specdata.z[i][ix, iy]
+    peak.parameters[:amp].initialvalue[][i] = a
+    peak.parameters[:amp].value[][i] = a
     return
 end
 
@@ -174,16 +204,16 @@ function addandtrackpeak!(expt::MovingPeakExperiment, initialposition, label="")
 
     # Anchor at the current plane (refine the click to the local maximum), then propagate.
     xc, yc = trackmaximum(expt, s, initialposition[1], initialposition[2])
-    setpeakposition!(peak, s, xc, yc)
+    setpeakposition!(expt, peak, s, xc, yc)
     px, py = xc, yc
     for i in (s + 1):nslices(expt)
         px, py = trackmaximum(expt, i, px, py)
-        setpeakposition!(peak, i, px, py)
+        setpeakposition!(expt, peak, i, px, py)
     end
     px, py = xc, yc
     for i in (s - 1):-1:1
         px, py = trackmaximum(expt, i, px, py)
-        setpeakposition!(peak, i, px, py)
+        setpeakposition!(expt, peak, i, px, py)
     end
 
     peak.touched[] = true
