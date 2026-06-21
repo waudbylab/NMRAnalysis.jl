@@ -46,8 +46,18 @@ positions, linewidths and the amplitude for each delay, the derived columns are:
 
 The rate is labelled generically as `R`; the software does not distinguish R₁
 from R₂. See [Peak Lists and Output Files](peaklistformats.md) for the full format.
-Plot R against residue number with `summaryplot(expt)`; pass `ylabel="R₂ / s⁻¹"`
-to label the axis as appropriate for your experiment.
+
+Plot R against residue number with [`summaryplot`](summary.md). Pass an appropriate
+`ylabel` to label the axis for your specific experiment:
+
+```julia
+# T2 / R2 measurement
+fig = summaryplot(expt; ylabel="R₂ / s⁻¹")
+fig = summaryplot("results/"; param=:R, ylabel="R₂ / s⁻¹")
+
+# T1 / R1 measurement
+fig = summaryplot(expt; ylabel="R₁ / s⁻¹")
+```
 
 ## Noise Estimation
 

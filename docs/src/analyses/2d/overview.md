@@ -27,8 +27,10 @@ in the contour plot to work with it.
 | Lower contour base level | `↓` or **contour ↓** button |
 | Reset axis zoom | **reset zoom** button |
 | Show or hide the fitted lineshape overlay | **Fitting** toggle |
+| Open a summary plot of the current results | **Summary plot** button (enabled once peaks are present) |
 | Load a previously saved peak list | **Load peak list** button |
 | Save all results to a folder | **Save to folder** button |
+| Close the GUI window | **Quit** button |
 
 Peak lineshapes are fitted in real time as you add or move peaks. The right panel shows
 cross-sections (or a model fit plot, for relaxation-type experiments) for the currently
@@ -75,7 +77,7 @@ Clicking **Save to folder** writes the following files:
 |------|---------|
 | `results.csv` | One row per peak: positions (δ₁, δ₂), linewidths (R2x, R2y), per-plane amplitudes, and any derived experiment parameters (relaxation rates, NOE values, …), each with uncertainties |
 | `peak_LABEL.pdf` | Per-peak publication-quality fit plot for each labelled peak |
-| `spectrum-fit-N.pdf` | 2D contour plot with fitted lineshapes overlaid, one file per slice |
+| `cluster_LABEL.pdf` | Zoomed 2D contour plot with fitted lineshapes for each group of overlapping peaks, one file per cluster. For multi-slice experiments the file shows a grid of panels, one per slice. |
 
 `results.csv` has experiment metadata in `#`-comment lines above an ordinary
 header row, so it opens directly in spreadsheets and `pandas`. Existing files are

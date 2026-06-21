@@ -34,16 +34,16 @@ function saveresults!(expt)
         # parameters to a single results file
         writeresults!(expt, folder)
 
-        # remove any files peak_XXX.pdf from output folder before saving new plots
+        # remove stale per-peak and per-cluster PDFs before saving fresh ones
         for file in readdir(folder)
-            if occursin(r"^peak_.*\.pdf$", file)
+            if occursin(r"^(peak_|cluster_).*\.pdf$", file)
                 rm(joinpath(folder, file))
             end
         end
         save_peak_plots!(expt, folder)
 
-        # save current contour plot figure
-        save_contour_plot!(expt, folder)
+        # save one zoomed contour plot per cluster of overlapping peaks
+        save_cluster_plots!(expt, folder)
 
         expt.state[][:mode][] = :normal
     end
@@ -239,49 +239,94 @@ function format_param(peak, param, slice, value_type)
     return string(to_value(val)) # convert from Observables to plain values
 end
 
-function save_contour_plot!(expt, folder)
+"""
+    save_cluster_plots!(expt, folder)
+
+Save one zoomed contour plot per cluster of overlapping peaks. Each PDF contains a
+grid of subplots (one per slice) showing the fitted lineshapes for the cluster region,
+with axis limits set to include only the peaks in that cluster plus padding.
+
+Files are named `cluster_LABEL.pdf` (single peak) or `cluster_LABEL1-LABEL2.pdf`
+(overlapping peaks).
+"""
+function save_cluster_plots!(expt, folder)
+    peaks = expt.peaks[]
+    clusters = expt.clusters[]
+    isempty(clusters) && return
+
     CairoMakie.activate!()
 
     state = expt.state[]
-    rect = state[:gui][][:axcontour].finallimits[]
-    x0, y0 = rect.origin
-    dx, dy = rect.widths
-    lims = ((x0, x0 + dx), (y0, y0 + dy))
+    n = nslices(expt)
+    contourlevels = state[:gui][][:contourlevels]
+    xlabel_str = "$(label(expt.specdata.nmrdata[1],F1Dim)) / ppm"
+    ylabel_str = "$(label(expt.specdata.nmrdata[1],F2Dim)) / ppm"
 
-    for i in 1:nslices(expt)
-        f = Figure()
-        ax = Axis(f[1, 1];
-                  xlabel="$(label(expt.specdata.nmrdata[1],F1Dim)) chemical shift (ppm)",
-                  ylabel="$(label(expt.specdata.nmrdata[1],F2Dim)) chemical shift (ppm)",
-                  xreversed=true, yreversed=true, limits=lims,
-                  title=slicelabel(expt, i))
-        heatmap!(ax,
-                 expt.specdata.x[i],
-                 expt.specdata.y[i],
-                 expt.specdata.mask[][i];
-                 colormap=[:white, :lightgoldenrod1],
-                 colorrange=(0, 1))
-        contour!(ax,
-                 expt.specdata.x[i],
-                 expt.specdata.y[i],
-                 expt.specdata.z[i];
-                 levels=state[:gui][][:contourlevels],
-                 color=bicolours(:grey50, :lightblue))
-        contour!(ax,
-                 expt.specdata.x[i],
-                 expt.specdata.y[i],
-                 expt.specdata.zfit[][i];
-                 levels=state[:gui][][:contourlevels],
-                 color=bicolours(:orangered, :dodgerblue))
-        scatter!(ax, state[:positions]; markersize=10, marker=:x, color=:black)
-        text!(ax, state[:positions]; text=state[:labels],
-              fontsize=14,
-              # font=:bold,
-              offset=(8, 0),
-              align=(:left, :center),
-              color=:black)
+    ncols = min(n, 4)
+    nrows = ceil(Int, n / ncols)
+    subplot_px = 260
+    figsize = (ncols * subplot_px + 60, nrows * subplot_px + 60)
 
-        save(joinpath(folder, "spectrum-fit-$i.pdf"), f)
+    for cluster_idxs in clusters
+        cluster = [peaks[i] for i in cluster_idxs]
+        isempty(cluster) && continue
+
+        # Bounding box from initial positions + radius padding
+        padding = 1.5
+        all_x = Float64[]
+        all_y = Float64[]
+        for peak in cluster
+            pos = initialposition(peak)[]
+            pts = pos isa AbstractVector ? pos : [pos]
+            for p in pts
+                push!(all_x, p[1])
+                push!(all_y, p[2])
+            end
+        end
+        max_xr = maximum(peak.xradius[] for peak in cluster)
+        max_yr = maximum(peak.yradius[] for peak in cluster)
+        lims = ((minimum(all_x) - padding * max_xr, maximum(all_x) + padding * max_xr),
+                (minimum(all_y) - padding * max_yr, maximum(all_y) + padding * max_yr))
+
+        # Build a filename from peak labels (truncate if very long)
+        raw = join([peak.label[] for peak in cluster], "-")
+        safe = replace(raw, r"[^\w\-]" => "_")
+        safe = length(safe) > 64 ? safe[1:64] : safe
+
+        fig = Figure(; size=figsize)
+
+        for (idx, i) in enumerate(1:n)
+            row = ceil(Int, idx / ncols)
+            col = mod1(idx, ncols)
+            show_xlabel = row == nrows && col == 1
+            show_ylabel = col == 1
+            ax = Axis(fig[row, col];
+                      xlabel=show_xlabel ? xlabel_str : "",
+                      ylabel=show_ylabel ? ylabel_str : "",
+                      xreversed=true, yreversed=true,
+                      limits=lims,
+                      title=slicelabel(expt, i))
+            heatmap!(ax, expt.specdata.x[i], expt.specdata.y[i],
+                     expt.specdata.mask[][i];
+                     colormap=[:white, :lightgoldenrod1], colorrange=(0, 1))
+            contour!(ax, expt.specdata.x[i], expt.specdata.y[i],
+                     expt.specdata.z[i];
+                     levels=contourlevels, color=bicolours(:grey50, :lightblue))
+            contour!(ax, expt.specdata.x[i], expt.specdata.y[i],
+                     expt.specdata.zfit[][i];
+                     levels=contourlevels, color=bicolours(:orangered, :dodgerblue))
+            for peak in cluster
+                xi = min(i, length(peak.parameters[:x].value[]))
+                yi = min(i, length(peak.parameters[:y].value[]))
+                pt = Point2f(peak.parameters[:x].value[][xi],
+                             peak.parameters[:y].value[][yi])
+                scatter!(ax, [pt]; markersize=10, marker=:x, color=:black)
+                text!(ax, [pt]; text=[peak.label[]], fontsize=12,
+                      offset=(6, 0), align=(:left, :center), color=:black)
+            end
+        end
+
+        save(joinpath(folder, "cluster_$(safe).pdf"), fig)
     end
 
     return GLMakie.activate!()
