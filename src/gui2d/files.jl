@@ -27,24 +27,30 @@ function saveresults!(expt)
         expt.state[][:mode][] = :fitting
         sleep(0.1) # allow time for mode change to be processed
     end
-    @async begin # do fitting in a separate task
+    @async begin # do saving in a separate task
         sleep(0.2) # allow time for mode change to be processed
+        try
+            # save all peak positions, linewidths, amplitudes and derived
+            # parameters to a single results file
+            writeresults!(expt, folder)
 
-        # save all peak positions, linewidths, amplitudes and derived
-        # parameters to a single results file
-        writeresults!(expt, folder)
-
-        # remove stale per-peak, per-cluster and summary PDFs
-        for file in readdir(folder)
-            if occursin(r"^(peak_|cluster_).*\.pdf$", file) || file == "summary.pdf"
-                rm(joinpath(folder, file))
+            # remove stale per-peak, per-cluster and summary PDFs
+            for file in readdir(folder)
+                if occursin(r"^(peak_|cluster_).*\.pdf$", file) || file == "summary.pdf"
+                    rm(joinpath(folder, file))
+                end
             end
+            save_peak_plots!(expt, folder)
+            save_cluster_plots!(expt, folder)
+            save_summary_plot!(expt, folder)
+        catch e
+            @error "Error saving results to $folder" exception = (e, catch_backtrace())
+        finally
+            # Always restore normal mode - otherwise a failure mid-save leaves the GUI stuck
+            # on the salmon "fitting" background with no way to recover.
+            GLMakie.activate!()
+            expt.state[][:mode][] = :normal
         end
-        save_peak_plots!(expt, folder)
-        save_cluster_plots!(expt, folder)
-        save_summary_plot!(expt, folder)
-
-        expt.state[][:mode][] = :normal
     end
 end
 
@@ -176,8 +182,22 @@ function resultstable(expt)
         derivedkeys = prim in allkeys ? [prim; filter(!=(prim), allkeys)] : allkeys
     end
 
-    header = ["label", "resnum", "resname", "atom",
-              "x", "x_err", "y", "y_err", "R2x", "R2x_err", "R2y", "R2y_err"]
+    # For moving-peak experiments, positions and linewidths vary per plane, so they are
+    # written per-plane (x[1], x[2], ...) like amplitudes; fixed-peak experiments keep a
+    # single column each.
+    moving = !hasfixedpositions(expt)
+    posparams = (:x, :y, :R2x, :R2y)
+
+    header = ["label", "resnum", "resname", "atom"]
+    for p in posparams
+        if moving
+            for i in 1:n
+                append!(header, ["$(p)[$i]", "$(p)[$i]_err"])
+            end
+        else
+            append!(header, [string(p), "$(p)_err"])
+        end
+    end
     for i in 1:n
         append!(header, ["amp[$i]", "amp[$i]_err"])
     end
@@ -191,9 +211,12 @@ function resultstable(expt)
         row = [peak.label[], string(lbl.resnum),
                lbl.onelettercode == '?' ? "" : string(lbl.onelettercode),
                lbl.atom]
-        for p in (:x, :y, :R2x, :R2y)
-            push!(row, format_param(peak, p, 1, :value))
-            push!(row, format_param(peak, p, 1, :uncertainty))
+        for p in posparams
+            slices = moving ? (1:n) : (1:1)
+            for i in slices
+                push!(row, format_param(peak, p, i, :value))
+                push!(row, format_param(peak, p, i, :uncertainty))
+            end
         end
         for i in 1:n
             push!(row, format_param(peak, :amp, i, :value))

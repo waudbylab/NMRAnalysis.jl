@@ -206,3 +206,51 @@ function slicelabel(expt::MovingExperiment, idx)
         "$(expt.specdata.zlabels[idx]) ($idx of $(nslices(expt)))"
     end
 end
+
+# Legend label for a plane: its independent-variable value when one was supplied,
+# otherwise the plane index.
+function _planelabel(expt::MovingExperiment, i)
+    expt.x == collect(1.0:nslices(expt)) && return "Plane $i"
+    return string(round(expt.x[i]; digits=3))
+end
+
+"""
+    summaryplot(expt::MovingExperiment; weights=(1.0, 0.14), title, size, include_unassigned)
+
+Default summary for a moving-peak experiment: combined chemical-shift perturbation Δδ
+against residue number, with one series per plane beyond the first (each plane's shift is
+measured relative to plane 1).
+
+Δδ = √((w₁·Δδ_x)² + (w₂·Δδ_y)²), with `weights` weighting the two dimensions. The default
+`(1.0, 0.14)` assumes the F1 (x) axis is ¹H and the F2 (y) axis is ¹⁵N (Williamson 2013); pass
+`weights` to suit other nuclei (e.g. `(1.0, 0.25)` for ¹³C).
+"""
+function summaryplot(expt::MovingExperiment; weights=(1.0, 0.14), title="", size=nothing,
+                     include_unassigned=false)
+    n = nslices(expt)
+    peaks = sortedpeaks(expt)
+    if !include_unassigned
+        assigned = filter(p -> extract_residue_number(p.label[]) > 0, peaks)
+        isempty(assigned) || (peaks = assigned)
+    end
+
+    figkw = isnothing(size) ? NamedTuple() : (; size=size)
+    fig = Figure(; figkw...)
+    ax = Axis(fig[1, 1]; xlabel="Residue number", ylabel="Δδ / ppm", title=title,
+              xgridvisible=false, ygridvisible=false)
+
+    resnums = Float64[extract_residue_number(p.label[]) for p in peaks]
+    wx, wy = weights
+    for i in 2:n
+        Δδ = map(peaks) do peak
+            dx = peak.parameters[:x].value[][i] - peak.parameters[:x].value[][1]
+            dy = peak.parameters[:y].value[][i] - peak.parameters[:y].value[][1]
+            return sqrt((wx * dx)^2 + (wy * dy)^2)
+        end
+        scatterlines!(ax, resnums, Float64.(Δδ); label=_planelabel(expt, i))
+    end
+    hlines!(ax, [0]; linewidth=0)  # invisible: forces zero into the y-range
+    n > 2 && axislegend(ax; position=:lt, framevisible=false)
+
+    return fig
+end
