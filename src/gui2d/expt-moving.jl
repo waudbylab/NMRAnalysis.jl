@@ -133,10 +133,6 @@ end
 
 """Simulate single peak according to its per-plane position, linewidth and amplitude."""
 function simulate!(z, peak::Peak, expt::MovingExperiment, xbounds=nothing, ybounds=nothing)
-    # Reference linewidths (plane 1) used only to decouple amplitude from linewidth scaling.
-    R2x0 = peak.parameters[:R2x].value[][1]
-    R2y0 = peak.parameters[:R2y].value[][1]
-
     for i in 1:nslices(expt)
         # get axis references for window functions
         xaxis = dims(expt.specdata.nmrdata[i], F1Dim)
@@ -156,11 +152,13 @@ function simulate!(z, peak::Peak, expt::MovingExperiment, xbounds=nothing, yboun
         yi = y0 .- peak.yradius[] .≤ y .≤ y0 .+ peak.yradius[]
         xs = x[xi]
         ys = y[yi]
-        # NB. scale intensities by R2x and R2y to decouple amplitude estimation from linewidth
-
+        # Scale by this plane's OWN R2x/R2y so the fitted amplitude is the peak height,
+        # decoupled from linewidth. Unlike fixed-peak experiments (where linewidths are shared),
+        # each plane must use its own linewidths - otherwise plane 1's linewidth scales every
+        # plane's amplitude and couples the whole peak's fit together.
         zx = NMRTools.NMRBase._lineshape(2π * hz(x0, xaxis), R2x, 2π * hz(xs, xaxis),
                                          xaxis[:window], RealLineshape())
-        zy = (π^2 * amp * R2x0 * R2y0) *
+        zy = (π^2 * amp * R2x * R2y) *
              NMRTools.NMRBase._lineshape(2π * hz(y0, yaxis), R2y, 2π * hz(ys, yaxis),
                                          yaxis[:window], RealLineshape())
         z[i][xi, yi] .+= zx .* zy'
@@ -200,11 +198,77 @@ function experimentinfo(expt::MovingExperiment)
 end
 
 function slicelabel(expt::MovingExperiment, idx)
-    if length(expt.specdata.zlabels) == 1
-        "Slice $idx of $(nslices(expt))"
-    else
-        "$(expt.specdata.zlabels[idx]) ($idx of $(nslices(expt)))"
+    n = nslices(expt)
+    length(expt.specdata.zlabels) == 1 && return "Slice $idx of $n"
+    lbl = string(expt.specdata.zlabels[idx])
+    length(lbl) > 20 && (lbl = first(lbl, 20) * "…")
+    return "$lbl ($idx of $n)"
+end
+
+"""
+    add_moving_overlays!(g, state, expt::MovingPeakExperiment)
+
+Add the moving-peak overlays to the contour panel:
+- a faint polyline tracing each peak's fitted position across all planes (the trajectory),
+  so the walk is visible at a glance;
+- a toggleable "Context" overlay drawing every plane's contours faintly behind the current
+  one, for orienting peaks that move a long way.
+"""
+function add_moving_overlays!(g, state, expt::MovingPeakExperiment)
+    ax = g[:axcontour]
+
+    # --- per-peak position trajectories across all planes ---
+    # One flat point list with NaN separators between peaks, so a single lines! call draws
+    # every trajectory as disconnected segments, plus matching per-vertex dots. Colours mirror
+    # the peak markers: touched/unfitted → red, fitted → blue, selected → lime. Concrete RGBAf
+    # values are used (a Vector{Symbol} colour is not honoured by lines!).
+    statuscolour(j, sel, touched) = j == sel ? RGBAf(0, 1, 0, 1) :
+                                    touched ? RGBAf(1, 0, 0, 1) : RGBAf(0, 0, 1, 1)
+    # Single source of truth, recomputed whenever the peaks (positions/fit status) or the
+    # selection change; the points and colours derive from it so they stay length-consistent.
+    state[:trajectorydata] = lift(expt.peaks, state[:current_peak_idx]) do peaks, sel
+        pts = Point2f[]
+        cols = RGBAf[]
+        for (j, peak) in enumerate(peaks)
+            c = statuscolour(j, sel, peak.touched[])
+            xs = peak.parameters[:x].value[]
+            ys = peak.parameters[:y].value[]
+            for i in 1:length(xs)
+                push!(pts, Point2f(xs[i], ys[i]))
+                push!(cols, c)
+            end
+            push!(pts, Point2f(NaN32, NaN32))  # break between peaks
+            push!(cols, c)
+        end
+        return (pts, cols)
     end
+    # Register the colour derivation before the position one so it is up to date by the time a
+    # position change triggers a redraw.
+    state[:trajectorycolours] = lift(d -> d[2], state[:trajectorydata])
+    state[:trajectories] = lift(d -> d[1], state[:trajectorydata])
+
+    g[:plttrajectories] = lines!(ax, state[:trajectories];
+                                 color=state[:trajectorycolours], linewidth=2.5)
+    g[:plttrajectorypts] = scatter!(ax, state[:trajectories];
+                                    color=state[:trajectorycolours], markersize=7)
+
+    # --- faint context: every plane's contours, off by default ---
+    # Drawn above the (opaque white) mask heatmap so they remain visible; the small positive z
+    # keeps them under the peak markers and trajectory. The "Show all" toggle widget is created
+    # in gui! (just left of the Fitting toggle); here we attach its plots and handler.
+    g[:pltotherplanes] = map(1:nslices(expt)) do i
+        p = contour!(ax, expt.specdata.x[i], expt.specdata.y[i], expt.specdata.z[i];
+                     levels=g[:contourlevels], color=(:grey60, 0.3), visible=false)
+        translate!(p, 0, 0, 1)
+        return p
+    end
+    on(g[:toggleother].active) do active
+        for p in g[:pltotherplanes]
+            p.visible[] = active
+        end
+    end
+
+    return nothing
 end
 
 # Legend label for a plane: its independent-variable value when one was supplied,

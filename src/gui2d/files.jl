@@ -111,10 +111,28 @@ function readpeaklist!(expt, filepath::AbstractString)
             try
                 length(fields) < 3 && error("insufficient fields")
                 label = string(fields[colmap["label"]])
-                x = parse(Float64, fields[colmap["x"]])
-                y = parse(Float64, fields[colmap["y"]])
 
-                addpeak!(expt, Point2f(x, y), label)
+                # Moving-peak results store positions (and linewidths) per plane as
+                # x[1], x[2], ...; restore them so a saved trajectory reloads intact. A
+                # plain `label x y` list (or a fixed-peak results.csv) takes the single x/y.
+                if !hasfixedpositions(expt) && haskey(colmap, "x[1]")
+                    n = nslices(expt)
+                    getcol(name, i) = parse(Float64, fields[colmap["$(name)[$i]"]])
+                    xs = [getcol("x", i) for i in 1:n]
+                    ys = [getcol("y", i) for i in 1:n]
+                    addpeak!(expt, Point2f(xs[1], ys[1]), label)
+                    peak = expt.peaks[][end]
+                    setperplane!(peak, :x, xs)
+                    setperplane!(peak, :y, ys)
+                    if haskey(colmap, "r2x[1]")
+                        setperplane!(peak, :R2x, [getcol("r2x", i) for i in 1:n])
+                        setperplane!(peak, :R2y, [getcol("r2y", i) for i in 1:n])
+                    end
+                else
+                    x = parse(Float64, fields[colmap["x"]])
+                    y = parse(Float64, fields[colmap["y"]])
+                    addpeak!(expt, Point2f(x, y), label)
+                end
                 peak_count += 1
             catch e
                 @warn "Skipping line $line_number: $(e isa ErrorException ? e.msg : e)"
@@ -236,6 +254,22 @@ function format_post(peak, key, which)
     haskey(peak.postparameters, key) || return "NA"
     val = getproperty(peak.postparameters[key], which)[][1]
     return string(to_value(val))
+end
+
+"""
+    setperplane!(peak, param, values)
+
+Write a per-plane parameter from a loaded results file, setting both the fitted value and the
+initial value in every plane (so the loaded positions display immediately and seed any refit).
+"""
+function setperplane!(peak, param, values)
+    haskey(peak.parameters, param) || return
+    p = peak.parameters[param]
+    for i in eachindex(values)
+        p.value[][i] = values[i]
+        p.initialvalue[][i] = values[i]
+    end
+    return
 end
 
 """

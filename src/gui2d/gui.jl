@@ -26,12 +26,18 @@ function gui!(expt::Experiment)
     g[:cmdsliceleft] = Button(g[:paneltop][1, 5]; label="←")
     g[:cmdsliceright] = Button(g[:paneltop][1, 6]; label="→")
     g[:slicelabel] = Label(g[:paneltop][1, 7], state[:current_slice_label])
-    g[:togglefit] = Toggle(g[:paneltop][1, 8]; active=true)
-    Label(g[:paneltop][1, 9], "Fitting")
-    g[:cmdsummary] = Button(g[:paneltop][1, 10]; label="Summary plot")
-    g[:cmdload] = Button(g[:paneltop][1, 11]; label="Load peak list")
-    g[:cmdsave] = Button(g[:paneltop][1, 12]; label="Save to folder")
-    g[:cmdquit] = Button(g[:paneltop][1, 13]; label="Quit")
+    # Moving-peak experiments get a "Show all" planes toggle just left of the Fitting toggle.
+    # The toggle's plots and handler are wired up later in add_moving_overlays!.
+    col = 8
+    if !hasfixedpositions(expt)
+        g[:toggleother] = Toggle(g[:paneltop][1, col]; active=false)
+        Label(g[:paneltop][1, col + 1], "Show all")
+        col += 2
+    end
+    g[:togglefit] = Toggle(g[:paneltop][1, col]; active=true)
+    Label(g[:paneltop][1, col + 1], "Fitting")
+    g[:cmdsummary] = Button(g[:paneltop][1, col + 2]; label="Summary plot")
+    g[:cmdquit] = Button(g[:paneltop][1, col + 3]; label="Quit")
 
     # create contour plot
     g[:basecontour] = Observable(10.0)
@@ -88,12 +94,18 @@ function gui!(expt::Experiment)
     g[:pltinitialpeaks] = scatter!(g[:axcontour], state[:initialpositions]; markersize=15,
                                    color=state[:peakcolours])
 
+    # moving-peak overlays (per-plane position trajectories + faint context planes);
+    # a no-op for fixed-position experiments
+    add_moving_overlays!(g, state, expt)
+
     # peak info
-    g[:cmdrename] = Button(g[:panelinfo][1, 1]; label="(R)ename peak")
-    g[:cmddelete] = Button(g[:panelinfo][1, 2]; label="(D)elete peak")
-    Label(g[:panelinfo][2, 1:2], "Press (A) to add new peak under mouse cursor";
+    g[:cmdload] = Button(g[:panelinfo][1, 1]; label="Load peak list")
+    g[:cmdsave] = Button(g[:panelinfo][1, 2]; label="Save to folder")
+    g[:cmdrename] = Button(g[:panelinfo][2, 1]; label="(R)ename peak")
+    g[:cmddelete] = Button(g[:panelinfo][2, 2]; label="(D)elete peak")
+    Label(g[:panelinfo][3, 1:2], "Press (A) to add new peak under mouse cursor";
           word_wrap=true)
-    g[:sgradii] = SliderGrid(g[:panelinfo][3, 1:2],
+    g[:sgradii] = SliderGrid(g[:panelinfo][4, 1:2],
                              (label="X radius", range=0.02:0.005:0.1, format="{:.3f} ppm",
                               startvalue=expt.xradius[]),
                              (label="Y radius", range=0.1:0.02:0.8, format="{:.2f} ppm",
@@ -101,7 +113,7 @@ function gui!(expt::Experiment)
     g[:sliderxradius] = g[:sgradii].sliders[1].value
     g[:slideryradius] = g[:sgradii].sliders[2].value
 
-    g[:infotext] = Label(g[:panelinfo][4, 1:2], state[:current_peak_info])
+    g[:infotext] = Label(g[:panelinfo][5, 1:2], state[:current_peak_info])
 
     # peak plot panel
     makepeakplot!(g, state, expt)
@@ -112,6 +124,10 @@ function gui!(expt::Experiment)
     @debug "Showing figure"
     return g[:fig]
 end
+
+# Hook for experiment-specific contour-panel overlays; specialised for moving-peak
+# experiments in expt-moving.jl. No-op for fixed-position experiments.
+add_moving_overlays!(g, state, ::Experiment) = nothing
 
 function addhanders!(g, state, expt::Experiment)
     g[:fig].scene.backgroundcolor = lift(state[:mode]) do mode
