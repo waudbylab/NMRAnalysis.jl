@@ -131,6 +131,66 @@ function addpeak!(expt::MovingExperiment, initialposition::Point2f, label="",
     return notify(expt.peaks)
 end
 
+"""
+    trackmaximum(expt, i, xc, yc) -> (x, y)
+
+Position of the most intense point in plane `i` within the peak radius of `(xc, yc)`. Used to
+follow a peak from plane to plane during tracking; returns `(xc, yc)` unchanged if the search
+window falls off the spectrum.
+"""
+function trackmaximum(expt::MovingPeakExperiment, i, xc, yc)
+    x = expt.specdata.x[i]
+    y = expt.specdata.y[i]
+    z = expt.specdata.z[i]
+    xi = findall(xc - expt.xradius[] .≤ x .≤ xc + expt.xradius[])
+    yi = findall(yc - expt.yradius[] .≤ y .≤ yc + expt.yradius[])
+    (isempty(xi) || isempty(yi)) && return (xc, yc)
+    idx = argmax(@view z[xi, yi])
+    return (x[xi[idx[1]]], y[yi[idx[2]]])
+end
+
+# Set both the fitted and initial position of one plane (so it displays and seeds the refit).
+function setpeakposition!(peak::Peak, i, x, y)
+    peak.parameters[:x].initialvalue[][i] = x
+    peak.parameters[:x].value[][i] = x
+    peak.parameters[:y].initialvalue[][i] = y
+    peak.parameters[:y].value[][i] = y
+    return
+end
+
+"""
+    addandtrackpeak!(expt, initialposition, label="")
+
+Add a peak at `initialposition` and track it across every plane by following the local maximum:
+the current plane is anchored at the click, then the position is propagated outward in both
+directions, each plane seeded from its neighbour's tracked position. The subsequent fit then
+refines each plane within its radius. Good for non-crowded series (titrations); for crowded
+regions, add with `A` and adjust planes by hand instead.
+"""
+function addandtrackpeak!(expt::MovingPeakExperiment, initialposition, label="")
+    addpeak!(expt, initialposition, label)
+    peak = expt.peaks[][end]
+    s = expt.state[][:current_slice][]
+
+    # Anchor at the current plane (refine the click to the local maximum), then propagate.
+    xc, yc = trackmaximum(expt, s, initialposition[1], initialposition[2])
+    setpeakposition!(peak, s, xc, yc)
+    px, py = xc, yc
+    for i in (s + 1):nslices(expt)
+        px, py = trackmaximum(expt, i, px, py)
+        setpeakposition!(peak, i, px, py)
+    end
+    px, py = xc, yc
+    for i in (s - 1):-1:1
+        px, py = trackmaximum(expt, i, px, py)
+        setpeakposition!(peak, i, px, py)
+    end
+
+    peak.touched[] = true
+    notify(expt.peaks)
+    return length(expt.peaks[])
+end
+
 """Simulate single peak according to its per-plane position, linewidth and amplitude."""
 function simulate!(z, peak::Peak, expt::MovingExperiment, xbounds=nothing, ybounds=nothing)
     for i in 1:nslices(expt)
@@ -167,6 +227,10 @@ end
 
 # Postfit: NoFitting just marks the peak fitted (the generic Experiment fallback in
 # experiments.jl already does this); position-based physical models are added separately.
+
+function addpeakhint(::MovingPeakExperiment)
+    return "Press (A) to add a peak, or (T) to add and track it across planes, under the cursor"
+end
 
 function peakinfotext(expt::MovingExperiment, idx)
     idx == 0 && return "No peak selected"

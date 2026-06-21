@@ -103,8 +103,7 @@ function gui!(expt::Experiment)
     g[:cmdsave] = Button(g[:panelinfo][1, 2]; label="Save to folder")
     g[:cmdrename] = Button(g[:panelinfo][2, 1]; label="(R)ename peak")
     g[:cmddelete] = Button(g[:panelinfo][2, 2]; label="(D)elete peak")
-    Label(g[:panelinfo][3, 1:2], "Press (A) to add new peak under mouse cursor";
-          word_wrap=true)
+    Label(g[:panelinfo][3, 1:2], addpeakhint(expt); word_wrap=true)
     g[:sgradii] = SliderGrid(g[:panelinfo][4, 1:2],
                              (label="X radius", range=0.02:0.005:0.1, format="{:.3f} ppm",
                               startvalue=expt.xradius[]),
@@ -128,6 +127,9 @@ end
 # Hook for experiment-specific contour-panel overlays; specialised for moving-peak
 # experiments in expt-moving.jl. No-op for fixed-position experiments.
 add_moving_overlays!(g, state, ::Experiment) = nothing
+
+# Hint shown in the peak-info panel; moving-peak experiments also advertise (T)rack.
+addpeakhint(::Experiment) = "Press (A) to add new peak under mouse cursor"
 
 function addhanders!(g, state, expt::Experiment)
     g[:fig].scene.backgroundcolor = lift(state[:mode]) do mode
