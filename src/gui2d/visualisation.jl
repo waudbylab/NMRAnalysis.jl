@@ -108,36 +108,47 @@ end
 ## Model fit visualisation
 
 function plot_peak!(panel, peak, expt, ::ModelFitVisualisation)
-    obs_points, obs_errors, fit_points = get_model_data(peak, expt)
-    
+    obs_points, obs_errors, fit_points, skip_points, skip_errors = get_model_data(peak, expt)
+
     ax = Axis(panel[1, 1],
               xlabel=get_model_xlabel(expt),
               ylabel=get_model_ylabel(expt))
-              
+
     hlines!(ax, [0]; linewidth=0)
     lines!(ax, fit_points; color=:red)
     errorbars!(ax, obs_errors; whiskerwidth=10)
     scatter!(ax, obs_points)
+    if !isempty(skip_points)
+        errorbars!(ax, skip_errors; whiskerwidth=10, color=:gray60)
+        scatter!(ax, skip_points; color=:transparent, strokecolor=:gray60,
+                 strokewidth=1.5, markersize=8)
+    end
 end
 
 function completestate!(state, expt, ::ModelFitVisualisation)
     @debug "completing state for model fit visualisation"
     state[:peak_plot_data] = lift(peak -> get_model_data(peak, expt), state[:current_peak])
-    state[:peak_plot_obs] = lift(d -> d[1], state[:peak_plot_data])
-    state[:peak_plot_err] = lift(d -> d[2], state[:peak_plot_data])
-    state[:peak_plot_fit] = lift(d -> d[3], state[:peak_plot_data])
+    state[:peak_plot_obs]         = lift(d -> d[1], state[:peak_plot_data])
+    state[:peak_plot_err]         = lift(d -> d[2], state[:peak_plot_data])
+    state[:peak_plot_fit]         = lift(d -> d[3], state[:peak_plot_data])
+    state[:peak_plot_skip_obs]    = lift(d -> d[4], state[:peak_plot_data])
+    state[:peak_plot_skip_err]    = lift(d -> d[5], state[:peak_plot_data])
 end
 
 function makepeakplot!(gui, state, expt, ::ModelFitVisualisation)
     @debug "making peak plot for model fit visualisation"
     gui[:axpeakplot] = ax = Axis(gui[:panelpeakplot][1, 1];
-                                xlabel=get_model_xlabel(expt),
-                                ylabel=get_model_ylabel(expt))
+                                 xlabel=get_model_xlabel(expt),
+                                 ylabel=get_model_ylabel(expt))
 
     hlines!(ax, [0]; linewidth=0)
     lines!(ax, state[:peak_plot_fit]; color=:red)
     errorbars!(ax, state[:peak_plot_err]; whiskerwidth=10)
     scatter!(ax, state[:peak_plot_obs])
+    # Skipped planes: open grey markers
+    errorbars!(ax, state[:peak_plot_skip_err]; whiskerwidth=10, color=:gray60)
+    scatter!(ax, state[:peak_plot_skip_obs]; color=:transparent, strokecolor=:gray60,
+             strokewidth=1.5, markersize=8)
 end
 
 get_model_xlabel(::Experiment) = "x"

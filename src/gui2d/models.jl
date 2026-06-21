@@ -89,64 +89,83 @@ function postfit!(peak::Peak, expt::IntensityExperiment, model::ParametricModel)
     @debug "Post-fitting model"
     x = expt.x
     y = peak.parameters[:amp].value[]
-    
-    # Initial parameter estimates
-    p0 = collect(values(estimate_parameters(x, y, model)))
-    
-    # Fit the model
-    fit = curve_fit(model.func, x, y, p0)
+
+    # Exclude skipped planes from the fit
+    skip = Set(expt.skipplanes)
+    keep = [i for i in eachindex(x) if i ∉ skip]
+    x_fit = x[keep]
+    y_fit = y[keep]
+
+    p0 = collect(values(estimate_parameters(x_fit, y_fit, model)))
+    fit = curve_fit(model.func, x_fit, y_fit, p0)
     pfit = coef(fit)
     perr = stderror(fit)
-    
-    # Update post-parameters with fitted values
+
     for (i, name) in enumerate(model.param_names)
-        i, name
         param = peak.postparameters[Symbol(name)]
         param.value[] .= pfit[i]
         param.uncertainty[] .= perr[i]
     end
-    
+
     @debug "Fitted parameters: $(peak.postparameters)"
     peak.postfitted[] = true
 end
 
-# Default - just return amplitudes
+# Helper: plane indices to skip (empty for experiments that don't support skipplanes)
+_skipset(::Experiment) = Set{Int}()
+_skipset(expt::IntensityExperiment) = Set{Int}(expt.skipplanes)
+
+_empty_errorbars() = Tuple{Float64,Float64,Float64}[]
+
+# Default - just return amplitudes, separating active and skipped points
 function get_model_data(peak, expt::Experiment, ::NoFitting)
-    isnothing(peak) && return (Point2f[], [(0.0, 0.0, 0.0)], Point2f[])
-    
+    isnothing(peak) &&
+        return (Point2f[], _empty_errorbars(), Point2f[], Point2f[], _empty_errorbars())
+
     x = expt.x
     y = peak.parameters[:amp].value[]
     err = peak.parameters[:amp].uncertainty[]
-    
-    obs_points = Point2f.(x, y)
-    obs_errors = [(x[i], y[i], err[i]) for i in 1:length(y)]
-    fit_points = Point2f[]  # No fit line for NoFitting
-    
-    return (obs_points, obs_errors, fit_points)
+    skip = _skipset(expt)
+
+    active  = [i for i in eachindex(x) if i ∉ skip]
+    skipped = [i for i in eachindex(x) if i ∈ skip]
+
+    obs_points    = Point2f.(x[active], y[active])
+    obs_errors    = [(x[i], y[i], err[i]) for i in active]
+    skip_points   = Point2f.(x[skipped], y[skipped])
+    skip_errors   = [(x[i], y[i], err[i]) for i in skipped]
+
+    return (obs_points, obs_errors, Point2f[], skip_points, skip_errors)
 end
 
 # Generic parametric model visualization
 function get_model_data(peak, expt::Experiment, model::ParametricModel)
-    isnothing(peak) && return (Point2f[], [(0.0, 0.0, 0.0)], Point2f[])
-    
+    isnothing(peak) &&
+        return (Point2f[], _empty_errorbars(), Point2f[], Point2f[], _empty_errorbars())
+
     x = expt.x
     y = peak.parameters[:amp].value[]
     err = peak.parameters[:amp].uncertainty[]
-    
-    obs_points = Point2f.(x, y)
-    obs_errors = [(x[i], y[i], err[i]) for i in 1:length(y)]
-    
-    # Calculate fit line if peak has been fitted
+    skip = _skipset(expt)
+
+    active  = [i for i in eachindex(x) if i ∉ skip]
+    skipped = [i for i in eachindex(x) if i ∈ skip]
+
+    obs_points  = Point2f.(x[active], y[active])
+    obs_errors  = [(x[i], y[i], err[i]) for i in active]
+    skip_points = Point2f.(x[skipped], y[skipped])
+    skip_errors = [(x[i], y[i], err[i]) for i in skipped]
+
     if peak.postfitted[]
-        xpred = range(min(0.0, minimum(x)), 1.1*maximum(x), 100)
+        xpred = range(min(0.0, minimum(x)), 1.1 * maximum(x), 100)
         p = [peak.postparameters[Symbol(name)].value[][1] for name in model.param_names]
         ypred = model.func(xpred, p)
         fit_points = Point2f.(xpred, ypred)
     else
         fit_points = Point2f[]
     end
-    
-    return (obs_points, obs_errors, fit_points)
+
+    return (obs_points, obs_errors, fit_points, skip_points, skip_errors)
 end
 
 function model_parameter_text(peak::Peak, ::NoFitting)

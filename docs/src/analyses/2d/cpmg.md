@@ -44,7 +44,8 @@ dispersion profile is computed, and the derived reference rate `R20`, `R20_err`
 (R₂,₀, s⁻¹). See [Peak Lists and Output Files](peaklistformats.md) for the full
 format.
 
-!!! note
-    `cpmg2d` measures and exports the R₂,eff dispersion profile; fitting to exchange
-    models (e.g. fast-exchange, Bloch-McConnell) is not performed in the GUI and is
-    typically done in a separate analysis step.
+!!! note "Under development"
+    `cpmg2d` is currently intended for data exploration and extraction of R₂,eff
+    profiles. Peaks are reported with a reference rate R₂⁰ only — no exchange model
+    (fast-exchange, Bloch-McConnell, etc.) is fitted in the GUI. Exchange model fitting
+    should be performed in a separate analysis step using the exported dispersion profiles.

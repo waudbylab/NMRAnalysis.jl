@@ -226,12 +226,14 @@ end
 # --- plotting --------------------------------------------------------------
 
 """
-    summaryplot(source; param=<default>, ylabel, title, include_unassigned)
+    summaryplot(source; param=<default>, ylabel, title, size, include_unassigned)
+    summaryplot(source1, source2, ...; kwargs...)
 
 Plot a fitted parameter against residue number.
 
 `source` may be a live experiment, a saved `results.csv` (or its folder), or a
-vector of any of these (which gives vertically stacked panels).
+vector of any of these (which gives vertically stacked panels). Multiple sources
+may also be passed as separate positional arguments instead of a vector.
 
 `param` selects which parameter to plot:
 - omitted/`nothing` → each source's own default (its `primaryparam` or
@@ -244,6 +246,8 @@ vector of any of these (which gives vertically stacked panels).
 `ylabel` likewise may be a single label applied to all panels or a vector of
 per-panel labels; by default each panel is labelled from its parameter.
 
+`size` sets the figure size in pixels, e.g. `size=(800, 400)`.
+
 - Backbone/amide labels → a scatter of value vs residue number with error bars.
 - Any atom-typed labels (e.g. methyls `I13CD1`, `L26CD2`) → a bar plot ordered
   by `(residue, atom)` with peak labels as ticks, so stereospecific pairs don't
@@ -255,7 +259,7 @@ Uses whichever Makie backend is active and returns the `Figure`, so the result
 displays interactively under GLMakie and can be saved with
 `save("summary.pdf", fig)` under CairoMakie.
 """
-function summaryplot(source; param=nothing, ylabel=nothing, title="",
+function summaryplot(source; param=nothing, ylabel=nothing, title="", size=nothing,
                      include_unassigned=false)
     sources = source isa AbstractVector ? collect(source) : [source]
     params = _paramper(sources, param)
@@ -264,7 +268,8 @@ function summaryplot(source; param=nothing, ylabel=nothing, title="",
     datasets = [_onedataset(s, p; include_unassigned=include_unassigned)
                 for (s, p) in zip(sources, params)]
 
-    fig = Figure()
+    figkw = isnothing(size) ? NamedTuple() : (; size=size)
+    fig = Figure(; figkw...)
     axes = Axis[]
     n = length(datasets)
     panelbar = [has_atom_labels(p.label for p in ds.points) for ds in datasets]
@@ -284,6 +289,9 @@ function summaryplot(source; param=nothing, ylabel=nothing, title="",
 
     return fig
 end
+
+# Convenience varargs form: summaryplot("a/", "b/", "c/"; kwargs...)
+summaryplot(s1, s2, rest...; kw...) = summaryplot([s1, s2, rest...]; kw...)
 
 function _drawdataset!(ax, ds::SummaryDataset, usebar)
     points = ds.points

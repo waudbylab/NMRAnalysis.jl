@@ -33,3 +33,9 @@ peak, with the per-offset amplitudes (`amp[1]`, `amp[2]`, …) that make up the
 Z-spectrum (normalised intensity ``I(\omega_\text{sat})/I_0``), plus the fitted
 `R1`/`R2` rates and uncertainties. See
 [Peak Lists and Output Files](peaklistformats.md) for the full format.
+
+!!! note "Under development"
+    `cest2d` is currently intended for data exploration and visualisation of Z-spectra.
+    Peaks are fitted to a model of no exchange only (single-site relaxation); fitting to
+    full exchange models (two-state Bloch-McConnell equations) is not yet implemented in
+    the GUI and should be done in a separate analysis step.

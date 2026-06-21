@@ -28,8 +28,10 @@ function gui!(expt::FixedPeakExperiment)
     g[:slicelabel] = Label(g[:paneltop][1, 7], state[:current_slice_label])
     g[:togglefit] = Toggle(g[:paneltop][1, 8]; active=true)
     Label(g[:paneltop][1, 9], "Fitting")
-    g[:cmdload] = Button(g[:paneltop][1, 10]; label="Load peak list")
-    g[:cmdsave] = Button(g[:paneltop][1, 11]; label="Save to folder")
+    g[:cmdsummary] = Button(g[:paneltop][1, 10]; label="Summary plot")
+    g[:cmdload] = Button(g[:paneltop][1, 11]; label="Load peak list")
+    g[:cmdsave] = Button(g[:paneltop][1, 12]; label="Save to folder")
+    g[:cmdquit] = Button(g[:paneltop][1, 13]; label="Quit")
 
     # create contour plot
     g[:basecontour] = Observable(10.0)
@@ -168,6 +170,24 @@ function addhanders!(g, state, expt::FixedPeakExperiment)
     connect!(expt.isfitting, g[:togglefit].active)
     on(x -> g[:pltfit].visible = x, g[:togglefit].active)
 
+    # summary plot button: grey out when no peaks
+    function _update_summary_button(peaks)
+        if isempty(peaks)
+            g[:cmdsummary].buttoncolor[] = RGBAf(0.85, 0.85, 0.85, 1.0)
+            g[:cmdsummary].labelcolor[] = RGBAf(0.6, 0.6, 0.6, 1.0)
+        else
+            g[:cmdsummary].buttoncolor[] = RGBAf(0.94, 0.94, 0.94, 1.0)
+            g[:cmdsummary].labelcolor[] = RGBAf(0.0, 0.0, 0.0, 1.0)
+        end
+    end
+    _update_summary_button(expt.peaks[])  # set initial state
+    on(_update_summary_button, expt.peaks)
+
+    on(g[:cmdsummary].clicks) do _
+        isempty(expt.peaks[]) && return
+        @async display(GLMakie.Screen(), summaryplot(expt))
+    end
+
     # load peak list
     on(g[:cmdload].clicks) do _
         return loadpeaks!(expt)
@@ -176,6 +196,14 @@ function addhanders!(g, state, expt::FixedPeakExperiment)
     # save peak list
     on(g[:cmdsave].clicks) do _
         return saveresults!(expt)
+    end
+
+    # quit
+    on(g[:cmdquit].clicks) do _
+        @async begin
+            sleep(0.05)
+            GLMakie.closeall()
+        end
     end
 
     # delete peak

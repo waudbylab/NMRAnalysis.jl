@@ -8,10 +8,44 @@ and can be saved with `save("summary.pdf", fig)` under CairoMakie.
 ## Basic usage
 
 ```julia
-fig = summaryplot(expt)                                   # default parameter, current experiment
-fig = summaryplot("run1/results.csv"; param=:R20)         # specific parameter from a file
-fig = summaryplot("run1/"; param=:R20)                    # folder containing results.csv
-fig = summaryplot(["a/results.csv", "b/results.csv"]; param=:PRE)  # stacked panels
+fig = summaryplot(expt)                          # default parameter, current experiment
+fig = summaryplot("run1/results.csv")            # from a saved file
+fig = summaryplot("run1/")                       # folder containing results.csv
+```
+
+## Y-axis labels
+
+Each parameter has a built-in default label (for example `:hetnoe` → "Heteronuclear NOE",
+`:eta` → "η / s⁻¹"). For the generic relaxation rate `:R` — used by `relaxation2d`,
+which makes no assumption about whether you measured R₁ or R₂ — you should supply the
+appropriate label explicitly:
+
+```julia
+fig = summaryplot(expt; ylabel="R₂ / s⁻¹")
+fig = summaryplot("results/"; param=:R, ylabel="R₁ / s⁻¹")
+```
+
+## Stacked panels
+
+Passing multiple sources (as a vector or as separate arguments) produces vertically
+stacked panels, one per source. By default each panel uses its own default parameter,
+so a mix of experiment types — relaxation and hetNOE, for example — each show their
+own result automatically:
+
+```julia
+# Two sources as separate arguments
+fig = summaryplot("r2/", "r1/", "noe/")
+
+# Or equivalently as a vector
+fig = summaryplot(["r2/", "r1/", "noe/"])
+
+# Per-panel y-axis labels
+fig = summaryplot("r2/", "r1/", "noe/";
+                  param=[:R, :R, :hetnoe],
+                  ylabel=["R₂ / s⁻¹", "R₁ / s⁻¹", "Heteronuclear NOE"])
+
+# Same parameter across all panels (e.g. comparing WT vs mutant R₂)
+fig = summaryplot("wt/", "mutant/"; param=:R, ylabel="R₂ / s⁻¹")
 ```
 
 ## Plot style
@@ -24,21 +58,42 @@ fig = summaryplot(["a/results.csv", "b/results.csv"]; param=:PRE)  # stacked pan
 - Unassigned peaks (default `X#` names) are omitted unless every peak is
   unassigned, or `include_unassigned=true` is passed.
 
-## Stacked panels
+## Figure size
 
-Passing a vector of sources produces vertically stacked panels, one per source.
-By default each panel uses its own default parameter (so a mix of experiment
-types — relaxation and hetNOE, for example — each show their own result).
-Pass `param=:R2` to use the same parameter for every panel, or a vector such as
-`param=[:R2, :hetnoe]` to set them individually.
+Pass `size=(width, height)` (in pixels) to control the figure dimensions:
 
 ```julia
-# Stacked panels, each with its own default
-fig = summaryplot(["relax/", "noe/"])
+fig = summaryplot(expt; size=(800, 400))
+fig = summaryplot("r2/", "r1/", "noe/"; size=(800, 900))
+```
 
-# Same parameter across all panels
-fig = summaryplot(["wt/", "mutant/"]; param=:R20, ylabel="R₂⁰ / s⁻¹")
+## Parameter selection (advanced)
 
-# Per-panel parameters
-fig = summaryplot([expt_relax, expt_noe]; param=[:R2, :hetnoe])
+By default each source plots its own primary parameter (the first derived column in
+`results.csv`, or the experiment's `primaryparam`). To plot a different column, pass
+its name as a `Symbol` — the column header in `results.csv` with a colon prefix:
+
+```julia
+# Parameter :R20 corresponds to the column headed "R20" in results.csv
+fig = summaryplot("cpmg/"; param=:R20)
+
+# Amplitude from the first plane
+fig = summaryplot("fit2d/"; param=Symbol("amp[1]"))
+```
+
+Symbols in Julia are formed with a leading colon: `:R`, `:hetnoe`, `:eta`, `:PRE`.
+For column names that contain brackets or other special characters (such as `amp[1]`),
+use `Symbol("amp[1]")`. To see which parameters are available from a file or live
+experiment, call `available_params`:
+
+```julia
+available_params("results/results.csv")   # → [:R, :A, :amp_1, ...]
+available_params(expt)                    # → [:R2, :hetnoe, ...]
+```
+
+For stacked panels, `param` and `ylabel` may each be a vector with one entry per source;
+use `nothing` in a vector position to fall back to that source's default:
+
+```julia
+fig = summaryplot(["relax/", "noe/"]; param=[:R, nothing], ylabel=["R₂ / s⁻¹", nothing])
 ```
