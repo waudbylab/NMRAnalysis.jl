@@ -34,16 +34,15 @@ function saveresults!(expt)
         # parameters to a single results file
         writeresults!(expt, folder)
 
-        # remove stale per-peak and per-cluster PDFs before saving fresh ones
+        # remove stale per-peak, per-cluster and summary PDFs
         for file in readdir(folder)
-            if occursin(r"^(peak_|cluster_).*\.pdf$", file)
+            if occursin(r"^(peak_|cluster_).*\.pdf$", file) || file == "summary.pdf"
                 rm(joinpath(folder, file))
             end
         end
         save_peak_plots!(expt, folder)
-
-        # save one zoomed contour plot per cluster of overlapping peaks
         save_cluster_plots!(expt, folder)
+        save_summary_plot!(expt, folder)
 
         expt.state[][:mode][] = :normal
     end
@@ -242,9 +241,8 @@ end
 """
     save_cluster_plots!(expt, folder)
 
-Save one zoomed contour plot per cluster of overlapping peaks. Each PDF contains a
-grid of subplots (one per slice) showing the fitted lineshapes for the cluster region,
-with axis limits set to include only the peaks in that cluster plus padding.
+Save one zoomed contour plot per cluster of overlapping peaks (first plane only).
+Axis limits are set to include only the peaks in that cluster plus padding.
 
 Files are named `cluster_LABEL.pdf` (single peak) or `cluster_LABEL1-LABEL2.pdf`
 (overlapping peaks).
@@ -257,15 +255,9 @@ function save_cluster_plots!(expt, folder)
     CairoMakie.activate!()
 
     state = expt.state[]
-    n = nslices(expt)
     contourlevels = state[:gui][][:contourlevels]
     xlabel_str = "$(label(expt.specdata.nmrdata[1],F1Dim)) / ppm"
     ylabel_str = "$(label(expt.specdata.nmrdata[1],F2Dim)) / ppm"
-
-    ncols = min(n, 4)
-    nrows = ceil(Int, n / ncols)
-    subplot_px = 260
-    figsize = (ncols * subplot_px + 60, nrows * subplot_px + 60)
 
     for cluster_idxs in clusters
         cluster = [peaks[i] for i in cluster_idxs]
@@ -293,41 +285,48 @@ function save_cluster_plots!(expt, folder)
         safe = replace(raw, r"[^\w\-]" => "_")
         safe = length(safe) > 64 ? safe[1:64] : safe
 
-        fig = Figure(; size=figsize)
-
-        for (idx, i) in enumerate(1:n)
-            row = ceil(Int, idx / ncols)
-            col = mod1(idx, ncols)
-            show_xlabel = row == nrows && col == 1
-            show_ylabel = col == 1
-            ax = Axis(fig[row, col];
-                      xlabel=show_xlabel ? xlabel_str : "",
-                      ylabel=show_ylabel ? ylabel_str : "",
-                      xreversed=true, yreversed=true,
-                      limits=lims,
-                      title=slicelabel(expt, i))
-            heatmap!(ax, expt.specdata.x[i], expt.specdata.y[i],
-                     expt.specdata.mask[][i];
-                     colormap=[:white, :lightgoldenrod1], colorrange=(0, 1))
-            contour!(ax, expt.specdata.x[i], expt.specdata.y[i],
-                     expt.specdata.z[i];
-                     levels=contourlevels, color=bicolours(:grey50, :lightblue))
-            contour!(ax, expt.specdata.x[i], expt.specdata.y[i],
-                     expt.specdata.zfit[][i];
-                     levels=contourlevels, color=bicolours(:orangered, :dodgerblue))
-            for peak in cluster
-                xi = min(i, length(peak.parameters[:x].value[]))
-                yi = min(i, length(peak.parameters[:y].value[]))
-                pt = Point2f(peak.parameters[:x].value[][xi],
-                             peak.parameters[:y].value[][yi])
-                scatter!(ax, [pt]; markersize=10, marker=:x, color=:black)
-                text!(ax, [pt]; text=[peak.label[]], fontsize=12,
-                      offset=(6, 0), align=(:left, :center), color=:black)
-            end
+        # Always show only the first plane — avoids unwieldy grids for many-slice
+        # experiments (CEST, relaxation series, etc.)
+        fig = Figure(; size=(350, 350))
+        ax = Axis(fig[1, 1];
+                  xlabel=xlabel_str, ylabel=ylabel_str,
+                  xreversed=true, yreversed=true, limits=lims)
+        heatmap!(ax, expt.specdata.x[1], expt.specdata.y[1],
+                 expt.specdata.mask[][1];
+                 colormap=[:white, :lightgoldenrod1], colorrange=(0, 1))
+        contour!(ax, expt.specdata.x[1], expt.specdata.y[1],
+                 expt.specdata.z[1];
+                 levels=contourlevels, color=bicolours(:grey50, :lightblue))
+        contour!(ax, expt.specdata.x[1], expt.specdata.y[1],
+                 expt.specdata.zfit[][1];
+                 levels=contourlevels, color=bicolours(:orangered, :dodgerblue))
+        for peak in cluster
+            pt = Point2f(peak.parameters[:x].value[][1],
+                         peak.parameters[:y].value[][1])
+            scatter!(ax, [pt]; markersize=10, marker=:x, color=:black)
+            text!(ax, [pt]; text=[peak.label[]], fontsize=12,
+                  offset=(6, 0), align=(:left, :center), color=:black)
         end
 
         save(joinpath(folder, "cluster_$(safe).pdf"), fig)
     end
 
     return GLMakie.activate!()
+end
+
+"""
+    save_summary_plot!(expt, folder)
+
+Write `summary.pdf` to `folder` using the experiment's default summary parameter.
+Skipped when there are no peaks.
+"""
+function save_summary_plot!(expt, folder)
+    isempty(expt.peaks[]) && return
+    CairoMakie.activate!()
+    try
+        fig = summaryplot(expt)
+        save(joinpath(folder, "summary.pdf"), fig)
+    finally
+        GLMakie.activate!()
+    end
 end

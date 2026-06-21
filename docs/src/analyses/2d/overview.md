@@ -76,8 +76,9 @@ Clicking **Save to folder** writes the following files:
 | File | Contents |
 |------|---------|
 | `results.csv` | One row per peak: positions (δ₁, δ₂), linewidths (R2x, R2y), per-plane amplitudes, and any derived experiment parameters (relaxation rates, NOE values, …), each with uncertainties |
+| `summary.pdf` | Summary plot of the primary fitted parameter against residue number (or atom for methyl/non-backbone experiments) |
 | `peak_LABEL.pdf` | Per-peak publication-quality fit plot for each labelled peak |
-| `cluster_LABEL.pdf` | Zoomed 2D contour plot with fitted lineshapes for each group of overlapping peaks, one file per cluster. For multi-slice experiments the file shows a grid of panels, one per slice. |
+| `cluster_LABEL.pdf` | Zoomed 2D contour plot (first plane) with fitted lineshapes for each group of overlapping peaks |
 
 `results.csv` has experiment metadata in `#`-comment lines above an ordinary
 header row, so it opens directly in spreadsheets and `pandas`. Existing files are

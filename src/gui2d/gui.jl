@@ -185,7 +185,7 @@ function addhanders!(g, state, expt::FixedPeakExperiment)
 
     on(g[:cmdsummary].clicks) do _
         isempty(expt.peaks[]) && return
-        @async summaryplot(expt)
+        @async display(GLMakie.Screen(), summaryplot(expt))
     end
 
     # load peak list
