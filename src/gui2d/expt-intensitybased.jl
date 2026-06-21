@@ -22,9 +22,11 @@ struct IntensityExperiment <: FixedPeakExperiment
     x::Vector{Float64}
     model::FittingModel
     visualisation::VisualisationStrategy
+    skipplanes::Vector{Int}
 
     function IntensityExperiment(specdata, peaks, model, xvalues=nothing,
-                                 visualisation=CrossSectionVisualisation())
+                                 visualisation=CrossSectionVisualisation();
+                                 skipplanes=Int[])
         if isnothing(xvalues)
             xvalues = 1.0 * collect(1:length(specdata.z))
         end
@@ -35,7 +37,7 @@ struct IntensityExperiment <: FixedPeakExperiment
                    Observable(0.03; ignore_equal_values=true), # xradius
                    Observable(0.2; ignore_equal_values=true), # yradius
                    Observable{Dict}(),
-                   xvalues, model, visualisation)
+                   xvalues, model, visualisation, collect(Int, skipplanes))
         setupexptobservables!(expt)
         expt.state[] = preparestate(expt)
         return expt
@@ -88,7 +90,7 @@ function fit2d(inputfilenames)
 end
 
 """
-    relaxation2d(inputfilenames, relaxationtimes)
+    relaxation2d(inputfilenames, relaxationtimes; skipplanes=nothing)
 
 Start an interactive GUI for measuring R1 or R2 relaxation rates from a series of 2D
 spectra. Peak amplitudes are fitted to a mono-exponential decay:
@@ -106,6 +108,12 @@ does not distinguish R1 from R2 — the appropriate interpretation depends on th
 - `relaxationtimes`: Vector of delay times in seconds, or a string giving a path to a
   text file containing the delays (one per line; lines beginning with `#` are ignored).
 
+# Keyword Arguments
+- `skipplanes`: Optional list of plane indices (1-based) to exclude from the exponential
+  fit. All spectra are still loaded and displayed; skipped planes appear as open grey
+  markers in the peak plot and are not used when fitting R or A. The full list of
+  relaxation times must still be provided, including those for skipped planes.
+
 # Example
 ```julia
 relaxation2d(
@@ -115,13 +123,19 @@ relaxation2d(
 
 # Reading delays from a file
 relaxation2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"], "vclist.txt")
+
+# Omit the 3rd plane (e.g. corrupted or duplicate delay) from the fit
+relaxation2d(
+    ["11/pdata/1", "12/pdata/1", "13/pdata/1", "14/pdata/1"],
+    [0.010, 0.030, 0.060, 0.100];
+    skipplanes=[3]
+)
 ```
 """
-function relaxation2d(inputfilenames, relaxationtimes)
+function relaxation2d(inputfilenames, relaxationtimes; skipplanes=nothing)
     specdata = preparespecdata(inputfilenames, IntensityExperiment)
     peaks = Observable(Vector{Peak}())
 
-    # First handle relaxation times
     tau = Float64[]
     if relaxationtimes isa String
         append!(tau, vec(readdlm(relaxationtimes; comments=true)))
@@ -135,13 +149,15 @@ function relaxation2d(inputfilenames, relaxationtimes)
         end
     end
 
-    # specdata.zlabels .= map(t -> "τ = $t", tau)
+    skip = isnothing(skipplanes) ? Int[] : collect(Int, skipplanes)
+    if !isempty(skip)
+        bad = filter(i -> i < 1 || i > length(tau), skip)
+        isempty(bad) ||
+            error("skipplanes indices out of range (got $bad for $(length(tau)) planes)")
+    end
 
-    expt = IntensityExperiment(specdata,
-                               peaks,
-                               ExponentialModel(),
-                               tau,
-                               ModelFitVisualisation())
+    expt = IntensityExperiment(specdata, peaks, ExponentialModel(), tau,
+                               ModelFitVisualisation(); skipplanes=skip)
 
     return gui!(expt)
 end
@@ -445,8 +461,10 @@ function experimentinfo(expt::IntensityExperiment)
             "Number of peaks: $(length(expt.peaks[]))",
             "Experiment title: $(expt.specdata.nmrdata[1][:title])"]
 
-    # Add model-specific information
     append!(info, model_info_text(expt.model, expt.x))
+
+    isempty(expt.skipplanes) ||
+        push!(info, "Skipped planes: $(join(expt.skipplanes, ", "))")
 
     return join(info, "\n")
 end
@@ -455,9 +473,10 @@ get_model_xlabel(expt::IntensityExperiment) = expt.model.xlabel
 get_model_ylabel(::IntensityExperiment) = "Peak amplitude"
 
 function slicelabel(expt::IntensityExperiment, idx)
+    skipped = idx in expt.skipplanes ? " [skipped]" : ""
     if length(expt.specdata.zlabels) == 1
-        "Slice $idx of $(nslices(expt))"
+        "Slice $idx of $(nslices(expt))$skipped"
     else
-        "$(expt.specdata.zlabels[idx]) ($idx of $(nslices(expt)))"
+        "$(expt.specdata.zlabels[idx]) ($idx of $(nslices(expt)))$skipped"
     end
 end
