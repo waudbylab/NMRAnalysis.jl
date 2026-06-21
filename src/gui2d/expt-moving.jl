@@ -191,37 +191,149 @@ function addandtrackpeak!(expt::MovingPeakExperiment, initialposition, label="")
     return length(expt.peaks[])
 end
 
-"""Simulate single peak according to its per-plane position, linewidth and amplitude."""
+"""Simulate single peak across all planes (used for the displayed fit spectrum)."""
 function simulate!(z, peak::Peak, expt::MovingExperiment, xbounds=nothing, ybounds=nothing)
     for i in 1:nslices(expt)
-        # get axis references for window functions
-        xaxis = dims(expt.specdata.nmrdata[i], F1Dim)
-        yaxis = dims(expt.specdata.nmrdata[i], F2Dim)
-        # get axis shift values
-        x = isnothing(xbounds) ? expt.specdata.x[i] : expt.specdata.x[i][xbounds[i]]
-        y = isnothing(ybounds) ? expt.specdata.y[i] : expt.specdata.y[i][ybounds[i]]
+        xb = isnothing(xbounds) ? nothing : xbounds[i]
+        yb = isnothing(ybounds) ? nothing : ybounds[i]
+        simulatepeakplane!(z[i], peak, expt, i, xb, yb)
+    end
+end
 
-        x0 = peak.parameters[:x].value[][i]
-        y0 = peak.parameters[:y].value[][i]
-        R2x = peak.parameters[:R2x].value[][i]
-        R2y = peak.parameters[:R2y].value[][i]
-        amp = peak.parameters[:amp].value[][i]
+"""Simulate a single peak into one plane `i`. `xbounds`/`ybounds`, if given, are the boolean
+masks restricting `z` to that plane's fit window."""
+function simulatepeakplane!(z, peak::Peak, expt::MovingPeakExperiment, i,
+                            xbounds=nothing, ybounds=nothing)
+    xaxis = dims(expt.specdata.nmrdata[i], F1Dim)
+    yaxis = dims(expt.specdata.nmrdata[i], F2Dim)
+    x = isnothing(xbounds) ? expt.specdata.x[i] : expt.specdata.x[i][xbounds]
+    y = isnothing(ybounds) ? expt.specdata.y[i] : expt.specdata.y[i][ybounds]
 
-        # find indices of x and y axes within peak radius of peak position
-        xi = x0 .- peak.xradius[] .≤ x .≤ x0 .+ peak.xradius[]
-        yi = y0 .- peak.yradius[] .≤ y .≤ y0 .+ peak.yradius[]
-        xs = x[xi]
-        ys = y[yi]
-        # Scale by this plane's OWN R2x/R2y so the fitted amplitude is the peak height,
-        # decoupled from linewidth. Unlike fixed-peak experiments (where linewidths are shared),
-        # each plane must use its own linewidths - otherwise plane 1's linewidth scales every
-        # plane's amplitude and couples the whole peak's fit together.
-        zx = NMRTools.NMRBase._lineshape(2π * hz(x0, xaxis), R2x, 2π * hz(xs, xaxis),
-                                         xaxis[:window], RealLineshape())
-        zy = (π^2 * amp * R2x * R2y) *
-             NMRTools.NMRBase._lineshape(2π * hz(y0, yaxis), R2y, 2π * hz(ys, yaxis),
-                                         yaxis[:window], RealLineshape())
-        z[i][xi, yi] .+= zx .* zy'
+    x0 = peak.parameters[:x].value[][i]
+    y0 = peak.parameters[:y].value[][i]
+    R2x = peak.parameters[:R2x].value[][i]
+    R2y = peak.parameters[:R2y].value[][i]
+    amp = peak.parameters[:amp].value[][i]
+
+    # find indices of x and y axes within peak radius of peak position
+    xi = x0 .- peak.xradius[] .≤ x .≤ x0 .+ peak.xradius[]
+    yi = y0 .- peak.yradius[] .≤ y .≤ y0 .+ peak.yradius[]
+    xs = x[xi]
+    ys = y[yi]
+    # Scale by this plane's OWN R2x/R2y so the fitted amplitude is the peak height, decoupled
+    # from linewidth. Unlike fixed-peak experiments (where linewidths are shared), each plane
+    # must use its own linewidths - otherwise plane 1's linewidth scales every plane's amplitude.
+    zx = NMRTools.NMRBase._lineshape(2π * hz(x0, xaxis), R2x, 2π * hz(xs, xaxis),
+                                     xaxis[:window], RealLineshape())
+    zy = (π^2 * amp * R2x * R2y) *
+         NMRTools.NMRBase._lineshape(2π * hz(y0, yaxis), R2y, 2π * hz(ys, yaxis),
+                                     yaxis[:window], RealLineshape())
+    z[xi, yi] .+= zx .* zy'
+    return z
+end
+
+# --- per-plane fitting -------------------------------------------------------
+# The per-plane lineshape model is separable across planes, so a moving-peak cluster is fitted
+# one plane at a time rather than as one joint optimisation over all 5×nplanes parameters. This
+# is both better-conditioned (≈5 params/peak per fit) and fully decoupled: adjusting one plane's
+# position cannot disturb another plane's fit. A single joint Levenberg–Marquardt fit couples
+# the planes through its shared damping parameter and finite iteration/time budget, so an
+# under-converged plane drags the others.
+
+function fit!(cluster::Vector{Int}, expt::MovingPeakExperiment,
+              mygen=expt.state[][:fit_generation][], t0=time())
+    peaks = [expt.peaks[][i] for i in cluster]
+    m = mask(cluster, expt)
+    xbounds, ybounds = bounds(m)
+    for i in 1:nslices(expt)
+        fitplane!(peaks, expt, i, m[i], xbounds[i], ybounds[i], mygen, t0)
+    end
+    for peak in peaks
+        peak.touched.val = false
+    end
+end
+
+function fitplane!(peaks, expt::MovingPeakExperiment, i, mi, xbi, ybi, mygen, t0)
+    p0 = packplane(peaks, i, :initial)
+    pmin = packplane(peaks, i, :min)
+    pmax = packplane(peaks, i, :max)
+    p0 = clamp.(p0, pmin, pmax)
+
+    bigmask = vec(mi)
+    smallmask = vec(mi[xbi, ybi])
+    zobs = vec(expt.specdata.z[i])[bigmask]
+    zbuf = similar(expt.specdata.z[i][xbi, ybi])
+    zsimm = similar(zobs)
+
+    function resid(p)
+        (expt.state[][:fit_generation][] != mygen) && throw(FitCancelled())
+        (time() - t0 > FIT_TIME_BUDGET) && throw(FitCancelled())
+        Threads.nthreads() == 1 && yield()
+        unpackplane!(copy(p), peaks, i, :value)
+        fill!(zbuf, 0.0)
+        for peak in peaks
+            simulatepeakplane!(zbuf, peak, expt, i, xbi, ybi)
+        end
+        zsimm .= vec(zbuf)[smallmask]
+        return zobs - zsimm
+    end
+
+    sol = LsqFit.lmfit(resid, p0, Float64[]; lower=pmin, upper=pmax, autodiff=:finite,
+                       maxIter=50, x_tol=1e-4, g_tol=1e-6)
+    unpackplane!(coef(sol), peaks, i, :value)
+    return unpackplane!(stderror(sol), peaks, i, :uncertainty)
+end
+
+# Pack/unpack just plane `i`'s parameters (in OrderedDict order: x, y, R2x, R2y, amp).
+function packplane(peaks, i, quantity=:value)
+    p = Float64[]
+    for peak in peaks
+        packplane!(p, peak, i, quantity)
+    end
+    return p
+end
+
+function packplane!(p, peak::Peak, i, quantity)
+    for (sym, par) in peak.parameters
+        v = if quantity == :initial
+            par.initialvalue[][i]
+        elseif quantity == :min
+            planebound(peak, sym, par, i, :min)
+        elseif quantity == :max
+            planebound(peak, sym, par, i, :max)
+        else
+            par.value[][i]
+        end
+        push!(p, v)
+    end
+    return p
+end
+
+# Position (:x/:y) is bounded within ±radius of this plane's own initial value; other
+# parameters keep their fixed scalar bounds (R2: 1–100 s⁻¹; amplitude: unbounded).
+function planebound(peak, sym, par, i, which)
+    if sym === :x || sym === :y
+        r = sym === :x ? peak.xradius[] : peak.yradius[]
+        return which === :min ? par.initialvalue[][i] - r : par.initialvalue[][i] + r
+    end
+    b = which === :min ? par.minvalue[] : par.maxvalue[]
+    return b isa AbstractVector ? b[i] : b
+end
+
+function unpackplane!(v, peaks, i, quantity=:value)
+    for peak in peaks
+        unpackplane!(v, peak, i, quantity)
+    end
+end
+
+function unpackplane!(v, peak::Peak, i, quantity)
+    for (_, par) in peak.parameters
+        val = popfirst!(v)
+        if quantity == :value
+            par.value[][i] = val
+        elseif quantity == :uncertainty
+            par.uncertainty[][i] = val
+        end
     end
 end
 
