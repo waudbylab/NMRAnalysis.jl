@@ -5,9 +5,9 @@ Unified framework for lightweight 1D NMR analyses (relaxation, TRACT, nutation
 calibration, STD, kinetics, …). See `PLAN.md` in this directory for the design.
 
 The analysis core operates on plain `Trace`/`Planes`/`Dataset1D` values and has no GUI
-or NMRData dependency in its computational path, so it is testable headless. NMRData is
-touched only by the `load_*` adapters in `loaders.jl`. The interactive GUI is a later
-phase layered on top.
+or NMRData dependency in its computational path (the agreed "keep the science pure"
+split). NMRData is touched only by the loader adapters in `loaders.jl`. The interactive
+GUI is a later phase layered on top.
 """
 module Analysis1D
 
@@ -47,7 +47,7 @@ export RelaxationExperiment, TractExperiment, NutationExperiment, KineticsExperi
 export STDExperiment
 export SeriesResult, param
 
-# file loaders
-export load_relaxation, load_tract, load_nutation, load_std, load_kinetics
+# file loaders (stdnmr rather than std, to avoid colliding with Statistics.std)
+export relaxation, tract, nutation, stdnmr, kinetics
 
 end # module Analysis1D

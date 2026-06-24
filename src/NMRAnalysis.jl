@@ -48,13 +48,14 @@ using .R1rho
 
 @reexport using .R1rho: r1rho, setupR1rhopowers
 
-# 1D analysis framework (Analysis1D). `analyse` is intentionally not re-exported to
-# avoid colliding with the registry-based `analyse` above; use `analyse1d` instead.
+# 1D analysis framework (Analysis1D). `analyse` is not re-exported (would collide with the
+# registry-based `analyse` above; use `analyse1d`). `relaxation`/`tract` are not re-exported
+# either while the legacy 1D routines of the same name still exist - reach them as
+# `Analysis1D.relaxation` / `Analysis1D.tract` until the legacy versions are retired.
 @reexport using .Analysis1D: Region, Dataset1D, analyse1d
 @reexport using .Analysis1D: RelaxationExperiment, TractExperiment, NutationExperiment
 @reexport using .Analysis1D: KineticsExperiment, STDExperiment
-@reexport using .Analysis1D: load_relaxation, load_tract, load_nutation, load_std,
-                             load_kinetics
+@reexport using .Analysis1D: nutation, stdnmr, kinetics
 
 @info """
 NMRAnalysis.jl (v$(pkgversion(NMRAnalysis)))

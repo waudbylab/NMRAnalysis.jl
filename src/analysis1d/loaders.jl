@@ -1,6 +1,6 @@
 # Adapters converting NMRData into the pure `Trace`/`Planes`/`Dataset1D` types.
 # These are the only part of the analysis layer that touches NMRData; everything
-# downstream operates on plain vectors and is testable headless.
+# downstream operates on plain vectors, independent of the GUI.
 
 """
     traces_from_spec(spec) -> Vector{Trace}
@@ -43,12 +43,12 @@ end
 # ---- relaxation ---------------------------------------------------------------
 
 """
-    load_relaxation(spec; ir=false, tau=nothing, kwargs...) -> RelaxationExperiment
+    relaxation(spec; ir=false, tau=nothing, kwargs...) -> RelaxationExperiment
 
 Build a relaxation experiment from a pseudo-2D `spec`. Relaxation delays are taken from
 `tau`, or from the `vdlist` in the acquisition parameters when not supplied.
 """
-function load_relaxation(spec; ir::Bool=false, tau=nothing, kwargs...)
+function relaxation(spec; ir::Bool=false, tau=nothing, kwargs...)
     times = isnothing(tau) ? acqus(spec, :vdlist) : tau
     vars = [(; time=Float64(t)) for t in times]
     ds = dataset_from_spec(spec, vars)
@@ -58,14 +58,14 @@ end
 # ---- TRACT --------------------------------------------------------------------
 
 """
-    load_tract(trosy, antitrosy; tau=nothing, kwargs...) -> TractExperiment
+    tract(trosy, antitrosy; tau=nothing, kwargs...) -> TractExperiment
 
 Build a TRACT experiment from TROSY and anti-TROSY pseudo-2D spectra. The two spectra
 are concatenated into one dataset tagged by `which ∈ {:trosy, :anti}`. The ¹⁵N Larmor
 frequency and cross-correlation prefactor are derived from the TROSY acquisition
 parameters.
 """
-function load_tract(trosy, antitrosy; tau=nothing, kwargs...)
+function tract(trosy, antitrosy; tau=nothing, kwargs...)
     ttau = isnothing(tau) ? acqus(trosy, :vdlist) : tau
     atau = isnothing(tau) ? acqus(antitrosy, :vdlist) : tau
 
@@ -87,13 +87,13 @@ end
 # ---- nutation calibration -----------------------------------------------------
 
 """
-    load_nutation(spec; durations=nothing, phase=:sine, kwargs...) -> NutationExperiment
+    nutation(spec; durations=nothing, phase=:sine, kwargs...) -> NutationExperiment
 
 Build a nutation calibration experiment from a pseudo-2D `spec` arrayed over pulse
 duration. Durations are taken from `durations`, or from the `:calibration`/`:duration`
 annotation when not supplied.
 """
-function load_nutation(spec; durations=nothing, phase::Symbol=:sine, kwargs...)
+function nutation(spec; durations=nothing, phase::Symbol=:sine, kwargs...)
     t = isnothing(durations) ? annotations(spec, :calibration, :duration) : durations
     vars = [(; duration=Float64(d)) for d in t]
     ds = dataset_from_spec(spec, vars)
@@ -103,12 +103,12 @@ end
 # ---- STD ----------------------------------------------------------------------
 
 """
-    load_std(spec, sat, tsat; reference=:reference, excess=1.0, regions) -> STDExperiment
+    stdnmr(spec, sat, tsat; reference=:reference, excess=1.0, regions) -> STDExperiment
 
 Build an STD experiment from a pseudo-2D `spec` whose planes are described by parallel
 vectors `sat` (saturation condition per plane) and `tsat` (saturation time per plane).
 """
-function load_std(spec, sat::AbstractVector, tsat::AbstractVector; reference=:reference,
+function stdnmr(spec, sat::AbstractVector, tsat::AbstractVector; reference=:reference,
              excess::Real=1.0, regions)
     vars = [(; sat=sat[i], tsat=Float64(tsat[i])) for i in eachindex(sat)]
     ds = dataset_from_spec(spec, vars)
@@ -118,12 +118,12 @@ end
 # ---- kinetics -----------------------------------------------------------------
 
 """
-    load_kinetics(spec, times; run=nothing, regions, model=NoFitting()) -> KineticsExperiment
+    kinetics(spec, times; run=nothing, regions, model=NoFitting()) -> KineticsExperiment
 
 Build a kinetics experiment from a pseudo-2D `spec` arrayed over `times`, optionally
 tagged by `run` (a per-plane run identifier) for multiple time series.
 """
-function load_kinetics(spec, times::AbstractVector; run=nothing, regions,
+function kinetics(spec, times::AbstractVector; run=nothing, regions,
                   model::SeriesModel=NoFitting())
     vars = if isnothing(run)
         [(; time=Float64(times[i])) for i in eachindex(times)]

@@ -36,8 +36,8 @@ Plus:
 
 ## Data model
 
-- `Trace(δ, y)` — one 1D spectrum: chemical-shift axis + intensities. Pure; no NMRData
-  dependency, so the whole analysis layer is testable headless.
+- `Trace(δ, y)` — one 1D spectrum: chemical-shift axis + intensities. Plain vectors, so
+  the analysis layer is GUI-independent (the agreed "keep the science pure" split).
 - `Planes(traces, vars)` — long format: one row per spectrum, `vars[i]` a `NamedTuple`
   of the arrayed variables (`:time`, `:which`, `:sat`, `:tsat`, `:run`, …). The name is
   `planes`, echoing the 2D `plane`/`slice`/`nslices` vocabulary.
@@ -97,14 +97,13 @@ Leave alone (10%): CORCEMA-ST relaxation-matrix epitope quantification.
 
 ## Implementation status
 
-Phase 1 — **pure analysis core + 5 experiments (headless, tested)**  ← THIS ITERATION
+Phase 1 — **analysis core + 5 experiments**  ← THIS ITERATION
 - [x] `Trace` / `Planes` / `Region` / `Dataset1D`
 - [x] `Integrate` reduction with noise propagation (Measurements), height = zero width
 - [x] series models: Exponential, Recovery, DampedSinusoid, NoFitting; Contrast (STD)
 - [x] grouping + curve-fit pipeline (noise-weighted) → `SeriesResult`
 - [x] experiments: Relaxation, TRACT (τc), Nutation (90°), STD (multi-freq + buildup + epitope), Kinetics
-- [x] NMRData → Dataset1D loaders (thin adapters)
-- [x] synthetic-data unit tests (run once Julia is available)
+- [x] NMRData → Dataset1D loaders (`relaxation`, `tract`, `nutation`, `stdnmr`, `kinetics`)
 
 Phase 2 — interactive GUI (Window 1): overlay, auto-sliders, region list, live Tier-1,
 ComputeGraph substrate, CairoMakie export, dispatch registration.
