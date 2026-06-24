@@ -34,7 +34,7 @@ using .R1rho
 
 @reexport using .GUI2D: MaybeVector
 @reexport using .GUI2D: fit2d, relaxation2d, recovery2d, modelfit2d # IntensityExperiment
-@reexport using .GUI2D: movingfit2d # MovingExperiment
+@reexport using .GUI2D: movingfit2d, rdc2d # MovingExperiment
 @reexport using .GUI2D: hetnoe2d # HetNOEExperiment
 @reexport using .GUI2D: cest2d # CESTExperiment
 @reexport using .GUI2D: cpmg2d # CPMGExperiment

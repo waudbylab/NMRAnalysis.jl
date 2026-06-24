@@ -20,8 +20,11 @@ function preparestate(expt::Experiment)
     state[:current_mask_y] = Observable(expt.specdata.y[1])
     state[:current_mask_z] = Observable(expt.specdata.mask[][1])
     onany(expt.specdata.mask, state[:current_slice]) do m, idx
-        state[:current_mask_x].val = expt.specdata.x[idx]
-        state[:current_mask_y].val = expt.specdata.y[idx]
+        # Notify x/y as well as z: planes may have different axis sizes (e.g. rdc2d's separate
+        # spectra), so the contour/heatmap must resolve all three together or it sees a stale
+        # axis against a new-size matrix ("Incompatible input axes").
+        state[:current_mask_x][] = expt.specdata.x[idx]
+        state[:current_mask_y][] = expt.specdata.y[idx]
         state[:current_mask_z][] = m[idx]
     end
 
@@ -29,8 +32,8 @@ function preparestate(expt::Experiment)
     state[:current_spec_y] = Observable(expt.specdata.y[1])
     state[:current_spec_z] = Observable(expt.specdata.z[1])
     on(state[:current_slice]) do idx
-        state[:current_spec_x].val = expt.specdata.x[idx]
-        state[:current_spec_y].val = expt.specdata.y[idx]
+        state[:current_spec_x][] = expt.specdata.x[idx]
+        state[:current_spec_y][] = expt.specdata.y[idx]
         state[:current_spec_z][] = expt.specdata.z[idx]
     end
 
@@ -38,8 +41,8 @@ function preparestate(expt::Experiment)
     state[:current_fit_y] = Observable(expt.specdata.y[1])
     state[:current_fit_z] = Observable(expt.specdata.zfit[][1])
     onany(expt.specdata.zfit, state[:current_slice]) do zfit, idx
-        state[:current_fit_x].val = expt.specdata.x[idx]
-        state[:current_fit_y].val = expt.specdata.y[idx]
+        state[:current_fit_x][] = expt.specdata.x[idx]
+        state[:current_fit_y][] = expt.specdata.y[idx]
         state[:current_fit_z][] = zfit[idx]
     end
 

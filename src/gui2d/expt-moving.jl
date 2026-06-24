@@ -367,8 +367,125 @@ function unpackplane!(v, peak::Peak, i, quantity)
     end
 end
 
-# Postfit: NoFitting just marks the peak fitted (the generic Experiment fallback in
-# experiments.jl already does this); position-based physical models are added separately.
+# --- postfit ----------------------------------------------------------------
+# Moving-peak postfit dispatches on the model. The default (NoFitting and any model without a
+# specific method) just marks the peak fitted; position-based physical models override.
+postfit!(peak::Peak, expt::MovingExperiment) = postfitmoving!(peak, expt, expt.model)
+function postfitmoving!(peak::Peak, ::MovingExperiment, ::FittingModel)
+    peak.postfitted[] = true
+    return
+end
+
+# --- RDC / coupling measurement ---------------------------------------------
+
+"""
+    RDCModel
+
+Derive a scalar coupling `J` and residual dipolar coupling `D` (both in Hz) from the peak
+position difference between paired component spectra. `isotropic`/`aligned` are the plane
+indices of the two components in each condition; `couplingdim` is the dimension the splitting
+is measured in; `scale` is the fraction of the coupling the measured separation represents
+(1 for IPAP, 0.5 for HSQC/TROSY); `gammasign` flips the sign for a negative-γ nucleus (¹⁵N).
+"""
+struct RDCModel <: FittingModel
+    isotropic::Tuple{Int,Int}
+    aligned::Tuple{Int,Int}
+    couplingdim::Type
+    scale::Float64
+    gammasign::Float64
+end
+
+"""
+    rdc2d(; isotropic, aligned, coupling=nothing, scale=1)
+
+Interactive measurement of one-bond couplings and residual dipolar couplings from paired
+2D spectra. Supply the two doublet-component spectra (already combined, e.g. IPAP α/β, or
+HSQC/TROSY) for each condition:
+
+    rdc2d(isotropic = ["iso_a/pdata/1", "iso_b/pdata/1"],
+          aligned   = ["aln_a/pdata/1", "aln_b/pdata/1"])
+
+The four spectra become the planes of a moving-peak experiment. Track each residue's peak
+across the planes (T) or add and adjust by hand (A); the per-residue postfit then reports
+
+    J   = sep(isotropic) / scale
+    J+D = sep(aligned)   / scale
+    D   = (J+D) − J
+
+where `sep` is the position difference between the two components in the coupling dimension
+(converted to Hz). `scale` is 1 for IPAP and 0.5 for HSQC/TROSY (the separation is then half
+the coupling). `coupling` selects the dimension (`:F1`/`:F2`); it defaults to the
+heteronuclear dimension, and the sign is flipped automatically for ¹⁵N (so J ≈ −93 Hz). List
+the two components in the same order for both conditions; if J comes out with the wrong sign,
+swap the pair.
+"""
+function rdc2d(; isotropic, aligned, coupling=nothing, scale=1.0)
+    length(isotropic) == 2 || error("`isotropic` must be two component spectra, e.g. [A, B]")
+    length(aligned) == 2 || error("`aligned` must be two component spectra, e.g. [A, B]")
+
+    files = [isotropic[1], isotropic[2], aligned[1], aligned[2]]
+    specdata = preparespecdata(files, IntensityExperiment)
+    length(specdata.z) == 4 ||
+        error("expected 4 single-plane spectra (got $(length(specdata.z))); each input must be a 2D spectrum")
+
+    couplingdim = _resolve_coupling_dim(specdata, coupling)
+    model = RDCModel((1, 2), (3, 4), couplingdim, Float64(scale),
+                     _gamma_sign(specdata, couplingdim))
+
+    peaks = Observable(Vector{Peak}())
+    expt = MovingExperiment(specdata, peaks, model, nothing, CrossSectionVisualisation())
+    return gui!(expt)
+end
+
+# Coupling dimension: :F1/:F2 (or :x/:y); default is the non-¹H (heteronuclear) dimension.
+function _resolve_coupling_dim(specdata, coupling)
+    (coupling === :F1 || coupling === :x) && return F1Dim
+    (coupling === :F2 || coupling === :y) && return F2Dim
+    isnothing(coupling) || error("`coupling` must be :F1/:F2 (or :x/:y), got $coupling")
+    l1 = uppercase(string(label(specdata.nmrdata[1], F1Dim)))
+    return occursin("H", l1) ? F2Dim : F1Dim
+end
+
+# Sign factor for the coupling: negative for ¹⁵N (negative gyromagnetic ratio), else positive.
+function _gamma_sign(specdata, dim)
+    return occursin("N", uppercase(string(label(specdata.nmrdata[1], dim)))) ? -1.0 : 1.0
+end
+
+function setup_post_parameters!(peak::Peak, ::RDCModel)
+    peak.postparameters[:J] = Parameter("J", 0.0)
+    peak.postparameters[:D] = Parameter("D", 0.0)
+    return
+end
+
+function postfitmoving!(peak::Peak, expt::MovingExperiment, model::RDCModel)
+    sym = model.couplingdim === F1Dim ? :x : :y
+    axis = dims(expt.specdata.nmrdata[1], model.couplingdim)
+    pos = peak.parameters[sym].value[]
+    σ = peak.parameters[sym].uncertainty[]
+    i1, i2 = model.isotropic
+    a1, a2 = model.aligned
+
+    # signed separations in Hz, and the ppm→Hz slope for converting position uncertainties
+    sepiso = hz(pos[i2], axis) - hz(pos[i1], axis)
+    sepaln = hz(pos[a2], axis) - hz(pos[a1], axis)
+    slope = abs(hz(pos[i1] + 1.0, axis) - hz(pos[i1], axis))
+
+    s = model.gammasign / model.scale
+    J = s * sepiso
+    D = s * (sepaln - sepiso)
+
+    σiso = slope * sqrt(σ[i1]^2 + σ[i2]^2)
+    σaln = slope * sqrt(σ[a1]^2 + σ[a2]^2)
+    f = abs(s)
+    peak.postparameters[:J].value[] .= J
+    peak.postparameters[:J].uncertainty[] .= f * σiso
+    peak.postparameters[:D].value[] .= D
+    peak.postparameters[:D].uncertainty[] .= f * sqrt(σiso^2 + σaln^2)
+    peak.postfitted[] = true
+    return
+end
+
+primaryparam(expt::MovingExperiment) = expt.model isa RDCModel ? :D : :amp
 
 function addpeakhint(::MovingPeakExperiment)
     return "Press (A) to add a peak, or (T) to add and track it across planes, under the cursor"
@@ -379,6 +496,16 @@ function peakinfotext(expt::MovingExperiment, idx)
     peak = expt.peaks[][idx]
     if !peak.postfitted[]
         return "Peak: $(peak.label[])\nNot fitted"
+    end
+
+    if expt.model isa RDCModel
+        J = peak.postparameters[:J]
+        D = peak.postparameters[:D]
+        return join(["Peak: $(peak.label[])",
+                     "",
+                     "J: $(round(J.value[][1]; digits=2)) ± $(round(J.uncertainty[][1]; digits=2)) Hz",
+                     "D: $(round(D.value[][1]; digits=2)) ± $(round(D.uncertainty[][1]; digits=2)) Hz"],
+                    "\n")
     end
 
     n = nslices(expt)
@@ -500,6 +627,10 @@ measured relative to plane 1).
 """
 function summaryplot(expt::MovingExperiment; weights=(1.0, 0.14), title="", size=nothing,
                      include_unassigned=false)
+    expt.model isa RDCModel &&
+        return _rdc_summaryplot(expt; title=title, size=size,
+                                include_unassigned=include_unassigned)
+
     n = nslices(expt)
     peaks = sortedpeaks(expt)
     if !include_unassigned
@@ -525,5 +656,29 @@ function summaryplot(expt::MovingExperiment; weights=(1.0, 0.14), title="", size
     hlines!(ax, [0]; linewidth=0)  # invisible: forces zero into the y-range
     n > 2 && axislegend(ax; position=:lt, framevisible=false)
 
+    return fig
+end
+
+"""RDC summary: residual dipolar coupling D (Hz) against residue number."""
+function _rdc_summaryplot(expt::MovingExperiment; title="", size=nothing,
+                          include_unassigned=false)
+    peaks = sortedpeaks(expt)
+    if !include_unassigned
+        assigned = filter(p -> extract_residue_number(p.label[]) > 0, peaks)
+        isempty(assigned) || (peaks = assigned)
+    end
+    peaks = filter(p -> p.postfitted[] && haskey(p.postparameters, :D), peaks)
+
+    figkw = isnothing(size) ? NamedTuple() : (; size=size)
+    fig = Figure(; figkw...)
+    ax = Axis(fig[1, 1]; xlabel="Residue number", ylabel="D / Hz", title=title,
+              xgridvisible=false, ygridvisible=false)
+
+    res = Float64[extract_residue_number(p.label[]) for p in peaks]
+    D = Float64[p.postparameters[:D].value[][1] for p in peaks]
+    Derr = Float64[p.postparameters[:D].uncertainty[][1] for p in peaks]
+    errorbars!(ax, res, D, Derr; whiskerwidth=6, color=:black)
+    scatter!(ax, res, D; color=:steelblue)
+    hlines!(ax, [0]; linewidth=0)
     return fig
 end
