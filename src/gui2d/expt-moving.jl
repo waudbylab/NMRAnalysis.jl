@@ -131,11 +131,48 @@ function addpeak!(expt::MovingExperiment, initialposition::Point2f, label="",
     newpeak.parameters[:R2y] = R2y
     newpeak.parameters[:amp] = amp
 
+    # Seed the other planes from the average per-plane displacement of already-fitted peaks
+    # (relative to the plane being clicked in), so a new peak inherits the common motion pattern
+    # - e.g. the IPAP/RDC zig-zag - instead of starting flat at the click. Falls back to the flat
+    # seed for the first peak. (T) overrides this with maximum-tracking.
+    disp = average_displacements(expt)
+    if !isnothing(disp)
+        dx, dy = disp
+        for i in 1:n
+            setpeakposition!(expt, newpeak, i, x0 + dx[i], y0 + dy[i])
+        end
+    end
+
     # Post-parameters based on model type (none for NoFitting)
     setup_post_parameters!(newpeak, expt.model)
 
     push!(expt.peaks[], newpeak)
     return notify(expt.peaks)
+end
+
+"""
+    average_displacements(expt) -> (dx, dy) | nothing
+
+Mean per-plane position displacement of the already-fitted peaks, relative to the current
+plane (so `dx`/`dy` are zero at that plane). Used to seed a new peak's planes with the common
+motion pattern. Returns `nothing` if no peak has been fitted yet.
+"""
+function average_displacements(expt::MovingExperiment)
+    fitted = [p for p in expt.peaks[] if p.postfitted[]]
+    isempty(fitted) && return nothing
+    n = nslices(expt)
+    anchor = expt.state[][:current_slice][]
+    dx = zeros(n)
+    dy = zeros(n)
+    for p in fitted
+        xv = p.parameters[:x].value[]
+        yv = p.parameters[:y].value[]
+        for i in 1:n
+            dx[i] += xv[i] - xv[anchor]
+            dy[i] += yv[i] - yv[anchor]
+        end
+    end
+    return dx ./ length(fitted), dy ./ length(fitted)
 end
 
 """
