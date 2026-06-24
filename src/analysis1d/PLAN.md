@@ -97,16 +97,23 @@ Leave alone (10%): CORCEMA-ST relaxation-matrix epitope quantification.
 
 ## Implementation status
 
-Phase 1 — **analysis core + 5 experiments**  ← THIS ITERATION
+Phase 1 — **analysis core + 5 experiments**  ✓
 - [x] `Trace` / `Planes` / `Region` / `Dataset1D`
 - [x] `Integrate` reduction with noise propagation (Measurements), height = zero width
 - [x] series models: Exponential, Recovery, DampedSinusoid, NoFitting; Contrast (STD)
 - [x] grouping + curve-fit pipeline (noise-weighted) → `SeriesResult`
 - [x] experiments: Relaxation, TRACT (τc), Nutation (90°), STD (multi-freq + buildup + epitope), Kinetics
 - [x] NMRData → Dataset1D loaders (`relaxation`, `tract`, `nutation`, `stdnmr`, `kinetics`)
+- [x] legacy readline `relaxation`/`tract` retired; new ones take the names
 
-Phase 2 — interactive GUI (Window 1): overlay, auto-sliders, region list, live Tier-1,
-ComputeGraph substrate, CairoMakie export, dispatch registration.
+Phase 2 — **interactive GUI (Window 1)**  ← THIS ITERATION
+- [x] spectral overlay (all planes + current), draggable region(s) + noise region
+- [x] plane slider, region selector, width boxes, fitting toggle, save
+- [x] live refit via `lift`; result panel dispatched per experiment (`result_plotdata`)
+- [x] launched with `gui!(expt)`; CairoMakie export of fit + summary
+- [ ] ComputeGraph substrate (deferred; prototype on the exchange popup first)
+- [ ] auto-generated per-axis sliders for multi-coordinate datasets
+- [ ] dispatch registration so `analyse(folder)` can route to these
 
 Phase 3 — Tier-2 exchange second window + `ExchangeModel`; R1ρ (on/off-res), CEST, CPMG
 onto this framework; combined/global exchange fitting.

@@ -14,8 +14,6 @@ include("analyse.jl")
 include("viscosity.jl")
 include("calibration.jl")
 include("diffusion.jl")
-include("relaxation.jl")
-include("tract.jl")
 
 include("gui2d/GUI2D.jl")
 using .GUI2D
@@ -31,8 +29,6 @@ include("precompile.jl")
 export analyse, register_analysis!, MultiFileRule
 export viscosity
 export diffusion
-export relaxation
-export tract
 
 include("R1rho/R1rho.jl")
 using .R1rho
@@ -49,13 +45,11 @@ using .R1rho
 @reexport using .R1rho: r1rho, setupR1rhopowers
 
 # 1D analysis framework (Analysis1D). `analyse` is not re-exported (would collide with the
-# registry-based `analyse` above; use `analyse1d`). `relaxation`/`tract` are not re-exported
-# either while the legacy 1D routines of the same name still exist - reach them as
-# `Analysis1D.relaxation` / `Analysis1D.tract` until the legacy versions are retired.
-@reexport using .Analysis1D: Region, Dataset1D, analyse1d
+# registry-based `analyse` above; use `analyse1d`).
+@reexport using .Analysis1D: Region, Dataset1D, analyse1d, gui!
 @reexport using .Analysis1D: RelaxationExperiment, TractExperiment, NutationExperiment
 @reexport using .Analysis1D: KineticsExperiment, STDExperiment
-@reexport using .Analysis1D: nutation, stdnmr, kinetics
+@reexport using .Analysis1D: relaxation, tract, nutation, stdnmr, kinetics
 
 @info """
 NMRAnalysis.jl (v$(pkgversion(NMRAnalysis)))
@@ -71,9 +65,14 @@ NMRAnalysis.jl (v$(pkgversion(NMRAnalysis)))
 
 # 1D Experiment Analysis Routines
 
-- relaxation([filename])
+Build an experiment, then `gui!(expt)` to fit interactively (or `analyse1d(expt)`):
+
+- relaxation(spec; ir=false)        |> gui!
+- tract(trosy, antitrosy)           |> gui!
+- nutation(spec)                    |> gui!
+- stdnmr(spec, sat, tsat; regions)  |> gui!
+- kinetics(spec, times; regions)    |> gui!
 - diffusion([filename])
-- tract([trosy_filename, antitrosy_filename])
 - r1rho([directory_path]; minvSL=250, maxvSL=1e6, scalefactor=:automatic)
 
 # 2D Experiment Analysis Routines

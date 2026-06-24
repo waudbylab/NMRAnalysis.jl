@@ -78,19 +78,21 @@ function BuildupModel()
 end
 
 """
-    analyse(e::STDExperiment) -> NamedTuple
+    analyse(e::STDExperiment, [dataset, regions]) -> NamedTuple
 
-Returns `(; points, buildups, epitope)`.
+Returns `(; points, buildups, epitope)`. As for the curve-fit experiments, the dataset
+and regions may be supplied explicitly so the GUI can recompute live.
 """
-function analyse(e::STDExperiment)
-    ds = e.dataset
+analyse(e::STDExperiment) = analyse(e, e.dataset, e.regions)
+
+function analyse(e::STDExperiment, ds::Dataset1D, regs)
     sats = unique(column(ds.planes, :sat))
     onres = filter(!=(e.reference), sats)
 
     # Per-region integrals over every plane.
     points = STDPoint[]
     buildups = STDBuildup[]
-    for region in e.regions
+    for region in regs
         I = integrals(region, ds)
         sat_of = column(ds.planes, :sat)
         tsat_of = column(ds.planes, :tsat)

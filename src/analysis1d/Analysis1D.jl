@@ -11,17 +11,25 @@ GUI is a later phase layered on top.
 """
 module Analysis1D
 
+using CairoMakie
+using GLMakie
 using LsqFit
 using Measurements
 using NMRTools
 using Statistics
 
+# pure analysis core (no Makie dependency in these files)
 include("types.jl")
 include("reductions.jl")
 include("seriesmodels.jl")
 include("experiments.jl")
 include("std.jl")
 include("loaders.jl")
+
+# interactive GUI
+include("visualisation.jl")
+include("state.jl")
+include("gui.jl")
 
 """
     analyse1d(experiment) -> NamedTuple
@@ -46,6 +54,9 @@ export Experiment1D, analyse, analyse1d
 export RelaxationExperiment, TractExperiment, NutationExperiment, KineticsExperiment
 export STDExperiment
 export SeriesResult, param
+
+# interactive GUI
+export gui!
 
 # file loaders (stdnmr rather than std, to avoid colliding with Statistics.std)
 export relaxation, tract, nutation, stdnmr, kinetics

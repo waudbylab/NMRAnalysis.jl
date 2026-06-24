@@ -60,18 +60,22 @@ function param(r::SeriesResult, name::AbstractString)
 end
 
 """
-    series_results(e) -> Vector{SeriesResult}
+    series_results(e, [dataset, regions]) -> Vector{SeriesResult}
 
 Run the reduction and per-series curve fit for every region and grouping key. This is
 the curve-fit pipeline shared by relaxation, TRACT, nutation and kinetics.
+
+The `dataset`/`regions` arguments default to the experiment's own, but can be supplied
+explicitly so the GUI can refit live against interactively-positioned regions and noise.
 """
-function series_results(e::Experiment1D)
-    ds = dataset(e)
+series_results(e::Experiment1D) = series_results(e, dataset(e), regions(e))
+
+function series_results(e::Experiment1D, ds::Dataset1D, regs)
     red = reduction(e)
     model = seriesmodel(e)
     axis = fitaxis(e)
     results = SeriesResult[]
-    for region in regions(e)
+    for region in regs
         I = reduce_region(red, region, ds).I
         for (gkey, idx) in groupseries(ds.planes, groupcols(e))
             x = Float64[ds.planes.vars[i][axis] for i in idx]
@@ -88,13 +92,15 @@ function series_results(e::Experiment1D)
 end
 
 """
-    analyse(e) -> NamedTuple
+    analyse(e, [dataset, regions]) -> NamedTuple
 
 Run the full analysis: `(; series, summary)` where `series` is a `Vector{SeriesResult}`
 and `summary` is the experiment-specific global result (or `nothing`).
 """
-function analyse(e::Experiment1D)
-    series = series_results(e)
+analyse(e::Experiment1D) = analyse(e, dataset(e), regions(e))
+
+function analyse(e::Experiment1D, ds::Dataset1D, regs)
+    series = series_results(e, ds, regs)
     return (; series, summary=postprocess(e, series))
 end
 
