@@ -6,6 +6,10 @@ using SafeTestsets
     include("diffusion_test.jl")
 end
 
+@safetestset "Analysis1D test" begin
+    include("analysis1d_test.jl")
+end
+
 @safetestset "Residue Label Parser Tests" begin
     # # Standard format tests
     # @test NMRAnalysis.GUI2D.extract_residue_number("A7") == 7

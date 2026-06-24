@@ -20,6 +20,11 @@ include("tract.jl")
 include("gui2d/GUI2D.jl")
 using .GUI2D
 
+include("analysis1d/Analysis1D.jl")
+# N.B. deliberately no blanket `using .Analysis1D`: it exports `analyse`, which would
+# collide with the registry-based `analyse` above. Names are brought in by the selective
+# `@reexport using .Analysis1D: …` below instead.
+
 using PrecompileTools
 include("precompile.jl")
 
@@ -42,6 +47,14 @@ using .R1rho
 @reexport using .GUI2D: summaryplot
 
 @reexport using .R1rho: r1rho, setupR1rhopowers
+
+# 1D analysis framework (Analysis1D). `analyse` is intentionally not re-exported to
+# avoid colliding with the registry-based `analyse` above; use `analyse1d` instead.
+@reexport using .Analysis1D: Region, Dataset1D, analyse1d
+@reexport using .Analysis1D: RelaxationExperiment, TractExperiment, NutationExperiment
+@reexport using .Analysis1D: KineticsExperiment, STDExperiment
+@reexport using .Analysis1D: load_relaxation, load_tract, load_nutation, load_std,
+                             load_kinetics
 
 @info """
 NMRAnalysis.jl (v$(pkgversion(NMRAnalysis)))
