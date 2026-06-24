@@ -67,6 +67,34 @@ function splitfields(line)
 end
 
 """
+    parse_radius_comment!(expt, line)
+
+If `line` records an X/Y fitting radius (as written by [`writeresults!`](@ref), e.g.
+`# X radius / ppm: 0.04`), apply it to the experiment. Generic to all 2D experiments.
+"""
+function parse_radius_comment!(expt, line)
+    mx = match(r"x\s*radius[^0-9]*([0-9]*\.?[0-9]+)"i, line)
+    isnothing(mx) || setradius!(expt, :x, parse(Float64, mx.captures[1]))
+    my = match(r"y\s*radius[^0-9]*([0-9]*\.?[0-9]+)"i, line)
+    isnothing(my) || setradius!(expt, :y, parse(Float64, my.captures[1]))
+    return
+end
+
+# Set a fitting radius. When the GUI is up, drive the slider (which keeps the display in sync
+# via connect!); otherwise set the experiment observable directly.
+function setradius!(expt, dim, value)
+    g = get(expt.state[], :gui, nothing)
+    g = g isa Observable ? g[] : g
+    if g isa AbstractDict && haskey(g, :sgradii)
+        slider = dim === :x ? g[:sgradii].sliders[1] : g[:sgradii].sliders[2]
+        set_close_to!(slider, value)
+    else
+        (dim === :x ? expt.xradius : expt.yradius)[] = value
+    end
+    return
+end
+
+"""
     readpeaklist!(expt, filepath::AbstractString)
 
 Read a peak list and add the peaks to `expt`. Only the `label`, `x` and `y`
@@ -93,7 +121,10 @@ function readpeaklist!(expt, filepath::AbstractString)
         for (line_number, line) in enumerate(eachline(f))
             sline = strip(line)
             isempty(sline) && continue
-            startswith(sline, '#') && continue
+            if startswith(sline, '#')
+                parse_radius_comment!(expt, sline)  # restore fitting radii if recorded
+                continue
+            end
 
             fields = splitfields(sline)
 
@@ -165,6 +196,9 @@ function writeresults!(expt, folder)
             isempty(strip(line)) && continue
             println(f, "# ", line)
         end
+        # Record the fitting radii so they are restored on load (parsed by readpeaklist!).
+        println(f, "# X radius / ppm: ", round(expt.xradius[]; digits=4))
+        println(f, "# Y radius / ppm: ", round(expt.yradius[]; digits=4))
         println(f, join(header, ","))
         for row in rows
             println(f, join(row, ","))
