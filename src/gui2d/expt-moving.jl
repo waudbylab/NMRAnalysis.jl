@@ -112,7 +112,7 @@ function preparespecdata(inputfilenames, ::Type{MovingExperiment})
 end
 
 """
-    movingfit2d(inputfilenames, xvalues=nothing)
+    peaktrack2d(inputfilenames, xvalues=nothing)
 
 Start an interactive GUI for analysing a series of 2D spectra in which **peak positions
 change** from plane to plane (e.g. a titration, or a coupling-constant / RDC measurement).
@@ -132,10 +132,10 @@ analysis, or as the basis for the position-based physical models (titration, cou
 # Example
 ```julia
 # A titration series, with ligand concentrations
-movingfit2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"], [0.0, 0.5, 1.0])
+peaktrack2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"], [0.0, 0.5, 1.0])
 ```
 """
-function movingfit2d(inputfilenames, xvalues=nothing)
+function peaktrack2d(inputfilenames, xvalues=nothing)
     specdata = preparespecdata(inputfilenames, MovingExperiment)
     peaks = Observable(Vector{Peak}())
 
@@ -580,7 +580,7 @@ HSQC/TROSY) for each condition:
     rdc2d(isotropic = ["iso_a/pdata/1", "iso_b/pdata/1"],
           aligned   = ["aln_a/pdata/1", "aln_b/pdata/1"])
 
-The four spectra become the planes of a moving-peak experiment. Track each residue's peak
+The four spectra become the planes of a peak-tracking experiment. Track each residue's peak
 across the planes (T) or add and adjust by hand (A); the per-residue postfit then reports
 
     J   = sep(isotropic) / scale
@@ -699,7 +699,7 @@ function peakinfotext(expt::MovingExperiment, idx)
 end
 
 function experimentinfo(expt::MovingExperiment)
-    info = ["Analysis type: Moving peak",
+    info = ["Analysis type: Peak tracking",
             "Model: $(typeof(expt.model))",
             "Filename: $(expt.specdata.nmrdata[1][:filename])",
             "Number of peaks: $(length(expt.peaks[]))",

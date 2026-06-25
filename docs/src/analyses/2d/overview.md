@@ -19,7 +19,7 @@ in the contour plot to work with it.
 | Action | Key / Button |
 |--------|--------------|
 | Add peak at cursor position | `A` |
-| Track moving peak from cursor position | `T` |
+| Track peak from cursor position | `T` |
 | Delete the selected peak | `D` or **Delete peak** button |
 | Rename the selected peak | `R` or **Rename peak** button |
 | Navigate to previous spectrum slice | `←` or **←** button |

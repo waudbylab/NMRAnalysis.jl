@@ -1,7 +1,7 @@
 # Couplings and RDCs
 
 `rdc2d` measures one-bond scalar couplings (J) and residual dipolar couplings (D) from the
-*separation* between paired component spectra. It is a [moving-peak](movingpeaks.md)
+*separation* between paired component spectra. It is a [peak-tracking](peaktracking.md)
 analysis: a residue's peak appears at a slightly different position in each component, and
 the difference in the coupling dimension gives the coupling.
 
@@ -16,7 +16,7 @@ rdc2d(isotropic = ["expt/1", "expt/2"],
       aligned   = ["expt/11", "expt/12"])
 ```
 
-The four spectra become the planes of a moving-peak experiment. Add a peak for each residue
+The four spectra become the planes of a peak-tracking experiment. Add a peak for each residue
 (`A`, marking its position in each plane), and the per-residue analysis reports:
 
 ```math

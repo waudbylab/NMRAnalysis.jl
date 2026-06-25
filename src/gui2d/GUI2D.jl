@@ -37,7 +37,7 @@ export recovery2d
 export modelfit2d
 
 # export MovingExperiment
-export movingfit2d
+export peaktrack2d
 export rdc2d
 
 # export HetNOEExperiment

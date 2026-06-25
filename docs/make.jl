@@ -30,7 +30,7 @@ makedocs(;
                                   "Magnetisation Recovery" => "analyses/2d/magnetisationrecovery.md",
                                   "Cross-correlated Relaxation" => "analyses/2d/ccr.md",
                                   "Custom Models" => "analyses/2d/modelfit.md",
-                                  "Moving Peaks" => "analyses/2d/movingpeaks.md",
+                                  "Peak Tracking" => "analyses/2d/peaktracking.md",
                                   "Couplings and RDCs" => "analyses/2d/rdc.md"],
                 "Tutorials" => ["¹⁹F R1ρ acquisition & analysis" => "tutorials/r1rho.md"],
                 "Advanced" => ["Analysis Rules" => "advanced/analysis_rules.md",

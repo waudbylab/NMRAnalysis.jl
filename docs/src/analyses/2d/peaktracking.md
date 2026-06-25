@@ -1,6 +1,6 @@
-# Moving Peaks
+# Peak Tracking
 
-**Moving-peak** analyses track how peak positions (and linewidths) change from plane to plane
+**Peak tracking** analyses track how peak positions (and linewidths) change from plane to plane
 — for example across a titration, where peaks walk along a binding trajectory, or a
 coupling/RDC measurement (see [Couplings and RDCs](rdc.md)).
 
@@ -8,7 +8,7 @@ coupling/RDC measurement (see [Couplings and RDCs](rdc.md)).
 using NMRAnalysis
 
 # A series of 2D spectra in which peaks move (e.g. a titration)
-movingfit2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"], [0.0, 0.5, 1.0])
+peaktrack2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"], [0.0, 0.5, 1.0])
 ```
 
 - `inputfilenames`: a single pseudo-3D dataset, or a vector of 2D spectra (one per plane).
