@@ -144,6 +144,8 @@ function addhanders!(g, state, expt::Experiment)
             RGBAf(0.75, 0.94, 1.0, 1.0)     # :lightblue
         elseif mode == :moving
             RGBAf(0.6, 0.98, 0.6, 1.0)      # :palegreen
+        elseif mode == :adding
+            RGBAf(1.0, 0.95, 0.7, 1.0)      # light yellow
         else
             RGBAf(1.0, 1.0, 1.0, 1.0)       # :white
         end

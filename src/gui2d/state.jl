@@ -111,8 +111,13 @@ function preparestate(expt::Experiment)
         notify(state[:peakcolours])
     end
 
-    state[:current_peak_info] = lift(idx -> peakinfotext(expt, idx),
-                                     state[:current_peak_idx])
+    state[:current_peak_info] = lift(state[:current_peak_idx], state[:mode]) do idx, mode
+        if mode == :adding
+            "Adding peak\n\n(a) mark this plane\n(space) fill remaining planes\n(esc) cancel"
+        else
+            peakinfotext(expt, idx)
+        end
+    end
 
     completestate!(state, expt)
 

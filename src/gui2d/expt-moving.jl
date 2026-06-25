@@ -52,6 +52,65 @@ end
 
 visualisationtype(expt::MovingExperiment) = expt.visualisation
 
+# Whether the (T) add-and-track command applies. Tracking the intensity maximum makes sense
+# for a single peak walking across planes (titrations) but not for paired component spectra,
+# so it is disabled for RDC experiments.
+cantrack(::Experiment) = false
+cantrack(expt::MovingExperiment) = !(expt.model isa RDCModel)
+
+# Whether adding a peak should walk plane-by-plane (the default) or place immediately using the
+# learned displacement pattern. Generic moving peaks always walk; RDC only walks until a peak
+# has been fitted, after which new peaks copy the established offsets (addpeak! seeds from
+# average_displacements) so the user need not re-mark every plane.
+needsguidedadd(expt::MovingExperiment) =
+    !(expt.model isa RDCModel) || !any(p -> p.postfitted[], expt.peaks[])
+
+# Moving-peak spectra are normalised per plane by each plane's OWN noise level, so contour
+# levels and signal-to-noise are consistent even when the planes are different experiment
+# types (e.g. rdc2d's isotropic vs aligned spectra, or HSQC vs TROSY). This differs from the
+# intensity experiments (relaxation, CEST, ...), which normalise every plane by the first
+# plane's noise to keep amplitudes directly comparable across the series.
+function preparespecdata(inputfilenames, ::Type{MovingExperiment})
+    @debug "Preparing spec data for moving-peak experiment: $inputfilenames"
+    spec, x, y, z, σ, zlabels = if inputfilenames isa String
+        spec, x, y, z, σ = loadspecdata(inputfilenames, IntensityExperiment)
+        (SingleElementVector(spec),
+         SingleElementVector(x),
+         SingleElementVector(y),
+         z ./ σ,
+         SingleElementVector(1),
+         SingleElementVector(choptitle(label(spec))))
+    elseif inputfilenames isa Vector{String}
+        tmp = loadspecdata.(inputfilenames, IntensityExperiment)
+        spec = []
+        x = []
+        y = []
+        z = []
+        σ = []
+        zlabels = []
+        for t in tmp
+            n = length(t[4])
+            if n == 1
+                push!(spec, t[1])
+                push!(x, t[2])
+                push!(y, t[3])
+                push!(z, t[4][1] ./ t[5])  # normalise by THIS plane's noise
+                push!(σ, t[5])
+                push!(zlabels, choptitle(label(t[1])))
+            else
+                append!(spec, fill(t[1], n))
+                append!(x, fill(t[2], n))
+                append!(y, fill(t[3], n))
+                append!(z, [zi ./ t[5] for zi in t[4]])
+                append!(σ, fill(t[5], n))
+                append!(zlabels, fill(choptitle(label(t[1])), n))
+            end
+        end
+        map(MaybeVector, (spec, x, y, z, σ, zlabels))
+    end
+    return SpecData(spec, x, y, z, σ, zlabels)
+end
+
 """
     movingfit2d(inputfilenames, xvalues=nothing)
 
@@ -77,7 +136,7 @@ movingfit2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"], [0.0, 0.5, 1.0])
 ```
 """
 function movingfit2d(inputfilenames, xvalues=nothing)
-    specdata = preparespecdata(inputfilenames, IntensityExperiment)
+    specdata = preparespecdata(inputfilenames, MovingExperiment)
     peaks = Observable(Vector{Peak}())
 
     xval = if xvalues isa String
@@ -202,6 +261,85 @@ function setpeakposition!(expt::MovingPeakExperiment, peak::Peak, i, x, y)
     peak.parameters[:y].value[][i] = y
     reinitialise_amplitude!(expt, peak, i)
     return
+end
+
+# --- guided add (A) ----------------------------------------------------------
+# Adding a moving peak walks through the planes so the user marks its position in each one,
+# starting at the current plane and stepping forwards (wrapping back to the start), then
+# returning to the original plane. While adding (mode :adding): (a) marks this plane and
+# advances, (space) fills the remaining planes with the current position and finishes, (esc)
+# cancels. State is held in the GUI state dict under :add_*.
+
+# Publish the marked-so-far positions for the in-progress add overlay (see add_moving_overlays!).
+function show_add_marks!(state, positions)
+    haskey(state, :add_marks) || return
+    return state[:add_marks][] = [p for p in positions if !isnan(p[1])]
+end
+
+"""Begin a guided add at the current plane, marking it immediately at `pos`."""
+function begin_add!(expt::MovingPeakExperiment, state, pos)
+    n = nslices(expt)
+    s = state[:current_slice][]
+    state[:add_order] = Observable([mod1(s + k, n) for k in 0:(n - 1)])  # current, then forwards
+    state[:add_index] = Observable(1)
+    state[:add_positions] = Observable(fill(Point2f(NaN32, NaN32), n))
+    state[:add_anchor] = Observable(s)
+    state[:mode][] = :adding
+    return mark_add!(expt, state, pos)
+end
+
+"""Record `pos` for the plane currently being marked and advance (or finish)."""
+function mark_add!(expt::MovingPeakExperiment, state, pos)
+    n = nslices(expt)
+    order = state[:add_order][]
+    idx = state[:add_index][]
+    positions = copy(state[:add_positions][])
+    positions[order[idx]] = Point2f(pos)
+    state[:add_positions][] = positions
+    show_add_marks!(state, positions)
+    if idx >= n
+        return finish_add!(expt, state)
+    end
+    state[:add_index][] = idx + 1
+    return set_close_to!(state[:gui][][:sliderslice], order[idx + 1])
+end
+
+"""Fill every not-yet-marked plane with `pos`, then finish."""
+function fill_add!(expt::MovingPeakExperiment, state, pos)
+    positions = copy(state[:add_positions][])
+    for i in eachindex(positions)
+        isnan(positions[i][1]) && (positions[i] = Point2f(pos))
+    end
+    state[:add_positions][] = positions
+    show_add_marks!(state, positions)
+    return finish_add!(expt, state)
+end
+
+"""Create the peak from the marked positions, return to the original plane, leave :adding."""
+function finish_add!(expt::MovingPeakExperiment, state)
+    positions = state[:add_positions][]
+    anchor = state[:add_anchor][]
+    fallback = positions[anchor]
+    addpeak!(expt, Point2f(fallback))
+    peak = expt.peaks[][end]
+    for i in eachindex(positions)
+        p = isnan(positions[i][1]) ? fallback : positions[i]
+        setpeakposition!(expt, peak, i, p[1], p[2])
+    end
+    peak.touched[] = true
+    notify(expt.peaks)
+    show_add_marks!(state, Point2f[])
+    state[:current_peak_idx][] = length(expt.peaks[])
+    state[:mode][] = :normal
+    return set_close_to!(state[:gui][][:sliderslice], anchor)
+end
+
+"""Abort the guided add and return to the original plane."""
+function cancel_add!(expt::MovingPeakExperiment, state)
+    anchor = state[:add_anchor][]
+    show_add_marks!(state, Point2f[])
+    state[:mode][] = :normal
+    return set_close_to!(state[:gui][][:sliderslice], anchor)
 end
 
 # R2 rate (s⁻¹) for an initial linewidth guess: half the search radius taken as a FWHM, converted
@@ -461,7 +599,7 @@ function rdc2d(; isotropic, aligned, coupling=nothing, scale=1.0)
     length(aligned) == 2 || error("`aligned` must be two component spectra, e.g. [A, B]")
 
     files = [isotropic[1], isotropic[2], aligned[1], aligned[2]]
-    specdata = preparespecdata(files, IntensityExperiment)
+    specdata = preparespecdata(files, MovingExperiment)
     length(specdata.z) == 4 ||
         error("expected 4 single-plane spectra (got $(length(specdata.z))); each input must be a 2D spectrum")
 
@@ -524,8 +662,10 @@ end
 
 primaryparam(expt::MovingExperiment) = expt.model isa RDCModel ? :D : :amp
 
-function addpeakhint(::MovingPeakExperiment)
-    return "Press (A) to add a peak, or (T) to add and track it across planes, under the cursor"
+function addpeakhint(expt::MovingPeakExperiment)
+    s = "Press (A) to add a peak, marking its position in each plane"
+    cantrack(expt) && (s *= ", or (T) to add and auto-track across planes")
+    return s
 end
 
 function peakinfotext(expt::MovingExperiment, idx)
@@ -624,6 +764,12 @@ function add_moving_overlays!(g, state, expt::MovingPeakExperiment)
     # Above the contours/context, but below the drag handle (z=10) so the handle stays pickable.
     translate!(g[:plttrajectories], 0, 0, 2)
     translate!(g[:plttrajectorypts], 0, 0, 2)
+
+    # In-progress guided-add marks: orange crosses at the positions marked so far.
+    state[:add_marks] = Observable(Point2f[])
+    g[:pltaddmarks] = scatter!(ax, state[:add_marks]; marker=:xcross, markersize=16,
+                               color=:darkorange)
+    translate!(g[:pltaddmarks], 0, 0, 11)
 
     # --- faint context: every plane's contours, off by default ---
     # Drawn above the (opaque white) mask heatmap so they remain visible; the small positive z

@@ -4,9 +4,18 @@ function process_keyboardbutton(expt, state, event)
     if state[:mode][] == :normal && event.action == Keyboard.press
         if ispressed(g[:fig], Keyboard.a)
             pos = mouseposition(g[:axcontour])
-            addpeak!(expt, Point2f(pos))
-            state[:current_peak_idx][] = length(expt.peaks[]) # select the new peak
-        elseif ispressed(g[:fig], Keyboard.t) && !hasfixedpositions(expt)
+            if hasfixedpositions(expt)
+                addpeak!(expt, Point2f(pos))
+                state[:current_peak_idx][] = length(expt.peaks[]) # select the new peak
+            elseif needsguidedadd(expt)
+                # moving peaks: walk through the planes, marking the position in each
+                begin_add!(expt, state, pos)
+            else
+                # RDC after the first peak: place immediately, copying the learned offsets
+                addpeak!(expt, Point2f(pos))
+                state[:current_peak_idx][] = length(expt.peaks[])
+            end
+        elseif ispressed(g[:fig], Keyboard.t) && cantrack(expt)
             # add a peak and track it across all planes (moving-peak experiments only)
             pos = mouseposition(g[:axcontour])
             addandtrackpeak!(expt, Point2f(pos))
@@ -40,6 +49,20 @@ function process_keyboardbutton(expt, state, event)
                 set_close_to!(state[:gui][][:sliderslice], i)
             end
         end
+    elseif state[:mode][] == :adding
+        if event.action == Keyboard.press
+            if event.key == Keyboard.a
+                mark_add!(expt, state, mouseposition(g[:axcontour]))
+                return Consume()
+            elseif event.key == Keyboard.space
+                fill_add!(expt, state, mouseposition(g[:axcontour]))
+                return Consume()
+            elseif event.key == Keyboard.escape
+                cancel_add!(expt, state)
+                return Consume()
+            end
+        end
+        return Consume(false)
     elseif state[:mode][] == :renaming || state[:mode][] == :renamingstart
         if event.action == Keyboard.press && event.key == Keyboard.enter
             state[:current_peak][].label[] = state[:current_peak][].label[][1:(end - 1)]
