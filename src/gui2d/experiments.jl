@@ -30,6 +30,7 @@ Expected fields:
 
 # implementations
 include("expt-intensitybased.jl")
+include("expt-moving.jl")
 include("expt-hetnoe.jl")
 include("expt-PRE.jl")
 include("expt-cest.jl")
@@ -156,11 +157,18 @@ function movepeak!(expt, idx, newpos)
         expt.peaks[][i].touched.val = true
     end
     slice = expt.state[][:current_slice][]
-    expt.peaks[][idx].parameters[:x].initialvalue[][slice] = newpos[1]
-    expt.peaks[][idx].parameters[:y].initialvalue[][slice] = newpos[2]
-    expt.peaks[][idx].touched.val = true
+    peak = expt.peaks[][idx]
+    peak.parameters[:x].initialvalue[][slice] = newpos[1]
+    peak.parameters[:y].initialvalue[][slice] = newpos[2]
+    # Resample the amplitude at the new position (moving-peak experiments); no-op otherwise.
+    reinitialise_amplitude!(expt, peak, slice)
+    peak.touched.val = true
     return notify(expt.peaks)
 end
+
+# Hook: re-estimate a peak's amplitude in plane `slice` after its position moves. Specialised
+# for moving-peak experiments (see expt-moving.jl); a no-op for fixed-position experiments.
+reinitialise_amplitude!(::Experiment, peak, slice) = nothing
 
 """
     deletepeak!(expt, idx)

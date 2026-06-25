@@ -10,8 +10,12 @@ function Parameter(label, initialvalue; minvalue=-Inf, maxvalue=Inf, uncertainty
     end
     uncertainty = MaybeVector(uncertainty)
 
+    # min/max are stored untyped so they can hold either a scalar bound (fixed peaks) or a
+    # per-plane vector of bounds (moving peaks, where each plane's position is bounded within
+    # ±radius of its own initial value - see pack!).
     return Parameter(label, Observable(value), Observable(uncertainty),
-                     Observable(initialvalue), Observable(minvalue), Observable(maxvalue))
+                     Observable(initialvalue), Observable{Any}(minvalue),
+                     Observable{Any}(maxvalue))
 end
 
 "Return list with value(s) (or if :min or :max passed, their limits)"

@@ -27,24 +27,30 @@ function saveresults!(expt)
         expt.state[][:mode][] = :fitting
         sleep(0.1) # allow time for mode change to be processed
     end
-    @async begin # do fitting in a separate task
+    @async begin # do saving in a separate task
         sleep(0.2) # allow time for mode change to be processed
+        try
+            # save all peak positions, linewidths, amplitudes and derived
+            # parameters to a single results file
+            writeresults!(expt, folder)
 
-        # save all peak positions, linewidths, amplitudes and derived
-        # parameters to a single results file
-        writeresults!(expt, folder)
-
-        # remove stale per-peak, per-cluster and summary PDFs
-        for file in readdir(folder)
-            if occursin(r"^(peak_|cluster_).*\.pdf$", file) || file == "summary.pdf"
-                rm(joinpath(folder, file))
+            # remove stale per-peak, per-cluster and summary PDFs
+            for file in readdir(folder)
+                if occursin(r"^(peak_|cluster_).*\.pdf$", file) || file == "summary.pdf"
+                    rm(joinpath(folder, file))
+                end
             end
+            save_peak_plots!(expt, folder)
+            save_cluster_plots!(expt, folder)
+            save_summary_plot!(expt, folder)
+        catch e
+            @error "Error saving results to $folder" exception = (e, catch_backtrace())
+        finally
+            # Always restore normal mode - otherwise a failure mid-save leaves the GUI stuck
+            # on the salmon "fitting" background with no way to recover.
+            GLMakie.activate!()
+            expt.state[][:mode][] = :normal
         end
-        save_peak_plots!(expt, folder)
-        save_cluster_plots!(expt, folder)
-        save_summary_plot!(expt, folder)
-
-        expt.state[][:mode][] = :normal
     end
 end
 
@@ -58,6 +64,34 @@ whitespace on each field is stripped.
 function splitfields(line)
     fields = occursin(',', line) ? split(line, ',') : split(line)
     return strip.(fields)
+end
+
+"""
+    parse_radius_comment!(expt, line)
+
+If `line` records an X/Y fitting radius (as written by [`writeresults!`](@ref), e.g.
+`# X radius / ppm: 0.04`), apply it to the experiment. Generic to all 2D experiments.
+"""
+function parse_radius_comment!(expt, line)
+    mx = match(r"x\s*radius[^0-9]*([0-9]*\.?[0-9]+)"i, line)
+    isnothing(mx) || setradius!(expt, :x, parse(Float64, mx.captures[1]))
+    my = match(r"y\s*radius[^0-9]*([0-9]*\.?[0-9]+)"i, line)
+    isnothing(my) || setradius!(expt, :y, parse(Float64, my.captures[1]))
+    return
+end
+
+# Set a fitting radius. When the GUI is up, drive the slider (which keeps the display in sync
+# via connect!); otherwise set the experiment observable directly.
+function setradius!(expt, dim, value)
+    g = get(expt.state[], :gui, nothing)
+    g = g isa Observable ? g[] : g
+    if g isa AbstractDict && haskey(g, :sgradii)
+        slider = dim === :x ? g[:sgradii].sliders[1] : g[:sgradii].sliders[2]
+        set_close_to!(slider, value)
+    else
+        (dim === :x ? expt.xradius : expt.yradius)[] = value
+    end
+    return
 end
 
 """
@@ -87,7 +121,10 @@ function readpeaklist!(expt, filepath::AbstractString)
         for (line_number, line) in enumerate(eachline(f))
             sline = strip(line)
             isempty(sline) && continue
-            startswith(sline, '#') && continue
+            if startswith(sline, '#')
+                parse_radius_comment!(expt, sline)  # restore fitting radii if recorded
+                continue
+            end
 
             fields = splitfields(sline)
 
@@ -105,10 +142,28 @@ function readpeaklist!(expt, filepath::AbstractString)
             try
                 length(fields) < 3 && error("insufficient fields")
                 label = string(fields[colmap["label"]])
-                x = parse(Float64, fields[colmap["x"]])
-                y = parse(Float64, fields[colmap["y"]])
 
-                addpeak!(expt, Point2f(x, y), label)
+                # Moving-peak results store positions (and linewidths) per plane as
+                # x[1], x[2], ...; restore them so a saved trajectory reloads intact. A
+                # plain `label x y` list (or a fixed-peak results.csv) takes the single x/y.
+                if !hasfixedpositions(expt) && haskey(colmap, "x[1]")
+                    n = nslices(expt)
+                    getcol(name, i) = parse(Float64, fields[colmap["$(name)[$i]"]])
+                    xs = [getcol("x", i) for i in 1:n]
+                    ys = [getcol("y", i) for i in 1:n]
+                    addpeak!(expt, Point2f(xs[1], ys[1]), label)
+                    peak = expt.peaks[][end]
+                    setperplane!(peak, :x, xs)
+                    setperplane!(peak, :y, ys)
+                    if haskey(colmap, "r2x[1]")
+                        setperplane!(peak, :R2x, [getcol("r2x", i) for i in 1:n])
+                        setperplane!(peak, :R2y, [getcol("r2y", i) for i in 1:n])
+                    end
+                else
+                    x = parse(Float64, fields[colmap["x"]])
+                    y = parse(Float64, fields[colmap["y"]])
+                    addpeak!(expt, Point2f(x, y), label)
+                end
                 peak_count += 1
             catch e
                 @warn "Skipping line $line_number: $(e isa ErrorException ? e.msg : e)"
@@ -141,6 +196,9 @@ function writeresults!(expt, folder)
             isempty(strip(line)) && continue
             println(f, "# ", line)
         end
+        # Record the fitting radii so they are restored on load (parsed by readpeaklist!).
+        println(f, "# X radius / ppm: ", round(expt.xradius[]; digits=4))
+        println(f, "# Y radius / ppm: ", round(expt.yradius[]; digits=4))
         println(f, join(header, ","))
         for row in rows
             println(f, join(row, ","))
@@ -176,8 +234,22 @@ function resultstable(expt)
         derivedkeys = prim in allkeys ? [prim; filter(!=(prim), allkeys)] : allkeys
     end
 
-    header = ["label", "resnum", "resname", "atom",
-              "x", "x_err", "y", "y_err", "R2x", "R2x_err", "R2y", "R2y_err"]
+    # For moving-peak experiments, positions and linewidths vary per plane, so they are
+    # written per-plane (x[1], x[2], ...) like amplitudes; fixed-peak experiments keep a
+    # single column each.
+    moving = !hasfixedpositions(expt)
+    posparams = (:x, :y, :R2x, :R2y)
+
+    header = ["label", "resnum", "resname", "atom"]
+    for p in posparams
+        if moving
+            for i in 1:n
+                append!(header, ["$(p)[$i]", "$(p)[$i]_err"])
+            end
+        else
+            append!(header, [string(p), "$(p)_err"])
+        end
+    end
     for i in 1:n
         append!(header, ["amp[$i]", "amp[$i]_err"])
     end
@@ -191,9 +263,12 @@ function resultstable(expt)
         row = [peak.label[], string(lbl.resnum),
                lbl.onelettercode == '?' ? "" : string(lbl.onelettercode),
                lbl.atom]
-        for p in (:x, :y, :R2x, :R2y)
-            push!(row, format_param(peak, p, 1, :value))
-            push!(row, format_param(peak, p, 1, :uncertainty))
+        for p in posparams
+            slices = moving ? (1:n) : (1:1)
+            for i in slices
+                push!(row, format_param(peak, p, i, :value))
+                push!(row, format_param(peak, p, i, :uncertainty))
+            end
         end
         for i in 1:n
             push!(row, format_param(peak, :amp, i, :value))
@@ -213,6 +288,22 @@ function format_post(peak, key, which)
     haskey(peak.postparameters, key) || return "NA"
     val = getproperty(peak.postparameters[key], which)[][1]
     return string(to_value(val))
+end
+
+"""
+    setperplane!(peak, param, values)
+
+Write a per-plane parameter from a loaded results file, setting both the fitted value and the
+initial value in every plane (so the loaded positions display immediately and seed any refit).
+"""
+function setperplane!(peak, param, values)
+    haskey(peak.parameters, param) || return
+    p = peak.parameters[param]
+    for i in eachindex(values)
+        p.value[][i] = values[i]
+        p.initialvalue[][i] = values[i]
+    end
+    return
 end
 
 """
