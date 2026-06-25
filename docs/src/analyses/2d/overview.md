@@ -9,7 +9,7 @@ The [experiment-specific pages](fit.md) describe the available functions
 and the theory behind each analysis. This page covers the shared GUI features common to
 all of them.
 
-<!-- screenshot: assets/2d-gui-overview.png -->
+![Screenshot of peak fitting](../../assets/screenshot-movingpeaks2d.png)
 
 ## Adding and Managing Peaks
 
@@ -19,6 +19,7 @@ in the contour plot to work with it.
 | Action | Key / Button |
 |--------|--------------|
 | Add peak at cursor position | `A` |
+| Track moving peak from cursor position | `T` |
 | Delete the selected peak | `D` or **Delete peak** button |
 | Rename the selected peak | `R` or **Rename peak** button |
 | Navigate to previous spectrum slice | `←` or **←** button |

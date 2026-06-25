@@ -1,9 +1,8 @@
 # Moving Peaks
 
-Most 2D analyses assume a peak sits at a single position and only its intensity changes
-across a series of spectra. **Moving-peak** experiments instead track how peak *positions*
-(and linewidths) change from plane to plane — for example a titration, where peaks walk along
-a binding trajectory, or a coupling/RDC measurement (see [Couplings and RDCs](rdc.md)).
+**Moving-peak** analyses track how peak positions (and linewidths) change from plane to plane
+— for example across a titration, where peaks walk along a binding trajectory, or a
+coupling/RDC measurement (see [Couplings and RDCs](rdc.md)).
 
 ```julia
 using NMRAnalysis
@@ -19,6 +18,8 @@ movingfit2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"], [0.0, 0.5, 1.0])
 Each peak holds an **independent position, linewidth and amplitude in every plane**, and each
 plane is fitted separately. This keeps the fit well-conditioned and decoupled: adjusting one
 plane does not disturb the others.
+
+![Screenshot of peak fitting](../../assets/screenshot-movingpeaks2d.png)
 
 ## Adding and positioning peaks
 

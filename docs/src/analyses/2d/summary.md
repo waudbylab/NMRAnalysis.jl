@@ -5,13 +5,25 @@ experiment or one or more saved `results.csv` files. It is an ordinary Makie
 figure using whichever backend is active, so it is interactive under GLMakie
 and can be saved with `save("summary.pdf", fig)` under CairoMakie.
 
+![Example summary plot](../../assets/summaryplot.png)
+
 ## Basic usage
 
 ```julia
-fig = summaryplot(expt)                          # default parameter, current experiment
 fig = summaryplot("run1/results.csv")            # from a saved file
 fig = summaryplot("run1/")                       # folder containing results.csv
 ```
+
+## Saving plots
+
+Summary figures can be saved as publication-quality pdfs using CairoMakie:
+
+```julia
+using CairoMakie
+fig = summaryplot("my-analysis-output/")
+save("summaryplot.pdf", fig)
+```
+
 
 ## Y-axis labels
 

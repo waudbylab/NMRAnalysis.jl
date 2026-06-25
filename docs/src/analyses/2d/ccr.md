@@ -19,7 +19,7 @@ recorded to suppress contributions from auto-relaxation:
 \tanh(\eta T) = \sqrt{\frac{I_{\text{bu},1} \cdot I_{\text{bu},2}}{I_{\text{dec},1} \cdot I_{\text{dec},2}}}
 ```
 
-<!-- screenshot: assets/ccr2d.png -->
+![Screenshot from CCR analysis](../../assets/screenshot-ccr2d.png)
 
 ## Usage
 
@@ -55,21 +55,6 @@ columns are:
 | `amp`, `amp_err` | Reference amplitude and uncertainty |
 
 See [Peak Lists and Output Files](peaklistformats.md) for the full format. Plot η
-against residue number with `summaryplot(expt)`.
+against residue number with `summaryplot("output-folder/")`.
 
-## References
-
-- Reif, B., Hennig, M. & Griesinger, C. (1997) Direct measurement of angles between
-  bond vectors in high-resolution NMR. *Science* **276**, 1230–1233.
-  [doi:10.1126/science.276.5316.1230](https://doi.org/10.1126/science.276.5316.1230)
-
-- Pelupessy, P., Chiarparin, E., Ghose, R. & Bodenhausen, G. (1999) Simultaneous
-  determination of φ and ψ angles in proteins from measurements of cross-correlated
-  relaxation effects. *J. Biomol. NMR* **13**, 375–380.
-  [doi:10.1023/A:1008365915981](https://doi.org/10.1023/A:1008365915981)
-
-- Richter, C., Griesinger, C., Felli, I., Cole, P. T., Varani, G. & Schwalbe, H.
-  (1999) Determination of sugar conformation in large RNA oligonucleotides from
-  analysis of dipole–dipole cross correlated relaxation by solution NMR spectroscopy.
-  *J. Biomol. NMR* **15**, 241–250.
-  [doi:10.1023/A:1008319916075](https://doi.org/10.1023/A:1008319916075)
+![Example CCR results](../../assets/screenshot-ccr2d-summary.png)

@@ -2,7 +2,7 @@
 
 `rdc2d` measures one-bond scalar couplings (J) and residual dipolar couplings (D) from the
 *separation* between paired component spectra. It is a [moving-peak](movingpeaks.md)
-experiment: a residue's peak appears at a slightly different position in each component, and
+analysis: a residue's peak appears at a slightly different position in each component, and
 the difference in the coupling dimension gives the coupling.
 
 You record two conditions — **isotropic** (gives J) and **aligned** (gives J + D) — and for
@@ -20,13 +20,16 @@ The four spectra become the planes of a moving-peak experiment. Add a peak for e
 (`A`, marking its position in each plane), and the per-residue analysis reports:
 
 ```math
-J = \frac{\mathrm{sep}(\text{isotropic})}{\text{scale}}, \qquad
-J + D = \frac{\mathrm{sep}(\text{aligned})}{\text{scale}}, \qquad
+J = \mathrm{sep}(\text{isotropic}) \times \text{scale}, \qquad
+J + D = \mathrm{sep}(\text{aligned}) \times \text{scale}, \qquad
 D = (J + D) - J
 ```
 
 where ``\mathrm{sep}`` is the position difference between the two components in the coupling
 dimension, converted to Hz.
+
+![Screenshot of RDC fitting](../../assets/screenshot-rdc2d.png)
+
 
 ## Arguments
 
