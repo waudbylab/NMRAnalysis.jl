@@ -19,7 +19,7 @@ Command-line tools for routine 1D experiments:
 | [`diffusion()`](analyses/diffusion.md) | DOSY / diffusion coefficient measurement |
 | [`relaxation()`](analyses/relaxation.md) | R1 and R2 relaxation (exponential or inversion-recovery fit) |
 | [`tract()`](analyses/tract.md) | TRACT experiment for rotational correlation time |
-| `r1rho()` | ¹⁹F R1ρ relaxation dispersion |
+| [`r1rho()`](analyses/r1rho.md) | ¹⁹F R1ρ relaxation dispersion |
 
 ### 2D Analyses
 Interactive graphical interfaces for 2D and pseudo-3D experiments:
@@ -27,6 +27,7 @@ Interactive graphical interfaces for 2D and pseudo-3D experiments:
 | Function | Experiment |
 |----------|-----------|
 | [`fit2d()`](analyses/2d/fit.md) | Peak fitting: positions, linewidths, and amplitudes |
+| [`peaktrack2d()`](analyses/2d/peaktracking.md) | Peak fitting: positions, linewidths, and amplitudes |
 | [`relaxation2d()`](analyses/2d/relaxation.md) | R1 / R2 relaxation from a series of 2D spectra |
 | [`recovery2d()`](analyses/2d/magnetisationrecovery.md) | Inversion or saturation recovery |
 | [`modelfit2d()`](analyses/2d/modelfit.md) | Custom model fitting |
@@ -35,6 +36,7 @@ Interactive graphical interfaces for 2D and pseudo-3D experiments:
 | [`cest2d()`](analyses/2d/cest.md) | CEST (Chemical Exchange Saturation Transfer) |
 | [`pre2d()`](analyses/2d/pre.md) | Paramagnetic relaxation enhancement |
 | [`ccr2d()`](analyses/2d/ccr.md) | Cross-correlated relaxation |
+| [`rdc2d()`](analyses/2d/rdc.md) | Residual dipolar couplings |
 
 All 2D functions share the same interactive GUI — see the [2D Overview](analyses/2d/overview.md) for
 a guide to the interface and common workflow.

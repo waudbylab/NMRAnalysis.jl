@@ -9,7 +9,9 @@ The [experiment-specific pages](fit.md) describe the available functions
 and the theory behind each analysis. This page covers the shared GUI features common to
 all of them.
 
-![Screenshot of peak fitting](../../assets/screenshot-movingpeaks2d.png)
+![Screenshot of peak tracking](../../assets/peaktrack-demo.mov)
+
+![Screenshot of relaxation fitting](../../assets/relaxation-demo.mov)
 
 ## Adding and Managing Peaks
 

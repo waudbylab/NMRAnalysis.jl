@@ -19,7 +19,7 @@ Each peak holds an **independent position, linewidth and amplitude in every plan
 plane is fitted separately. This keeps the fit well-conditioned and decoupled: adjusting one
 plane does not disturb the others.
 
-![Screenshot of peak fitting](../../assets/screenshot-movingpeaks2d.png)
+![Screenshot of peak fitting](../../assets/peaktrack-demo.mov)
 
 ## Adding and positioning peaks
 

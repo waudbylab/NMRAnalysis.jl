@@ -12,7 +12,7 @@ where ``R`` is the relaxation rate (s⁻¹) and ``A`` is the peak amplitude. The
 does not distinguish between R1 and R2 — the appropriate interpretation depends on the
 experiment used to collect the data.
 
-![Screenshot from relaxation analysis](../../assets/screenshot-relaxation2d.png)
+![Screenshot of relaxation fitting](../../assets/relaxation-demo.mov)
 
 ## Usage
 
@@ -21,19 +21,19 @@ using NMRAnalysis
 
 # Inline relaxation delays (in seconds)
 relaxation2d(
-    ["11/pdata/1", "12/pdata/1", "13/pdata/1", "14/pdata/1", "15/pdata/1"],
+    ["11", "12", "13", "14", "15"],
     [0.010, 0.030, 0.060, 0.100, 0.200]
 )
 
 # Read delays from a text file (one value per line; lines beginning with # are ignored)
 relaxation2d(
-    ["11/pdata/1", "12/pdata/1", "13/pdata/1"],
+    ["11", "12", "13"],
     "vclist.txt"
 )
 
 # Omit a specific plane from the fit (e.g. a corrupted or duplicate delay)
 relaxation2d(
-    ["11/pdata/1", "12/pdata/1", "13/pdata/1", "14/pdata/1", "15/pdata/1"],
+    ["11", "12", "13", "14", "15"],
     [0.010, 0.030, 0.060, 0.100, 0.200];
     skipplanes=[3]
 )
@@ -43,14 +43,9 @@ The number of input spectra must match the number of relaxation delays.
 
 ## Excluding planes from the fit
 
-If one or more planes in the series should not contribute to the fitted rate — for
-example because a delay was accidentally repeated, or a spectrum was recorded under
-slightly different conditions — pass their 1-based indices via `skipplanes`:
+If one or more planes in the series should not contribute to the fitted rate — pass their 1-based indices via `skipplanes`:
 
 ```julia
-# CCR buildup experiments often acquire more scans for the first planes;
-# ns normalisation handles the amplitude, but a noisy or outlier plane can still
-# be excluded:
 relaxation2d(files, delays; skipplanes=[1, 5])
 ```
 
