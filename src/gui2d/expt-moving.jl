@@ -52,6 +52,15 @@ end
 
 visualisationtype(expt::MovingExperiment) = expt.visualisation
 
+# Moving-peak spectra store per-plane S/N (data/noise) so contour levels are consistent across
+# heterogeneous planes (see preparespecdata). For cross-sections we instead want intensities
+# that are comparable across planes, so undo the per-plane noise normalisation and rescale by
+# scale(spec) (number of scans × receiver gain): data/noise × noise/scale = data/scale.
+function crosssection_scale(expt::MovingExperiment, i)
+    spec = expt.specdata.nmrdata[i]
+    return spec[:noise] / scale(spec)
+end
+
 # Whether the (T) add-and-track command applies. Tracking the intensity maximum makes sense
 # for a single peak walking across planes (titrations) but not for paired component spectra,
 # so it is disabled for RDC experiments.
@@ -112,7 +121,7 @@ function preparespecdata(inputfilenames, ::Type{MovingExperiment})
 end
 
 """
-    peaktrack2d(inputfilenames, xvalues=nothing)
+    peaktrack2d(inputfilenames)
 
 Start an interactive GUI for analysing a series of 2D spectra in which **peak positions
 change** from plane to plane (e.g. a titration, or a coupling-constant / RDC measurement).
@@ -125,29 +134,19 @@ analysis, or as the basis for the position-based physical models (titration, cou
 # Arguments
 - `inputfilenames`: A single path string (pseudo-3D dataset) or a vector of path strings
   (one file per plane) pointing to processed Bruker data directories.
-- `xvalues`: Optional vector of independent-variable values (one per plane), or a string
-  giving a path to a text file containing them (one per line; `#` comments ignored). When
-  omitted, the plane index is used.
 
 # Example
 ```julia
-# A titration series, with ligand concentrations
-peaktrack2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"], [0.0, 0.5, 1.0])
+peaktrack2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"])
 ```
+
+See also [`titration2d`](@ref) for fitting binding isotherms to a titration series.
 """
-function peaktrack2d(inputfilenames, xvalues=nothing)
+function peaktrack2d(inputfilenames)
     specdata = preparespecdata(inputfilenames, MovingExperiment)
     peaks = Observable(Vector{Peak}())
 
-    xval = if xvalues isa String
-        Float64.(vec(readdlm(xvalues; comments=true)))
-    elseif xvalues isa Vector
-        Float64.(xvalues)
-    else
-        nothing
-    end
-
-    expt = MovingExperiment(specdata, peaks, NoFitting(), xval)
+    expt = MovingExperiment(specdata, peaks, NoFitting(), nothing)
 
     return gui!(expt)
 end
@@ -660,7 +659,228 @@ function postfitmoving!(peak::Peak, expt::MovingExperiment, model::RDCModel)
     return
 end
 
-primaryparam(expt::MovingExperiment) = expt.model isa RDCModel ? :D : :amp
+# --- titration / binding isotherm -------------------------------------------
+
+"""
+    TitrationModel
+
+Fit a single-site (1:1) binding isotherm to a titration series, deriving a **global**
+dissociation constant `Kd` (shared by all residues) together with per-residue, per-dimension
+free and bound chemical shifts (`δfree`, `δbound`).
+
+The bound fraction in each plane is computed from the ligand concentration (`expt.x`) and, if
+available, the protein concentration (`protein`, one per plane). With protein concentrations
+the exact 1:1 quadratic is used; with ligand concentrations only, the hyperbolic
+`f = [L]/(Kd + [L])` approximation (ligand ≈ free) is used. The two are consistent in the
+limit `[P] → 0`.
+
+# Fields
+- `protein`: Per-plane total protein concentration, or `nothing` when only ligand
+  concentrations were supplied.
+- `weights`: `(wx, wy)` dimension weights for the combined CSP (Williamson 2013); the default
+  `(1.0, 0.14)` assumes the F1 (x) axis is ¹H and the F2 (y) axis is ¹⁵N.
+"""
+struct TitrationModel <: FittingModel
+    protein::Union{Vector{Float64},Nothing}
+    weights::Tuple{Float64,Float64}
+end
+
+"""
+    titration2d(inputfilenames, concentrations; weights=(1.0, 0.14))
+
+Interactive analysis of a 2D titration series, fitting a global binding isotherm to the
+chemical-shift perturbations. Built on [`peaktrack2d`](@ref): track each residue's peak across
+the planes (`T`) or add and adjust by hand (`A`), and the fit recovers a single `Kd` shared by
+all residues plus per-residue free/bound shifts in each dimension.
+
+# Arguments
+- `inputfilenames`: A single path string (pseudo-3D dataset) or a vector of path strings (one
+  file per plane) pointing to processed Bruker data directories.
+- `concentrations`: One entry per plane, either
+  - a vector of **ligand** concentrations (e.g. `[0.0, 0.1, 0.2, ...]`), or
+  - a vector of `(protein, ligand)` concentration pairs (e.g. `[(0.2, 0.0), (0.19, 0.1), ...]`),
+    which lets the exact 1:1 binding equation account for protein concentration (and dilution).
+- `weights`: `(wx, wy)` weighting of the two dimensions for the combined CSP `|Δδ|`; the default
+  assumes ¹H (x) / ¹⁵N (y).
+
+# Results
+- The per-residue panel shows ΔδX and ΔδN against ligand concentration (referenced to the
+  fitted `δfree`), with the fitted binding curve overlaid.
+- The global `Kd` is reported in the results panel.
+- The summary plot shows ΔδX, ΔδN and the combined `|Δδ|` (saturation CSP = `δbound − δfree`)
+  against residue number.
+
+# Example
+```julia
+titration2d(["1/pdata/1", "2/pdata/1", "3/pdata/1"], [0.0, 0.5, 2.0])
+titration2d("titration/pdata/1", [(0.2, 0.0), (0.2, 0.5), (0.2, 2.0)])
+```
+"""
+function titration2d(inputfilenames, concentrations; weights=(1.0, 0.14))
+    isempty(concentrations) && error("`concentrations` must not be empty")
+
+    # Accept either a vector of ligand concentrations or a vector of (protein, ligand) pairs.
+    ligand, protein = if all(c -> c isa Union{Tuple,AbstractVector}, concentrations)
+        all(c -> length(c) == 2, concentrations) ||
+            error("each concentration entry must be a (protein, ligand) pair")
+        (Float64[c[2] for c in concentrations], Float64[c[1] for c in concentrations])
+    elseif all(c -> c isa Real, concentrations)
+        (Float64.(collect(concentrations)), nothing)
+    else
+        error("`concentrations` must be a vector of ligand concentrations or of (protein, ligand) pairs")
+    end
+
+    specdata = preparespecdata(inputfilenames, MovingExperiment)
+    length(specdata.z) == length(ligand) ||
+        error("got $(length(ligand)) concentrations for $(length(specdata.z)) planes")
+
+    model = TitrationModel(protein, (Float64(weights[1]), Float64(weights[2])))
+    peaks = Observable(Vector{Peak}())
+    expt = MovingExperiment(specdata, peaks, model, ligand, TitrationVisualisation())
+    return gui!(expt)
+end
+
+# Fraction of protein bound for total protein `Pt` (or `nothing`) and total ligand `L`. With a
+# protein concentration the exact 1:1 quadratic is used; otherwise the hyperbolic (ligand ≈
+# free) approximation. Both reduce to the same form as [P] → 0.
+function _fraction(Kd, Pt, L)
+    Kd = max(Kd, 1e-12)
+    (isnothing(Pt) || Pt ≤ 0) && return L / (Kd + L)
+    s = Pt + L + Kd
+    pl = (s - sqrt(max(s^2 - 4 * Pt * L, 0.0))) / 2
+    return pl / Pt
+end
+
+# Bound fraction in plane `i` of a titration experiment.
+boundfraction(model::TitrationModel, Lt, i, Kd) =
+    _fraction(Kd, isnothing(model.protein) ? nothing : model.protein[i], Lt[i])
+
+# Weighted linear regression of `y` on `f`: returns (a, b) with model y ≈ a + b·f. `w` are
+# per-point weights. Used both inside the Kd search (variable projection) and to read off the
+# per-residue free shift (a = δfree) and span (b = δbound − δfree).
+function _wlinreg(f, y, w)
+    sw = sum(w)
+    sf = sum(w .* f)
+    sy = sum(w .* y)
+    sff = sum(w .* f .* f)
+    sfy = sum(w .* f .* y)
+    det = sw * sff - sf^2
+    abs(det) < 1e-30 && return (sy / sw, 0.0)
+    b = (sw * sfy - sf * sy) / det
+    a = (sy - b * sf) / sw
+    return (a, b)
+end
+
+# Per-point weights for one residue/dimension series: inverse position uncertainty where the
+# per-plane fit produced a finite one, falling back to the series' median (or unity) so a few
+# bad σ don't dominate or zero out the series.
+function _seriesweights(σ)
+    good = [s for s in σ if isfinite(s) && s > 0]
+    fallback = isempty(good) ? 1.0 : median(good)
+    return [isfinite(s) && s > 0 ? 1.0 / s : 1.0 / fallback for s in σ]
+end
+
+setup_post_parameters!(peak::Peak, ::TitrationModel) = setup_titration_postparameters!(peak)
+
+function setup_titration_postparameters!(peak::Peak)
+    peak.postparameters[:CSP] = Parameter("CSP", 0.0)      # combined |Δδ| (weighted)
+    peak.postparameters[:dX] = Parameter("dX", 0.0)        # ΔδX = δbound − δfree (x dim)
+    peak.postparameters[:dY] = Parameter("dY", 0.0)        # ΔδY = δbound − δfree (y dim)
+    peak.postparameters[:Xfree] = Parameter("Xfree", 0.0)
+    peak.postparameters[:Xbound] = Parameter("Xbound", 0.0)
+    peak.postparameters[:Yfree] = Parameter("Yfree", 0.0)
+    peak.postparameters[:Ybound] = Parameter("Ybound", 0.0)
+    peak.postparameters[:Kd] = Parameter("Kd", 0.0)
+    return
+end
+
+# Per-peak postfit is a no-op beyond flagging the peak fitted: the binding isotherm is fitted
+# globally across all residues (see postfitglobal!).
+function postfitmoving!(peak::Peak, ::MovingExperiment, ::TitrationModel)
+    peak.postfitted[] = true
+    return
+end
+
+# Global binding-isotherm fit. The only nonlinear parameter is the shared Kd: for any Kd the
+# per-residue/dimension δfree and δbound are obtained by (weighted) linear regression of the
+# fitted positions on the bound fraction (variable projection). So we optimise Kd over a 1-D
+# residual built from all residues and dimensions, then read off the linear parameters.
+postfitglobal!(expt::MovingExperiment) = postfitglobal!(expt, expt.model)
+postfitglobal!(::MovingExperiment, ::FittingModel) = nothing
+
+function postfitglobal!(expt::MovingExperiment, model::TitrationModel)
+    peaks = [p for p in expt.peaks[] if p.postfitted[]]
+    isempty(peaks) && return
+    Lt = expt.x
+    n = nslices(expt)
+
+    # one (measured, weights) series per residue per dimension
+    series = NamedTuple{(:y, :w),Tuple{Vector{Float64},Vector{Float64}}}[]
+    for peak in peaks, sym in (:x, :y)
+        y = Float64.(peak.parameters[sym].value[])
+        w = _seriesweights(peak.parameters[sym].uncertainty[])
+        push!(series, (y=y, w=w))
+    end
+
+    fractions(Kd) = [boundfraction(model, Lt, i, Kd) for i in 1:n]
+
+    # residual vector across all series at a given Kd (linear params projected out)
+    function resid(p)
+        Kd = exp(p[1])
+        f = fractions(Kd)
+        r = Float64[]
+        for s in series
+            a, b = _wlinreg(f, s.y, s.w)
+            append!(r, sqrt.(s.w) .* (s.y .- (a .+ b .* f)))
+        end
+        return r
+    end
+
+    Kd0 = _initial_kd(Lt)
+    local Kd, Kderr
+    try
+        sol = LsqFit.lmfit(resid, [log(Kd0)], Float64[]; autodiff=:finite, maxIter=200)
+        logKd = coef(sol)[1]
+        Kd = exp(logKd)
+        Kderr = Kd * stderror(sol)[1]   # delta method: σ(Kd) = Kd·σ(logKd)
+    catch e
+        e isa FitCancelled && rethrow()
+        @debug "Titration global fit failed" exception = e
+        Kd = Kd0
+        Kderr = Inf
+    end
+
+    # read off per-residue/dimension free & bound shifts at the fitted Kd
+    f = fractions(Kd)
+    wx, wy = model.weights
+    si = 1
+    for peak in peaks
+        ax, bx = _wlinreg(f, series[si].y, series[si].w)
+        ay, by = _wlinreg(f, series[si + 1].y, series[si + 1].w)
+        si += 2
+
+        peak.postparameters[:Xfree].value[] .= ax
+        peak.postparameters[:Xbound].value[] .= ax + bx
+        peak.postparameters[:Yfree].value[] .= ay
+        peak.postparameters[:Ybound].value[] .= ay + by
+        peak.postparameters[:dX].value[] .= bx
+        peak.postparameters[:dY].value[] .= by
+        peak.postparameters[:CSP].value[] .= sqrt((wx * bx)^2 + (wy * by)^2)
+        peak.postparameters[:Kd].value[] .= Kd
+        peak.postparameters[:Kd].uncertainty[] .= Kderr
+    end
+    return
+end
+
+# Initial Kd guess: the median non-zero ligand concentration (roughly the half-saturation
+# point for a hyperbolic curve), falling back to 1.0.
+function _initial_kd(Lt)
+    nz = [l for l in Lt if l > 0]
+    return isempty(nz) ? 1.0 : median(nz)
+end
+
+primaryparam(expt::MovingExperiment) =
+    expt.model isa RDCModel ? :D : expt.model isa TitrationModel ? :CSP : :amp
 
 function addpeakhint(expt::MovingPeakExperiment)
     s = "Press (A) to add a peak, marking its position in each plane"
@@ -685,6 +905,21 @@ function peakinfotext(expt::MovingExperiment, idx)
                     "\n")
     end
 
+    if expt.model isa TitrationModel
+        Kd = peak.postparameters[:Kd]
+        dX = peak.postparameters[:dX].value[][1]
+        dY = peak.postparameters[:dY].value[][1]
+        csp = peak.postparameters[:CSP].value[][1]
+        return join(["Peak: $(peak.label[])",
+                     "",
+                     "Kd: $(round(Kd.value[][1]; digits=3)) ± $(round(Kd.uncertainty[][1]; digits=3)) (global)",
+                     "",
+                     "ΔδX: $(round(dX; digits=4)) ppm",
+                     "ΔδY: $(round(dY; digits=4)) ppm",
+                     "|Δδ|: $(round(csp; digits=4)) ppm"],
+                    "\n")
+    end
+
     n = nslices(expt)
     x = peak.parameters[:x].value[]
     y = peak.parameters[:y].value[]
@@ -699,11 +934,21 @@ function peakinfotext(expt::MovingExperiment, idx)
 end
 
 function experimentinfo(expt::MovingExperiment)
-    info = ["Analysis type: Peak tracking",
+    analysis = expt.model isa TitrationModel ? "Titration" :
+               expt.model isa RDCModel ? "RDC / coupling" : "Peak tracking"
+    info = ["Analysis type: $analysis",
             "Model: $(typeof(expt.model))",
             "Filename: $(expt.specdata.nmrdata[1][:filename])",
             "Number of peaks: $(length(expt.peaks[]))",
             "Number of planes: $(nslices(expt))"]
+    if expt.model isa TitrationModel
+        fitted = [p for p in expt.peaks[] if p.postfitted[]]
+        if !isempty(fitted)
+            kd = fitted[1].postparameters[:Kd]
+            push!(info,
+                  "Global Kd: $(round(kd.value[][1]; digits=4)) ± $(round(kd.uncertainty[][1]; digits=4))")
+        end
+    end
     return join(info, "\n")
 end
 
@@ -813,6 +1058,9 @@ function summaryplot(expt::MovingExperiment; weights=(1.0, 0.14), title="", size
     expt.model isa RDCModel &&
         return _rdc_summaryplot(expt; title=title, size=size,
                                 include_unassigned=include_unassigned)
+    expt.model isa TitrationModel &&
+        return _titration_summaryplot(expt; title=title, size=size,
+                                      include_unassigned=include_unassigned)
 
     n = nslices(expt)
     peaks = sortedpeaks(expt)
@@ -864,4 +1112,139 @@ function _rdc_summaryplot(expt::MovingExperiment; title="", size=nothing,
     scatter!(ax, res, D; color=:steelblue)
     hlines!(ax, [0]; linewidth=0)
     return fig
+end
+
+"""
+Titration summary: three stacked panels of the fitted saturation perturbation against residue
+number — ΔδX (= δbound − δfree, x dim), ΔδN (y dim, assuming ¹⁵N) and the weighted combination
+|Δδ|. Values are the extrapolated full-saturation CSPs from the global fit, so the experiment
+must have been fitted.
+"""
+function _titration_summaryplot(expt::MovingExperiment; title="", size=nothing,
+                                include_unassigned=false)
+    peaks = sortedpeaks(expt)
+    if !include_unassigned
+        assigned = filter(p -> extract_residue_number(p.label[]) > 0, peaks)
+        isempty(assigned) || (peaks = assigned)
+    end
+    peaks = filter(p -> p.postfitted[] && haskey(p.postparameters, :CSP), peaks)
+
+    figkw = isnothing(size) ? NamedTuple() : (; size=size)
+    fig = Figure(; figkw...)
+
+    res = Float64[extract_residue_number(p.label[]) for p in peaks]
+    panels = ((:dX, "ΔδX / ppm"), (:dY, "ΔδN / ppm"), (:CSP, "|Δδ| / ppm"))
+    axes = Axis[]
+    for (row, (sym, ylab)) in enumerate(panels)
+        ax = Axis(fig[row, 1]; xlabel=(row == 3 ? "Residue number" : ""), ylabel=ylab,
+                  title=(row == 1 ? title : ""), xgridvisible=false, ygridvisible=false)
+        vals = Float64[p.postparameters[sym].value[][1] for p in peaks]
+        scatterlines!(ax, res, vals; color=:steelblue)
+        hlines!(ax, [0]; linewidth=0)
+        push!(axes, ax)
+    end
+    length(axes) > 1 && linkxaxes!(axes...)
+    return fig
+end
+
+# --- titration per-peak panel (residue highlight) ---------------------------
+# The selected residue's chemical-shift perturbation against ligand concentration, one panel
+# per dimension (ΔδX and ΔδY), with the fitted binding curve overlaid. Δδ is referenced to the
+# fitted δfree once the global fit has run, and to plane 1 beforehand. Δδ is signed (not |Δδ|).
+
+struct TitrationVisualisation <: VisualisationStrategy end
+
+# Clamped piecewise-linear interpolation of `ys` (sampled at `xs`) at query point `q`.
+function _lininterp(xs, ys, q)
+    q ≤ xs[1] && return ys[1]
+    q ≥ xs[end] && return ys[end]
+    k = searchsortedfirst(xs, q)
+    x0, x1 = xs[k - 1], xs[k]
+    y0, y1 = ys[k - 1], ys[k]
+    x1 == x0 && return y0
+    return y0 + (y1 - y0) * (q - x0) / (x1 - x0)
+end
+
+# Smooth binding curve Δδ(L) = f(L)·(δbound − δfree) over a dense ligand grid. When protein
+# concentrations are present they are interpolated against ligand so the quadratic can be
+# evaluated along the curve.
+function _titration_curve(model::TitrationModel, Lt, Kd, δfree, δbound; npts=100)
+    lo = min(0.0, minimum(Lt))
+    hi = maximum(Lt)
+    hi ≤ lo && (hi = lo + 1.0)
+    grid = range(lo, hi + 0.05 * (hi - lo), npts)
+    Pg = if isnothing(model.protein)
+        nothing
+    else
+        o = sortperm(Lt)
+        [_lininterp(Lt[o], model.protein[o], g) for g in grid]
+    end
+    return [Point2f(g, _fraction(Kd, isnothing(Pg) ? nothing : Pg[k], g) * (δbound - δfree))
+            for (k, g) in enumerate(grid)]
+end
+
+"""
+    get_titration_data(peak, expt) -> (obsX, obsY, fitX, fitY)
+
+Per-dimension Δδ-vs-concentration points for the highlighted residue: observed points
+(`obsX`/`obsY`) and the fitted binding curve (`fitX`/`fitY`, empty until the global fit runs).
+"""
+function get_titration_data(peak, expt::MovingExperiment)
+    isnothing(peak) && return (Point2f[], Point2f[], Point2f[], Point2f[])
+    Lt = expt.x
+    n = nslices(expt)
+    xv = peak.parameters[:x].value[]
+    yv = peak.parameters[:y].value[]
+
+    fitted = peak.postfitted[] && haskey(peak.postparameters, :Kd)
+    δXfree = fitted ? peak.postparameters[:Xfree].value[][1] : xv[1]
+    δYfree = fitted ? peak.postparameters[:Yfree].value[][1] : yv[1]
+
+    obsX = [Point2f(Lt[i], xv[i] - δXfree) for i in 1:n]
+    obsY = [Point2f(Lt[i], yv[i] - δYfree) for i in 1:n]
+
+    if fitted
+        Kd = peak.postparameters[:Kd].value[][1]
+        fitX = _titration_curve(expt.model, Lt, Kd, δXfree,
+                                peak.postparameters[:Xbound].value[][1])
+        fitY = _titration_curve(expt.model, Lt, Kd, δYfree,
+                                peak.postparameters[:Ybound].value[][1])
+    else
+        fitX = Point2f[]
+        fitY = Point2f[]
+    end
+    return (obsX, obsY, fitX, fitY)
+end
+
+function completestate!(state, expt::MovingExperiment, ::TitrationVisualisation)
+    state[:peak_plot_data] = lift(peak -> get_titration_data(peak, expt), state[:current_peak])
+    state[:peak_plot_obsX] = lift(d -> d[1], state[:peak_plot_data])
+    state[:peak_plot_obsY] = lift(d -> d[2], state[:peak_plot_data])
+    state[:peak_plot_fitX] = lift(d -> d[3], state[:peak_plot_data])
+    return state[:peak_plot_fitY] = lift(d -> d[4], state[:peak_plot_data])
+end
+
+function makepeakplot!(gui, state, expt::MovingExperiment, ::TitrationVisualisation)
+    gui[:axpeakplotX] = axX = Axis(gui[:panelpeakplot][1, 1];
+                                   xlabel="[ligand]", ylabel="ΔδX / ppm")
+    gui[:axpeakplotY] = axY = Axis(gui[:panelpeakplot][1, 2];
+                                   xlabel="[ligand]", ylabel="ΔδY / ppm")
+    hlines!(axX, [0]; linewidth=0)
+    lines!(axX, state[:peak_plot_fitX]; color=:red)
+    scatter!(axX, state[:peak_plot_obsX])
+    hlines!(axY, [0]; linewidth=0)
+    lines!(axY, state[:peak_plot_fitY]; color=:red)
+    return scatter!(axY, state[:peak_plot_obsY])
+end
+
+function plot_peak!(panel, peak, expt::MovingExperiment, ::TitrationVisualisation)
+    obsX, obsY, fitX, fitY = get_titration_data(peak, expt)
+    axX = Axis(panel[1, 1]; xlabel="[ligand]", ylabel="ΔδX / ppm")
+    axY = Axis(panel[1, 2]; xlabel="[ligand]", ylabel="ΔδY / ppm")
+    hlines!(axX, [0]; linewidth=0)
+    lines!(axX, fitX; color=:red)
+    scatter!(axX, obsX)
+    hlines!(axY, [0]; linewidth=0)
+    lines!(axY, fitY; color=:red)
+    return scatter!(axY, obsY)
 end

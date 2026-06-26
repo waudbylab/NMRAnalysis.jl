@@ -111,7 +111,10 @@ function preparestate(expt::Experiment)
         notify(state[:peakcolours])
     end
 
-    state[:current_peak_info] = lift(state[:current_peak_idx], state[:mode]) do idx, mode
+    # Depends on expt.peaks as well as the selection, so derived results (e.g. a titration's
+    # global Kd) refresh in the panel when a fit completes, not only on reselection.
+    state[:current_peak_info] = lift(state[:current_peak_idx], state[:mode],
+                                     expt.peaks) do idx, mode, _peaks
         if mode == :adding
             "Adding peak\n\n(a) mark this plane\n(space) fill remaining planes\n(esc) cancel"
         else

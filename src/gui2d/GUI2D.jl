@@ -9,6 +9,7 @@ using Measurements
 using NativeFileDialog
 using NMRTools
 using OrderedCollections
+using Statistics
 
 include("util.jl")
 include("maybevector.jl")
@@ -39,6 +40,7 @@ export modelfit2d
 # export MovingExperiment
 export peaktrack2d
 export rdc2d
+export titration2d
 
 # export HetNOEExperiment
 export hetnoe2d
