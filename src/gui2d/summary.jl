@@ -38,6 +38,7 @@ const PARAM_LABELS = Dict(:hetnoe => "Heteronuclear NOE",
                           :R20 => "R₂⁰ / s⁻¹",
                           :PRE => "Γ₂ / s⁻¹",
                           :eta => "η / s⁻¹",
+                          :S2tc => "S²τ_c / ns",
                           :R => "Relaxation rate / s⁻¹",
                           :R1 => "R₁ / s⁻¹",
                           :R2 => "R₂ / s⁻¹")

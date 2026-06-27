@@ -29,6 +29,7 @@ makedocs(;
                                   "PREs" => "analyses/2d/pre.md",
                                   "Magnetisation Recovery" => "analyses/2d/magnetisationrecovery.md",
                                   "Cross-correlated Relaxation" => "analyses/2d/ccr.md",
+                                  "Methyl CCR (S²τc)" => "analyses/2d/methylccr.md",
                                   "Custom Models" => "analyses/2d/modelfit.md",
                                   "Peak Tracking" => "analyses/2d/peaktracking.md",
                                   "Titrations" => "analyses/2d/titration.md",
