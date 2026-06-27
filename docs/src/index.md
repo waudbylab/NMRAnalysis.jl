@@ -27,7 +27,8 @@ Interactive graphical interfaces for 2D and pseudo-3D experiments:
 | Function | Experiment |
 |----------|-----------|
 | [`fit2d()`](analyses/2d/fit.md) | Peak fitting: positions, linewidths, and amplitudes |
-| [`peaktrack2d()`](analyses/2d/peaktracking.md) | Peak fitting: positions, linewidths, and amplitudes |
+| [`peaktrack2d()`](analyses/2d/peaktracking.md) | Tracking peak positions across a series of 2D spectra |
+| [`titration2d()`](analyses/2d/titration.md) | Binding isotherms from a titration series |
 | [`relaxation2d()`](analyses/2d/relaxation.md) | R1 / R2 relaxation from a series of 2D spectra |
 | [`recovery2d()`](analyses/2d/magnetisationrecovery.md) | Inversion or saturation recovery |
 | [`modelfit2d()`](analyses/2d/modelfit.md) | Custom model fitting |
