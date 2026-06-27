@@ -686,7 +686,7 @@ struct TitrationModel <: FittingModel
 end
 
 """
-    titration2d(inputfilenames, concentrations; weights=(1.0, 0.14))
+    titration2d(inputfilenames; L0, P0=nothing, weights=(1.0, 0.14))
 
 Interactive analysis of a 2D titration series, fitting a global binding isotherm to the
 chemical-shift perturbations. Built on [`peaktrack2d`](@ref): track each residue's peak across
@@ -696,10 +696,11 @@ all residues plus per-residue free/bound shifts in each dimension.
 # Arguments
 - `inputfilenames`: A single path string (pseudo-3D dataset) or a vector of path strings (one
   file per plane) pointing to processed Bruker data directories.
-- `concentrations`: One entry per plane, either
-  - a vector of **ligand** concentrations (e.g. `[0.0, 0.1, 0.2, ...]`), or
-  - a vector of `(protein, ligand)` concentration pairs (e.g. `[(0.2, 0.0), (0.19, 0.1), ...]`),
-    which lets the exact 1:1 binding equation account for protein concentration (and dilution).
+- `L0`: Total **ligand** concentration in each plane (one per plane).
+- `P0`: Total **protein** concentration in each plane (one per plane), or `nothing`. When given,
+  the exact 1:1 binding equation is used, accounting for protein concentration and dilution;
+  otherwise the hyperbolic (ligand ≈ free) approximation is used. `Kd` is reported in the same
+  concentration units as `L0`/`P0`.
 - `weights`: `(wx, wy)` weighting of the two dimensions for the combined CSP `|Δδ|`; the default
   assumes ¹H (x) / ¹⁵N (y).
 
@@ -712,27 +713,21 @@ all residues plus per-residue free/bound shifts in each dimension.
 
 # Example
 ```julia
-titration2d(["1/pdata/1", "2/pdata/1", "3/pdata/1"], [0.0, 0.5, 2.0])
-titration2d("titration/pdata/1", [(0.2, 0.0), (0.2, 0.5), (0.2, 2.0)])
+titration2d(files; L0=ligand_concs)                  # ligand concentrations only
+titration2d(files; L0=ligand_concs, P0=protein_concs) # exact 1:1, accounts for dilution
 ```
 """
-function titration2d(inputfilenames, concentrations; weights=(1.0, 0.14))
-    isempty(concentrations) && error("`concentrations` must not be empty")
+function titration2d(inputfilenames; L0, P0=nothing, weights=(1.0, 0.14))
+    isempty(L0) && error("`L0` (ligand concentrations) must not be empty")
 
-    # Accept either a vector of ligand concentrations or a vector of (protein, ligand) pairs.
-    ligand, protein = if all(c -> c isa Union{Tuple,AbstractVector}, concentrations)
-        all(c -> length(c) == 2, concentrations) ||
-            error("each concentration entry must be a (protein, ligand) pair")
-        (Float64[c[2] for c in concentrations], Float64[c[1] for c in concentrations])
-    elseif all(c -> c isa Real, concentrations)
-        (Float64.(collect(concentrations)), nothing)
-    else
-        error("`concentrations` must be a vector of ligand concentrations or of (protein, ligand) pairs")
-    end
+    ligand = Float64.(collect(L0))
+    protein = isnothing(P0) ? nothing : Float64.(collect(P0))
 
     specdata = preparespecdata(inputfilenames, MovingExperiment)
     length(specdata.z) == length(ligand) ||
-        error("got $(length(ligand)) concentrations for $(length(specdata.z)) planes")
+        error("got $(length(ligand)) ligand concentrations (L0) for $(length(specdata.z)) planes")
+    isnothing(protein) || length(protein) == length(ligand) ||
+        error("got $(length(protein)) protein concentrations (P0) for $(length(ligand)) ligand concentrations (L0)")
 
     model = TitrationModel(protein, (Float64(weights[1]), Float64(weights[2])))
     peaks = Observable(Vector{Peak}())

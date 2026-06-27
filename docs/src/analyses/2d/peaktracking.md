@@ -1,19 +1,18 @@
 # Peak Tracking
 
-**Peak tracking** analyses track how peak positions (and linewidths) change from plane to plane
-— for example across a titration, where peaks walk along a binding trajectory, or a
-coupling/RDC measurement (see [Couplings and RDCs](rdc.md)).
+**Peak tracking** analyses track how peak positions (and linewidths) change from plane to plane.
+It is the common core for measurements where peaks move: fit a [titration](titration.md) binding
+isotherm, or measure a coupling/RDC (see [Couplings and RDCs](rdc.md)). Use `peaktrack2d`
+directly when you just want the per-plane positions and linewidths without a physical model.
 
 ```julia
 using NMRAnalysis
 
-# A series of 2D spectra in which peaks move (e.g. a titration)
-peaktrack2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"], [0.0, 0.5, 1.0])
+# A series of 2D spectra in which peaks move
+peaktrack2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"])
 ```
 
 - `inputfilenames`: a single pseudo-3D dataset, or a vector of 2D spectra (one per plane).
-- The optional second argument gives an independent-variable value per plane (e.g. ligand
-  concentration); it defaults to the plane index.
 
 Each peak holds an **independent position, linewidth and amplitude in every plane**, and each
 plane is fitted separately. This keeps the fit well-conditioned and decoupled: adjusting one
