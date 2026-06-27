@@ -1,9 +1,9 @@
 # Methyl Cross-Correlated Relaxation (S²τc)
 
 The `methylccr2d` function measures methyl-axis dynamics from a pair of pseudo-3D
-¹H–¹H cross-correlated relaxation (CCR) experiments — a **buildup** series (Iₐ) and a
-**decay** series (I_b) — recorded as a function of a relaxation delay ``T``. For each
-methyl peak, the intensity ratio ``|I_a/I_b|`` is fitted against ``T`` to extract the
+¹H–¹H cross-correlated relaxation (CCR) experiments — a **buildup** series (Ia) and a
+**decay** series (Ib) — recorded as a function of a relaxation delay ``T``. For each
+methyl peak, the intensity ratio ``|Ia/Ib|`` is fitted against ``T`` to extract the
 cross-correlated relaxation rate ``\eta``, which is then converted to the methyl order
 parameter × global tumbling time, ``S^2\tau_c``.
 
@@ -44,15 +44,13 @@ K = \frac{9}{40}\left(\frac{\mu_0}{4\pi}\right)^2
 \frac{\gamma_H^4\,\hbar^2}{r_{HH}^6} \approx 3.61\times10^{9}\ \text{s}^{-2},
 ```
 
-so that ``S^2\tau_c\,(\text{ns}) \approx 0.277\,\eta`` for ``\eta`` in s⁻¹. ``K`` is
-computed from physical constants in the code (`NMRAnalysis.GUI2D.METHYL_K`), not
-hard-coded.
+so that ``S^2\tau_c\,(\text{ns}) \approx 0.277\,\eta`` for ``\eta`` in s⁻¹.
 
 !!! note "Reference"
     Hechao Sun, Lewis E. Kay, Vitali Tugarinov, *An Optimized Relaxation-Based
     Coherence Transfer NMR Experiment for the Measurement of Side-Chain Order in
     Methyl-Protonated, Highly Deuterated Proteins*, J. Phys. Chem. B **2011**, 115 (49),
-    14878–14884. Equations 1 and 7 above are taken from this paper.
+    14878–14884.
 
 ## Usage
 
