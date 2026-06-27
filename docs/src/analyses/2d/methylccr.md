@@ -62,31 +62,18 @@ string) or a vector of per-delay 2D datasets; both must have one plane per delay
 ```julia
 using NMRAnalysis
 
-# buildup and decay each as a pseudo-3D dataset, triple-quantum (C = 3/4, default)
-methylccr2d("11/pdata/1", "12/pdata/1", [0.001, 0.002, 0.004, 0.006, 0.010])
+# buildup and decay each as a pseudo-3D dataset
+methylccr2d("11", "12", [0.001, 0.002, 0.004, 0.006, 0.010])
 
-# delays read from a text file (one per line; lines beginning with # are ignored)
-methylccr2d("11/pdata/1", "12/pdata/1", "vdlist.txt")
-
-# double-quantum variant
-methylccr2d("11/pdata/1", "12/pdata/1", "vdlist.txt"; C=1/2)
-
-# series of individual 2D spectra, omitting the 2nd delay from the fit
-methylccr2d(
-    ["11/pdata/1", "12/pdata/1", "13/pdata/1"],   # buildup
-    ["21/pdata/1", "22/pdata/1", "23/pdata/1"],   # decay
-    [0.002, 0.004, 0.008];
-    skipplanes=[2]
-)
+# double-quantum variant (C = 1/2)
+methylccr2d("11", "12", [0.001, 0.002, 0.004, 0.006, 0.010]; C=1/2)
 ```
 
 The buildup and decay series are loaded into a single dataset and normalised by a common
 noise level, so the intensity ratio ``|I_a/I_b|`` is preserved. Each residue panel plots
 ``|I_a/I_b|`` against ``T`` with the eq 7 fit (showing ``\eta`` and ``\delta``).
 
-*TODO: add an example screenshot of the `methylccr2d` GUI:*
-
-![methylccr2d GUI](../../assets/methylccr2d.png)
+![methylccr2d GUI](../../assets/methylccr.png)
 
 ## Excluding delays from the fit
 
@@ -109,6 +96,7 @@ See [Peak Lists and Output Files](peaklistformats.md) for the full format. Plot
 ``S^2\tau_c`` per methyl group with [`summaryplot`](summary.md):
 
 ```julia
-fig = summaryplot(expt)              # S²τc (ns) per methyl, the default
-fig = summaryplot("results/"; param=:eta, ylabel="η / s⁻¹")
+fig = summaryplot("output/", size=(800,400))   # S²τc (ns) per methyl, the default
 ```
+
+![methylccr2d summary plot](../../assets/methylccr-summary.png)
