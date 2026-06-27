@@ -20,7 +20,7 @@ increasing saturation offsets. The saturation frequencies are read automatically
 ```julia
 using NMRAnalysis
 
-cest2d("11/pdata/1"; B1=15, Tsat=0.3)
+cest2d("11"; B1=15, Tsat=0.3)
 ```
 
 - `B1`: Saturation field strength in Hz. Typical values are 5–50 Hz for ¹⁵N CEST.

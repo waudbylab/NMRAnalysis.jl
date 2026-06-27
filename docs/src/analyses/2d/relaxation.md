@@ -72,11 +72,10 @@ Plot R against residue number with [`summaryplot`](summary.md). Pass an appropri
 
 ```julia
 # T2 / R2 measurement
-fig = summaryplot(expt; ylabel="R₂ / s⁻¹")
 fig = summaryplot("results/"; param=:R, ylabel="R₂ / s⁻¹")
 
 # T1 / R1 measurement
-fig = summaryplot(expt; ylabel="R₁ / s⁻¹")
+fig = summaryplot("results/"; param=:R, ylabel="R₁ / s⁻¹")
 ```
 
 ## Noise Estimation

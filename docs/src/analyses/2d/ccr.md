@@ -28,15 +28,15 @@ recorded to suppress contributions from auto-relaxation:
 ```julia
 using NMRAnalysis
 
-ccr2d("decay/pdata/1", "buildup/pdata/1", 0.08)
+ccr2d("decay", "buildup", 0.08)
 ```
 
 ### Symmetric reconversion (two pairs)
 
 ```julia
 ccr2d(
-    ["decay1/pdata/1", "decay2/pdata/1"],
-    ["buildup1/pdata/1", "buildup2/pdata/1"],
+    ["decay1", "decay2"],
+    ["buildup1", "buildup2"],
     0.08
 )
 ```

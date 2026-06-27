@@ -45,4 +45,4 @@ columns are:
 | `amp`, `amp_err` | Reference amplitude and uncertainty |
 
 See [Peak Lists and Output Files](peaklistformats.md) for the full format. Plot the
-hetNOE against residue number with `summaryplot(expt)`.
+hetNOE against residue number with `summaryplot("output-folder/")`.

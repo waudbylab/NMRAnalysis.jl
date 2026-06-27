@@ -1,7 +1,6 @@
 # Summary Plots
 
-`summaryplot` plots a fitted parameter against residue number, from a live
-experiment or one or more saved `results.csv` files. It is an ordinary Makie
+`summaryplot` plots a fitted parameter against residue number, from one or more saved `results.csv` files. It is an ordinary Makie
 figure using whichever backend is active, so it is interactive under GLMakie
 and can be saved with `save("summary.pdf", fig)` under CairoMakie.
 
@@ -33,7 +32,7 @@ which makes no assumption about whether you measured R₁ or R₂ — you should
 appropriate label explicitly:
 
 ```julia
-fig = summaryplot(expt; ylabel="R₂ / s⁻¹")
+fig = summaryplot("results/"; param=:R, ylabel="R₂ / s⁻¹")
 fig = summaryplot("results/"; param=:R, ylabel="R₁ / s⁻¹")
 ```
 
@@ -75,7 +74,7 @@ fig = summaryplot("wt/", "mutant/"; param=:R, ylabel="R₂ / s⁻¹")
 Pass `size=(width, height)` (in pixels) to control the figure dimensions:
 
 ```julia
-fig = summaryplot(expt; size=(800, 400))
+fig = summaryplot("output/"; size=(800, 400))
 fig = summaryplot("r2/", "r1/", "noe/"; size=(800, 900))
 ```
 

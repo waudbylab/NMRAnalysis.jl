@@ -29,7 +29,7 @@ label), set concentrations to `[0, 1]`:
 using NMRAnalysis
 
 pre2d(
-    ["diamagnetic/pdata/1", "paramagnetic/pdata/1"],
+    ["diamagnetic", "paramagnetic"],
     [0, 1],
     :hsqc,
     0.01
@@ -43,7 +43,7 @@ concentrations:
 
 ```julia
 pre2d(
-    ["0mM/pdata/1", "1mM/pdata/1", "5mM/pdata/1", "10mM/pdata/1"],
+    ["0mM", "1mM", "5mM", "10mM"],
     [0.0, 1.0, 5.0, 10.0],
     :hmqc,
     0.0089
@@ -72,4 +72,4 @@ column is:
 | `PRE`, `PRE_err` | Fitted PRE rate Γ (s⁻¹ per unit concentration) and uncertainty |
 
 See [Peak Lists and Output Files](peaklistformats.md) for the full format. Plot Γ
-against residue number with `summaryplot(expt)`.
+against residue number with `summaryplot("output-folder/")`.

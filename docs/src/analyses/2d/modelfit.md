@@ -17,7 +17,7 @@ using NMRAnalysis
 
 # J-modulation experiment: amplitudes oscillate as A·sin(J·x)
 modelfit2d(
-    ["112/pdata/1", "113/pdata/1", "114/pdata/1", "115/pdata/1"],
+    ["112", "113", "114", "115"],
     [0.1, 0.2, 0.3, 0.4],        # x values (e.g. delay times in seconds)
     "A*sin(J*x)",                 # model equation
     ["A" => 40.0, "J" => 0.5]    # parameter names and initial values
@@ -36,4 +36,4 @@ Clicking **Save to folder** writes all results to `results.csv`. The derived
 columns are named after the parameters given in the `parameters` argument (each
 with an `_err` uncertainty column). See
 [Peak Lists and Output Files](peaklistformats.md) for the full format, and use
-`summaryplot(expt; param=:paramname)` to plot a parameter against residue number.
+`summaryplot("output-folder/"; param=:paramname)` to plot a parameter against residue number.

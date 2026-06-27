@@ -9,7 +9,7 @@ directly when you just want the per-plane positions and linewidths without a phy
 using NMRAnalysis
 
 # A series of 2D spectra in which peaks move
-peaktrack2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"])
+peaktrack2d(["11", "12", "13"])
 ```
 
 - `inputfilenames`: a single pseudo-3D dataset, or a vector of 2D spectra (one per plane).

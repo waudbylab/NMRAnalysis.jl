@@ -25,11 +25,11 @@ and subsequent planes are recorded at increasing CPMG frequencies.
 using NMRAnalysis
 
 # Specify CPMG frequencies directly (Hz); use 0 for the reference plane
-cpmg2d("11/pdata/1"; Trelax=0.04, vCPMG=[0, 25, 50, 75, 100, 200, 500])
+cpmg2d("11"; Trelax=0.04, vCPMG=[0, 25, 50, 75, 100, 200, 500])
 
 # Alternatively, specify the number of CPMG cycles per plane (vCPMG = ncyc / Trelax)
 ncyc = [0, 1, 2, 3, 4, 8, 20]
-cpmg2d("11/pdata/1"; Trelax=0.04, ncyc=ncyc)
+cpmg2d("11"; Trelax=0.04, ncyc=ncyc)
 ```
 
 !!! note

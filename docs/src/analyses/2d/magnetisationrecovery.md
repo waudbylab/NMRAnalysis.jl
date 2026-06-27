@@ -21,10 +21,10 @@ using NMRAnalysis
 
 # Variable delay list
 t = [0.1, 0.2, 0.4, 0.7, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0]
-recovery2d("33/pdata/1", t)
+recovery2d("33", t)
 
 # Read delays from a file
-recovery2d("33/pdata/1", "vdlist.txt")
+recovery2d("33", "vdlist.txt")
 ```
 
 When the experiment is stored as a pseudo-3D dataset in a single processed directory, a
@@ -43,5 +43,4 @@ positions, linewidths and amplitudes, the derived columns are:
 | `C`, `C_err` | Recovery factor C and uncertainty |
 
 See [Peak Lists and Output Files](peaklistformats.md) for the full format.
-Plot R against residue number with `summaryplot(expt)` (or
-`summaryplot("results.csv")`).
+Plot R against residue number with `summaryplot("results.csv")` (or `summaryplot("output-folder/"`).

@@ -34,18 +34,15 @@ recovery), or [`modelfit2d`](modelfit.md) (arbitrary equation).
 using NMRAnalysis
 
 # Single spectrum
-fit2d("expno/pdata/1")
+fit2d("expno")
 
 # Series of spectra — track peaks across multiple experiments
 fit2d([
-    "expno1/pdata/1",
-    "expno2/pdata/1",
-    "expno3/pdata/1",
+    "expno1",
+    "expno2",
+    "expno3",
 ])
 ```
-
-The input path(s) should point to processed Bruker data directories (i.e. `pdata/N`
-subdirectories containing `2rr` files).
 
 ## Output
 
