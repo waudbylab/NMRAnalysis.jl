@@ -57,6 +57,9 @@ export pre2d
 # export CCRExperiment
 export ccr2d
 
+# methyl CCR (buildup/decay ratio, eq 7)
+export methylccr2d
+
 # results-summary plotting
 export summaryplot
 

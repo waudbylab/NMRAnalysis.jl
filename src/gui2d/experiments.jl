@@ -36,6 +36,7 @@ include("expt-PRE.jl")
 include("expt-cest.jl")
 include("expt-cpmg.jl")
 include("expt-ccr.jl")
+include("expt-methylccr.jl")
 
 # generic functions
 

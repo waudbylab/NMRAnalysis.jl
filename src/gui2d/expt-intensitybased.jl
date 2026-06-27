@@ -50,6 +50,7 @@ visualisationtype(expt::IntensityExperiment) = expt.visualisation
 # rate :R for exponential/recovery fits, otherwise the first model parameter.
 function primaryparam(expt::IntensityExperiment)
     expt.model isa NoFitting && return :amp
+    expt.model isa MethylCCRModel && return :S2tc  # derived order parameter × τc
     names = Symbol.(expt.model.param_names)
     return :R in names ? :R : first(names)
 end
@@ -470,7 +471,9 @@ function experimentinfo(expt::IntensityExperiment)
 end
 
 get_model_xlabel(expt::IntensityExperiment) = expt.model.xlabel
-get_model_ylabel(::IntensityExperiment) = "Peak amplitude"
+function get_model_ylabel(expt::IntensityExperiment)
+    return expt.model isa MethylCCRModel ? "|Iₐ / I_b|" : "Peak amplitude"
+end
 
 function slicelabel(expt::IntensityExperiment, idx)
     skipped = idx in expt.skipplanes ? " [skipped]" : ""
