@@ -43,8 +43,10 @@ include("expt-methylccr.jl")
 """Maximum wall-clock time (seconds) allowed for a single cluster fit before it is aborted.
 
 Interactive fitting re-runs on every peak move, so a hard cap keeps the GUI responsive even
-if convergence is slow. The residual function checks elapsed time on every iteration."""
-const FIT_TIME_BUDGET = 5.0
+if convergence is slow. The residual function checks elapsed time on every iteration.
+The budget is applied per-cluster so that a spectrum with many peaks does not exhaust the
+budget on early clusters and cancel later ones."""
+const FIT_TIME_BUDGET = 30.0
 
 """Thrown from within a fit's residual function to abort an in-flight fit (because the inputs
 changed, the time budget was exceeded, or the user cancelled). Caught silently in `fit!(expt)`."""
@@ -242,11 +244,11 @@ function fit!(expt::Experiment)
     runfit = function ()
         try
             expt.state[][:mode][] = :fitting
-            t0 = time()
-            # iterate over touched clusters and fit
+            # iterate over touched clusters and fit; t0 is reset per-cluster so each gets
+            # its own FIT_TIME_BUDGET rather than sharing one budget across the whole spectrum.
             for i in 1:length(expt.clusters[])
                 if expt.touched[][i]
-                    fit!(expt.clusters[][i], expt, mygen, t0)
+                    fit!(expt.clusters[][i], expt, mygen, time())
                     postfit!(expt.clusters[][i], expt)
                 end
             end
@@ -348,7 +350,7 @@ function fit!(cluster::Vector{Int}, expt::Experiment, mygen=expt.state[][:fit_ge
     sol = LsqFit.lmfit(resid, p0, Float64[];
                        lower=pmin, upper=pmax,
                        autodiff=:finite,
-                       maxIter=50, x_tol=1e-4, g_tol=1e-6)
+                       maxIter=200, x_tol=1e-4, g_tol=1e-6)
     pfit = coef(sol)
     perr = stderror(sol)
     @debug "fit complete" pfit maxlog = 10
