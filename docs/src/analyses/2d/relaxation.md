@@ -19,27 +19,17 @@ experiment used to collect the data.
 ```julia
 using NMRAnalysis
 
-# Inline relaxation delays (in seconds)
+# Pseudo3D data (experiment 20) with a list of relaxation times (in seconds)
+relaxation2d("20", "20/relaxation-times.txt")
+
+# Or provide a list of 2D planes and associated relaxation times
 relaxation2d(
     ["11", "12", "13", "14", "15"],
     [0.010, 0.030, 0.060, 0.100, 0.200]
 )
-
-# Read delays from a text file (one value per line; lines beginning with # are ignored)
-relaxation2d(
-    ["11", "12", "13"],
-    "vclist.txt"
-)
-
-# Omit a specific plane from the fit (e.g. a corrupted or duplicate delay)
-relaxation2d(
-    ["11", "12", "13", "14", "15"],
-    [0.010, 0.030, 0.060, 0.100, 0.200];
-    skipplanes=[3]
-)
 ```
 
-The number of input spectra must match the number of relaxation delays.
+The number of input planes must match the number of relaxation delays.
 
 ## Excluding planes from the fit
 
