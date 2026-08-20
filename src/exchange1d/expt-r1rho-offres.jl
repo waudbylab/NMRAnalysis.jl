@@ -120,7 +120,7 @@ function plot_result(expt::R1rhoOffResExperiment, fit_result; kwargs...)
     p1 = scatter(expt.offsets_ppm, yobs;
                  xlabel="Spin-lock offset / ppm",
                  ylabel="R₁ρ / s⁻¹",
-                 frame=:box, legend=nothing, grid=nothing, kwargs...)
+                 frame=:box, legend=nothing, grid=nothing, kwargs..., xflip=true)
     plot!(p1, expt.offsets_ppm[sortidx], ypred[sortidx]; lw=2)
     vline!(p1, params_value.spin.delta; ls=:dash, label="peak positions")
 
@@ -128,7 +128,7 @@ function plot_result(expt::R1rhoOffResExperiment, fit_result; kwargs...)
     p2 = scatter(expt.offsets_ppm, wres;
                  xlabel="Spin-lock offset / ppm",
                  ylabel="Residual / σ",
-                 frame=:box, legend=nothing, kwargs...)
+                 frame=:box, legend=nothing, kwargs..., xflip=true)
     hspan!(p2, [-2, 2]; color=:limegreen, alpha=0.3, lw=0, la=0, primary=false)
     hspan!(p2, [-1, 1]; color=:limegreen, alpha=0.5, lw=0, la=0, primary=false)
     hline!(p2, [0]; color=:black, lw=0.5, grid=nothing, primary=false)

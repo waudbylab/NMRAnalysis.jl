@@ -132,7 +132,8 @@ function plot_result(expt::CESTExperiment, fit_result; kwargs...)
               ylabel="Normalised intensity",
               title="CEST ($(Int(round(expt.ν1, digits=0))) Hz, $(Int(round(expt.saturation_time * 1000, digits=0))) ms saturation)",
               grid=nothing,
-              kwargs...)
+              kwargs...,
+              xflip=true)
 
     scatter!(p1, x, yobs; label="observed", ms=3)
     plot!(p1, x, ypred; label="fit")
@@ -145,7 +146,8 @@ function plot_result(expt::CESTExperiment, fit_result; kwargs...)
               title="",
               grid=nothing,
               legend=nothing,
-              kwargs...)
+              kwargs...,
+              xflip=true)
     wres = (Measurements.value.(yobs) .- ypred) ./ Measurements.uncertainty.(yobs)
     hspan!(p2, [-2, 2]; color=:limegreen, alpha=0.3, lw=0, la=0, primary=false)
     hspan!(p2, [-1, 1]; color=:limegreen, alpha=0.5, lw=0, la=0, primary=false)
