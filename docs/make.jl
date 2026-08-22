@@ -10,7 +10,7 @@ ENV["GKSwstype"] = "100" # https://github.com/jheinen/GR.jl/issues/278
 
 makedocs(;
          modules=[NMRAnalysis],
-         format=Documenter.HTML(),
+         format=Documenter.HTML(; canonical="https://waudbylab.org/NMRAnalysis.jl/stable/"),
          pages=["Home" => "index.md",
                 "Quick Start" => "quickstart.md",
                 "1D Analysis" => ["Diffusion" => "analyses/diffusion.md",
