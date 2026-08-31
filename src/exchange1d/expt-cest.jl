@@ -130,7 +130,7 @@ function plot_result(expt::CESTExperiment, fit_result; kwargs...)
     p1 = plot(; frame=:box, legend=nothing,
               #   xlabel="Saturation frequency (ppm)",
               ylabel="Normalised intensity",
-              title="CEST ($(Int(round(expt.ν1, digits=0))) Hz, $(Int(round(expt.saturation_time * 1000, digits=0))) ms saturation)",
+              title="CEST ($(Int(round(expt.ν1, digits=0))) Hz, $(Int(round(expt.saturation_time * 1000, digits=0))) ms)",
               grid=nothing,
               kwargs...,
               xflip=true)

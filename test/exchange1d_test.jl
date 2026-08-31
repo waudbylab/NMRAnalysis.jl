@@ -36,8 +36,10 @@ using Test
         model = TwoStateModel()
         @test nstates(model) == 2
 
+        pB = 0.05
+        dGB = log((1 - pB) / pB)  # ΔG reconstructing pB = 0.05
         params = ComponentArray(;
-                                model=ComponentArray(; kex=1000.0, pB=0.05),)
+                                model=ComponentArray(; logkex=log(1000.0), dGB=dGB),)
         K = exchangematrix(model, params, Dict{String,Float64}())
         @test size(K) == (2, 2)
 
@@ -59,8 +61,8 @@ using Test
         @test nstates(model) == 2
         @test nmolecules(model) == 2
 
-        @test defaultparams(model).Kd == 100.0
-        @test defaultparams(model).koff == 5000.0
+        @test defaultparams(model).logKd ≈ log(100.0)
+        @test defaultparams(model).logkoff ≈ log(5000.0)
     end
 
     # Note: liouvillian tests require a real NMR experiment (spec with :bf metadata)
@@ -136,8 +138,8 @@ using Test
 
         # model section
         @test haskey(params, :model)
-        @test params.model.kex == 1000.0
-        @test params.model.pB == 0.05
+        @test params.model.logkex ≈ log(1000.0)
+        @test params.model.dGB ≈ log(0.95 / 0.05)
 
         # spin section — R1 experiments don't need delta (chemical shifts)
         @test haskey(params, :spin)

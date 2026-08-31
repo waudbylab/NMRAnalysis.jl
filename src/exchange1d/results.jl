@@ -30,8 +30,10 @@ function Base.show(io::IO, ::MIME"text/plain", result::FitResult)
         printstyled(io, "  $title\n"; bold=true, color=:cyan)
 
         labels = [_pretty_label(item, state_labels, fields) for item in sec_items]
-        initial = [_format_value(item.value) for item in sec_items0]
-        fitted = [_format_value(item.value) for item in sec_items]
+        initial = [_format_value(_displayvalue(item, result.params0)) for item in sec_items0]
+        fitted = [_format_value(_displayvalue(item, result.params)) *
+                  (item.flat_index in result.fixed ? " (fixed)" : "")
+                  for item in sec_items]
         tdata = hcat(labels, initial, fitted)
 
         pretty_table(io, tdata;

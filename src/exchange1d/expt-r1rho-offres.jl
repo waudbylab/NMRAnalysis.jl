@@ -120,6 +120,7 @@ function plot_result(expt::R1rhoOffResExperiment, fit_result; kwargs...)
     p1 = scatter(expt.offsets_ppm, yobs;
                  xlabel="Spin-lock offset / ppm",
                  ylabel="R₁ρ / s⁻¹",
+                 title="Off-resonance R₁ρ ($(Int(round(expt.νSL, digits=0))) Hz)",
                  frame=:box, legend=nothing, grid=nothing, kwargs..., xflip=true)
     plot!(p1, expt.offsets_ppm[sortidx], ypred[sortidx]; lw=2)
     vline!(p1, params_value.spin.delta; ls=:dash, label="peak positions")

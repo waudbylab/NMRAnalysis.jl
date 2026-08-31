@@ -157,7 +157,7 @@ function plot_result(expt::R1Experiment, fit_result; kwargs...)
                  frame=:box,
                  #  xlabel="Relaxation time / s",
                  ylabel="Intensity",
-                 title="R1 = $R1 s⁻¹",
+                 title="R1 relaxation",
                  grid=nothing,
                  kwargs...)
     plot!(p1, x, yfit;

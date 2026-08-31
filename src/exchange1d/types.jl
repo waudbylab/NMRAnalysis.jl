@@ -20,8 +20,9 @@ Result of a joint fit of exchange experiments. Fields are accessible via dot syn
 - `reduced_chi2`: chi-squared / degrees of freedom
 - `cov`: parameter covariance matrix
 - `nobs`: number of observations
-- `nparams`: number of fitted parameters
+- `nparams`: number of fitted (i.e. non-fixed) parameters
 - `dof`: degrees of freedom
+- `fixed`: flat indices of parameters held fixed during the fit (see `fit`)
 - `prob`: the `ExchangeProblem` that was fitted
 """
 struct FitResult
@@ -34,5 +35,6 @@ struct FitResult
     nobs::Int
     nparams::Int
     dof::Int
+    fixed::Set{Int}
     prob::ExchangeProblem
 end

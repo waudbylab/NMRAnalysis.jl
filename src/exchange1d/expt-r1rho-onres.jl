@@ -113,7 +113,8 @@ function plot_result(expt::R1rhoOnResExperiment, fit_result; kwargs...)
 
     p1 = scatter(expt.νSL, yobs;
                  xlabel="Spinlock strength / Hz",
-                 ylabel="R1rho / s-1",
+                 ylabel="R₁ρ / s⁻¹",
+                 title="On-resonance R₁ρ",
                  frame=:box, legend=nothing, grid=nothing, kwargs...)
     plot!(p1, expt.νSL[sortidx], ypred[sortidx]; lw=2)
 
