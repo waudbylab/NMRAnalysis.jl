@@ -1,7 +1,7 @@
 # NMRAnalysis
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://waudbylab.github.io/NMRAnalysis.jl/stable)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://waudbylab.github.io/NMRAnalysis.jl/dev)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://waudbylab.org/NMRAnalysis.jl/stable)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://waudbylab.org/NMRAnalysis.jl/dev)
 [![CI](https://github.com/waudbylab/NMRAnalysis.jl/actions/workflows/Runtests.yml/badge.svg)](https://github.com/waudbylab/NMRAnalysis.jl/actions/workflows/Runtests.yml)
 [![DOI](https://zenodo.org/badge/665599660.svg)](https://doi.org/10.5281/zenodo.15667046)
 
@@ -13,12 +13,14 @@ NMRAnalysis.jl is a library for analysis of NMR experiments. This includes 1D ex
 - TRACT
 - R1rho relaxation dispersion
 
-and 2D experiments:
-- lineshape fitting (for measurement of intensities and linewidths)
-- relaxation
+and, via an interactive graphical interface, 2D and pseudo-3D experiments:
+- peak fitting (positions, linewidths, amplitudes) and peak tracking across a series
+- relaxation (R1, R2), recovery (inversion/saturation), and custom model fitting
 - heteronuclear NOEs
 - CPMG relaxation dispersion
 - CEST
+- cross-correlated relaxation, including methyl CCR (S²τc)
+- titrations and residual dipolar couplings (RDCs)
 
 
 ## System requirements
@@ -101,6 +103,9 @@ r1rho(["11", "12"], minvSL=500)           # Filter low spin-lock strengths
 **2D experiments** can be analysed with the interactive graphical interface:
 
 ```julia
+# Peak fitting (positions, linewidths, amplitudes)
+fit2d("expno")  # Processed spectra as pseudo-3d
+
 # Relaxation analysis (T1, T2)
 relaxation2d(
     "expno",            # Processed spectra as pseudo-3d

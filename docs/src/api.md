@@ -1,5 +1,5 @@
 # API
 
 ```@autodocs
-Modules = [NMRAnalysis]
+Modules = [NMRAnalysis, NMRAnalysis.GUI2D, NMRAnalysis.R1rho]
 ```

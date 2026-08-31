@@ -35,7 +35,6 @@ Interactive graphical interfaces for 2D and pseudo-3D experiments:
 | [`hetnoe2d()`](analyses/2d/hetnoe.md) | Heteronuclear NOE |
 | [`cpmg2d()`](analyses/2d/cpmg.md) | CPMG relaxation dispersion |
 | [`cest2d()`](analyses/2d/cest.md) | CEST (Chemical Exchange Saturation Transfer) |
-| [`pre2d()`](analyses/2d/pre.md) | Paramagnetic relaxation enhancement |
 | [`ccr2d()`](analyses/2d/ccr.md) | Cross-correlated relaxation |
 | [`methylccr2d()`](analyses/2d/methylccr.md) | Methyl CCR: S²τc from buildup/decay series |
 | [`rdc2d()`](analyses/2d/rdc.md) | Residual dipolar couplings |

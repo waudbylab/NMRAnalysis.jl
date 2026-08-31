@@ -29,7 +29,6 @@ makedocs(;
                                   "Heteronuclear NOE" => "analyses/2d/hetnoe.md",
                                   "Magnetisation Recovery" => "analyses/2d/magnetisationrecovery.md",
                                   "Methyl CCR (S²τc)" => "analyses/2d/methylccr.md",
-                 #       "PREs" => "analyses/2d/pre.md",
                                   "RDCs and J-Coupling" => "analyses/2d/rdc.md",
                                   "Relaxation (R₁, R₂)" => "analyses/2d/relaxation.md",
                                   "Titrations" => "analyses/2d/titration.md",
