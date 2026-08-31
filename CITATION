@@ -3,7 +3,7 @@ message: "If you use this software, please cite the software and, if used, also 
 type: software
 title: "NMRAnalysis.jl"
 abstract: "A Julia package for analysis of NMR spectroscopy data"
-repository-code: "https://github.com/waudbygroup/NMRAnalysis.jl"
+repository-code: "https://github.com/waudbylab/NMRAnalysis.jl"
 license: MIT
 authors:
   - family-names: Hazlett

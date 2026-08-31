@@ -1,10 +1,11 @@
-# format of peaks files:
-# comments begin with #
-# each line is a peak, with fields separated by whitespace
-# fields are: label, xposition, yposition,
+# Peak list / results files (see writeresults! and readpeaklist!):
+#   - lines beginning with '#' are comments (experiment metadata)
+#   - an ordinary header row names the columns
+#   - on read, only the label, x and y columns are used
+# Hand-made lists may instead be a bare, header-less `label x y` per line.
 
 function loadpeaks!(expt)
-    file = pick_file(; filterlist="peaks;old")
+    file = pick_file(; filterlist="csv;peaks;txt;old")
     file == "" && return
 
     @info "Loading peak file $file"
@@ -26,75 +27,146 @@ function saveresults!(expt)
         expt.state[][:mode][] = :fitting
         sleep(0.1) # allow time for mode change to be processed
     end
-    @async begin # do fitting in a separate task
+    @async begin # do saving in a separate task
         sleep(0.2) # allow time for mode change to be processed
+        try
+            # save all peak positions, linewidths, amplitudes and derived
+            # parameters to a single results file
+            writeresults!(expt, folder)
 
-        writepeaklists!(expt, folder)
-
-        # save post-fit parameters to separate file
-        writefitresults!(expt, folder)
-
-        # remove any files peak_XXX.pdf from output folder before saving new plots
-        for file in readdir(folder)
-            if occursin(r"^peak_.*\.pdf$", file)
-                rm(joinpath(folder, file))
+            # remove stale per-peak, per-cluster and summary PDFs
+            for file in readdir(folder)
+                if occursin(r"^(peak_|cluster_).*\.pdf$", file) || file == "summary.pdf"
+                    rm(joinpath(folder, file))
+                end
             end
+            save_peak_plots!(expt, folder)
+            save_cluster_plots!(expt, folder)
+            save_summary_plot!(expt, folder)
+        catch e
+            @error "Error saving results to $folder" exception = (e, catch_backtrace())
+        finally
+            # Always restore normal mode - otherwise a failure mid-save leaves the GUI stuck
+            # on the salmon "fitting" background with no way to recover.
+            GLMakie.activate!()
+            expt.state[][:mode][] = :normal
         end
-        save_peak_plots!(expt, folder)
-
-        # save current contour plot figure
-        save_contour_plot!(expt, folder)
-
-        expt.state[][:mode][] = :normal
     end
 end
 
 """
-    read_peaklist!(expt, filepath::AbstractString)
+    splitfields(line)
 
-Read a peak list file and add peaks to the experiment object. The file should contain
-peaks in the format: 'label x_position y_position [optional_fields...]' with fields
-separated by whitespace. Lines beginning with '#' are treated as comments.
+Split a data line into fields, accepting either comma-separated (the format
+written by [`writeresults!`](@ref)) or whitespace-separated values. Surrounding
+whitespace on each field is stripped.
+"""
+function splitfields(line)
+    fields = occursin(',', line) ? split(line, ',') : split(line)
+    return strip.(fields)
+end
 
-# Arguments
-- `expt`: Experiment object that implements `addpeak!`
-- `filepath`: Path to the peak list file
+"""
+    parse_radius_comment!(expt, line)
 
-# Returns
-- Number of peaks successfully read
+If `line` records an X/Y fitting radius (as written by [`writeresults!`](@ref), e.g.
+`# X radius / ppm: 0.04`), apply it to the experiment. Generic to all 2D experiments.
+"""
+function parse_radius_comment!(expt, line)
+    mx = match(r"x\s*radius[^0-9]*([0-9]*\.?[0-9]+)"i, line)
+    isnothing(mx) || setradius!(expt, :x, parse(Float64, mx.captures[1]))
+    my = match(r"y\s*radius[^0-9]*([0-9]*\.?[0-9]+)"i, line)
+    isnothing(my) || setradius!(expt, :y, parse(Float64, my.captures[1]))
+    return
+end
 
-# Throws
-- `ArgumentError`: If file format is invalid
-- `IOError`: If file cannot be opened or read
+# Set a fitting radius. When the GUI is up, drive the slider (which keeps the display in sync
+# via connect!); otherwise set the experiment observable directly.
+function setradius!(expt, dim, value)
+    g = get(expt.state[], :gui, nothing)
+    g = g isa Observable ? g[] : g
+    if g isa AbstractDict && haskey(g, :sgradii)
+        slider = dim === :x ? g[:sgradii].sliders[1] : g[:sgradii].sliders[2]
+        set_close_to!(slider, value)
+    else
+        (dim === :x ? expt.xradius : expt.yradius)[] = value
+    end
+    return
+end
+
+"""
+    readpeaklist!(expt, filepath::AbstractString)
+
+Read a peak list and add the peaks to `expt`. Only the `label`, `x` and `y`
+columns are used — every other column (`resnum`, `resname`, `atom`, linewidths,
+amplitudes, derived parameters …) is ignored, since the residue number and atom
+are re-derived from the label.
+
+Two layouts are accepted:
+- **With a header row** (e.g. the program's own `results.csv`): the first
+  non-comment line contains a `label` column name, and `x`/`y` are located by
+  name, so column order and extra columns don't matter.
+- **Without a header** (a hand-made list): values are read positionally as
+  `label x y` from the first three columns, so no exact column names are needed.
+
+Fields may be comma- or whitespace-separated. Lines beginning with `#` are
+comments. A malformed line is skipped with a warning rather than aborting the
+load — any labelling convention is tolerated.
 """
 function readpeaklist!(expt, filepath::AbstractString)
     peak_count = 0
+    colmap = nothing  # name => index, or nothing until established
 
     open(filepath) do f
         for (line_number, line) in enumerate(eachline(f))
-            # Skip empty lines and comments
-            isempty(strip(line)) && continue
-            startswith(strip(line), '#') && continue
+            sline = strip(line)
+            isempty(sline) && continue
+            if startswith(sline, '#')
+                parse_radius_comment!(expt, sline)  # restore fitting radii if recorded
+                continue
+            end
+
+            fields = splitfields(sline)
+
+            # Establish the column layout from the first non-comment line
+            if isnothing(colmap)
+                lower = lowercase.(fields)
+                if "label" in lower
+                    colmap = Dict(name => i for (i, name) in enumerate(lower))
+                    continue  # header line, not data
+                else
+                    colmap = Dict("label" => 1, "x" => 2, "y" => 3)  # positional
+                end
+            end
 
             try
-                fields = split(strip(line))
-                if length(fields) < 3
-                    throw(ArgumentError("Line $line_number: Insufficient fields"))
-                end
+                length(fields) < 3 && error("insufficient fields")
+                label = string(fields[colmap["label"]])
 
-                label = string(fields[1])  # Ensure string type
-                x = parse(Float64, fields[2])
-                y = parse(Float64, fields[3])
-
-                addpeak!(expt, Point2f(x, y), label)
-                peak_count += 1
-
-            catch e
-                if e isa ArgumentError
-                    @warn "Skipping line $line_number: $(e.msg)"
+                # Moving-peak results store positions (and linewidths) per plane as
+                # x[1], x[2], ...; restore them so a saved trajectory reloads intact. A
+                # plain `label x y` list (or a fixed-peak results.csv) takes the single x/y.
+                if !hasfixedpositions(expt) && haskey(colmap, "x[1]")
+                    n = nslices(expt)
+                    getcol(name, i) = parse(Float64, fields[colmap["$(name)[$i]"]])
+                    xs = [getcol("x", i) for i in 1:n]
+                    ys = [getcol("y", i) for i in 1:n]
+                    addpeak!(expt, Point2f(xs[1], ys[1]), label)
+                    peak = expt.peaks[][end]
+                    setperplane!(peak, :x, xs)
+                    setperplane!(peak, :y, ys)
+                    if haskey(colmap, "r2x[1]")
+                        setperplane!(peak, :R2x, [getcol("r2x", i) for i in 1:n])
+                        setperplane!(peak, :R2y, [getcol("r2y", i) for i in 1:n])
+                    end
                 else
-                    rethrow()
+                    x = parse(Float64, fields[colmap["x"]])
+                    y = parse(Float64, fields[colmap["y"]])
+                    addpeak!(expt, Point2f(x, y), label)
                 end
+                peak_count += 1
+            catch e
+                @warn "Skipping line $line_number: $(e isa ErrorException ? e.msg : e)"
             end
         end
     end
@@ -104,47 +176,134 @@ function readpeaklist!(expt, filepath::AbstractString)
 end
 
 """
-   write_peaklists!(expt::FixedPeakExperiment, folder) -> Vector{String}
+    writeresults!(expt, folder) -> String
 
-Write peak lists for a FixedPeakExperiment.
+Write all peak results to a single `results.csv` in `folder`. Each row is one
+peak with identity (`label`, `resnum`, `resname`, `atom`), positions (`x`, `y`),
+linewidths (`R2x`, `R2y`), per-plane amplitudes (`amp[1]`, `amp[2]`, …) and any
+derived parameters, each value immediately followed by its `_err` uncertainty
+column. Experiment metadata is written as `#`-comment lines above an ordinary
+(uncommented) header row, so the file opens directly in spreadsheets and via
+`pandas.read_csv(comment="#")`.
 """
-function writepeaklists!(expt::FixedPeakExperiment, folder)
-    filepath_fit = joinpath(folder, "fit.peaks")
-    writepeaklist!(filepath_fit, expt.peaks, 1, :value, expt)
-
-    filepath_initial = joinpath(folder, "initial.peaks")
-    return writepeaklist!(filepath_initial, expt.peaks, 1, :initialvalue, expt)
-end
-
-"""
-   write_peaklists!(expt::MovingPeakExperiment, folder) -> Vector{String}
-
-Write peak lists for a variable peak experiment.
-"""
-function writepeaklists!(expt::MovingPeakExperiment, folder)
-    for slice in 1:nslices(expt)
-        filepath_fit = joinpath(folder, "fit.$slice.peaks")
-        writepeaklist!(filepath_fit, expt.peaks, slice, :value, expt)
-
-        filepath_initial = joinpath(folder, "initial.$slice.peaks")
-        writepeaklist!(filepath_initial, expt.peaks, slice, :initialvalue, expt)
-    end
-end
-
-"""
-   writepeaklist!(filepath, peaks, slice, value_type, expt) -> String
-
-Write a single peak list file with specified format.
-"""
-function writepeaklist!(filepath, peaks, slice, value_type, expt)
+function writeresults!(expt, folder)
+    filepath = joinpath(folder, "results.csv")
     backup_file(filepath)
 
+    header, rows = resultstable(expt)
     open(filepath, "w") do f
-        writeheader!(f, value_type, expt)
-        return writepeaks!(f, peaks, slice, value_type, expt)
+        for line in split(experimentinfo(expt), '\n')
+            isempty(strip(line)) && continue
+            println(f, "# ", line)
+        end
+        # Record the fitting radii so they are restored on load (parsed by readpeaklist!).
+        println(f, "# X radius / ppm: ", round(expt.xradius[]; digits=4))
+        println(f, "# Y radius / ppm: ", round(expt.yradius[]; digits=4))
+        println(f, join(header, ","))
+        for row in rows
+            println(f, join(row, ","))
+        end
+    end
+    return filepath
+end
+
+"Sort peaks by residue number (positive ascending first, then unassigned)."
+function sortedpeaks(expt)
+    return sort(collect(expt.peaks[]); by=peak -> begin
+                    r = extract_residue_number(peak.label[])
+                    (r ≤ 0, abs(r))
+                end)
+end
+
+"""
+    resultstable(expt) -> (header, rows)
+
+Build the column-name `header` and the `rows` (each a vector of strings) for the
+results file. Derived (post-fit) parameters are appended with the experiment's
+primary parameter first (see `primaryparam`).
+"""
+function resultstable(expt)
+    n = nslices(expt)
+    peaks = sortedpeaks(expt)
+
+    # derived parameter keys, primary result first
+    derivedkeys = Symbol[]
+    if !isempty(peaks)
+        allkeys = collect(keys(first(peaks).postparameters))
+        prim = primaryparam(expt)
+        derivedkeys = prim in allkeys ? [prim; filter(!=(prim), allkeys)] : allkeys
     end
 
-    return filepath
+    # For moving-peak experiments, positions and linewidths vary per plane, so they are
+    # written per-plane (x[1], x[2], ...) like amplitudes; fixed-peak experiments keep a
+    # single column each.
+    moving = !hasfixedpositions(expt)
+    posparams = (:x, :y, :R2x, :R2y)
+
+    header = ["label", "resnum", "resname", "atom"]
+    for p in posparams
+        if moving
+            for i in 1:n
+                append!(header, ["$(p)[$i]", "$(p)[$i]_err"])
+            end
+        else
+            append!(header, [string(p), "$(p)_err"])
+        end
+    end
+    for i in 1:n
+        append!(header, ["amp[$i]", "amp[$i]_err"])
+    end
+    for k in derivedkeys
+        append!(header, [string(k), "$(k)_err"])
+    end
+
+    rows = Vector{String}[]
+    for peak in peaks
+        lbl = parse_label(peak.label[])
+        row = [peak.label[], string(lbl.resnum),
+               lbl.onelettercode == '?' ? "" : string(lbl.onelettercode),
+               lbl.atom]
+        for p in posparams
+            slices = moving ? (1:n) : (1:1)
+            for i in slices
+                push!(row, format_param(peak, p, i, :value))
+                push!(row, format_param(peak, p, i, :uncertainty))
+            end
+        end
+        for i in 1:n
+            push!(row, format_param(peak, :amp, i, :value))
+            push!(row, format_param(peak, :amp, i, :uncertainty))
+        end
+        for k in derivedkeys
+            push!(row, format_post(peak, k, :value))
+            push!(row, format_post(peak, k, :uncertainty))
+        end
+        push!(rows, row)
+    end
+    return header, rows
+end
+
+"Format a post-fit parameter value/uncertainty, returning \"NA\" if absent."
+function format_post(peak, key, which)
+    haskey(peak.postparameters, key) || return "NA"
+    val = getproperty(peak.postparameters[key], which)[][1]
+    return string(to_value(val))
+end
+
+"""
+    setperplane!(peak, param, values)
+
+Write a per-plane parameter from a loaded results file, setting both the fitted value and the
+initial value in every plane (so the loaded positions display immediately and seed any refit).
+"""
+function setperplane!(peak, param, values)
+    haskey(peak.parameters, param) || return
+    p = peak.parameters[param]
+    for i in eachindex(values)
+        p.value[][i] = values[i]
+        p.initialvalue[][i] = values[i]
+    end
+    return
 end
 
 """
@@ -171,275 +330,94 @@ function format_param(peak, param, slice, value_type)
 end
 
 """
-   write_header!(io, value_type, expt::FixedPeakExperiment)
+    save_cluster_plots!(expt, folder)
 
-Write header for fixed peak experiments, including all amplitudes in one file.
+Save one zoomed contour plot per cluster of overlapping peaks (first plane only).
+Axis limits are set to include only the peaks in that cluster plus padding.
+
+Files are named `cluster_LABEL.pdf` (single peak) or `cluster_LABEL1-LABEL2.pdf`
+(overlapping peaks).
 """
-function writeheader!(io, value_type, expt::FixedPeakExperiment)
-    for line in split(experimentinfo(expt), '\n')
-        println(io, "# ", line)
-    end
+function save_cluster_plots!(expt, folder)
+    peaks = expt.peaks[]
+    clusters = expt.clusters[]
+    isempty(clusters) && return
 
-    header = ["label", "residue", "x", "y", "R2x", "R2y"]
-    append!(header, ["amp$i" for i in 1:nslices(expt)])
-
-    if value_type == :value
-        append!(header, ["x_err", "y_err", "R2x_err", "R2y_err"])
-        append!(header, ["amp$(i)_err" for i in 1:nslices(expt)])
-    end
-
-    return println(io, "# ", join(header, "\t"))
-end
-
-"""
-   write_header!(io, value_type, expt::MovingPeakExperiment)
-
-Write header for moving peak experiments, with single amplitude per file.
-"""
-function writeheader!(io, value_type, expt::MovingPeakExperiment)
-    for line in split(experimentinfo(expt), '\n')
-        println(io, "# ", line)
-    end
-
-    header = ["label", "x", "y", "R2x", "R2y", "amp"]
-
-    if value_type == :value
-        append!(header, ["x_err", "y_err", "R2x_err", "R2y_err", "amp_err"])
-    end
-
-    return println(io, "# ", join(header, "\t"))
-end
-
-"""
-   write_peaks!(io, peaks, slice, value_type, expt::FixedPeakExperiment)
-
-Write peaks for fixed peak experiments, including all amplitudes in one file.
-"""
-function writepeaks!(io, peaks, slice, value_type, expt::FixedPeakExperiment)
-    basic_params = [:x, :y, :R2x, :R2y]
-
-    # Convert peaks to array and sort
-    sorted_peaks = sort(collect(peaks[]), by = peak -> begin
-        residue_num = extract_residue_number(peak.label[])
-        # Use a tuple for sorting: (is_zero_or_negative, absolute_value)
-        # This ensures positive numbers come first, then zeros and negatives
-        (residue_num ≤ 0, abs(residue_num))
-    end)
-
-    for peak in sorted_peaks
-        label = peak.label[]
-        residue_num = extract_residue_number(label)
-        values = [label, string(residue_num)]
-
-        # Basic parameters
-        append!(values,
-                [format_param(peak, param, 1, value_type) for param in basic_params])
-
-        # All amplitudes
-        append!(values, [format_param(peak, :amp, i, value_type) for i in 1:nslices(expt)])
-
-        # Uncertainties if fit result
-        if value_type == :value
-            append!(values,
-                    [format_param(peak, param, 1, :uncertainty) for param in basic_params])
-            append!(values,
-                    [format_param(peak, :amp, i, :uncertainty) for i in 1:nslices(expt)])
-        end
-
-        println(io, join(values, "\t"))
-    end
-end
-
-"""
-   write_peaks!(io, peaks, slice, value_type, expt::MovingPeakExperiment)
-
-Write peaks for moving peak experiments, with single amplitude per file.
-"""
-function writepeaks!(io, peaks, slice, value_type, expt::MovingPeakExperiment)
-    basic_params = [:x, :y, :R2x, :R2y, :amp]
-
-    for peak in peaks[]
-        values = [peak.label[]]
-
-        # Basic parameters and amplitude for this slice
-        append!(values,
-                [format_param(peak, param, slice, value_type) for param in basic_params])
-
-        # Uncertainties (if a fit result)
-        if value_type == :value
-            append!(values,
-                    [format_param(peak, param, slice, :uncertainty)
-                     for param in basic_params])
-        end
-
-        println(io, join(values, "\t"))
-    end
-end
-
-"""
-    writepeaklist!(filepath, peaks, slice, value_type) -> String
-
-Write a single peak list file with specified format.
-"""
-function writepeaklist!(filepath, peaks, slice, value_type)
-    backup_file(filepath)
-
-    open(filepath, "w") do f
-        write_header!(f, value_type)
-        return write_peaks!(f, peaks, slice, value_type)
-    end
-
-    return filepath
-end
-
-"""
-    write_header!(io, value_type)
-
-Write the parameter header line to the file.
-"""
-function write_header!(io, value_type)
-    param_names = [:x, :y, :R2x, :R2y, :amp]
-    header = ["label";
-              param_names;
-              value_type == :value ? [Symbol("$(p)_err") for p in param_names] : []]
-    return println(io, "# ", join(header, "\t"))
-end
-
-"""
-    write_peaks!(io, peaks, slice, value_type)
-
-Write all peaks for a given slice to the file.
-"""
-function write_peaks!(io, peaks, slice, value_type)
-    param_names = [:x, :y, :R2x, :R2y, :amp]
-
-    for (peak_idx, peak) in enumerate(peaks[])
-        values = [peak.label[]]
-
-        # Add parameter values
-        append!(values,
-                [format_param(peak, param, slice, value_type) for param in param_names])
-
-        # Add uncertainties for fit results
-        if value_type == :value
-            append!(values,
-                    [format_param(peak, param, slice, :uncertainty)
-                     for param in param_names])
-        end
-
-        println(io, join(values, "\t"))
-    end
-end
-
-"""
-    write_fixed_peaklist!(expt, folder) -> Vector{String}
-
-Write peak lists for a FixedPeakExperiment.
-"""
-function write_fixed_peaklist!(expt, folder)
-    writepeaklist!(joinpath(folder, "fit.peaks"), expt.peaks, 1, :value)
-    return writepeaklist!(joinpath(folder, "initial.peaks"), expt.peaks, 1, :initialvalue)
-end
-
-"""
-    write_variable_peaklist!(expt, folder) -> Vector{String}
-
-Write peak lists for a variable peak experiment.
-"""
-function write_variable_peaklist!(expt, folder)
-    for slice in 1:nslices(expt)
-        for (filename, value_type) in [("fit.$slice.peaks", :value),
-                                       ("initial.$slice.peaks", :initialvalue)]
-            filepath = joinpath(folder, filename)
-            push!(created_files, writepeaklist!(filepath, expt.peaks, slice, value_type))
-        end
-    end
-end
-
-function writefitresults!(expt, folder)
-    filepath = joinpath(folder, "fit-results.txt")
-    backup_file(filepath)
-
-    # Sort peaks by residue number, putting positive numbers first
-    sorted_peaks = sort(collect(expt.peaks[]), by = peak -> begin
-        residue_num = extract_residue_number(peak.label[])
-        # Use a tuple for sorting: (is_negative, absolute_value)
-        # This ensures positive numbers come first, then sorted by magnitude
-        (residue_num <= 0, abs(residue_num))
-    end)
-
-    open(filepath, "w") do f
-        for line in split(experimentinfo(expt), '\n')
-            println(f, "# ", line)
-        end
-
-        # Write header
-        header = ["label", "residue_number"]  # Added residue_number column
-        param_names = collect(keys(first(expt.peaks[]).postparameters))
-        for param in values(first(expt.peaks[]).postparameters)
-            param_label = replace(param.label, " " => "_")
-            append!(header, ["$(param_label)_value", "$(param_label)_uncertainty"])
-        end
-        println(f, "# ", join(header, "\t"))
-
-        # Write one line per peak with all parameters
-        for peak in sorted_peaks
-            label = peak.label[]
-            residue_num = extract_residue_number(label)
-            values = [label, string(residue_num)]
-            for param in param_names
-                push!(values, string(peak.postparameters[param].value[][1]))
-                push!(values, string(peak.postparameters[param].uncertainty[][1]))
-            end
-            println(f, join(values, "\t"))
-        end
-    end
-end
-
-function save_contour_plot!(expt, folder)
     CairoMakie.activate!()
 
     state = expt.state[]
-    rect = state[:gui][][:axcontour].finallimits[]
-    x0, y0 = rect.origin
-    dx, dy = rect.widths
-    lims = ((x0, x0 + dx), (y0, y0 + dy))
+    contourlevels = state[:gui][][:contourlevels]
+    xlabel_str = "$(label(expt.specdata.nmrdata[1],F1Dim)) / ppm"
+    ylabel_str = "$(label(expt.specdata.nmrdata[1],F2Dim)) / ppm"
 
-    for i in 1:nslices(expt)
-        f = Figure()
-        ax = Axis(f[1, 1];
-                  xlabel="$(label(expt.specdata.nmrdata[1],F1Dim)) chemical shift (ppm)",
-                  ylabel="$(label(expt.specdata.nmrdata[1],F2Dim)) chemical shift (ppm)",
-                  xreversed=true, yreversed=true, limits=lims,
-                  title=slicelabel(expt, i))
-        heatmap!(ax,
-                 expt.specdata.x[i],
-                 expt.specdata.y[i],
-                 expt.specdata.mask[][i];
-                 colormap=[:white, :lightgoldenrod1],
-                 colorrange=(0, 1))
-        contour!(ax,
-                 expt.specdata.x[i],
-                 expt.specdata.y[i],
-                 expt.specdata.z[i];
-                 levels=state[:gui][][:contourlevels],
-                 color=bicolours(:grey50, :lightblue))
-        contour!(ax,
-                 expt.specdata.x[i],
-                 expt.specdata.y[i],
-                 expt.specdata.zfit[][i];
-                 levels=state[:gui][][:contourlevels],
-                 color=bicolours(:orangered, :dodgerblue))
-        scatter!(ax, state[:positions]; markersize=10, marker=:x, color=:black)
-        text!(ax, state[:positions]; text=state[:labels],
-              fontsize=14,
-              # font=:bold,
-              offset=(8, 0),
-              align=(:left, :center),
-              color=:black)
+    for cluster_idxs in clusters
+        cluster = [peaks[i] for i in cluster_idxs]
+        isempty(cluster) && continue
 
-        save(joinpath(folder, "spectrum-fit-$i.pdf"), f)
+        # Bounding box from initial positions + radius padding
+        padding = 1.5
+        all_x = Float64[]
+        all_y = Float64[]
+        for peak in cluster
+            pos = initialposition(peak)[]
+            pts = pos isa AbstractVector ? pos : [pos]
+            for p in pts
+                push!(all_x, p[1])
+                push!(all_y, p[2])
+            end
+        end
+        max_xr = maximum(peak.xradius[] for peak in cluster)
+        max_yr = maximum(peak.yradius[] for peak in cluster)
+        lims = ((minimum(all_x) - padding * max_xr, maximum(all_x) + padding * max_xr),
+                (minimum(all_y) - padding * max_yr, maximum(all_y) + padding * max_yr))
+
+        # Build a filename from peak labels (truncate if very long)
+        raw = join([peak.label[] for peak in cluster], "-")
+        safe = replace(raw, r"[^\w\-]" => "_")
+        safe = length(safe) > 64 ? safe[1:64] : safe
+
+        # Always show only the first plane — avoids unwieldy grids for many-slice
+        # experiments (CEST, relaxation series, etc.)
+        fig = Figure(; size=(350, 350))
+        ax = Axis(fig[1, 1];
+                  xlabel=xlabel_str, ylabel=ylabel_str,
+                  xreversed=true, yreversed=true, limits=lims)
+        heatmap!(ax, expt.specdata.x[1], expt.specdata.y[1],
+                 expt.specdata.mask[][1];
+                 colormap=[:white, :lightgoldenrod1], colorrange=(0, 1))
+        contour!(ax, expt.specdata.x[1], expt.specdata.y[1],
+                 expt.specdata.z[1];
+                 levels=contourlevels, color=bicolours(:grey50, :lightblue))
+        contour!(ax, expt.specdata.x[1], expt.specdata.y[1],
+                 expt.specdata.zfit[][1];
+                 levels=contourlevels, color=bicolours(:orangered, :dodgerblue))
+        for peak in cluster
+            pt = Point2f(peak.parameters[:x].value[][1],
+                         peak.parameters[:y].value[][1])
+            scatter!(ax, [pt]; markersize=10, marker=:x, color=:black)
+            text!(ax, [pt]; text=[peak.label[]], fontsize=12,
+                  offset=(6, 0), align=(:left, :center), color=:black)
+        end
+
+        save(joinpath(folder, "cluster_$(safe).pdf"), fig)
     end
 
     return GLMakie.activate!()
+end
+
+"""
+    save_summary_plot!(expt, folder)
+
+Write `summary.pdf` to `folder` using the experiment's default summary parameter.
+Skipped when there are no peaks.
+"""
+function save_summary_plot!(expt, folder)
+    isempty(expt.peaks[]) && return
+    CairoMakie.activate!()
+    try
+        fig = summaryplot(expt)
+        save(joinpath(folder, "summary.pdf"), fig)
+    finally
+        GLMakie.activate!()
+    end
 end

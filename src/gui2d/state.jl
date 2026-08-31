@@ -4,6 +4,12 @@ function preparestate(expt::Experiment)
 
     state[:mode] = Observable(:normal) # options = :normal, :renaming, :renamingstart, :moving, :fitting
 
+    # Background-fit control. :fit_generation is bumped whenever the fit inputs change (peaks,
+    # radii, fitting toggled off, window closed); an in-flight fit checks it and aborts if it no
+    # longer matches the generation it started with. :fit_task holds the current fit task.
+    state[:fit_generation] = Observable(0)
+    state[:fit_task] = Observable{Union{Task,Nothing}}(nothing)
+
     state[:total_peaks] = Observable(length(expt.peaks[]))
 
     state[:current_slice] = Observable(1)
@@ -14,8 +20,11 @@ function preparestate(expt::Experiment)
     state[:current_mask_y] = Observable(expt.specdata.y[1])
     state[:current_mask_z] = Observable(expt.specdata.mask[][1])
     onany(expt.specdata.mask, state[:current_slice]) do m, idx
-        state[:current_mask_x].val = expt.specdata.x[idx]
-        state[:current_mask_y].val = expt.specdata.y[idx]
+        # Notify x/y as well as z: planes may have different axis sizes (e.g. rdc2d's separate
+        # spectra), so the contour/heatmap must resolve all three together or it sees a stale
+        # axis against a new-size matrix ("Incompatible input axes").
+        state[:current_mask_x][] = expt.specdata.x[idx]
+        state[:current_mask_y][] = expt.specdata.y[idx]
         state[:current_mask_z][] = m[idx]
     end
 
@@ -23,8 +32,8 @@ function preparestate(expt::Experiment)
     state[:current_spec_y] = Observable(expt.specdata.y[1])
     state[:current_spec_z] = Observable(expt.specdata.z[1])
     on(state[:current_slice]) do idx
-        state[:current_spec_x].val = expt.specdata.x[idx]
-        state[:current_spec_y].val = expt.specdata.y[idx]
+        state[:current_spec_x][] = expt.specdata.x[idx]
+        state[:current_spec_y][] = expt.specdata.y[idx]
         state[:current_spec_z][] = expt.specdata.z[idx]
     end
 
@@ -32,8 +41,8 @@ function preparestate(expt::Experiment)
     state[:current_fit_y] = Observable(expt.specdata.y[1])
     state[:current_fit_z] = Observable(expt.specdata.zfit[][1])
     onany(expt.specdata.zfit, state[:current_slice]) do zfit, idx
-        state[:current_fit_x].val = expt.specdata.x[idx]
-        state[:current_fit_y].val = expt.specdata.y[idx]
+        state[:current_fit_x][] = expt.specdata.x[idx]
+        state[:current_fit_y][] = expt.specdata.y[idx]
         state[:current_fit_z][] = zfit[idx]
     end
 
@@ -64,19 +73,26 @@ function preparestate(expt::Experiment)
     state[:labels] = Observable{Vector{String}}([])
     state[:oldlabel] = Observable("")
     state[:peakcolours] = Observable{Vector{Symbol}}([])
+    # Per-peak handle sizes; the selected/moused-over peak is enlarged for grab feedback. Kept
+    # in lockstep with peakcolours (set .val before positions notify) so lengths always match.
+    state[:initialpeaksizes] = Observable{Vector{Float64}}([])
     on(state[:current_peaks]) do d
         # onany(state[:current_peaks], state[:current_peak_idx]) do d, idx
         @debug "current peaks changed"
         idx = state[:current_peak_idx][]
         cols = map(t -> t ? :red : :blue, d[:touched])
+        sizes = fill(15.0, length(cols))
         if idx > 0
             cols[idx] = :lime
+            sizes[idx] = 24.0
         end
         state[:peakcolours].val = cols
+        state[:initialpeaksizes].val = sizes
         state[:labels].val = d[:labels]
         state[:positions][] = d[:positions]
         state[:initialpositions][] = d[:initialpositions]
         notify(state[:peakcolours])
+        notify(state[:initialpeaksizes])
         notify(state[:labels])
     end
 
@@ -84,14 +100,27 @@ function preparestate(expt::Experiment)
         @debug "current peak index changed to $idx - updating colours"
         d = state[:current_peaks][]
         cols = map(t -> t ? :red : :blue, d[:touched])
+        sizes = fill(15.0, length(cols))
         if idx > 0
             cols[idx] = :lime
+            sizes[idx] = 24.0
         end
-        state[:peakcolours][] = cols
+        state[:peakcolours].val = cols
+        state[:initialpeaksizes].val = sizes
+        notify(state[:initialpeaksizes])
+        notify(state[:peakcolours])
     end
 
-    state[:current_peak_info] = lift(idx -> peakinfotext(expt, idx),
-                                     state[:current_peak_idx])
+    # Depends on expt.peaks as well as the selection, so derived results (e.g. a titration's
+    # global Kd) refresh in the panel when a fit completes, not only on reselection.
+    state[:current_peak_info] = lift(state[:current_peak_idx], state[:mode],
+                                     expt.peaks) do idx, mode, _peaks
+        if mode == :adding
+            "Adding peak\n\n(a) mark this plane\n(space) fill remaining planes\n(esc) cancel"
+        else
+            peakinfotext(expt, idx)
+        end
+    end
 
     completestate!(state, expt)
 

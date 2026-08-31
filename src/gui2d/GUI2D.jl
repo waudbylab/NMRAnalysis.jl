@@ -9,6 +9,7 @@ using Measurements
 using NativeFileDialog
 using NMRTools
 using OrderedCollections
+using Statistics
 using ..MaybeVectorModule
 
 include("util.jl")
@@ -25,15 +26,21 @@ include("mouse.jl")
 include("keyboard.jl")
 include("files.jl")
 include("visualisation.jl")
+include("summary.jl")
 
 export MaybeVector, SingleElementVector, StandardVector
 # export gui!
 
 # export IntensityExperiment
-export intensities2d
+export fit2d
 export relaxation2d
 export recovery2d
 export modelfit2d
+
+# export MovingExperiment
+export peaktrack2d
+export rdc2d
+export titration2d
 
 # export HetNOEExperiment
 export hetnoe2d
@@ -46,5 +53,14 @@ export cpmg2d
 
 # export PREExperiment
 export pre2d
+
+# export CCRExperiment
+export ccr2d
+
+# methyl CCR (buildup/decay ratio, eq 7)
+export methylccr2d
+
+# results-summary plotting
+export summaryplot
 
 end

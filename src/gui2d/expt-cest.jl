@@ -63,6 +63,7 @@ end
 
 struct CESTVisualisation <: VisualisationStrategy end
 visualisationtype(::CESTExperiment) = CESTVisualisation()
+primaryparam(::CESTExperiment) = :R1
 
 """
     CESTExperiment(inputfilename)

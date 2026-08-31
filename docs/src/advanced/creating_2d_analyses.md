@@ -1,6 +1,6 @@
 # 2D Experiments
 
-An abstract type representing a type of experimental NMR analysis. The type system is split between fixed-peak experiments (where peak positions are constant between spectra) and moving-peak experiments (where peak positions can vary).
+An abstract type representing a type of experimental NMR analysis. The type system is split between fixed-peak experiments (where peak positions are constant between spectra) and peak-tracking experiments (where peak positions can vary).
 
 ## Required Fields
 

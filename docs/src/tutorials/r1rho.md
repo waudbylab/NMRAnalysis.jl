@@ -34,51 +34,54 @@ setupR1rhopowers("examples/calibration/1")
 This first analyses the calibration experiment and then prompts for spinlock strengths:
 
 ```
-[ Info: Analysing calibration by nutation on examples/calibration/1
 [ Info:  - Power level: 16.997737581326444 dB
 [ Info:  - Nutation frequency ν₁: 1010.6 ± 5.7 Hz
-[ Info:  - 90° pulse length: 247.4 ± 1.4 μs
+[ Info:  - 90° pulse length: 247.4 ± 1.4 µs
 [ Info:  - Decay rate: 327.0 ± 69.0 s⁻¹
 [ Info:  - B₁ inhomogeneity (R/2πν₁): 5.1 ± 1.1 %
 
-Input a list of spinlock strengths (in Hz) separated by commas, or press ENTER for a default list (100-15000 Hz):
->
-Using default spinlock strengths (in Hz):
+Input a list of spinlock strengths (in Hz) separated by commas, or press ENTER for a default list:
+> 
+Input minimum spinlock power (in Hz) [300 Hz]:
+> 
+Input maximum spinlock power (in Hz) [8000 Hz]:
+> 15000
+Using spinlock strengths (in Hz):
 [300, 500, 750, 1000, 1500, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000, 14000, 15000]
 
-WARNING - high spin-lock powers may cause damage to your probe!
-Check the spin-lock duration is within acceptable power limits.
-Maximum spin-lock strength will be 15000 Hz.
+WARNING - high spin-lock powers may cause damage to your probe! 
+Check the spin-lock duration is within acceptable power limits. 
+Maximum spin-lock strength will be 15000 Hz. 
 Type 'yes' to proceed. Do you want to proceed? (yes/no):
 
 > yes
 
 The list corresponds to the following spinlock strengths (Hz):
-[14000, 12000, 8000, 4000, 15000, 13000, 10000, 1000, 2000, 11000, 1500, 9000, 5000, 750, 3000, 300, 500, 6000, 7000]
+[7000, 13000, 12000, 11000, 14000, 750, 500, 300, 1500, 15000, 5000, 1000, 10000, 6000, 9000, 4000, 2000, 3000, 8000]
 
 Copy & paste the list provided between the dashed lines.
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-dB
--5.83
--4.49
--0.97
-5.05
--6.43
--5.19
--2.91
-17.09
-11.07
--3.74
-13.57
--2.00
-3.11
-19.59
-7.55
-27.55
-23.11
-1.53
-0.19
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+Watt
+0.9578239563
+3.3035152777
+2.8148295857
+2.3652387491
+3.8312958250
+0.0109954281
+0.0048868569
+0.0017592685
+0.0439817123
+4.3981712277
+0.4886856920
+0.0195474277
+1.9547427679
+0.7037073964
+1.5833416420
+0.3127588429
+0.0781897107
+0.1759268491
+1.2510353714
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
 ```
 
 #### Option B: Manual Input
@@ -97,7 +100,7 @@ You will be prompted to enter:
 
 - You may supply a custom list of spinlock strengths (in Hz), or use the default set provided.
 - For high spinlock powers (>10 kHz), a warning will be issued to verify that the spinlock duration remains within acceptable power limits.
-- The output is a list of calibrated spinlock powers (in dB) that can be copied directly into VALIST in TopSpin.
+- The output is a list of calibrated spinlock powers (in Watts) that can be copied directly into VALIST in TopSpin.
 - The list is shuffled to avoid systematic errors from sample heating.
 
 ![setupR1rhopowers](../assets/setupR1rhopowers.png)

@@ -22,9 +22,11 @@ struct IntensityExperiment <: FixedPeakExperiment
     x::Vector{Float64}
     model::FittingModel
     visualisation::VisualisationStrategy
+    skipplanes::Vector{Int}
 
     function IntensityExperiment(specdata, peaks, model, xvalues=nothing,
-                                 visualisation=CrossSectionVisualisation())
+                                 visualisation=CrossSectionVisualisation();
+                                 skipplanes=Int[])
         if isnothing(xvalues)
             xvalues = 1.0 * collect(1:length(specdata.z))
         end
@@ -35,7 +37,7 @@ struct IntensityExperiment <: FixedPeakExperiment
                    Observable(0.03; ignore_equal_values=true), # xradius
                    Observable(0.2; ignore_equal_values=true), # yradius
                    Observable{Dict}(),
-                   xvalues, model, visualisation)
+                   xvalues, model, visualisation, collect(Int, skipplanes))
         setupexptobservables!(expt)
         expt.state[] = preparestate(expt)
         return expt
@@ -44,12 +46,40 @@ end
 
 visualisationtype(expt::IntensityExperiment) = expt.visualisation
 
-"""
-    intensities2d(inputfilenames)
+# Primary derived parameter: amplitude when no model is fitted, the relaxation
+# rate :R for exponential/recovery fits, otherwise the first model parameter.
+function primaryparam(expt::IntensityExperiment)
+    expt.model isa NoFitting && return :amp
+    expt.model isa MethylCCRModel && return :S2tc  # derived order parameter × τc
+    names = Symbol.(expt.model.param_names)
+    return :R in names ? :R : first(names)
+end
 
-Create an intensity analysis experiment.
 """
-function intensities2d(inputfilenames)
+    fit2d(inputfilenames)
+
+Start an interactive GUI for peak analysis of a single 2D spectrum or a series of 2D
+spectra. Each peak is fitted to a 2D Lorentzian lineshape; no physical model is applied
+to the amplitudes across spectra.
+
+Use this function to measure peak positions, linewidths, and amplitudes for downstream
+analysis, or when none of the built-in physical models ([`relaxation2d`](@ref),
+[`recovery2d`](@ref), [`modelfit2d`](@ref)) are appropriate.
+
+# Arguments
+- `inputfilenames`: A single path string or vector of path strings pointing to processed
+  Bruker data directories (e.g. `"expno/pdata/1"`).
+
+# Example
+```julia
+# Single spectrum
+fit2d("109/pdata/1")
+
+# Series of spectra (e.g. titration or temperature series)
+fit2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"])
+```
+"""
+function fit2d(inputfilenames)
     specdata = preparespecdata(inputfilenames, IntensityExperiment)
     peaks = Observable(Vector{Peak}())
 
@@ -60,20 +90,56 @@ function intensities2d(inputfilenames)
     return gui!(expt)
 end
 
-intensities2d(exptno::Integer) = intensities2d(string(exptno))
-intensities2d(exptnos::AbstractVector{<:Integer}) = intensities2d(string.(exptnos))
+fit2d(exptno::Integer) = fit2d(string(exptno))
+fit2d(exptnos::AbstractVector{<:Integer}) = fit2d(string.(exptnos))
 
 """
-    relaxation2d(inputfilenames, relaxationtimes::Vector{Float64})
-    relaxation2d(inputfilenames, taufilename::String)
+    relaxation2d(inputfilenames, relaxationtimes; skipplanes=nothing)
 
-Create a relaxation analysis experiment. Data will be fitted to an exponential decay model.
+Start an interactive GUI for measuring R1 or R2 relaxation rates from a series of 2D
+spectra. Peak amplitudes are fitted to a mono-exponential decay:
+
+```math
+I(\\tau) = A \\exp(-R\\tau)
+```
+
+where ``R`` is the relaxation rate (s⁻¹) and ``A`` is the peak amplitude. The software
+does not distinguish R1 from R2 — the appropriate interpretation depends on the experiment.
+
+# Arguments
+- `inputfilenames`: Vector of path strings to processed Bruker data directories, one per
+  relaxation delay.
+- `relaxationtimes`: Vector of delay times in seconds, or a string giving a path to a
+  text file containing the delays (one per line; lines beginning with `#` are ignored).
+
+# Keyword Arguments
+- `skipplanes`: Optional list of plane indices (1-based) to exclude from the exponential
+  fit. All spectra are still loaded and displayed; skipped planes appear as open grey
+  markers in the peak plot and are not used when fitting R or A. The full list of
+  relaxation times must still be provided, including those for skipped planes.
+
+# Example
+```julia
+relaxation2d(
+    ["11/pdata/1", "12/pdata/1", "13/pdata/1", "14/pdata/1"],
+    [0.010, 0.030, 0.060, 0.100]
+)
+
+# Reading delays from a file
+relaxation2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"], "vclist.txt")
+
+# Omit the 3rd plane (e.g. corrupted or duplicate delay) from the fit
+relaxation2d(
+    ["11/pdata/1", "12/pdata/1", "13/pdata/1", "14/pdata/1"],
+    [0.010, 0.030, 0.060, 0.100];
+    skipplanes=[3]
+)
+```
 """
-function relaxation2d(inputfilenames, relaxationtimes)
+function relaxation2d(inputfilenames, relaxationtimes; skipplanes=nothing)
     specdata = preparespecdata(inputfilenames, IntensityExperiment)
     peaks = Observable(Vector{Peak}())
 
-    # First handle relaxation times
     tau = Float64[]
     if relaxationtimes isa String
         append!(tau, vec(readdlm(relaxationtimes; comments=true)))
@@ -87,13 +153,15 @@ function relaxation2d(inputfilenames, relaxationtimes)
         end
     end
 
-    # specdata.zlabels .= map(t -> "τ = $t", tau)
+    skip = isnothing(skipplanes) ? Int[] : collect(Int, skipplanes)
+    if !isempty(skip)
+        bad = filter(i -> i < 1 || i > length(tau), skip)
+        isempty(bad) ||
+            error("skipplanes indices out of range (got $bad for $(length(tau)) planes)")
+    end
 
-    expt = IntensityExperiment(specdata,
-                               peaks,
-                               ExponentialModel(),
-                               tau,
-                               ModelFitVisualisation())
+    expt = IntensityExperiment(specdata, peaks, ExponentialModel(), tau,
+                               ModelFitVisualisation(); skipplanes=skip)
 
     return gui!(expt)
 end
@@ -104,10 +172,34 @@ function relaxation2d(exptnos::AbstractVector{<:Integer}, relaxationtimes)
 end
 
 """
-    recovery2d(inputfilenames, relaxationtimes::Vector{Float64})
-    recovery2d(inputfilenames, taufilename::String)
+    recovery2d(inputfilenames, relaxationtimes)
 
-Create an intensity analysis experiment fitted to magnetisation recovery.
+Start an interactive GUI for measuring longitudinal relaxation from an inversion recovery
+or saturation recovery experiment. Peak amplitudes are fitted to a magnetisation recovery
+model:
+
+```math
+I(\\tau) = A\\left(1 - C\\exp(-R\\tau)\\right)
+```
+
+where ``R`` is the recovery rate (s⁻¹), ``A`` is the equilibrium amplitude, and ``C``
+is the recovery factor. For an ideal inversion recovery experiment ``C = 2``; for
+saturation recovery ``C = 1``.
+
+# Arguments
+- `inputfilenames`: A single path string (pseudo-3D dataset) or vector of path strings
+  (one file per delay) pointing to processed Bruker data directories.
+- `relaxationtimes`: Vector of delay times in seconds, or a string giving a path to a
+  text file containing the delays (one per line; lines beginning with `#` are ignored).
+
+# Example
+```julia
+t = [0.1, 0.2, 0.4, 0.7, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0]
+recovery2d("33/pdata/1", t)
+
+# Reading delays from a file
+recovery2d("33/pdata/1", "vdlist.txt")
+```
 """
 function recovery2d(inputfilenames, relaxationtimes)
     specdata = preparespecdata(inputfilenames, IntensityExperiment)
@@ -393,19 +485,24 @@ function experimentinfo(expt::IntensityExperiment)
             "Number of peaks: $(length(expt.peaks[]))",
             "Experiment title: $(expt.specdata.nmrdata[1][:title])"]
 
-    # Add model-specific information
     append!(info, model_info_text(expt.model, expt.x))
+
+    isempty(expt.skipplanes) ||
+        push!(info, "Skipped planes: $(join(expt.skipplanes, ", "))")
 
     return join(info, "\n")
 end
 
 get_model_xlabel(expt::IntensityExperiment) = expt.model.xlabel
-get_model_ylabel(::IntensityExperiment) = "Peak amplitude"
+function get_model_ylabel(expt::IntensityExperiment)
+    return expt.model isa MethylCCRModel ? "|Iₐ / I_b|" : "Peak amplitude"
+end
 
 function slicelabel(expt::IntensityExperiment, idx)
+    skipped = idx in expt.skipplanes ? " [skipped]" : ""
     if length(expt.specdata.zlabels) == 1
-        "Slice $idx of $(nslices(expt))"
+        "Slice $idx of $(nslices(expt))$skipped"
     else
-        "$(expt.specdata.zlabels[idx]) ($idx of $(nslices(expt)))"
+        "$(expt.specdata.zlabels[idx]) ($idx of $(nslices(expt)))$skipped"
     end
 end

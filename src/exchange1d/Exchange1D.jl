@@ -38,6 +38,8 @@ include("problem.jl")
 include("interface.jl")
 include("results.jl")
 
+export exchange1d
+
 # Registration with analysis system
 function __init__()
     rule = MultiFileRule(expts -> begin
