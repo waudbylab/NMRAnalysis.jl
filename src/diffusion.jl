@@ -34,6 +34,10 @@ function diffusion(experiment::String, coherence=SQ(H1))
     return diffusion(loadnmr(experiment), coherence)
 end
 
+function diffusion(exptno::Integer, coherence=SQ(H1))
+    return diffusion(string(exptno), coherence)
+end
+
 function diffusion(spec::NMRData{T,2}, coherence=SQ(H1)) where {T}
     spec = deepcopy(spec) # work on copy of the data
     label!(spec, "Diffusion")

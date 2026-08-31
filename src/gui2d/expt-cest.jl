@@ -20,6 +20,8 @@ function cest2d(inputfilename; B1, Tsat)
     return gui!(expt)
 end
 
+cest2d(exptno::Integer; B1, Tsat) = cest2d(string(exptno); B1=B1, Tsat=Tsat)
+
 """
     CESTExperiment <: FixedPeakExperiment
 

@@ -15,6 +15,10 @@ function pre2d(inputfilenames, paramagnetic_concs, expttype, Trelax)
     return gui!(expt)
 end
 
+function pre2d(exptnos::AbstractVector{<:Integer}, paramagnetic_concs, expttype, Trelax)
+    return pre2d(string.(exptnos), paramagnetic_concs, expttype, Trelax)
+end
+
 """
     PREExperiment
 

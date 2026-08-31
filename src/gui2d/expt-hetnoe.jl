@@ -24,6 +24,10 @@ function hetnoe2d(planefilenames, saturationlist)
     return gui!(expt)
 end
 
+function hetnoe2d(planeexptnos::AbstractVector{<:Integer}, saturationlist)
+    return hetnoe2d(string.(planeexptnos), saturationlist)
+end
+
 """
     HetNOEExperiment
 

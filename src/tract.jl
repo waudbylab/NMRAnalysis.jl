@@ -37,6 +37,10 @@ function tract(trosy::String, antitrosy::String)
                  loadnmr(antitrosy))
 end
 
+tract(trosy::Integer, antitrosy::Integer) = tract(string(trosy), string(antitrosy))
+tract(trosy::Integer, antitrosy::String) = tract(string(trosy), antitrosy)
+tract(trosy::String, antitrosy::Integer) = tract(trosy, string(antitrosy))
+
 function tract(trosy::NMRData{T,2}, antitrosy::NMRData{T,2}) where {T}
     # numerical constants
     μ0 = 4π * 1e-7

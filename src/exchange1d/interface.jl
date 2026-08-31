@@ -70,6 +70,14 @@ function exchange1d(directory::String="")
     return exchange1d(filenames)
 end
 
+function exchange1d(exptno::Integer)
+    return exchange1d(string(exptno))
+end
+
+function exchange1d(exptnos::AbstractVector{<:Integer})
+    return exchange1d(string.(exptnos))
+end
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Helper: short path for display
 # ═══════════════════════════════════════════════════════════════════════════

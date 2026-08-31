@@ -61,6 +61,14 @@ function r1rho(directory_path=""; minvSL=250, maxvSL=1e6, scalefactor=:automatic
     return r1rho(filenames; minvSL=minvSL, maxvSL=maxvSL, scalefactor=scalefactor)
 end
 
+function r1rho(exptno::Integer; kwargs...)
+    return r1rho(string(exptno); kwargs...)
+end
+
+function r1rho(exptnos::AbstractVector{<:Integer}; kwargs...)
+    return r1rho(string.(exptnos); kwargs...)
+end
+
 function r1rho(filenames::Vector{String}; minvSL=250, maxvSL=1e6, scalefactor=:automatic)
     if scalefactor == :automatic
         GLMakie.activate!(; focus_on_show=true, title="NMRAnalysis.jl: R1rho fitting")

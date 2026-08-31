@@ -12,6 +12,10 @@ Interactively select NMR experiment folders from a given directory path.
 # Returns
 - `Vector{String}`: Array of selected experiment folder paths. Returns empty array if no selection is made.
 """
+function select_expts(exptno::Integer; kwargs...)
+    return select_expts(string(exptno); kwargs...)
+end
+
 function select_expts(directory_path=""; experiment_type_filter="")
     if isempty(directory_path)
         directory_path = last_folder[]
