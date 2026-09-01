@@ -27,26 +27,35 @@ NMRAnalysis.jl is a Julia package for analysis of NMR experiments, specifically 
 - **Main module**: `src/NMRAnalysis.jl` - Entry point that includes and re-exports functionality
 - **GUI2D module**: `src/gui2d/` - 2D experiment analysis with interactive plotting
 - **R1rho module**: `src/R1rho/` - R1ρ relaxation dispersion experiments
-- **1D analysis functions**: Individual files for diffusion, TRACT, viscosity analysis
+- **Exchange1D module**: `src/exchange1d/` - 1D chemical exchange analysis (CEST, R1ρ on/off-resonance)
+  via Bloch-McConnell simulation
+- **MaybeVectorModule**: `src/maybevector/` - shared parameter-vector type used across GUI2D and Exchange1D
+- **1D analysis functions**: Individual files for diffusion, TRACT, calibration, viscosity analysis
 
 ### Core Components
 
 #### 1D Experiment Analysis
 - `diffusion()` - Diffusion coefficient analysis
+- `relaxation1d()` - R1/R2 relaxation analysis
 - `tract()` - TRACT (Temperature-Ramped Analysis of Conformational Transitions)
 - `r1rho()` - R1ρ relaxation dispersion analysis
+- `exchange1d()` - Chemical exchange analysis (CEST / R1ρ) via Bloch-McConnell simulation
 - `viscosity` - Viscosity calculations
 
 #### 2D Experiment Analysis
 All 2D functions are provided by the GUI2D module:
 - `fit2d()` - Peak analysis (positions, linewidths, amplitudes)
+- `peaktrack2d()` - Peak tracking across a series of spectra
+- `titration2d()` - Binding isotherms from a titration series
+- `rdc2d()` - Residual dipolar couplings
 - `relaxation2d()` - Relaxation parameter fitting
 - `recovery2d()` - Recovery experiments
 - `modelfit2d()` - Model fitting interface
 - `hetnoe2d()` - Heteronuclear NOE experiments
 - `cest2d()` - CEST (Chemical Exchange Saturation Transfer)
 - `cpmg2d()` - CPMG (Carr-Purcell-Meiboom-Gill) experiments
-- `pre2d()` - PRE (Paramagnetic Relaxation Enhancement)
+- `ccr2d()` - Cross-correlated relaxation
+- `methylccr2d()` - Methyl CCR (S²τc from buildup/decay series)
 
 ### Key Dependencies
 - **NMRTools.jl**: Core NMR data handling and processing
@@ -64,6 +73,9 @@ All 2D functions are provided by the GUI2D module:
 ### Module Organization
 - `GUI2D/` contains ~25 files organizing different aspects of 2D analysis
 - `R1rho/` contains ~10 files for R1ρ-specific analysis
+- `exchange1d/` contains the Bloch-McConnell simulation core, exchange models
+  (no-exchange, two-state, two/three-state binding), and the CEST/R1ρ experiment
+  types and fitting interface
 - Each module has its own state management, GUI, fitting, and experiment handling
 
 ### Data Flow
@@ -92,3 +104,8 @@ function_name(filenames::Vector{String}; options...)
 - Extensive validation of input parameters
 - Graceful handling of file selection cancellation
 - Informative error messages for common issues
+
+### Naming Conventions
+- Follow the Julia style guide: function names should be lowercase without underscores (e.g. `plot(results)`, not `plot_result(results)`)
+- Do NOT prefix private/internal functions with `_`. Just use unexported names.
+- Avoid underscores in function names entirely — use concatenated lowercase words (e.g. `combineplots`, `defaultparams`, `formatvalue`)

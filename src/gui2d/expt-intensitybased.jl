@@ -90,6 +90,9 @@ function fit2d(inputfilenames)
     return gui!(expt)
 end
 
+fit2d(exptno::Integer) = fit2d(string(exptno))
+fit2d(exptnos::AbstractVector{<:Integer}) = fit2d(string.(exptnos))
+
 """
     relaxation2d(inputfilenames, relaxationtimes; skipplanes=nothing)
 
@@ -163,6 +166,11 @@ function relaxation2d(inputfilenames, relaxationtimes; skipplanes=nothing)
     return gui!(expt)
 end
 
+relaxation2d(exptno::Integer, relaxationtimes) = relaxation2d(string(exptno), relaxationtimes)
+function relaxation2d(exptnos::AbstractVector{<:Integer}, relaxationtimes)
+    return relaxation2d(string.(exptnos), relaxationtimes)
+end
+
 """
     recovery2d(inputfilenames, relaxationtimes)
 
@@ -222,6 +230,11 @@ function recovery2d(inputfilenames, relaxationtimes)
     return gui!(expt)
 end
 
+recovery2d(exptno::Integer, relaxationtimes) = recovery2d(string(exptno), relaxationtimes)
+function recovery2d(exptnos::AbstractVector{<:Integer}, relaxationtimes)
+    return recovery2d(string.(exptnos), relaxationtimes)
+end
+
 """
     modelfit2d(inputfilenames, xvalues, equation, parameters)
 
@@ -271,6 +284,16 @@ function modelfit2d(inputfilenames, xvalues, modelfunction::String,
                                ModelFitVisualisation())
 
     return gui!(expt)
+end
+
+function modelfit2d(exptno::Integer, xvalues, modelfunction::String,
+                    parameters::Vector{Pair{String,Float64}}, xlabel="x")
+    return modelfit2d(string(exptno), xvalues, modelfunction, parameters, xlabel)
+end
+
+function modelfit2d(exptnos::AbstractVector{<:Integer}, xvalues, modelfunction::String,
+                    parameters::Vector{Pair{String,Float64}}, xlabel="x")
+    return modelfit2d(string.(exptnos), xvalues, modelfunction, parameters, xlabel)
 end
 
 # load the NMR data and prepare the SpecData object

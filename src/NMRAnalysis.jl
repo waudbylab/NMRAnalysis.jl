@@ -10,12 +10,16 @@ using Reexport
 using Statistics
 
 include("fileselection.jl")
+include("regions1d.jl")
 include("analyse.jl")
 include("viscosity.jl")
-include("calibration.jl")
+include("calibration1d.jl")
 include("diffusion.jl")
-include("relaxation.jl")
+include("relaxation1d.jl")
 include("tract.jl")
+
+include("maybevector/MaybeVector.jl")
+using .MaybeVectorModule
 
 include("gui2d/GUI2D.jl")
 using .GUI2D
@@ -26,24 +30,28 @@ include("precompile.jl")
 export analyse, register_analysis!, MultiFileRule
 export viscosity
 export diffusion
-export relaxation
+export relaxation1d
 export tract
 
 include("R1rho/R1rho.jl")
 using .R1rho
 
-@reexport using .GUI2D: MaybeVector
+include("exchange1d/Exchange1D.jl")
+using .Exchange1D
+
+@reexport using .MaybeVectorModule: MaybeVector, SingleElementVector, StandardVector
 @reexport using .GUI2D: fit2d, relaxation2d, recovery2d, modelfit2d # IntensityExperiment
 @reexport using .GUI2D: peaktrack2d, rdc2d, titration2d # MovingExperiment
 @reexport using .GUI2D: hetnoe2d # HetNOEExperiment
 @reexport using .GUI2D: cest2d # CESTExperiment
 @reexport using .GUI2D: cpmg2d # CPMGExperiment
-@reexport using .GUI2D: pre2d # PREExperiment
 @reexport using .GUI2D: ccr2d # CCRExperiment
 @reexport using .GUI2D: methylccr2d # methyl CCR (buildup/decay ratio)
 @reexport using .GUI2D: summaryplot
 
 @reexport using .R1rho: r1rho, setupR1rhopowers
+
+@reexport using .Exchange1D: exchange1d
 
 @info """
 NMRAnalysis.jl (v$(pkgversion(NMRAnalysis)))
@@ -56,13 +64,15 @@ NMRAnalysis.jl (v$(pkgversion(NMRAnalysis)))
 # Generic Analysis (alpha)
 
 - analyse(filename)
+- analyse([filename1, filename2, ...])
 
 # 1D Experiment Analysis Routines
 
-- relaxation([filename])
+- relaxation1d([filename])
 - diffusion([filename])
 - tract([trosy_filename, antitrosy_filename])
 - r1rho([directory_path]; minvSL=250, maxvSL=1e6, scalefactor=:automatic)
+- exchange1d([filenames]) - CEST / R1ρ chemical exchange analysis
 
 # 2D Experiment Analysis Routines
 

@@ -36,6 +36,10 @@ function cpmg2d(inputfilename; Trelax, vCPMG=nothing, ncyc=nothing)
     return gui!(expt)
 end
 
+function cpmg2d(exptno::Integer; Trelax, vCPMG=nothing, ncyc=nothing)
+    return cpmg2d(string(exptno); Trelax=Trelax, vCPMG=vCPMG, ncyc=ncyc)
+end
+
 """
     CPMGExperiment <: FixedPeakExperiment
 

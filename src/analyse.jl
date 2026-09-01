@@ -338,6 +338,21 @@ function analyse(filename::AbstractString; kwargs...)
     return analyse([filename]; kwargs...)
 end
 
+"""
+    analyse(exptno::Integer; kwargs...)
+    analyse(exptnos::AbstractVector{<:Integer}; kwargs...)
+
+Convenience wrappers allowing Bruker experiment numbers to be given directly,
+e.g. `analyse(14)` or `analyse([14, 15])`, instead of as strings.
+"""
+function analyse(exptno::Integer; kwargs...)
+    return analyse(string(exptno); kwargs...)
+end
+
+function analyse(exptnos::AbstractVector{<:Integer}; kwargs...)
+    return analyse(string.(exptnos); kwargs...)
+end
+
 # Get types_and_features from the parent NMRAnalysis module
 function _default_types_and_features(filename)
     return parentmodule(@__MODULE__).types_and_features(filename)

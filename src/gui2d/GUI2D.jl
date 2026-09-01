@@ -3,16 +3,16 @@ module GUI2D
 using CairoMakie
 using DelimitedFiles
 using GLMakie
-using LightGraphs
+using Graphs
 using LsqFit
 using Measurements
 using NativeFileDialog
 using NMRTools
 using OrderedCollections
 using Statistics
+using ..MaybeVectorModule
 
 include("util.jl")
-include("maybevector.jl")
 include("types.jl")
 include("parameters.jl")
 include("specdata.jl")
@@ -28,7 +28,7 @@ include("files.jl")
 include("visualisation.jl")
 include("summary.jl")
 
-export MaybeVector
+export MaybeVector, SingleElementVector, StandardVector
 # export gui!
 
 # export IntensityExperiment
@@ -50,9 +50,6 @@ export cest2d
 
 # export CPMGExperiment
 export cpmg2d
-
-# export PREExperiment
-export pre2d
 
 # export CCRExperiment
 export ccr2d

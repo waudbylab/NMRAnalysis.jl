@@ -26,4 +26,11 @@ docs/site/
 # environment.
 Manifest.toml
 
-out*/
+*out*/
+.claude/settings.local.json
+
+examples/exchange1d/trypsin_lig8/*/
+examples/exchange1d/trypsin_lig4/*/
+
+# my personal scratch area
+scratch/

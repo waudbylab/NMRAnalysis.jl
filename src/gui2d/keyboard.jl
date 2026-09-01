@@ -65,7 +65,7 @@ function process_keyboardbutton(expt, state, event)
         return Consume(false)
     elseif state[:mode][] == :renaming || state[:mode][] == :renamingstart
         if event.action == Keyboard.press && event.key == Keyboard.enter
-            state[:current_peak][].label[] = state[:current_peak][].label[][1:(end - 1)]
+            state[:current_peak][].label[] = strip(state[:current_peak][].label[][1:(end - 1)])
             state[:mode][] = :normal
             notify(expt.peaks)
             return Consume()

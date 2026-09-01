@@ -1,6 +1,6 @@
 # 1D Relaxation Analysis
 
-The relaxation analysis module in NMRAnalysis.jl provides a basic tool for analyzing R1 and R2 measurements, fitting either to an exponential decay:
+The relaxation analysis module in NMRAnalysis.jl provides a tool for analyzing R1 and R2 measurements, fitting either to an exponential decay:
 
 ```math
 I(\tau) = I_0 \exp\left(-R\tau\right)
@@ -12,108 +12,81 @@ or to an inversion-recovery model:
 I(\tau) = I_0 \cdot \left[1 - A \exp\left(-R\tau\right)\right]
 ```
 
-where ``I_0`` is the maximum intensity, ``R`` is the relaxation rate, and ``A`` is the amplitude of the recovery phase (if used).
+where ``I_0`` is the maximum intensity, ``R`` is the relaxation rate, and ``A`` is the amplitude of the recovery phase.
+
+## Required Annotations
+
+The relaxation analysis requires the following annotations in the experiment file:
+
+| Annotation | Description |
+|------------|-------------|
+| `relaxation.duration` | Array of relaxation delay times (in seconds) |
+| `relaxation.model` | Fitting model: `"exponential_decay"` or `"inversion_recovery"` |
+| `relaxation.type` | Type of relaxation measurement (e.g., `"R1"`, `"R2"`) |
+| `relaxation.channel` | Nucleus being measured (e.g., `"1H"`, `"19F"`) |
+
+The experiment must also have types including `"1d"` and `"relaxation"`, with features including either `"R1"` or `"R2"` for automatic dispatch via `analyse()`.
 
 ## Launching Relaxation Analysis
 
-Use `relaxation()` to launch the analysis of a relaxation experiment.
+### Automatic Dispatch
+
+The simplest way to analyze a relaxation experiment is using the `analyse()` function, which automatically detects the experiment type from annotations:
 
 ```julia
 using NMRAnalysis
 
-relaxation()                                    # prompt for experiment folder and experiment type
-relaxation("examples/relaxation/1")             # specify experiment folder, prompt for experiment type
-relaxation("examples/relaxation/2", ir=true)    # use inversion-recovery model
-relaxation("examples/relaxation/3",
-    [0.001, 0.002, 0.004, 0.006, 0.010, 0.015, 0.020, 0.030, 0.050],
-    ir=false)                                   # give relaxation times manually, use exponential fit
+analyse("path/to/experiment")  # auto-detects and runs appropriate analysis
 ```
 
-- If no folder is given, you will be prompted to enter a path
-- You can use the `ir=true/false` option to directly specify which model to use
-- You can provide a list of relaxation times - otherwise these will be parsed from a vclist or vdlist
+### Direct Call
+
+You can also call `relaxation1d()` directly:
+
+```julia
+relaxation1d("path/to/experiment")
+```
 
 ## Analysis Workflow
 
-### 1. Parameter Confirmation
+### 1. Region Selection
 
-When you launch the analysis, the program will parse the experiment parameters and ask you to confirm or correct them:
+When launched, the analysis displays the spectrum and prompts you to select integration and noise regions interactively. For inversion-recovery experiments, the last slice (where signal is most recovered) is shown; for exponential decay, the first slice is used.
 
-```
-Current directory: /Users/chris/git/NMRAnalysis.jl
+### 2. Fitting and Results
 
-Enter path to relaxation experiment (i.e. Bruker experiment folder): examples/relaxation/T2
-Enter 'IR' for inversion-recovery otherwise press ENTER: 
-```
-
-If a `vclist` file is used, you will be asked to specify the conversion factor to relaxation times:
+After region selection, the fit runs automatically. Results are displayed in the terminal:
 
 ```
-Found vclist in acqus. Please enter milliseconds per loop: 
+[ Info: Relaxation analysis results for /path/to/experiment:
+[ Info:  - R1 relaxation of 19F
+[ Info:  - Model: Inversion recovery
+[ Info:  - Integration region: -63.0 .. -62.5 ppm
+[ Info:  - Noise region: -67.25 .. -66.75 ppm
+[ Info:  - Fitted relaxation rate: 0.866 ± 0.025 s⁻¹
+[ Info:  - Fitted relaxation time: 1.154 ± 0.034 s
+[ Info:  - Inversion-recovery amplitude: 1.866 ± 0.025
 ```
 
-### 2. Integration Region Selection
-
-A spectrum plot will be displayed, and you'll be asked to define the integration region and noise estimation area:
-
-```
-Defining integration region - please enter first chemical shift: -61.6
-Defining integration region - please enter second chemical shift: -61.7
-Enter a chemical shift in the center of the noise region: -200
-```
-
-The program then displays the selected integration and noise regions for confirmation:
-
-### 3. Fitting and Results
-
-After pressing enter, the fit runs automatically. Results are displayed in the terminal while a fit plot is shown:
+A fit plot is also displayed:
 
 ![R2 Fit](../assets/R2-fit.png)
 
-```
-┌ Info: Relaxation results
-│ 
-│ Current directory: /Users/chris/git/NMRAnalysis.jl
-│ Experiment: examples/relaxation/T2/pdata/1
-│ 
-│ Integration region: -61.7 - -61.6 ppm
-│ Noise region: -200.05 - -199.95 ppm
-│ 
-│ Fitted relaxation rate: 2.415 ± 0.058 s⁻¹
-└ Fitted relaxation time: 0.4141 ± 0.0099 s
-```
-
-Fits to the inversion recovery model will also report the amplitude of the recovery phase.
+For inversion-recovery fits, the amplitude parameter is also reported:
 
 ![Inversion Recovery Fit](../assets/IR-fit.png)
 
-```
-┌ Info: Relaxation results
-│ 
-│ Current directory: /Users/chris/git/NMRAnalysis.jl
-│ Experiment: examples/relaxation/ir/pdata/1
-│ 
-│ Integration region: 1.0 - 2.0 ppm
-│ Noise region: -2.5 - -1.5 ppm
-│ 
-│ Fitted relaxation rate: 0.93 ± 0.071 s⁻¹
-│ Fitted relaxation time: 1.075 ± 0.082 s
-└ Inversion-recovery amplitude: 1.759 ± 0.059
-```
+### 3. Return Value
 
+The function returns a named tuple containing:
 
-
-### 4. Saving Results
-
-Finally, you can save the fit figure:
-
-```
-Enter a filename to save figure (press enter to skip): relaxation-fit.png
-Figure saved to relaxation-fit.png.
-```
-
-The file format is automatically chosen based on the extension (e.g., `.png` or `.pdf`).
-
+| Field | Description |
+|-------|-------------|
+| `rate` | Fitted relaxation rate (s⁻¹) with uncertainty |
+| `relaxation_time` | Fitted relaxation time (s) with uncertainty |
+| `type` | Relaxation type from annotations |
+| `nucleus` | Nucleus from annotations |
+| `plt` | The fit plot object |
 
 ## Noise Estimation
 
