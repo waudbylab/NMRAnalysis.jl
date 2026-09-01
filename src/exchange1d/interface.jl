@@ -355,11 +355,11 @@ function _prompt_params(p0::ComponentArray, prob::ExchangeProblem, fixed::Set{In
         items = _flatten_params_items(p0)
         labels = [_pretty_label(item, state_labels, fields) for item in items]
         maxlen = maximum(length, labels)
-        menu_items = [rpad(label, maxlen + 2) * "= " *
-                      _format_value(_displayvalue(item, p0)) *
-                      (item.flat_index in fixed ? "  [fixed]" : "")
-                      for (label, item) in zip(labels, items)]
-        push!(menu_items, "▶ Continue to fit")
+        menu_items = ["▶ Continue to fit"]
+        append!(menu_items, [rpad(label, maxlen + 2) * "= " *
+                             _format_value(_displayvalue(item, p0)) *
+                             (item.flat_index in fixed ? "  [fixed]" : "")
+                             for (label, item) in zip(labels, items)])
         push!(menu_items, "✕ Cancel")
 
         menu = RadioMenu(menu_items)
@@ -369,10 +369,10 @@ function _prompt_params(p0::ComponentArray, prob::ExchangeProblem, fixed::Set{In
         # cancel
         (choice == -1 || choice == length(menu_items)) && return nothing
         # continue
-        choice == length(menu_items) - 1 && break
+        choice == 1 && break
 
-        item = items[choice]
-        label = labels[choice]
+        item = items[choice - 1]
+        label = labels[choice - 1]
         statustag = item.flat_index in fixed ? " [fixed]" : ""
         print("  New value for $(label)$statustag [$(_format_value(_displayvalue(item, p0)))] " *
               "(or 'fix'/'free'): ")
