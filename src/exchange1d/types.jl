@@ -2,10 +2,23 @@ abstract type AbstractModel end
 
 abstract type AbstractExperiment end
 
-struct ExchangeProblem
+"""
+    ExchangeProblem
+
+A set of experiments to be fitted jointly to a shared exchange `model`.
+
+`integration` records the peak-picking parameters (`peakppm`, `noiseppm`,
+`ppmwidth`) used to integrate all experiments in the problem, as a
+`NamedTuple`, or `nothing` before `integrate!` has been called. Kept here
+(rather than discarded once used) so it can be saved alongside the fit
+results for traceability back to the source spectra.
+"""
+mutable struct ExchangeProblem
     experiments::Vector{AbstractExperiment}
     model::AbstractModel
+    integration::Union{Nothing,NamedTuple{(:peakppm, :noiseppm, :ppmwidth)}}
 end
+ExchangeProblem(experiments, model) = ExchangeProblem(experiments, model, nothing)
 
 """
     FitResult

@@ -751,6 +751,14 @@ function writeexperimentsummary(io::IO, prob::ExchangeProblem)
         println(io)
     end
 
+    if prob.integration !== nothing
+        println(io, "Integration parameters:")
+        println(io, "  Peak position: $(prob.integration.peakppm) ppm")
+        println(io, "  Noise position: $(prob.integration.noiseppm) ppm")
+        println(io, "  Integration width: $(prob.integration.ppmwidth) ppm")
+        println(io)
+    end
+
     for (i, expt) in enumerate(prob.experiments)
         println(io, "Experiment $i: $(short_expt_path(expt))")
         println(io, "  File: $(expt.spec[:filename])")
