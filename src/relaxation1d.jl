@@ -29,7 +29,8 @@ Required annotations:
 relaxation1d("path/to/experiment")
 ```
 """
-function relaxation1d(filename::String)
+function relaxation1d(filename)
+    filename = string(filename)
     ispath(filename) || throw(ArgumentError("No such file or directory: $filename"))
 
     spec = loadnmr(filename)

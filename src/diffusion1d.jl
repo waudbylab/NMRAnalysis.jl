@@ -1,7 +1,7 @@
 """
-    diffusion(coherence=SQ(H1))
-    diffusion(filename, coherence=SQ(H1))
-    diffusion(nmrdata, coherence=SQ(H1))
+    diffusion1d(coherence=SQ(H1))
+    diffusion1d(filename, coherence=SQ(H1))
+    diffusion1d(nmrdata, coherence=SQ(H1))
 
 Analyze NMR diffusion experiments by fitting signal decay to extract diffusion coefficients.
 
@@ -15,11 +15,11 @@ diffusion data to the Stejskal-Tanner equation to extract diffusion coefficients
 # Example
 
 ```julia
-diffusion()
-diffusion("path/to/experiment")
+diffusion1d()
+diffusion1d("path/to/experiment")
 ```
 """
-function diffusion(coherence=SQ(H1))
+function diffusion1d(coherence=SQ(H1))
     println("Current directory: $(pwd())")
     println()
 
@@ -27,18 +27,14 @@ function diffusion(coherence=SQ(H1))
     experiment = readline()
     ispath(experiment) || throw(SystemError("No such file or directory"))
 
-    return diffusion(experiment, coherence)
+    return diffusion1d(experiment, coherence)
 end
 
-function diffusion(experiment::String, coherence=SQ(H1))
-    return diffusion(loadnmr(experiment), coherence)
+function diffusion1d(filename, coherence=SQ(H1))
+    return diffusion1d(loadnmr(string(filename)), coherence)
 end
 
-function diffusion(exptno::Integer, coherence=SQ(H1))
-    return diffusion(string(exptno), coherence)
-end
-
-function diffusion(spec::NMRData{T,2}, coherence=SQ(H1)) where {T}
+function diffusion1d(spec::NMRData{T,2}, coherence=SQ(H1)) where {T}
     spec = deepcopy(spec) # work on copy of the data
     label!(spec, "Diffusion")
 

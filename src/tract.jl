@@ -32,14 +32,10 @@ function tract()
     return tract(trosy, antitrosy)
 end
 
-function tract(trosy::String, antitrosy::String)
-    return tract(loadnmr(trosy),
-                 loadnmr(antitrosy))
+function tract(trosy, antitrosy)
+    return tract(loadnmr(string(trosy)),
+                 loadnmr(string(antitrosy)))
 end
-
-tract(trosy::Integer, antitrosy::Integer) = tract(string(trosy), string(antitrosy))
-tract(trosy::Integer, antitrosy::String) = tract(string(trosy), antitrosy)
-tract(trosy::String, antitrosy::Integer) = tract(trosy, string(antitrosy))
 
 function tract(trosy::NMRData{T,2}, antitrosy::NMRData{T,2}) where {T}
     # numerical constants

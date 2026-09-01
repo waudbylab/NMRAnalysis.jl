@@ -79,7 +79,7 @@ Tutorials are available in the online documentation, including example data:
 
 3. **Get help** on any function:
    ```julia
-   ?diffusion    # Shows help for diffusion analysis
+   ?diffusion1d    # Shows help for diffusion analysis
    ?r1rho        # Shows help for R1ρ analysis
    ```
 
@@ -89,7 +89,7 @@ Some examples of analysing **1D experiments**:
 using NMRAnalysis
 
 # Diffusion analysis - analyzes DOSY experiments
-diffusion("106")  # Analyze experiment in folder "106"
+diffusion1d("106")  # Analyze experiment in folder "106"
 
 # TRACT analysis - for rotational correlation times
 tract()           # Prompt to select experiment folders
@@ -125,7 +125,7 @@ NMRAnalysis works with standard Bruker data formats:
 
 ```julia
 # Single experiment (TopSpin experiment number)
-diffusion("106")
+diffusion1d("106")
 
 # Multiple experiments
 r1rho(["11", "12", "13"])
@@ -134,7 +134,7 @@ r1rho(["11", "12", "13"])
 hetnoe2d(["reference/pdata/1", "saturated/pdata/1"], [false, true])
 
 # Full paths (if data is elsewhere)
-diffusion("/Users/chris/NMR/project_data/106")
+diffusion1d("/Users/chris/NMR/project_data/106")
 ```
 
 ## Documentation

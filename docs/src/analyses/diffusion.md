@@ -8,7 +8,7 @@ To launch the analysis of a diffusion experiment, specify the experiment folder 
 
 ```julia
 using NMRAnalysis
-diffusion("106")
+diffusion1d("106")
 ```
 
 If no folder is given, you will be prompted to enter a path.

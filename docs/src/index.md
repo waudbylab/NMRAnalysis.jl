@@ -16,7 +16,7 @@ Command-line tools for routine 1D experiments:
 
 | Function | Experiment |
 |----------|-----------|
-| [`diffusion()`](analyses/diffusion.md) | DOSY / diffusion coefficient measurement |
+| [`diffusion1d()`](analyses/diffusion.md) | DOSY / diffusion coefficient measurement |
 | [`relaxation1d()`](analyses/relaxation.md) | R1 and R2 relaxation (exponential or inversion-recovery fit) |
 | [`tract()`](analyses/tract.md) | TRACT experiment for rotational correlation time |
 | [`r1rho()`](analyses/r1rho.md) | ¹⁹F R1ρ relaxation dispersion |

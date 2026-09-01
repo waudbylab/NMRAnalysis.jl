@@ -14,7 +14,7 @@ include("regions1d.jl")
 include("analyse.jl")
 include("viscosity.jl")
 include("calibration1d.jl")
-include("diffusion.jl")
+include("diffusion1d.jl")
 include("relaxation1d.jl")
 include("tract.jl")
 
@@ -29,7 +29,7 @@ include("precompile.jl")
 
 export analyse, register_analysis!, MultiFileRule
 export viscosity
-export diffusion
+export diffusion1d
 export relaxation1d
 export tract
 
@@ -69,7 +69,7 @@ NMRAnalysis.jl (v$(pkgversion(NMRAnalysis)))
 # 1D Experiment Analysis Routines
 
 - relaxation1d([filename])
-- diffusion([filename])
+- diffusion1d([filename])
 - tract([trosy_filename, antitrosy_filename])
 - r1rho([directory_path]; minvSL=250, maxvSL=1e6, scalefactor=:automatic)
 - exchange1d([filenames]) - CEST / R1ρ chemical exchange analysis

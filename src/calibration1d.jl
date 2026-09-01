@@ -20,7 +20,7 @@ Optional annotations:
 - `calibration.offset`  : offset in ppm to select the observed signal
 """
 function analyse_1d_nutation(filename)
-    expt = loadnmr(filename)
+    expt = loadnmr(string(filename))
     hasannotations(expt) ||
         throw(ArgumentError("Experiment must have annotations for calibration"))
 

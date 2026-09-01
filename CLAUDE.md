@@ -35,7 +35,7 @@ NMRAnalysis.jl is a Julia package for analysis of NMR experiments, specifically 
 ### Core Components
 
 #### 1D Experiment Analysis
-- `diffusion()` - Diffusion coefficient analysis
+- `diffusion1d()` - Diffusion coefficient analysis
 - `relaxation1d()` - R1/R2 relaxation analysis
 - `tract()` - TRACT (Temperature-Ramped Analysis of Conformational Transitions)
 - `r1rho()` - R1ρ relaxation dispersion analysis
