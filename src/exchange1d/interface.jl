@@ -1,3 +1,18 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Console styling
+# ═══════════════════════════════════════════════════════════════════════════
+
+"""Bold, cyan section heading for a stage of the interactive workflow —
+consistent with the styling `FitResult`'s `show` method already uses for its
+own section titles."""
+sectionheader(msg::AbstractString) = printstyled(msg * "\n"; bold=true, color=:cyan)
+
+"""A quieter status line for routine progress/confirmation messages (e.g.
+per-file loading) that don't need `@info`'s logging prefix or full emphasis
+— `@info`/`@warn` are reserved here for things that genuinely need to stand
+out."""
+detail(msg::AbstractString) = printstyled(msg * "\n"; color=:light_black)
+
 """
     exchange1d(filenames::Vector{String})
 
@@ -15,28 +30,35 @@ Guides the user through:
 - `filenames`: Vector of paths to NMR experiment directories
 """
 function exchange1d(filenames::Vector{String})
-    @info "Exchange 1D analysis"
+    println()
+    sectionheader("Exchange 1D analysis")
+    println()
 
     # ── 1. Model selection ──────────────────────────────────────────────
     model = _prompt_model()
     model === nothing && return nothing
+    println()
 
     # ── 2. Build problem ────────────────────────────────────────────────
     prob = ExchangeProblem(filenames, model)
-    @info "Loaded $(length(prob.experiments)) experiments:"
+    println()
+    sectionheader("Loaded $(length(prob.experiments)) experiments:")
     for expt in prob.experiments
-        @info "  $(short_expt_path(expt)) ($(typeof(expt).name.name), $(expt.field_teslas) T)"
+        println("  $(short_expt_path(expt)) ($(typeof(expt).name.name), $(expt.field_teslas) T)")
     end
+    println()
 
     # ── 3. Molecule mapping (if model requires it) ──────────────────────
     if nmolecules(model) > 1
         ok = _prompt_moleculemap!(model, prob)
         ok || return nothing
         _prompt_concentrations!(model, prob)
+        println()
     end
 
     # ── 4. Integration ──────────────────────────────────────────────────
     _prompt_integration!(prob)
+    println()
 
     # ── 5. Parameters + fit loop ────────────────────────────────────────
     p0 = defaultparams(prob)
@@ -45,7 +67,8 @@ function exchange1d(filenames::Vector{String})
         p0 = _prompt_params(p0, prob, fixed)
         p0 === nothing && return nothing
 
-        @info "Fitting..."
+        println()
+        sectionheader("Fitting...")
         result = fit(prob, p0; fixed=fixed)
         display(result)
 
@@ -57,6 +80,7 @@ function exchange1d(filenames::Vector{String})
             _save_results(result)
             return result
         elseif action == :adjust
+            println()
             continue  # loop back to edit p0 (the initial parameters)
         else  # :quit
             return result
@@ -79,13 +103,20 @@ function exchange1d(exptnos::AbstractVector{<:Integer})
 end
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Helper: short path for display
+# Helper: experiment paths for display and reproducibility
 # ═══════════════════════════════════════════════════════════════════════════
 
+"""
+    experimentdirectory(expt::AbstractExperiment) -> String
+
+Full experiment directory (the parent of the `pdata/N` folder `spec[:filename]`
+points into) — i.e. the path that was, or could be, passed to `exchange1d`.
+"""
+experimentdirectory(expt::AbstractExperiment) = dirname(dirname(expt.spec[:filename]))
+
+"""Short `parent/number` form of `experimentdirectory(expt)`, for display."""
 function short_expt_path(expt::AbstractExperiment)
-    # spec[:filename] returns processed data path e.g. .../sophia_trypsin/34/pdata/1
-    # strip pdata/N suffix to get the experiment directory, then show parent/number
-    expt_dir = dirname(dirname(expt.spec[:filename]))
+    expt_dir = experimentdirectory(expt)
     parent_folder = basename(dirname(expt_dir))
     folder_num = basename(expt_dir)
     return joinpath(parent_folder, folder_num)
@@ -113,7 +144,7 @@ end
 
 function _prompt_model()
     model_types = _available_models()
-    instances = [T() for T in model_types]
+    instances = sort!([T() for T in model_types]; by=modelorder)
     names = [modelname(m) for m in instances]
     push!(names, "Cancel")
 
@@ -122,7 +153,7 @@ function _prompt_model()
     (choice == -1 || choice == length(names)) && return nothing
 
     model = instances[choice]
-    @info "Selected model: $(modelname(model))"
+    detail("Selected model: $(modelname(model))")
     return model
 end
 
@@ -133,22 +164,30 @@ end
 function _prompt_moleculemap!(model, prob::ExchangeProblem)
     roles = molecules(model)
 
-    # collect all unique sample molecule names across experiments
+    # collect all unique sample molecule names, and the concentration(s) at
+    # which each appears, across experiments
     all_names = String[]
+    concentrations = Dict{String,Vector{Float64}}()
     for expt in prob.experiments
-        for name in keys(sampleconcentrations(expt))
+        for (name, conc) in sampleconcentrations(expt)
             name in all_names || push!(all_names, name)
+            push!(get!(() -> Float64[], concentrations, name), conc)
         end
     end
     sort!(all_names)
 
     if isempty(all_names)
-        @info "No sample concentration metadata found in any experiment — " *
-              "enter a name and concentration for each molecule directly."
+        detail("No sample concentration metadata found in any experiment — " *
+               "enter a name and concentration for each molecule directly.")
         return _prompt_moleculemap_manual!(model, prob, roles)
     end
 
-    @info "Sample molecules: $(join(all_names, ", "))"
+    println()
+    sectionheader("Sample molecules:")
+    for name in all_names
+        println("  $name: $(_format_concrange(concentrations[name]))")
+    end
+    println()
 
     for (role, description) in roles
         options = copy(all_names)
@@ -157,7 +196,7 @@ function _prompt_moleculemap!(model, prob::ExchangeProblem)
         choice = request("Assign :$role ($description) to:", menu)
         (choice == -1 || choice == length(options)) && return false
         model.moleculemap[role] = all_names[choice]
-        @info "  :$role → $(all_names[choice])"
+        detail("  :$role → $(all_names[choice])")
     end
     return true
 end
@@ -181,7 +220,7 @@ function _prompt_moleculemap_manual!(model, prob::ExchangeProblem, roles)
             return v > 0 || error("Concentration must be positive")
         end
         model.concentrations[name] = conc
-        @info "  :$role → \"$name\" ($conc)"
+        detail("  :$role → \"$name\" ($conc)")
     end
     return true
 end
@@ -189,18 +228,35 @@ end
 """
     _prompt_concentrations!(model, prob::ExchangeProblem)
 
-For each molecule role required by `model`, check whether sample concentration
-metadata is available from any experiment. If not (e.g. no `:sample` metadata
-was found), prompt the user for a concentration value and store it in
-`model.concentrations`, which `modelconcentrations` falls back to.
+For each molecule role required by `model`, check whether every experiment
+carries sample concentration metadata for it. If some (or all) experiments
+lack it — e.g. because they weren't matched to a sample containing this
+molecule — prompt the user for a fallback concentration value and store it in
+`model.concentrations`, which `moleculeconcentration` (and hence
+`modelconcentrations`) falls back to for experiments missing metadata.
+
+Warning about a partial mismatch here, rather than only about a total one,
+is what turns a `KeyError` buried deep in the fit (see issue #36) into an
+actionable prompt at setup time.
 """
 function _prompt_concentrations!(model, prob::ExchangeProblem)
     for (role, description) in molecules(model)
         name = model.moleculemap[role]
         haskey(model.concentrations, name) && continue
-        any(expt -> haskey(sampleconcentrations(expt), name), prob.experiments) && continue
 
-        @info "No sample concentration found for \"$name\" ($description)"
+        unmatched = filter(expt -> !haskey(sampleconcentrations(expt), name),
+                           prob.experiments)
+        isempty(unmatched) && continue
+
+        if length(unmatched) < length(prob.experiments)
+            paths = join(short_expt_path.(unmatched), "\n  ")
+            @warn "\"$name\" ($description) is missing sample concentration metadata in " *
+                  "$(length(unmatched))/$(length(prob.experiments)) experiments — they are " *
+                  "not matched to a sample containing \"$name\":\n  $paths\n" *
+                  "Enter a fallback concentration to use for these experiments."
+        else
+            detail("No sample concentration found for \"$name\" ($description)")
+        end
         conc = _prompt_value("Concentration of $name", nothing) do v
             return v > 0 || error("Concentration must be positive")
         end
@@ -221,7 +277,7 @@ function _prompt_integration!(prob::ExchangeProblem)
     ppm_max = round(maximum(ppm_axis); digits=2)
     default_peak = round(spec[1, :offsetppm]; digits=2)
 
-    @info "Spectral range: $ppm_min to $ppm_max ppm"
+    detail("Spectral range: $ppm_min to $ppm_max ppm")
 
     peakppm = _prompt_value("Peak position in ppm", default_peak) do v
         return ppm_min ≤ v ≤ ppm_max ||
@@ -238,7 +294,7 @@ function _prompt_integration!(prob::ExchangeProblem)
                error("Noise region $lo..$hi ppm is outside spectral range ($ppm_min to $ppm_max)")
     end
 
-    @info "Integrating: peak=$peakppm ppm, noise=$noiseppm ppm, width=$ppmwidth ppm"
+    detail("Integrating: peak=$peakppm ppm, noise=$noiseppm ppm, width=$ppmwidth ppm")
     return integrate!(prob, peakppm, noiseppm, ppmwidth)
 end
 
@@ -289,34 +345,37 @@ function _prompt_params(p0::ComponentArray, prob::ExchangeProblem, fixed::Set{In
     state_labels = states(prob.model)
     fields = _unique_fields(prob.experiments)
 
-    @info """Parameter editor:
-        - select a parameter to view or edit its value
-        - type 'fix' instead of a value to freeze it at its current value (excluded from fitting)
-        - type 'free' to unfreeze a parameter previously fixed
-        - press Enter with no input to leave it unchanged"""
+    sectionheader("Parameter editor")
+    println("  - select a parameter to view or edit its value")
+    println("  - type 'fix' instead of a value to freeze it at its current value (excluded from fitting)")
+    println("  - type 'free' to unfreeze a parameter previously fixed")
+    println("  - press Enter with no input to leave it unchanged")
+    println()
 
     while true
         items = _flatten_params_items(p0)
         labels = [_pretty_label(item, state_labels, fields) for item in items]
         maxlen = maximum(length, labels)
-        menu_items = [rpad(label, maxlen + 2) * "= " *
-                      _format_value(_displayvalue(item, p0)) *
-                      (item.flat_index in fixed ? "  [fixed]" : "")
-                      for (label, item) in zip(labels, items)]
-        push!(menu_items, "▶ Continue to fit")
+        menu_items = ["▶ Continue to fit"]
+        append!(menu_items,
+                [rpad(label, maxlen + 2) * "= " *
+                 _format_value(_displayvalue(item, p0)) *
+                 (item.flat_index in fixed ? "  [fixed]" : "")
+                 for (label, item) in zip(labels, items)])
         push!(menu_items, "✕ Cancel")
 
         menu = RadioMenu(menu_items)
         choice = request("Review parameters (select to edit, 'fix'/'free' to lock, or continue):",
                          menu)
+        println()
 
         # cancel
         (choice == -1 || choice == length(menu_items)) && return nothing
         # continue
-        choice == length(menu_items) - 1 && break
+        choice == 1 && break
 
-        item = items[choice]
-        label = labels[choice]
+        item = items[choice - 1]
+        label = labels[choice - 1]
         statustag = item.flat_index in fixed ? " [fixed]" : ""
         print("  New value for $(label)$statustag [$(_format_value(_displayvalue(item, p0)))] " *
               "(or 'fix'/'free'): ")
@@ -495,7 +554,8 @@ const _PARAM_DISPLAY_NAMES = Dict("delta" => "δ",
                                   "koff" => "koff",
                                   "Kd" => "Kd",
                                   "R1_I0" => "I₀ (R₁)",
-                                  "R1_inv_factor" => "Inversion factor (R₁)")
+                                  "R1_inv_factor" => "Inversion factor (R₁)",
+                                  "CEST_I0" => "I₀ (CEST)")
 
 const _SECTION_TITLES = Dict("model" => "Exchange parameters",
                              "spin" => "Spin parameters",
@@ -515,6 +575,18 @@ function _format_field(field_teslas::Float64)
     s = string(round(field_teslas; digits=2))
     s = rstrip(rstrip(s, '0'), '.')
     return s * " T"
+end
+
+"""
+    _format_concrange(values::Vector{Float64}) -> String
+
+Format the concentration(s) at which a molecule appears across experiments:
+a single value if consistent, otherwise the range observed (which usually
+signals a titration series or inconsistently-entered sample metadata).
+"""
+function _format_concrange(values::Vector{Float64})
+    lo, hi = extrema(values)
+    return lo == hi ? string(lo) : "$lo to $hi (varies across experiments)"
 end
 
 """
@@ -618,6 +690,10 @@ function combineplots(plots)
             sp[axis].plotattributes[:guidefontsize] = 7
             sp[axis].plotattributes[:tickfontsize] = 6
         end
+
+        for series in sp.series_list
+            series[:markerstrokewidth] = 0.25
+        end
     end
 
     return plt
@@ -647,16 +723,25 @@ function _save_results(result::FitResult)
 
     outputfolder = input
     prepare_outputfolder(outputfolder)
+    saved = String[]
 
-    # save plots
+    # save per-experiment plots, combined into one grid figure
     plots = plot(result)
     plt = combineplots(plots)
     savefig(plt, joinpath(outputfolder, "exchange1d_fit.pdf"))
-    @info "Saved $(joinpath(outputfolder, "exchange1d_fit.pdf"))"
+    push!(saved, "exchange1d_fit.pdf")
 
     for (i, p) in enumerate(plots)
         savefig(p, joinpath(outputfolder, "exchange1d_expt_$i.pdf"))
-        @info "Saved $(joinpath(outputfolder, "exchange1d_expt_$i.pdf"))"
+        push!(saved, "exchange1d_expt_$i.pdf")
+    end
+
+    # save overlays of similar experiments as individual files only — not
+    # combined into a grid of their own (see combineplots)
+    overlays = overlayplots(result)
+    for (i, p) in enumerate(overlays)
+        savefig(p, joinpath(outputfolder, "exchange1d_overlay_$i.pdf"))
+        push!(saved, "exchange1d_overlay_$i.pdf")
     end
 
     # save parameters as text
@@ -664,7 +749,78 @@ function _save_results(result::FitResult)
     open(paramfile, "w") do io
         return show(io, MIME("text/plain"), result)
     end
-    @info "Saved $paramfile"
+    push!(saved, "exchange1d_params.txt")
 
+    # save data filenames, experiment parameters, and sample information
+    infofile = joinpath(outputfolder, "exchange1d_experiments.txt")
+    open(infofile, "w") do io
+        return writeexperimentsummary(io, result.prob)
+    end
+    push!(saved, "exchange1d_experiments.txt")
+
+    println()
+    sectionheader("Saved to $outputfolder:")
+    for name in saved
+        println("  $name")
+    end
+    println()
+
+    return nothing
+end
+
+"""
+    writeexperimentsummary(io::IO, prob::ExchangeProblem)
+
+Write a plain-text summary of the experiments underlying `prob`: the model,
+its molecule-to-sample mapping (if any), and — for each experiment — its
+source filename, key acquisition parameters (via `experimentinfo`), and
+sample concentrations. Saved alongside fit results by `_save_results` so an
+analysis can always be traced back to its source data (issue #37).
+"""
+function writeexperimentsummary(io::IO, prob::ExchangeProblem)
+    model = prob.model
+    println(io, "Exchange 1D — experiment summary")
+    println(io, "Model: $(modelname(model))")
+    println(io)
+
+    println(io, "Repeat with:")
+    paths = join((repr(experimentdirectory(expt)) for expt in prob.experiments), ", ")
+    println(io, "    exchange1d([$paths])")
+    println(io)
+
+    if nmolecules(model) > 1
+        println(io, "Molecule mapping:")
+        for (role, description) in molecules(model)
+            name = model.moleculemap[role]
+            fallback = get(model.concentrations, name, nothing)
+            suffix = fallback === nothing ? "" : " (fallback concentration: $fallback)"
+            println(io, "  :$role ($description) -> \"$name\"$suffix")
+        end
+        println(io)
+    end
+
+    if prob.integration !== nothing
+        println(io, "Integration parameters:")
+        println(io, "  Peak position: $(prob.integration.peakppm) ppm")
+        println(io, "  Noise position: $(prob.integration.noiseppm) ppm")
+        println(io, "  Integration width: $(prob.integration.ppmwidth) ppm")
+        println(io)
+    end
+
+    for (i, expt) in enumerate(prob.experiments)
+        println(io, "Experiment $i: $(short_expt_path(expt))")
+        println(io, "  File: $(expt.spec[:filename])")
+        for (key, value) in experimentinfo(expt)
+            println(io, "  $key: $value")
+        end
+        sc = sampleconcentrations(expt)
+        if !isempty(sc)
+            println(io, "  Sample concentrations:")
+            for name in sort!(collect(keys(sc)))
+                println(io, "    $name: $(sc[name])")
+            end
+        end
+        println(io)
+    end
     return nothing
 end

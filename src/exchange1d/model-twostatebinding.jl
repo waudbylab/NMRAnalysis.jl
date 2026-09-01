@@ -6,7 +6,8 @@ TwoStateBindingModel() = TwoStateBindingModel(Dict{Symbol,String}(), Dict{String
 TwoStateBindingModel(moleculemap::Dict{Symbol,String}) =
     TwoStateBindingModel(moleculemap, Dict{String,Float64}())
 
-modelname(::TwoStateBindingModel) = "Two-state binding"
+modelname(::TwoStateBindingModel) = "2-state binding (Kd, koff)"
+modelorder(::TwoStateBindingModel) = 4
 nstates(::TwoStateBindingModel) = 2
 states(::TwoStateBindingModel) = ["free", "bound"]
 nmolecules(::TwoStateBindingModel) = 2
@@ -51,12 +52,7 @@ to translate role symbols (:A, :X) to molecule names. Falls back to
 unavailable.
 """
 function modelconcentrations(model::TwoStateBindingModel, expt)
-    sc = sampleconcentrations(expt)
-    nameA = model.moleculemap[:A]
-    nameX = model.moleculemap[:X]
-    A0 = get(sc, nameA, nothing)
-    X0 = get(sc, nameX, nothing)
-    A0 === nothing && (A0 = model.concentrations[nameA])
-    X0 === nothing && (X0 = model.concentrations[nameX])
+    A0 = moleculeconcentration(model, expt, :A)
+    X0 = moleculeconcentration(model, expt, :X)
     return A0, X0
 end

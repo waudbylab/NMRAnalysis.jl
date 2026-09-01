@@ -10,7 +10,7 @@ struct R1rhoOnResExperiment <: AbstractExperiment
 end
 
 function R1rhoOnResExperiment(filename)
-    @info "Loading on-resonance R1rho experiment from $filename"
+    detail("Loading on-resonance R1rho experiment from $filename")
 
     spec = loadnmr(filename)
     hasannotations(spec) ||
@@ -105,27 +105,43 @@ function simulate!(expt::R1rhoOnResExperiment, model, params)
     end
 end
 
+"""
+    experimentinfo(expt::R1rhoOnResExperiment) -> Vector{Pair{String,String}}
+
+Acquisition parameters worth recording alongside a saved fit (see
+`_save_results`): field strength and spinlock strength range.
+"""
+function experimentinfo(expt::R1rhoOnResExperiment)
+    return ["Type" => "On-resonance R1ρ",
+            "Field" => _format_field(expt.field_teslas),
+            "Spinlock strengths" =>
+                "$(length(expt.νSL)) points, " *
+                "$(round(minimum(expt.νSL); digits=1)) to " *
+                "$(round(maximum(expt.νSL); digits=1)) Hz"]
+end
+
 function plot_result(expt::R1rhoOnResExperiment, fit_result; kwargs...)
     yobs = expt.observed_intensities
     ypred = expt.predicted_intensities
     x = expt.νSL
     sortidx = sortperm(x)
 
-    p1 = scatter(expt.νSL, yobs;
+    p1 = scatter(expt.νSL, yobs; ms=3,
                  xlabel="Spinlock strength / Hz",
                  ylabel="R₁ρ / s⁻¹",
                  title="On-resonance R₁ρ",
                  frame=:box, legend=nothing, grid=nothing, kwargs...)
-    plot!(p1, expt.νSL[sortidx], ypred[sortidx]; lw=2)
+    plot!(p1, expt.νSL[sortidx], ypred[sortidx]; lw=1.5)
+    hline!(p1, [0.0]; color=:black, lw=0.5, primary=false)
 
     wres = (Measurements.value.(yobs) .- ypred) ./ Measurements.uncertainty.(yobs)
-    p2 = scatter(expt.νSL, wres;
-                 xlabel="Spinlock strength / Hz",
-                 ylabel="Residual / σ",
-                 frame=:box, legend=nothing, grid=nothing, kwargs...)
+    p2 = plot(; xlabel="Spinlock strength / Hz",
+              ylabel="Residual / σ",
+              frame=:box, legend=nothing, grid=nothing, kwargs...)
     hspan!(p2, [-2, 2]; color=:limegreen, alpha=0.3, lw=0, la=0, primary=false)
     hspan!(p2, [-1, 1]; color=:limegreen, alpha=0.5, lw=0, la=0, primary=false)
     hline!(p2, [0]; color=:black, lw=0.5, primary=false)
+    scatter!(p2, expt.νSL, wres; ms=3)
     ylims!(p2, -maximum(abs, wres) * 1.2, maximum(abs, wres) * 1.2)
 
     return plot(p1, p2; layout=grid(2, 1; heights=[0.75, 0.25]))

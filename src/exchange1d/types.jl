@@ -1,11 +1,36 @@
 abstract type AbstractModel end
 
+"""
+    modelorder(model::AbstractModel) -> Int
+
+Sort key controlling where `model` appears in the model selection menu
+(lowest first). Defaults to placing a model without an explicit ordering
+after every model that has one, so a custom model added by a package
+extension (see `docs/src/advanced/extending_exchange1d.md`) still appears
+automatically without needing to touch this function — just define
+`modelorder` too if a particular position matters.
+"""
+modelorder(::AbstractModel) = typemax(Int)
+
 abstract type AbstractExperiment end
 
-struct ExchangeProblem
+"""
+    ExchangeProblem
+
+A set of experiments to be fitted jointly to a shared exchange `model`.
+
+`integration` records the peak-picking parameters (`peakppm`, `noiseppm`,
+`ppmwidth`) used to integrate all experiments in the problem, as a
+`NamedTuple`, or `nothing` before `integrate!` has been called. Kept here
+(rather than discarded once used) so it can be saved alongside the fit
+results for traceability back to the source spectra.
+"""
+mutable struct ExchangeProblem
     experiments::Vector{AbstractExperiment}
     model::AbstractModel
+    integration::Union{Nothing,NamedTuple{(:peakppm, :noiseppm, :ppmwidth)}}
 end
+ExchangeProblem(experiments, model) = ExchangeProblem(experiments, model, nothing)
 
 """
     FitResult

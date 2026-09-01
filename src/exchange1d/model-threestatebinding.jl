@@ -6,7 +6,8 @@ ThreeStateBindingModel() = ThreeStateBindingModel(Dict{Symbol,String}(), Dict{St
 ThreeStateBindingModel(moleculemap::Dict{Symbol,String}) =
     ThreeStateBindingModel(moleculemap, Dict{String,Float64}())
 
-modelname(::ThreeStateBindingModel) = "Three-state binding"
+modelname(::ThreeStateBindingModel) = "3-state binding (Kd1, koff1, Kd2, koff2)"
+modelorder(::ThreeStateBindingModel) = 5
 nstates(::ThreeStateBindingModel) = 3
 states(::ThreeStateBindingModel) = ["free", "bound1", "bound2"]
 nmolecules(::ThreeStateBindingModel) = 2
@@ -99,12 +100,7 @@ to translate role symbols (:A, :X) to molecule names. Falls back to
 unavailable.
 """
 function modelconcentrations(model::ThreeStateBindingModel, expt)
-    sc = sampleconcentrations(expt)
-    nameA = model.moleculemap[:A]
-    nameX = model.moleculemap[:X]
-    A0 = get(sc, nameA, nothing)
-    X0 = get(sc, nameX, nothing)
-    A0 === nothing && (A0 = model.concentrations[nameA])
-    X0 === nothing && (X0 = model.concentrations[nameX])
+    A0 = moleculeconcentration(model, expt, :A)
+    X0 = moleculeconcentration(model, expt, :X)
     return A0, X0
 end

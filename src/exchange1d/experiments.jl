@@ -26,7 +26,31 @@ function sampleconcentrations(spec::NMRData)
     end
     return result
 end
-sampleconcentrations(expt::AbstractExperiment) = sampleconcentrations(expt.spec)
+sampleconcentrations(expt::AbstractExperiment) = expt.sampleconcentrations
+
+"""
+    moleculeconcentration(model, expt::AbstractExperiment, role::Symbol) -> Float64
+
+Look up the concentration of the molecule assigned to `role` (e.g. `:A`, `:X`)
+for `expt`: first from the experiment's own sample metadata, falling back to
+`model.concentrations` (populated interactively when metadata is missing).
+
+Raises an informative `ArgumentError` naming the molecule, its role, and the
+experiment when neither source has a value — e.g. because only some of the
+loaded experiments were matched to a sample containing this molecule — rather
+than letting a bare `KeyError` propagate from deep inside the fitting or
+plotting code.
+"""
+function moleculeconcentration(model, expt::AbstractExperiment, role::Symbol)
+    name = model.moleculemap[role]
+    sc = sampleconcentrations(expt)
+    haskey(sc, name) && return sc[name]
+    haskey(model.concentrations, name) && return model.concentrations[name]
+    throw(ArgumentError("No concentration found for molecule \"$name\" (:$role) in " *
+                        "experiment $(short_expt_path(expt)) — its sample metadata does " *
+                        "not include \"$name\", and no fallback concentration was entered. " *
+                        "Check that this experiment is matched to the correct sample."))
+end
 
 """
     field_label(expt) -> Symbol

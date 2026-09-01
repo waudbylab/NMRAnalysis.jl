@@ -18,7 +18,7 @@ struct CESTExperiment <: AbstractExperiment
 end
 
 function CESTExperiment(filename)
-    @info "Loading CEST experiment from $filename"
+    detail("Loading CEST experiment from $filename")
 
     spec = loadnmr(filename)
     hasannotations(spec) ||
@@ -67,13 +67,14 @@ end
 """
     default_nuisance_params(expt::CESTExperiment) -> Vector{Pair{Symbol,Any}}
 
-Return flat nuisance parameter entries for this CEST experiment, tagged with
-the experiment type and field, e.g. `:CEST_14p1T_I0`.
+Return flat nuisance parameter entries for this CEST experiment: an overall
+intensity scale `I0`, tagged with the experiment type and field, e.g.
+`:CEST_14p1T_I0`. Shared across all CEST experiments at the same field —
+see `simulate!`.
 """
 function default_nuisance_params(expt::CESTExperiment)
-    # tag = Symbol("CEST_", field_label(expt))
-    # return [Symbol(tag, "_I0") => 1.0]
-    return Pair{Symbol,Any}[]
+    tag = Symbol("CEST_", field_label(expt))
+    return [Symbol(tag, "_I0") => 1.0]
 end
 
 function integrate!(expt::CESTExperiment, peakppm, noiseppm, ppmwidth)
@@ -99,6 +100,13 @@ function integrate!(expt::CESTExperiment, peakppm, noiseppm, ppmwidth)
     return expt.observed_intensities .= integrals .± noise
 end
 
+"""
+    simulate!(expt::CESTExperiment, model, params)
+
+Simulate the CEST saturation profile, then scale it by the fitted `I0`
+intensity (`params.nuisance.CEST_<field>_I0`) to match the observed,
+integration-normalised intensities.
+"""
 function simulate!(expt::CESTExperiment, model, params)
     n = length(expt.δsat)
     N = nstates(model)
@@ -115,17 +123,43 @@ function simulate!(expt::CESTExperiment, model, params)
         M = exp(L * T) * M0
         expt.predicted_intensities[i] = sum(M[3:3:end])  # sum of Mz across states
     end
-    scale = expt.predicted_intensities \ Measurements.value.(expt.observed_intensities)
-    return expt.predicted_intensities .*= scale
+
+    tag = Symbol("CEST_", field_label(expt))
+    I0 = params.nuisance[Symbol(tag, "_I0")]
+    return expt.predicted_intensities .*= I0
+end
+
+"""
+    experimentinfo(expt::CESTExperiment) -> Vector{Pair{String,String}}
+
+Acquisition parameters worth recording alongside a saved fit (see
+`_save_results`): saturation field strength, saturation time, and the
+saturation offset range.
+"""
+function experimentinfo(expt::CESTExperiment)
+    return ["Type" => "CEST",
+            "Field" => _format_field(expt.field_teslas),
+            "Saturation power (ν1)" => "$(round(expt.ν1; digits=1)) Hz",
+            "Saturation time" => "$(round(expt.saturation_time * 1000; digits=1)) ms",
+            "Saturation offsets" =>
+                "$(length(expt.δsat)) points, " *
+                "$(round(minimum(expt.δsat); digits=3)) to " *
+                "$(round(maximum(expt.δsat); digits=3)) ppm"]
 end
 
 function plot_result(expt::CESTExperiment, fit_result; kwargs...)
     x = expt.δsat
-    yobs = expt.observed_intensities
-    ypred = expt.predicted_intensities
+    sortidx = sortperm(x)  # saturation offsets may not be acquired in order
 
     params = fit_result.params
     params_value = fit_result.params_value
+
+    # normalise by the fitted I0 so the baseline sits at 1.0, rather than at
+    # whatever the single noisiest data point happened to integrate to
+    tag = Symbol("CEST_", field_label(expt))
+    I0 = params_value.nuisance[Symbol(tag, "_I0")]
+    yobs = expt.observed_intensities ./ I0
+    ypred = expt.predicted_intensities ./ I0
 
     p1 = plot(; frame=:box, legend=nothing,
               #   xlabel="Saturation frequency (ppm)",
@@ -135,10 +169,11 @@ function plot_result(expt::CESTExperiment, fit_result; kwargs...)
               kwargs...,
               xflip=true)
 
-    scatter!(p1, x, yobs; label="observed", ms=3)
-    plot!(p1, x, ypred; label="fit")
-    vline!(p1, params_value.spin.delta; ls=:dash, label="peak positions")
-    hline!(p1, [0.0]; primary=false, color=:black, lw=0.5)
+    scatter!(p1, x[sortidx], yobs[sortidx]; label="observed", ms=3, c=1)
+    plot!(p1, x[sortidx], ypred[sortidx]; label="fit", lw=1.5, c=2)
+    hline!(p1, [0.0]; primary=false, color=:black, lw=0.5, z_order=:back)
+    vline!(p1, params_value.spin.delta; ls=:dash, label="peak positions", c=3,
+           primary=false, z_order=:back)
 
     p2 = plot(; frame=:box,
               xlabel="Saturation frequency (ppm)",
@@ -152,8 +187,9 @@ function plot_result(expt::CESTExperiment, fit_result; kwargs...)
     hspan!(p2, [-2, 2]; color=:limegreen, alpha=0.3, lw=0, la=0, primary=false)
     hspan!(p2, [-1, 1]; color=:limegreen, alpha=0.5, lw=0, la=0, primary=false)
     hline!(p2, [0]; color=:black, lw=0.5, primary=false)
-    scatter!(p2, x, wres; ms=3)
-    vline!(p2, params_value.spin.delta; ls=:dash, label="peak positions", c=3)
+    scatter!(p2, x[sortidx], wres[sortidx]; ms=3, c=1)
+    vline!(p2, params_value.spin.delta; ls=:dash, label="peak positions", c=3,
+           primary=false, z_order=:back)
     ylims!(p2, -maximum(abs, wres) * 1.2, maximum(abs, wres) * 1.2)
 
     plt = plot(p1, p2; layout=grid(2, 1; heights=[0.75, 0.25]), link=:x)

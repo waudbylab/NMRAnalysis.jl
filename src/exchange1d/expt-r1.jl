@@ -9,7 +9,7 @@ struct R1Experiment <: AbstractExperiment
 end
 
 function R1Experiment(filename)
-    @info "Loading R1 experiment from $filename"
+    detail("Loading R1 experiment from $filename")
 
     spec = loadnmr(filename)
     hasannotations(spec) ||
@@ -118,6 +118,21 @@ function simulate!(expt::R1Experiment, ::AbstractModel, params::ComponentArray)
 end
 
 """
+    experimentinfo(expt::R1Experiment) -> Vector{Pair{String,String}}
+
+Acquisition parameters worth recording alongside a saved fit (see
+`_save_results`): field strength, fitting model, and relaxation delay range.
+"""
+function experimentinfo(expt::R1Experiment)
+    return ["Type" => "R1 relaxation",
+            "Field" => _format_field(expt.field_teslas),
+            "Fitting model" => string(expt.fitting_model),
+            "Delays" => "$(length(expt.delays)) points, " *
+                        "$(round(minimum(expt.delays); digits=3)) to " *
+                        "$(round(maximum(expt.delays); digits=3)) s"]
+end
+
+"""
     plot_result(expt::R1Experiment, params; kwargs...)
 
 Plot an R1 experiment with observed data (error bars), fitted curve, and residuals.
@@ -161,7 +176,7 @@ function plot_result(expt::R1Experiment, fit_result; kwargs...)
                  grid=nothing,
                  kwargs...)
     plot!(p1, x, yfit;
-          label="fit")
+          label="fit", lw=1.5)
     hline!(p1, [0]; color=:black, lw=0.5, primary=false)
 
     # lower panel: residuals

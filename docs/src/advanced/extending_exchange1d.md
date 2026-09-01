@@ -89,6 +89,14 @@ Display name shown in the model selection menu.
 modelname(::YourModel) = "Your exchange model"
 ```
 
+#### `modelorder(::YourModel) -> Int` (optional)
+
+Sort key controlling where `YourModel` appears in the model selection menu (lowest first). Optional — a model without it sorts after every model that does define one, so this can be skipped unless a particular position matters.
+
+```julia
+modelorder(::YourModel) = 6
+```
+
 #### `nstates(::YourModel) -> Int`
 
 Number of exchanging states.

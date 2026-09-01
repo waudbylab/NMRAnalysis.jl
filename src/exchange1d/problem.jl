@@ -1,12 +1,15 @@
 """
     integrate!(prob::ExchangeProblem, peakppm, noiseppm, ppmwidth)
 
-Integrate all experiments in the problem at the given peak and noise positions.
+Integrate all experiments in the problem at the given peak and noise
+positions, and record them on `prob.integration` for later reference (e.g.
+when saving results).
 """
 function integrate!(prob::ExchangeProblem, peakppm, noiseppm, ppmwidth)
     for expt in prob.experiments
         integrate!(expt, peakppm, noiseppm, ppmwidth)
     end
+    prob.integration = (; peakppm, noiseppm, ppmwidth)
     return nothing
 end
 
