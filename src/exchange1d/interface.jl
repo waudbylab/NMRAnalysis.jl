@@ -50,7 +50,10 @@ function exchange1d(filenames::Vector{String})
         display(result)
 
         plots = plot(result)
-        display(combineplots(vcat(plots, overlayplots(prob))))
+        display(combineplots(plots))
+
+        overlays = overlayplots(result)
+        isempty(overlays) || display(combineplots(overlays))
 
         action = _prompt_after_fit()
         if action == :save
@@ -655,10 +658,12 @@ function combineplots(plots)
         # marker/line sizes are in absolute points, not scaled to subplot
         # size, so combining many full-size plots into a shrunk grid makes
         # points and lines look huge relative to the (now much smaller)
-        # subplot — scale them down to match the reduced font sizes
+        # subplot — scale them down to match the reduced font sizes. The
+        # stroke outline in particular needs to be well below the marker
+        # radius or small markers turn into solid blobs.
         for series in sp.series_list
-            series[:markersize] = min(series[:markersize], 2)
-            series[:markerstrokewidth] = min(series[:markerstrokewidth], 0.5)
+            series[:markersize] = min(series[:markersize], 1.5)
+            series[:markerstrokewidth] = min(series[:markerstrokewidth], 0.25)
             series[:linewidth] = min(series[:linewidth], 1)
         end
     end
@@ -691,10 +696,9 @@ function _save_results(result::FitResult)
     outputfolder = input
     prepare_outputfolder(outputfolder)
 
-    # save plots (per-experiment plus overlays of similar experiments)
+    # save per-experiment plots, combined into one grid figure
     plots = plot(result)
-    overlays = overlayplots(result.prob)
-    plt = combineplots(vcat(plots, overlays))
+    plt = combineplots(plots)
     savefig(plt, joinpath(outputfolder, "exchange1d_fit.pdf"))
     @info "Saved $(joinpath(outputfolder, "exchange1d_fit.pdf"))"
 
@@ -703,9 +707,18 @@ function _save_results(result::FitResult)
         @info "Saved $(joinpath(outputfolder, "exchange1d_expt_$i.pdf"))"
     end
 
-    for (i, p) in enumerate(overlays)
-        savefig(p, joinpath(outputfolder, "exchange1d_overlay_$i.pdf"))
-        @info "Saved $(joinpath(outputfolder, "exchange1d_overlay_$i.pdf"))"
+    # save overlays of similar experiments separately, so the per-experiment
+    # grid above doesn't grow denser (and less legible) as they're added
+    overlays = overlayplots(result)
+    if !isempty(overlays)
+        overlayplt = combineplots(overlays)
+        savefig(overlayplt, joinpath(outputfolder, "exchange1d_overlay.pdf"))
+        @info "Saved $(joinpath(outputfolder, "exchange1d_overlay.pdf"))"
+
+        for (i, p) in enumerate(overlays)
+            savefig(p, joinpath(outputfolder, "exchange1d_overlay_$i.pdf"))
+            @info "Saved $(joinpath(outputfolder, "exchange1d_overlay_$i.pdf"))"
+        end
     end
 
     # save parameters as text
