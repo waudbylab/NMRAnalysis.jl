@@ -108,6 +108,21 @@ function simulate!(expt::R1rhoOffResExperiment, model, params)
     end
 end
 
+"""
+    experimentinfo(expt::R1rhoOffResExperiment) -> Vector{Pair{String,String}}
+
+Acquisition parameters worth recording alongside a saved fit (see
+`_save_results`): field strength, spinlock strength, and offset range.
+"""
+function experimentinfo(expt::R1rhoOffResExperiment)
+    return ["Type" => "Off-resonance R1ρ",
+            "Field" => _format_field(expt.field_teslas),
+            "Spinlock strength" => "$(round(expt.νSL; digits=1)) Hz",
+            "Offsets" => "$(length(expt.offsets_ppm)) points, " *
+                         "$(round(minimum(expt.offsets_ppm); digits=3)) to " *
+                         "$(round(maximum(expt.offsets_ppm); digits=3)) ppm"]
+end
+
 function plot_result(expt::R1rhoOffResExperiment, fit_result; kwargs...)
     yobs = expt.observed_intensities
     ypred = expt.predicted_intensities

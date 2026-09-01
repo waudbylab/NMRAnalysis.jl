@@ -105,6 +105,20 @@ function simulate!(expt::R1rhoOnResExperiment, model, params)
     end
 end
 
+"""
+    experimentinfo(expt::R1rhoOnResExperiment) -> Vector{Pair{String,String}}
+
+Acquisition parameters worth recording alongside a saved fit (see
+`_save_results`): field strength and spinlock strength range.
+"""
+function experimentinfo(expt::R1rhoOnResExperiment)
+    return ["Type" => "On-resonance R1ρ",
+            "Field" => _format_field(expt.field_teslas),
+            "Spinlock strengths" => "$(length(expt.νSL)) points, " *
+                                    "$(round(minimum(expt.νSL); digits=1)) to " *
+                                    "$(round(maximum(expt.νSL); digits=1)) Hz"]
+end
+
 function plot_result(expt::R1rhoOnResExperiment, fit_result; kwargs...)
     yobs = expt.observed_intensities
     ypred = expt.predicted_intensities

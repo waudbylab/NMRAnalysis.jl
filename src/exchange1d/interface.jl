@@ -50,7 +50,7 @@ function exchange1d(filenames::Vector{String})
         display(result)
 
         plots = plot(result)
-        display(combineplots(plots))
+        display(combineplots(vcat(plots, overlayplots(prob))))
 
         action = _prompt_after_fit()
         if action == :save
@@ -133,11 +133,14 @@ end
 function _prompt_moleculemap!(model, prob::ExchangeProblem)
     roles = molecules(model)
 
-    # collect all unique sample molecule names across experiments
+    # collect all unique sample molecule names, and the concentration(s) at
+    # which each appears, across experiments
     all_names = String[]
+    concentrations = Dict{String,Vector{Float64}}()
     for expt in prob.experiments
-        for name in keys(sampleconcentrations(expt))
+        for (name, conc) in sampleconcentrations(expt)
             name in all_names || push!(all_names, name)
+            push!(get!(() -> Float64[], concentrations, name), conc)
         end
     end
     sort!(all_names)
@@ -148,7 +151,9 @@ function _prompt_moleculemap!(model, prob::ExchangeProblem)
         return _prompt_moleculemap_manual!(model, prob, roles)
     end
 
-    @info "Sample molecules: $(join(all_names, ", "))"
+    @info "Sample molecules:\n" *
+          join(("  $name: $(_format_concrange(concentrations[name]))" for name in all_names),
+               "\n")
 
     for (role, description) in roles
         options = copy(all_names)
@@ -189,18 +194,34 @@ end
 """
     _prompt_concentrations!(model, prob::ExchangeProblem)
 
-For each molecule role required by `model`, check whether sample concentration
-metadata is available from any experiment. If not (e.g. no `:sample` metadata
-was found), prompt the user for a concentration value and store it in
-`model.concentrations`, which `modelconcentrations` falls back to.
+For each molecule role required by `model`, check whether every experiment
+carries sample concentration metadata for it. If some (or all) experiments
+lack it — e.g. because they weren't matched to a sample containing this
+molecule — prompt the user for a fallback concentration value and store it in
+`model.concentrations`, which `moleculeconcentration` (and hence
+`modelconcentrations`) falls back to for experiments missing metadata.
+
+Warning about a partial mismatch here, rather than only about a total one,
+is what turns a `KeyError` buried deep in the fit (see issue #36) into an
+actionable prompt at setup time.
 """
 function _prompt_concentrations!(model, prob::ExchangeProblem)
     for (role, description) in molecules(model)
         name = model.moleculemap[role]
         haskey(model.concentrations, name) && continue
-        any(expt -> haskey(sampleconcentrations(expt), name), prob.experiments) && continue
 
-        @info "No sample concentration found for \"$name\" ($description)"
+        unmatched = filter(expt -> !haskey(sampleconcentrations(expt), name), prob.experiments)
+        isempty(unmatched) && continue
+
+        if length(unmatched) < length(prob.experiments)
+            paths = join(short_expt_path.(unmatched), "\n  ")
+            @warn "\"$name\" ($description) is missing sample concentration metadata in " *
+                  "$(length(unmatched))/$(length(prob.experiments)) experiments — they are " *
+                  "not matched to a sample containing \"$name\":\n  $paths\n" *
+                  "Enter a fallback concentration to use for these experiments."
+        else
+            @info "No sample concentration found for \"$name\" ($description)"
+        end
         conc = _prompt_value("Concentration of $name", nothing) do v
             return v > 0 || error("Concentration must be positive")
         end
@@ -518,6 +539,18 @@ function _format_field(field_teslas::Float64)
 end
 
 """
+    _format_concrange(values::Vector{Float64}) -> String
+
+Format the concentration(s) at which a molecule appears across experiments:
+a single value if consistent, otherwise the range observed (which usually
+signals a titration series or inconsistently-entered sample metadata).
+"""
+function _format_concrange(values::Vector{Float64})
+    lo, hi = extrema(values)
+    return lo == hi ? string(lo) : "$lo to $hi (varies across experiments)"
+end
+
+"""
     _pretty_label(item, state_labels, unique_fields) -> String
 
 Convert an internal parameter label like `spin.R2_22p31T[1]` to a
@@ -618,6 +651,16 @@ function combineplots(plots)
             sp[axis].plotattributes[:guidefontsize] = 7
             sp[axis].plotattributes[:tickfontsize] = 6
         end
+
+        # marker/line sizes are in absolute points, not scaled to subplot
+        # size, so combining many full-size plots into a shrunk grid makes
+        # points and lines look huge relative to the (now much smaller)
+        # subplot — scale them down to match the reduced font sizes
+        for series in sp.series_list
+            series[:markersize] = min(series[:markersize], 2)
+            series[:markerstrokewidth] = min(series[:markerstrokewidth], 0.5)
+            series[:linewidth] = min(series[:linewidth], 1)
+        end
     end
 
     return plt
@@ -648,15 +691,21 @@ function _save_results(result::FitResult)
     outputfolder = input
     prepare_outputfolder(outputfolder)
 
-    # save plots
+    # save plots (per-experiment plus overlays of similar experiments)
     plots = plot(result)
-    plt = combineplots(plots)
+    overlays = overlayplots(result.prob)
+    plt = combineplots(vcat(plots, overlays))
     savefig(plt, joinpath(outputfolder, "exchange1d_fit.pdf"))
     @info "Saved $(joinpath(outputfolder, "exchange1d_fit.pdf"))"
 
     for (i, p) in enumerate(plots)
         savefig(p, joinpath(outputfolder, "exchange1d_expt_$i.pdf"))
         @info "Saved $(joinpath(outputfolder, "exchange1d_expt_$i.pdf"))"
+    end
+
+    for (i, p) in enumerate(overlays)
+        savefig(p, joinpath(outputfolder, "exchange1d_overlay_$i.pdf"))
+        @info "Saved $(joinpath(outputfolder, "exchange1d_overlay_$i.pdf"))"
     end
 
     # save parameters as text
@@ -666,5 +715,56 @@ function _save_results(result::FitResult)
     end
     @info "Saved $paramfile"
 
+    # save data filenames, experiment parameters, and sample information
+    infofile = joinpath(outputfolder, "exchange1d_experiments.txt")
+    open(infofile, "w") do io
+        return writeexperimentsummary(io, result.prob)
+    end
+    @info "Saved $infofile"
+
+    return nothing
+end
+
+"""
+    writeexperimentsummary(io::IO, prob::ExchangeProblem)
+
+Write a plain-text summary of the experiments underlying `prob`: the model,
+its molecule-to-sample mapping (if any), and — for each experiment — its
+source filename, key acquisition parameters (via `experimentinfo`), and
+sample concentrations. Saved alongside fit results by `_save_results` so an
+analysis can always be traced back to its source data (issue #37).
+"""
+function writeexperimentsummary(io::IO, prob::ExchangeProblem)
+    model = prob.model
+    println(io, "Exchange 1D — experiment summary")
+    println(io, "Model: $(modelname(model))")
+    println(io)
+
+    if nmolecules(model) > 1
+        println(io, "Molecule mapping:")
+        for (role, description) in molecules(model)
+            name = model.moleculemap[role]
+            fallback = get(model.concentrations, name, nothing)
+            suffix = fallback === nothing ? "" : " (fallback concentration: $fallback)"
+            println(io, "  :$role ($description) -> \"$name\"$suffix")
+        end
+        println(io)
+    end
+
+    for (i, expt) in enumerate(prob.experiments)
+        println(io, "Experiment $i: $(short_expt_path(expt))")
+        println(io, "  File: $(expt.spec[:filename])")
+        for (key, value) in experimentinfo(expt)
+            println(io, "  $key: $value")
+        end
+        sc = sampleconcentrations(expt)
+        if !isempty(sc)
+            println(io, "  Sample concentrations:")
+            for name in sort!(collect(keys(sc)))
+                println(io, "    $name: $(sc[name])")
+            end
+        end
+        println(io)
+    end
     return nothing
 end

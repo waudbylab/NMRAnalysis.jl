@@ -1,13 +1,15 @@
 using NMRAnalysis
 import NMRAnalysis.Exchange1D:
                                NoExchangeModel, TwoStateModel, TwoStateBindingModel,
+                               ThreeStateModel, ThreeStateBindingModel,
                                R1Experiment, CESTExperiment, ExchangeProblem,
                                nstates, modelname, nmolecules,
                                exchangematrix, populations, defaultparams,
                                default_spin_params, default_nuisance_params,
                                field_label, liouvillian, liouvillian_inhom,
                                AbstractExperiment,
-                               simulate!, residuals, fit
+                               simulate!, residuals, fit,
+                               sampleconcentrations, moleculeconcentration, experimentgroups
 using ComponentArrays
 using Measurements
 using Test
@@ -24,6 +26,13 @@ struct StubExperiment <: AbstractExperiment
     field_teslas::Float64
     spec::StubSpec
 end
+
+# Minimal spec stand-in for tests that need `short_expt_path` (via `expt.spec[:filename]`),
+# e.g. to check the wording of an error message.
+struct StubPathSpec
+    filename::String
+end
+Base.getindex(s::StubPathSpec, ::Symbol) = s.filename
 
 @testset "Exchange1D" begin
     @testset "field_label" begin
@@ -77,6 +86,59 @@ end
 
         @test defaultparams(model).logKd ≈ log(100.0)
         @test defaultparams(model).logkoff ≈ log(5000.0)
+    end
+
+    @testset "modelname - descriptive parameter lists (#37)" begin
+        @test modelname(NoExchangeModel()) == "No exchange"
+        @test modelname(TwoStateModel()) == "2-state exchange (kex, pB)"
+        @test modelname(TwoStateBindingModel()) == "2-state binding (Kd, koff)"
+        @test modelname(ThreeStateModel()) == "3-state exchange (koffB, pB, koffC, pC)"
+        @test modelname(ThreeStateBindingModel()) == "3-state binding (Kd1, koff1, Kd2, koff2)"
+    end
+
+    @testset "sampleconcentrations reads the stored field" begin
+        # previously this recomputed from `expt.spec`, so an experiment built
+        # without a real NMRData spec (as in these unit tests) would error
+        expt = R1Experiment(nothing, 14.1, Dict("protein" => 50.0), [0.1],
+                            [1.0 ± 0.02], zeros(1), :exponential_decay)
+        @test sampleconcentrations(expt) == Dict("protein" => 50.0)
+    end
+
+    @testset "moleculeconcentration - clear error for unmatched sample (#36)" begin
+        model = TwoStateBindingModel(Dict(:A => "protein", :X => "ligand"))
+        spec = StubPathSpec("/data/sophia_trypsin/34/pdata/1")
+
+        # neither sample metadata nor a fallback concentration is available
+        unmatched = R1Experiment(spec, 14.1, Dict{String,Float64}(), [0.1],
+                                 [1.0 ± 0.02], zeros(1), :exponential_decay)
+        @test_throws ArgumentError moleculeconcentration(model, unmatched, :A)
+        try
+            moleculeconcentration(model, unmatched, :A)
+        catch err
+            @test err isa ArgumentError
+            @test occursin("protein", err.msg)
+            @test occursin(":A", err.msg)
+            @test occursin("sophia_trypsin", err.msg)
+        end
+
+        # a fallback concentration (as entered interactively) resolves it
+        model.concentrations["protein"] = 100.0
+        @test moleculeconcentration(model, unmatched, :A) == 100.0
+
+        # sample metadata, where present, takes precedence over the fallback
+        matched = R1Experiment(spec, 14.1, Dict("protein" => 250.0), [0.1],
+                               [1.0 ± 0.02], zeros(1), :exponential_decay)
+        @test moleculeconcentration(model, matched, :A) == 250.0
+    end
+
+    @testset "experimentgroups - preserves first-seen order (#39)" begin
+        groups = experimentgroups(iseven, [1, 3, 2, 4, 5])
+        @test length(groups) == 2
+        @test groups[1] == [1, 3, 5]  # odd, first seen
+        @test groups[2] == [2, 4]     # even, first seen second
+
+        singletons = experimentgroups(identity, [1, 2, 3])
+        @test length(singletons) == 3
     end
 
     # Note: most liouvillian tests require a real NMR experiment (spec with :bf metadata)

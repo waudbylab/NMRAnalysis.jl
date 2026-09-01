@@ -1,7 +1,7 @@
 struct TwoStateModel <: AbstractModel
 end
 
-modelname(::TwoStateModel) = "Two-state exchange"
+modelname(::TwoStateModel) = "2-state exchange (kex, pB)"
 nstates(::TwoStateModel) = 2
 states(::TwoStateModel) = ["A", "B"]
 nmolecules(::TwoStateModel) = 1

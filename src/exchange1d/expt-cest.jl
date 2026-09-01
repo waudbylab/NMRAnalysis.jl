@@ -119,10 +119,28 @@ function simulate!(expt::CESTExperiment, model, params)
     return expt.predicted_intensities .*= scale
 end
 
+"""
+    experimentinfo(expt::CESTExperiment) -> Vector{Pair{String,String}}
+
+Acquisition parameters worth recording alongside a saved fit (see
+`_save_results`): saturation field strength, saturation time, and the
+saturation offset range.
+"""
+function experimentinfo(expt::CESTExperiment)
+    return ["Type" => "CEST",
+            "Field" => _format_field(expt.field_teslas),
+            "Saturation power (ν1)" => "$(round(expt.ν1; digits=1)) Hz",
+            "Saturation time" => "$(round(expt.saturation_time * 1000; digits=1)) ms",
+            "Saturation offsets" => "$(length(expt.δsat)) points, " *
+                                    "$(round(minimum(expt.δsat); digits=3)) to " *
+                                    "$(round(maximum(expt.δsat); digits=3)) ppm"]
+end
+
 function plot_result(expt::CESTExperiment, fit_result; kwargs...)
     x = expt.δsat
     yobs = expt.observed_intensities
     ypred = expt.predicted_intensities
+    sortidx = sortperm(x)  # saturation offsets may not be acquired in order
 
     params = fit_result.params
     params_value = fit_result.params_value
@@ -135,8 +153,8 @@ function plot_result(expt::CESTExperiment, fit_result; kwargs...)
               kwargs...,
               xflip=true)
 
-    scatter!(p1, x, yobs; label="observed", ms=3)
-    plot!(p1, x, ypred; label="fit")
+    scatter!(p1, x[sortidx], yobs[sortidx]; label="observed", ms=3)
+    plot!(p1, x[sortidx], ypred[sortidx]; label="fit")
     vline!(p1, params_value.spin.delta; ls=:dash, label="peak positions")
     hline!(p1, [0.0]; primary=false, color=:black, lw=0.5)
 
@@ -152,7 +170,7 @@ function plot_result(expt::CESTExperiment, fit_result; kwargs...)
     hspan!(p2, [-2, 2]; color=:limegreen, alpha=0.3, lw=0, la=0, primary=false)
     hspan!(p2, [-1, 1]; color=:limegreen, alpha=0.5, lw=0, la=0, primary=false)
     hline!(p2, [0]; color=:black, lw=0.5, primary=false)
-    scatter!(p2, x, wres; ms=3)
+    scatter!(p2, x[sortidx], wres[sortidx]; ms=3)
     vline!(p2, params_value.spin.delta; ls=:dash, label="peak positions", c=3)
     ylims!(p2, -maximum(abs, wres) * 1.2, maximum(abs, wres) * 1.2)
 
