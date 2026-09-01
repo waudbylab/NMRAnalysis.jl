@@ -664,16 +664,8 @@ _format_value(v) = string(v)
 """
     combineplots(plots) -> Plot
 
-Combine all individual experiment plots into a single grid figure, with
-scaled font/marker sizes so the result stays legible with many experiments.
-
-Composing many pre-built `Plot`s into one large grid runs into a
-long-standing Plots.jl/GR limitation: marker and legend sizes are computed
-from the *overall combined canvas size* rather than each subplot's own size
-(JuliaPlots/Plots.jl#4092) — not something fixable by simply choosing
-better constants. `thickness_scaling` (a backend-level, layout-size-
-independent control) is used here instead of guessing at absolute
-marker/line sizes.
+Create a combined figure from individual experiment plots, with scaled font sizes
+and figure dimensions so that the result is legible even with many experiments.
 """
 function combineplots(plots)
     n = length(plots)
@@ -684,7 +676,7 @@ function combineplots(plots)
     w = max(1200, ncols * 350)
     h = max(800, nrows * 280)
 
-    plt = plot(plots...; size=(w, h), thickness_scaling=0.7)
+    plt = plot(plots...; size=(w, h))
 
     for sp in plt.subplots
         sp[:titlefontsize] = 8
@@ -695,13 +687,8 @@ function combineplots(plots)
             sp[axis].plotattributes[:tickfontsize] = 6
         end
 
-        # belt-and-braces on top of thickness_scaling: marker/stroke sizes
-        # in particular aren't fully covered by it on the GR backend, and a
-        # stroke outline needs to stay well below the marker radius or small
-        # markers turn into solid blobs
         for series in sp.series_list
-            series[:markersize] = min(series[:markersize], 2)
-            series[:markerstrokewidth] = min(series[:markerstrokewidth], 0.3)
+            series[:markerstrokewidth] = 0.5
         end
     end
 
