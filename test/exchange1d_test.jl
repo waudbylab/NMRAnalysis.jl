@@ -5,11 +5,25 @@ import NMRAnalysis.Exchange1D:
                                nstates, modelname, nmolecules,
                                exchangematrix, populations, defaultparams,
                                default_spin_params, default_nuisance_params,
-                               field_label, liouvillian,
+                               field_label, liouvillian, liouvillian_inhom,
+                               AbstractExperiment,
                                simulate!, residuals, fit
 using ComponentArrays
 using Measurements
 using Test
+
+# Minimal experiment stand-in for tests that build a Liouvillian directly:
+# liouvillian/liouvillian_inhom only reach for `field_teslas` (via field_label)
+# and the base frequency, `spec[1, :bf]`.
+struct StubSpec
+    bf::Float64
+end
+Base.getindex(s::StubSpec, ::Int, ::Symbol) = s.bf
+
+struct StubExperiment <: AbstractExperiment
+    field_teslas::Float64
+    spec::StubSpec
+end
 
 @testset "Exchange1D" begin
     @testset "field_label" begin
@@ -65,8 +79,50 @@ using Test
         @test defaultparams(model).logkoff ≈ log(5000.0)
     end
 
-    # Note: liouvillian tests require a real NMR experiment (spec with :bf metadata)
+    # Note: most liouvillian tests require a real NMR experiment (spec with :bf metadata)
     # and cannot be tested with spec=nothing. These are tested via integration tests.
+    # The stub below supplies just enough (field_teslas, spec[1, :bf]) to build a
+    # Liouvillian directly.
+
+    @testset "liouvillian_inhom - equilibrium is stationary" begin
+        # The exchange block must be K ⊗ I₃, i.e. K[i,j] = rate from j to i, matching
+        # the convention documented on exchangematrix (zero column sums). Building it
+        # transposed leaves the diagonal untouched, so it is easy to miss: it shows up
+        # as magnetisation that is not conserved.
+        #
+        # Physical invariant: with the saturation field off, magnetisation starting at
+        # equilibrium (Mz = populations) must not evolve, so L * M₀ = 0.
+        model = TwoStateModel()
+        pB = 0.05
+        params = ComponentArray(;
+                                model=ComponentArray(; logkex=log(1000.0),
+                                                     dGB=log((1 - pB) / pB)),
+                                spin=ComponentArray(; delta=[0.0, 5.0],
+                                                    R1_14p1T=[1.0], R2_14p1T=[10.0, 10.0]))
+        expt = StubExperiment(14.1, StubSpec(564.0))
+
+        p0 = populations(model, params, expt)
+        N = nstates(model)
+        M0 = zeros(3N + 1)
+        for i in 1:N
+            M0[3(i - 1) + 3] = p0[i]
+        end
+        M0[end] = 1.0
+
+        # spinlock_hz = 0: no saturation, so equilibrium must be a fixed point
+        L = liouvillian_inhom(model, params, expt, -100.0, 0.0)
+        @test L * M0 ≈ zeros(3N + 1) atol = 1e-9
+
+        # the exchange block itself must conserve magnetisation (zero column sums)
+        # over the Mz rows, independent of relaxation/shift terms
+        K = exchangematrix(model, params, expt)
+        @test sum(K; dims=1) ≈ zeros(1, N) atol = 1e-10
+        @test K * p0 ≈ zeros(N) atol = 1e-10
+
+        # and the homogeneous Liouvillian must agree with it on the exchange block
+        Lhom = liouvillian(model, params, expt, -100.0, 0.0)
+        @test Lhom[1:(3N), 1:(3N)] ≈ L[1:(3N), 1:(3N)] atol = 1e-10
+    end
 
     @testset "R1 simulate! - exponential decay" begin
         delays = [0.05, 0.1, 0.2, 0.5, 1.0, 2.0]

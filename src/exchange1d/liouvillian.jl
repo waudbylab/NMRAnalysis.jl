@@ -103,7 +103,7 @@ function liouvillian_inhom(model, params, expt, spinlock_ppm, spinlock_hz)
     # exchange: K ⊗ I₃
     K = exchangematrix(model, params, expt)
     for i in 1:N, j in 1:N
-        kij = K[j, i]
+        kij = K[i, j]
         if kij != 0
             for d in 0:2  # Mx, My, Mz all exchange identically
                 L[3(i - 1) + 1 + d, 3(j - 1) + 1 + d] += kij
