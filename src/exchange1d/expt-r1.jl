@@ -9,7 +9,7 @@ struct R1Experiment <: AbstractExperiment
 end
 
 function R1Experiment(filename)
-    @info "Loading R1 experiment from $filename"
+    detail("Loading R1 experiment from $filename")
 
     spec = loadnmr(filename)
     hasannotations(spec) ||

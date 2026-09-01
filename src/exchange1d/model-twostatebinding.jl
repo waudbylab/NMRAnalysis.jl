@@ -7,6 +7,7 @@ TwoStateBindingModel(moleculemap::Dict{Symbol,String}) =
     TwoStateBindingModel(moleculemap, Dict{String,Float64}())
 
 modelname(::TwoStateBindingModel) = "2-state binding (Kd, koff)"
+modelorder(::TwoStateBindingModel) = 4
 nstates(::TwoStateBindingModel) = 2
 states(::TwoStateBindingModel) = ["free", "bound"]
 nmolecules(::TwoStateBindingModel) = 2

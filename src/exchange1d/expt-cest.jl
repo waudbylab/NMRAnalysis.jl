@@ -18,7 +18,7 @@ struct CESTExperiment <: AbstractExperiment
 end
 
 function CESTExperiment(filename)
-    @info "Loading CEST experiment from $filename"
+    detail("Loading CEST experiment from $filename")
 
     spec = loadnmr(filename)
     hasannotations(spec) ||

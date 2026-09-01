@@ -1,5 +1,17 @@
 abstract type AbstractModel end
 
+"""
+    modelorder(model::AbstractModel) -> Int
+
+Sort key controlling where `model` appears in the model selection menu
+(lowest first). Defaults to placing a model without an explicit ordering
+after every model that has one, so a custom model added by a package
+extension (see `docs/src/advanced/extending_exchange1d.md`) still appears
+automatically without needing to touch this function — just define
+`modelorder` too if a particular position matters.
+"""
+modelorder(::AbstractModel) = typemax(Int)
+
 abstract type AbstractExperiment end
 
 """

@@ -7,6 +7,7 @@ ThreeStateBindingModel(moleculemap::Dict{Symbol,String}) =
     ThreeStateBindingModel(moleculemap, Dict{String,Float64}())
 
 modelname(::ThreeStateBindingModel) = "3-state binding (Kd1, koff1, Kd2, koff2)"
+modelorder(::ThreeStateBindingModel) = 5
 nstates(::ThreeStateBindingModel) = 3
 states(::ThreeStateBindingModel) = ["free", "bound1", "bound2"]
 nmolecules(::ThreeStateBindingModel) = 2

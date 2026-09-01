@@ -2,6 +2,7 @@ struct ThreeStateModel <: AbstractModel
 end
 
 modelname(::ThreeStateModel) = "3-state exchange (koffB, pB, koffC, pC)"
+modelorder(::ThreeStateModel) = 3
 nstates(::ThreeStateModel) = 3
 states(::ThreeStateModel) = ["A", "B", "C"]
 nmolecules(::ThreeStateModel) = 1

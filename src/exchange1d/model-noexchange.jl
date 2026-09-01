@@ -2,6 +2,7 @@ struct NoExchangeModel <: AbstractModel
 end
 
 modelname(::NoExchangeModel) = "No exchange"
+modelorder(::NoExchangeModel) = 1
 nstates(::NoExchangeModel) = 1
 states(::NoExchangeModel) = ["A"]
 nmolecules(::NoExchangeModel) = 1
