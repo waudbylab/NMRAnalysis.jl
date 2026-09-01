@@ -176,7 +176,7 @@ function plot_result(expt::R1Experiment, fit_result; kwargs...)
                  grid=nothing,
                  kwargs...)
     plot!(p1, x, yfit;
-          label="fit")
+          label="fit", lw=0.5)
     hline!(p1, [0]; color=:black, lw=0.5, primary=false)
 
     # lower panel: residuals

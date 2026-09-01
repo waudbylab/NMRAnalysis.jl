@@ -130,7 +130,7 @@ function plot_result(expt::R1rhoOnResExperiment, fit_result; kwargs...)
                  ylabel="R₁ρ / s⁻¹",
                  title="On-resonance R₁ρ",
                  frame=:box, legend=nothing, grid=nothing, kwargs...)
-    plot!(p1, expt.νSL[sortidx], ypred[sortidx]; lw=2)
+    plot!(p1, expt.νSL[sortidx], ypred[sortidx]; lw=0.5)
 
     wres = (Measurements.value.(yobs) .- ypred) ./ Measurements.uncertainty.(yobs)
     p2 = scatter(expt.νSL, wres; ms=3,

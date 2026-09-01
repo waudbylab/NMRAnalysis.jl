@@ -102,11 +102,11 @@ function overlayr1rhooffres(experiments, params_value)
         maxwres = max(maxwres, maximum(abs, wres))
 
         label = "$(Int(round(expt.νSL; digits=0))) Hz"
-        scatter!(p1, x, yobs; ms=3, color=i, label=label)
-        plot!(p1, x[sortidx], ypred[sortidx]; lw=2, color=i, label=nothing)
-        scatter!(p2, x, wres; ms=3, color=i, label=nothing)
+        scatter!(p1, x, yobs; ms=3, alpha=0.6, color=i, label=label)
+        plot!(p1, x[sortidx], ypred[sortidx]; lw=0.5, color=i, label=nothing)
+        scatter!(p2, x, wres; ms=3, alpha=0.6, color=i, label=nothing)
     end
-    vline!(p1, delta; ls=:dash, color=:black, label="peak positions")
+    vline!(p1, delta; ls=:dash, color=:black, label=nothing)
     vline!(p2, delta; ls=:dash, color=:black, label=nothing)
     ylims!(p2, -maxwres * 1.2, maxwres * 1.2)
 
@@ -161,11 +161,11 @@ function overlaycest(experiments, varyby::Symbol, params_value)
                 "$(Int(round(expt.saturation_time * 1000; digits=0))) ms" :
                 "$(Int(round(expt.ν1; digits=0))) Hz"
 
-        scatter!(p1, x[sortidx], yobs[sortidx]; ms=3, color=i, label=label)
-        plot!(p1, x[sortidx], ypred[sortidx]; color=i, label=nothing)
-        scatter!(p2, x[sortidx], wres[sortidx]; ms=3, color=i, label=nothing)
+        scatter!(p1, x[sortidx], yobs[sortidx]; ms=3, alpha=0.6, color=i, label=label)
+        plot!(p1, x[sortidx], ypred[sortidx]; lw=0.5, color=i, label=nothing)
+        scatter!(p2, x[sortidx], wres[sortidx]; ms=3, alpha=0.6, color=i, label=nothing)
     end
-    vline!(p1, delta; ls=:dash, color=:black, label="peak positions")
+    vline!(p1, delta; ls=:dash, color=:black, label=nothing)
     vline!(p2, delta; ls=:dash, color=:black, label=nothing)
     ylims!(p2, -maxwres * 1.2, maxwres * 1.2)
 
