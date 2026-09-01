@@ -551,7 +551,8 @@ const _PARAM_DISPLAY_NAMES = Dict("delta" => "δ",
                                   "koff" => "koff",
                                   "Kd" => "Kd",
                                   "R1_I0" => "I₀ (R₁)",
-                                  "R1_inv_factor" => "Inversion factor (R₁)")
+                                  "R1_inv_factor" => "Inversion factor (R₁)",
+                                  "CEST_I0" => "I₀ (CEST)")
 
 const _SECTION_TITLES = Dict("model" => "Exchange parameters",
                              "spin" => "Spin parameters",
@@ -688,7 +689,7 @@ function combineplots(plots)
         end
 
         for series in sp.series_list
-            series[:markerstrokewidth] = 0.5
+            series[:markerstrokewidth] = 0.25
         end
     end
 

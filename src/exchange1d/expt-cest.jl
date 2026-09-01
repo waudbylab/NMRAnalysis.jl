@@ -67,13 +67,14 @@ end
 """
     default_nuisance_params(expt::CESTExperiment) -> Vector{Pair{Symbol,Any}}
 
-Return flat nuisance parameter entries for this CEST experiment, tagged with
-the experiment type and field, e.g. `:CEST_14p1T_I0`.
+Return flat nuisance parameter entries for this CEST experiment: an overall
+intensity scale `I0`, tagged with the experiment type and field, e.g.
+`:CEST_14p1T_I0`. Shared across all CEST experiments at the same field —
+see `simulate!`.
 """
 function default_nuisance_params(expt::CESTExperiment)
-    # tag = Symbol("CEST_", field_label(expt))
-    # return [Symbol(tag, "_I0") => 1.0]
-    return Pair{Symbol,Any}[]
+    tag = Symbol("CEST_", field_label(expt))
+    return [Symbol(tag, "_I0") => 1.0]
 end
 
 function integrate!(expt::CESTExperiment, peakppm, noiseppm, ppmwidth)
@@ -99,6 +100,13 @@ function integrate!(expt::CESTExperiment, peakppm, noiseppm, ppmwidth)
     return expt.observed_intensities .= integrals .± noise
 end
 
+"""
+    simulate!(expt::CESTExperiment, model, params)
+
+Simulate the CEST saturation profile, then scale it by the fitted `I0`
+intensity (`params.nuisance.CEST_<field>_I0`) to match the observed,
+integration-normalised intensities.
+"""
 function simulate!(expt::CESTExperiment, model, params)
     n = length(expt.δsat)
     N = nstates(model)
@@ -115,8 +123,10 @@ function simulate!(expt::CESTExperiment, model, params)
         M = exp(L * T) * M0
         expt.predicted_intensities[i] = sum(M[3:3:end])  # sum of Mz across states
     end
-    scale = expt.predicted_intensities \ Measurements.value.(expt.observed_intensities)
-    return expt.predicted_intensities .*= scale
+
+    tag = Symbol("CEST_", field_label(expt))
+    I0 = params.nuisance[Symbol(tag, "_I0")]
+    return expt.predicted_intensities .*= I0
 end
 
 """
@@ -138,12 +148,17 @@ end
 
 function plot_result(expt::CESTExperiment, fit_result; kwargs...)
     x = expt.δsat
-    yobs = expt.observed_intensities
-    ypred = expt.predicted_intensities
     sortidx = sortperm(x)  # saturation offsets may not be acquired in order
 
     params = fit_result.params
     params_value = fit_result.params_value
+
+    # normalise by the fitted I0 so the baseline sits at 1.0, rather than at
+    # whatever the single noisiest data point happened to integrate to
+    tag = Symbol("CEST_", field_label(expt))
+    I0 = params_value.nuisance[Symbol(tag, "_I0")]
+    yobs = expt.observed_intensities ./ I0
+    ypred = expt.predicted_intensities ./ I0
 
     p1 = plot(; frame=:box, legend=nothing,
               #   xlabel="Saturation frequency (ppm)",

@@ -132,7 +132,7 @@ function plot_result(expt::R1rhoOffResExperiment, fit_result; kwargs...)
     params = fit_result.params
     params_value = fit_result.params_value
 
-    p1 = scatter(expt.offsets_ppm, yobs;
+    p1 = scatter(expt.offsets_ppm, yobs; ms=3,
                  xlabel="Spin-lock offset / ppm",
                  ylabel="R₁ρ / s⁻¹",
                  title="Off-resonance R₁ρ ($(Int(round(expt.νSL, digits=0))) Hz)",
@@ -141,7 +141,7 @@ function plot_result(expt::R1rhoOffResExperiment, fit_result; kwargs...)
     vline!(p1, params_value.spin.delta; ls=:dash, label="peak positions")
 
     wres = (Measurements.value.(yobs) .- ypred) ./ Measurements.uncertainty.(yobs)
-    p2 = scatter(expt.offsets_ppm, wres;
+    p2 = scatter(expt.offsets_ppm, wres; ms=3,
                  xlabel="Spin-lock offset / ppm",
                  ylabel="Residual / σ",
                  frame=:box, legend=nothing, kwargs..., xflip=true)
