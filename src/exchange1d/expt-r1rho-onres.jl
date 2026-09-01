@@ -133,13 +133,13 @@ function plot_result(expt::R1rhoOnResExperiment, fit_result; kwargs...)
     plot!(p1, expt.νSL[sortidx], ypred[sortidx]; lw=1.5)
 
     wres = (Measurements.value.(yobs) .- ypred) ./ Measurements.uncertainty.(yobs)
-    p2 = scatter(expt.νSL, wres; ms=3,
-                 xlabel="Spinlock strength / Hz",
-                 ylabel="Residual / σ",
-                 frame=:box, legend=nothing, grid=nothing, kwargs...)
+    p2 = plot(; xlabel="Spinlock strength / Hz",
+              ylabel="Residual / σ",
+              frame=:box, legend=nothing, grid=nothing, kwargs...)
     hspan!(p2, [-2, 2]; color=:limegreen, alpha=0.3, lw=0, la=0, primary=false)
     hspan!(p2, [-1, 1]; color=:limegreen, alpha=0.5, lw=0, la=0, primary=false)
     hline!(p2, [0]; color=:black, lw=0.5, primary=false)
+    scatter!(p2, expt.νSL, wres; ms=3)
     ylims!(p2, -maximum(abs, wres) * 1.2, maximum(abs, wres) * 1.2)
 
     return plot(p1, p2; layout=grid(2, 1; heights=[0.75, 0.25]))

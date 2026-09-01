@@ -21,13 +21,16 @@ function experimentgroups(key, experiments)
 end
 
 """
-Solid, lightened marker fill colours for overlay plots, one per curve
-(indexed the same way as the full-strength `color=i` used for fit lines) —
-not transparency: alpha fades the error bars along with the marker fill,
-and overlapping semi-transparent error bars from several experiments
-composite into a muddy mess. A flat lighter colour keeps error bars crisp
-while still letting the full-strength fit line read as the most prominent
-element on the plot.
+Solid, lightened marker fill colours for the *data* panel of an overlay
+plot, one per curve (indexed the same way as the full-strength `color=i`
+used for fit lines and for the residual panel) — not transparency: alpha
+fades the error bars along with the marker fill, and overlapping
+semi-transparent error bars from several experiments composite into a muddy
+mess. A flat lighter colour keeps error bars crisp (their stroke colour is
+still forced to black — see the `markerstrokecolor` on each data scatter!)
+while letting the full-strength fit line read as the most prominent element
+on the plot. The residual panel has no competing fit line, so its markers
+use the regular full-strength `color=i` instead.
 """
 const _OVERLAY_MARKER_COLORS = [:lightskyblue, :navajowhite, :palegreen,
                                 :lightpink, :plum, :lightgray]
@@ -92,9 +95,11 @@ The legend is drawn inset (`:topright`), not outside the axes: an outer
 legend only widens the data panel, not the residual panel below it, which
 throws off their alignment under the shared `link=:x`.
 
-Data (markers + error bars) for every experiment is drawn first, then every
-fit line in a second pass, so every fit line renders on top of every
-experiment's data rather than only its own — see `_OVERLAY_MARKER_COLORS`.
+Draw order (bottom to top): resonance-position vlines, then residual bands
+and zero-line, then data (markers + error bars) for every experiment, then
+every fit line in a second pass — so the fit lines render on top of every
+experiment's data rather than only their own, and the data markers render
+above the residual bands. See `_OVERLAY_MARKER_COLORS`.
 """
 function overlayr1rhooffres(experiments, params_value)
     delta = params_value.spin.delta
@@ -105,6 +110,8 @@ function overlayr1rhooffres(experiments, params_value)
               legend=:topright)
     p2 = plot(; frame=:box, xlabel="Spin-lock offset / ppm", ylabel="Residual / σ",
               grid=nothing, xflip=true, legend=nothing)
+    vline!(p1, delta; ls=:dash, color=:black, label=nothing)
+    vline!(p2, delta; ls=:dash, color=:black, label=nothing)
     hspan!(p2, [-2, 2]; color=:grey, alpha=0.3, lw=0, la=0, primary=false)
     hspan!(p2, [-1, 1]; color=:grey, alpha=0.5, lw=0, la=0, primary=false)
     hline!(p2, [0]; color=:black, lw=0.5, primary=false)
@@ -122,14 +129,13 @@ function overlayr1rhooffres(experiments, params_value)
     end
 
     for c in curves
-        scatter!(p1, c.x, c.yobs; ms=3, markercolor=overlaymarkercolor(c.i), label=c.label)
-        scatter!(p2, c.x, c.wres; ms=3, markercolor=overlaymarkercolor(c.i), label=nothing)
+        scatter!(p1, c.x, c.yobs; ms=3, markercolor=overlaymarkercolor(c.i),
+                 markerstrokecolor=:black, label=c.label)
+        scatter!(p2, c.x, c.wres; ms=3, color=c.i, label=nothing)
     end
     for c in curves
         plot!(p1, c.x[c.sortidx], c.ypred[c.sortidx]; lw=1.5, color=c.i, label=nothing)
     end
-    vline!(p1, delta; ls=:dash, color=:black, label=nothing)
-    vline!(p2, delta; ls=:dash, color=:black, label=nothing)
     ylims!(p2, -maxwres * 1.2, maxwres * 1.2)
 
     return plot(p1, p2; layout=grid(2, 1; heights=[0.75, 0.25]), link=:x)
@@ -151,8 +157,9 @@ The legend is drawn inset (`:bottomright`, where the CEST dip is not) rather
 than outside the axes, for the same alignment reason as
 `overlayr1rhooffres`.
 
-Data is drawn first for every experiment, then every fit line in a second
-pass, so fit lines render on top — see `_OVERLAY_MARKER_COLORS`.
+Draw order (bottom to top): resonance-position vlines, then residual bands
+and zero-line, then data (markers + error bars) for every experiment, then
+every fit line in a second pass. See `_OVERLAY_MARKER_COLORS`.
 """
 function overlaycest(experiments, varyby::Symbol, params_value)
     delta = params_value.spin.delta
@@ -168,6 +175,8 @@ function overlaycest(experiments, varyby::Symbol, params_value)
               xflip=true, legend=:bottomright)
     p2 = plot(; frame=:box, xlabel="Saturation frequency (ppm)", ylabel="Residual / σ",
               grid=nothing, xflip=true, legend=nothing)
+    vline!(p1, delta; ls=:dash, color=:black, label=nothing)
+    vline!(p2, delta; ls=:dash, color=:black, label=nothing)
     hspan!(p2, [-2, 2]; color=:grey, alpha=0.3, lw=0, la=0, primary=false)
     hspan!(p2, [-1, 1]; color=:grey, alpha=0.5, lw=0, la=0, primary=false)
     hline!(p2, [0]; color=:black, lw=0.5, primary=false)
@@ -189,15 +198,12 @@ function overlaycest(experiments, varyby::Symbol, params_value)
 
     for c in curves
         scatter!(p1, c.x[c.sortidx], c.yobs[c.sortidx]; ms=3,
-                 markercolor=overlaymarkercolor(c.i), label=c.label)
-        scatter!(p2, c.x[c.sortidx], c.wres[c.sortidx]; ms=3,
-                 markercolor=overlaymarkercolor(c.i), label=nothing)
+                 markercolor=overlaymarkercolor(c.i), markerstrokecolor=:black, label=c.label)
+        scatter!(p2, c.x[c.sortidx], c.wres[c.sortidx]; ms=3, color=c.i, label=nothing)
     end
     for c in curves
         plot!(p1, c.x[c.sortidx], c.ypred[c.sortidx]; lw=1.5, color=c.i, label=nothing)
     end
-    vline!(p1, delta; ls=:dash, color=:black, label=nothing)
-    vline!(p2, delta; ls=:dash, color=:black, label=nothing)
     ylims!(p2, -maxwres * 1.2, maxwres * 1.2)
 
     return plot(p1, p2; layout=grid(2, 1; heights=[0.75, 0.25]), link=:x)
