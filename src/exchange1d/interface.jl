@@ -73,10 +73,9 @@ function exchange1d(filenames::Vector{String})
         display(result)
 
         plots = plot(result)
-        display(combineplots(plots))
-
-        overlays = overlayplots(result)
-        isempty(overlays) || display(combineplots(overlays))
+        for page in combineplots(plots)
+            display(page)
+        end
 
         action = _prompt_after_fit()
         if action == :save
@@ -106,13 +105,20 @@ function exchange1d(exptnos::AbstractVector{<:Integer})
 end
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Helper: short path for display
+# Helper: experiment paths for display and reproducibility
 # ═══════════════════════════════════════════════════════════════════════════
 
+"""
+    experimentdirectory(expt::AbstractExperiment) -> String
+
+Full experiment directory (the parent of the `pdata/N` folder `spec[:filename]`
+points into) — i.e. the path that was, or could be, passed to `exchange1d`.
+"""
+experimentdirectory(expt::AbstractExperiment) = dirname(dirname(expt.spec[:filename]))
+
+"""Short `parent/number` form of `experimentdirectory(expt)`, for display."""
 function short_expt_path(expt::AbstractExperiment)
-    # spec[:filename] returns processed data path e.g. .../sophia_trypsin/34/pdata/1
-    # strip pdata/N suffix to get the experiment directory, then show parent/number
-    expt_dir = dirname(dirname(expt.spec[:filename]))
+    expt_dir = experimentdirectory(expt)
     parent_folder = basename(dirname(expt_dir))
     folder_num = basename(expt_dir)
     return joinpath(parent_folder, folder_num)
@@ -658,24 +664,42 @@ _format_value(v) = string(v)
 # ═══════════════════════════════════════════════════════════════════════════
 
 """
-    combineplots(plots) -> Plot
+    combineplots(plots; maxpanelsperpage=6) -> Vector{<:Plots.Plot}
 
-Create a combined figure from individual experiment plots, with scaled font sizes
-and figure dimensions so that the result is legible even with many experiments.
+Combine individual experiment plots into one or more grid figures ("pages"),
+with scaled font/marker sizes and margins so the result stays legible.
+
+Composing many pre-built `Plot`s into a single large grid runs into two
+long-standing Plots.jl/GR limitations: marker and legend sizes are computed
+from the *overall combined canvas size* rather than each subplot's own size
+(JuliaPlots/Plots.jl#4092), and axis labels/titles start overlapping the
+subplot above once a grid has more than about six subplots in one direction
+(JuliaPlots/Plots.jl#3378) — both are backend bugs, not something fixable
+by simply choosing better constants. Splitting `plots` into pages of at
+most `maxpanelsperpage` keeps every grid comfortably clear of both
+thresholds; `thickness_scaling` (a backend-level, layout-size-independent
+control) is used instead of guessing at absolute marker/line sizes.
 """
-function combineplots(plots)
+function combineplots(plots; maxpanelsperpage::Int=6)
+    return [combineplotspage(collect(page))
+            for page in Iterators.partition(plots, maxpanelsperpage)]
+end
+
+"""Build one combined grid figure from at most `maxpanelsperpage` plots — see `combineplots`."""
+function combineplotspage(plots)
     n = length(plots)
-    ncols = min(n, 4)
+    ncols = min(n, 3)
     nrows = ceil(Int, n / ncols)
 
-    # scale figure: each experiment column ~350px wide, each row pair ~280px tall
-    w = max(1200, ncols * 350)
-    h = max(800, nrows * 280)
+    # scale figure: each experiment column ~380px wide, each row pair ~360px tall
+    w = max(900, ncols * 380)
+    h = max(650, nrows * 360)
 
-    plt = plot(plots...; size=(w, h))
+    plt = plot(plots...; size=(w, h), thickness_scaling=0.7)
 
     for sp in plt.subplots
         sp[:titlefontsize] = 8
+        sp[:top_margin] = 4Plots.mm  # keep titles clear of the row above
 
         # font sizes must be set on each axis object directly
         for axis in (:xaxis, :yaxis)
@@ -683,16 +707,13 @@ function combineplots(plots)
             sp[axis].plotattributes[:tickfontsize] = 6
         end
 
-        # marker/line sizes are in absolute points, not scaled to subplot
-        # size, so combining many full-size plots into a shrunk grid makes
-        # points and lines look huge relative to the (now much smaller)
-        # subplot — scale them down to match the reduced font sizes. The
-        # stroke outline in particular needs to be well below the marker
-        # radius or small markers turn into solid blobs.
+        # belt-and-braces on top of thickness_scaling: marker/stroke sizes
+        # in particular aren't fully covered by it on the GR backend, and a
+        # stroke outline needs to stay well below the marker radius or small
+        # markers turn into solid blobs
         for series in sp.series_list
-            series[:markersize] = min(series[:markersize], 1.5)
-            series[:markerstrokewidth] = min(series[:markerstrokewidth], 0.25)
-            series[:linewidth] = min(series[:linewidth], 1)
+            series[:markersize] = min(series[:markersize], 2)
+            series[:markerstrokewidth] = min(series[:markerstrokewidth], 0.3)
         end
     end
 
@@ -725,29 +746,26 @@ function _save_results(result::FitResult)
     prepare_outputfolder(outputfolder)
     saved = String[]
 
-    # save per-experiment plots, combined into one grid figure
+    # save per-experiment plots, combined into one or more grid figures
     plots = plot(result)
-    plt = combineplots(plots)
-    savefig(plt, joinpath(outputfolder, "exchange1d_fit.pdf"))
-    push!(saved, "exchange1d_fit.pdf")
+    pages = combineplots(plots)
+    for (i, page) in enumerate(pages)
+        name = length(pages) == 1 ? "exchange1d_fit.pdf" : "exchange1d_fit_$i.pdf"
+        savefig(page, joinpath(outputfolder, name))
+        push!(saved, name)
+    end
 
     for (i, p) in enumerate(plots)
         savefig(p, joinpath(outputfolder, "exchange1d_expt_$i.pdf"))
         push!(saved, "exchange1d_expt_$i.pdf")
     end
 
-    # save overlays of similar experiments separately, so the per-experiment
-    # grid above doesn't grow denser (and less legible) as they're added
+    # save overlays of similar experiments as individual files only — not
+    # combined into a grid of their own (see combineplots)
     overlays = overlayplots(result)
-    if !isempty(overlays)
-        overlayplt = combineplots(overlays)
-        savefig(overlayplt, joinpath(outputfolder, "exchange1d_overlay.pdf"))
-        push!(saved, "exchange1d_overlay.pdf")
-
-        for (i, p) in enumerate(overlays)
-            savefig(p, joinpath(outputfolder, "exchange1d_overlay_$i.pdf"))
-            push!(saved, "exchange1d_overlay_$i.pdf")
-        end
+    for (i, p) in enumerate(overlays)
+        savefig(p, joinpath(outputfolder, "exchange1d_overlay_$i.pdf"))
+        push!(saved, "exchange1d_overlay_$i.pdf")
     end
 
     # save parameters as text
@@ -787,6 +805,11 @@ function writeexperimentsummary(io::IO, prob::ExchangeProblem)
     model = prob.model
     println(io, "Exchange 1D — experiment summary")
     println(io, "Model: $(modelname(model))")
+    println(io)
+
+    println(io, "Repeat with:")
+    paths = join((repr(experimentdirectory(expt)) for expt in prob.experiments), ", ")
+    println(io, "    exchange1d([$paths])")
     println(io)
 
     if nmolecules(model) > 1

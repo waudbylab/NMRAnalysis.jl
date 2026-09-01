@@ -17,6 +17,7 @@ function Base.show(io::IO, ::MIME"text/plain", result::FitResult)
     printstyled(io, "═"^60 * "\n"; bold=true)
     printstyled(io, "  Exchange 1D Fit Results\n"; bold=true)
     printstyled(io, "  Model: $(modelname(prob.model))\n"; bold=true)
+    printstyled(io, "  NMRAnalysis.jl v$(pkgversion(NMRAnalysis))\n"; bold=true)
     printstyled(io, "═"^60 * "\n"; bold=true)
 
     # print tables grouped by section

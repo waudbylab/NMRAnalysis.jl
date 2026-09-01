@@ -22,6 +22,7 @@ using REPL.TerminalMenus
 using Statistics
 
 # Import from parent module
+import ..NMRAnalysis  # module itself, for pkgversion(NMRAnalysis)
 using ..NMRAnalysis: analyse, register_analysis!, MultiFileRule
 using ..NMRAnalysis: get1dregionandnoise, relaxation1d
 using ..NMRAnalysis: select_expts
