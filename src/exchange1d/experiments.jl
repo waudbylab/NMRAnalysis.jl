@@ -50,8 +50,8 @@ based on its annotations.
 
 Dispatches on `annotations(spec, :experiment_type)` and `annotations(spec, :features)`:
 - `"relaxation"` + `"R1"` → `R1Experiment`
-- `"saturation_transfer"` + `"CEST"` → `CESTExperiment` (not yet implemented)
-"""
+- `"cest"` → `CESTExperiment`
+- `"r1rho"` + `"on_resonance"`/`"off_resonance"` → `R1rhoOnResExperiment`/`R1rhoOffResExperiment`
 function load_experiment(filename)
     spec = loadnmr(filename)
     hasannotations(spec) ||
