@@ -1,3 +1,31 @@
+"""
+    setupR1rhopowers(calibration_experiment_file="")
+
+Interactively calculate spin-lock power levels (in Watts) for an R1ρ relaxation
+dispersion experiment, ready to paste into the acquisition software's power list.
+
+- `calibration_experiment_file`: Path to a 1D nutation calibration experiment, used to
+  read off the hard pulse length (p1) and power level (pldB1) automatically. If omitted,
+  you are prompted to enter p1 and pldB1 manually.
+
+You are then prompted for the target spin-lock strengths, either as an explicit
+comma-separated list (in Hz) or, if left blank, a minimum/maximum bound used to filter a
+built-in default list. Spin-lock strengths above 10 kHz trigger a confirmation prompt, to
+guard against probe damage.
+
+The resulting powers are shuffled (so that later fitting isn't biased by monotonically
+ordered spin-lock strengths) and printed together with the corresponding shuffled list of
+spin-lock strengths, ready to be copied into the experiment setup.
+
+# Example
+```julia
+# read pulse calibration from an experiment, then prompt for spin-lock strengths
+setupR1rhopowers("examples/calibration/1")
+
+# prompt for pulse parameters and spin-lock strengths interactively
+setupR1rhopowers()
+```
+"""
 function setupR1rhopowers(calibration_experiment_file="")
     # ANSI escape code for magenta
     magenta = "\033[35m"
