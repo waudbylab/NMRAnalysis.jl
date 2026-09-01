@@ -54,7 +54,6 @@ All 2D functions are provided by the GUI2D module:
 - `hetnoe2d()` - Heteronuclear NOE experiments
 - `cest2d()` - CEST (Chemical Exchange Saturation Transfer)
 - `cpmg2d()` - CPMG (Carr-Purcell-Meiboom-Gill) experiments
-- `pre2d()` - PRE (Paramagnetic Relaxation Enhancement)
 - `ccr2d()` - Cross-correlated relaxation
 - `methylccr2d()` - Methyl CCR (S²τc from buildup/decay series)
 

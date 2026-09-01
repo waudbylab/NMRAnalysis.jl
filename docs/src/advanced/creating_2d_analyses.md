@@ -148,7 +148,6 @@ Save publication-quality plots for all peaks to a specified folder.
 The codebase includes implementations for several specific experiment types:
 - `RelaxationExperiment`: For relaxation measurements
 - `HetNOEExperiment`: For heteronuclear NOE measurements
-- `PREExperiment`: For paramagnetic relaxation enhancement measurements
 
 Each implementation specialises the simulation and fitting behaviour for its specific experiment type while inheriting the common functionality from the abstract type.
 
@@ -241,5 +240,5 @@ Here's a step-by-step guide to implementing a new type of NMR experiment:
 Remember:
 - Post-fit parameters (`postparameters`) are what get saved in results files
 - Peak parameters (`parameters`) are used during fitting
-- Use the existing implementations (RelaxationExperiment, HetNOEExperiment, PREExperiment) as templates
+- Use the existing implementations (RelaxationExperiment, HetNOEExperiment) as templates
 - Most functionality can be inherited from the abstract type

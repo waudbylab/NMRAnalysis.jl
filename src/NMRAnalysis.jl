@@ -45,7 +45,6 @@ using .Exchange1D
 @reexport using .GUI2D: hetnoe2d # HetNOEExperiment
 @reexport using .GUI2D: cest2d # CESTExperiment
 @reexport using .GUI2D: cpmg2d # CPMGExperiment
-@reexport using .GUI2D: pre2d # PREExperiment
 @reexport using .GUI2D: ccr2d # CCRExperiment
 @reexport using .GUI2D: methylccr2d # methyl CCR (buildup/decay ratio)
 @reexport using .GUI2D: summaryplot
