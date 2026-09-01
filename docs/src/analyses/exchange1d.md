@@ -48,7 +48,7 @@ Exchange1D currently supports two experiment types, which can be combined in a j
 | **CEST** | `"cest"` | — | Saturation transfer profiles at varying offsets |
 | **R1 relaxation** | `"relaxation"` | `"R1"` | Longitudinal relaxation decay or inversion-recovery |
 
-At least one CEST experiment is required. R1 experiments are optional and help constrain the longitudinal relaxation rate during fitting.
+At least one exchange-sensitive experiment (CEST and/or off-resonance R1ρ) is required. R1 experiments are optional and help constrain the longitudinal relaxation rate during fitting.
 
 ## Available Models
 
