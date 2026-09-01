@@ -21,6 +21,19 @@ function experimentgroups(key, experiments)
 end
 
 """
+Solid, lightened marker fill colours for overlay plots, one per curve
+(indexed the same way as the full-strength `color=i` used for fit lines) —
+not transparency: alpha fades the error bars along with the marker fill,
+and overlapping semi-transparent error bars from several experiments
+composite into a muddy mess. A flat lighter colour keeps error bars crisp
+while still letting the full-strength fit line read as the most prominent
+element on the plot.
+"""
+const _OVERLAY_MARKER_COLORS = [:lightskyblue, :navajowhite, :palegreen,
+                                :lightpink, :plum, :lightgray]
+overlaymarkercolor(i) = _OVERLAY_MARKER_COLORS[mod1(i, length(_OVERLAY_MARKER_COLORS))]
+
+"""
     overlayplots(result::FitResult) -> Vector
 
 Additional plots overlaying similar experiments on shared axes, so that
@@ -78,6 +91,10 @@ the individual per-experiment plot.
 The legend is drawn inset (`:topright`), not outside the axes: an outer
 legend only widens the data panel, not the residual panel below it, which
 throws off their alignment under the shared `link=:x`.
+
+Data (markers + error bars) for every experiment is drawn first, then every
+fit line in a second pass, so every fit line renders on top of every
+experiment's data rather than only its own — see `_OVERLAY_MARKER_COLORS`.
 """
 function overlayr1rhooffres(experiments, params_value)
     delta = params_value.spin.delta
@@ -93,18 +110,23 @@ function overlayr1rhooffres(experiments, params_value)
     hline!(p2, [0]; color=:black, lw=0.5, primary=false)
 
     maxwres = 0.0
-    for (i, expt) in enumerate(sorted)
+    curves = map(enumerate(sorted)) do (i, expt)
         x = expt.offsets_ppm
         sortidx = sortperm(x)
         yobs = expt.observed_intensities
         ypred = expt.predicted_intensities
         wres = residuals(expt)
         maxwres = max(maxwres, maximum(abs, wres))
-
         label = "$(Int(round(expt.νSL; digits=0))) Hz"
-        scatter!(p1, x, yobs; ms=3, alpha=0.6, color=i, label=label)
-        plot!(p1, x[sortidx], ypred[sortidx]; lw=0.5, color=i, label=nothing)
-        scatter!(p2, x, wres; ms=3, alpha=0.6, color=i, label=nothing)
+        return (; i, x, sortidx, yobs, ypred, wres, label)
+    end
+
+    for c in curves
+        scatter!(p1, c.x, c.yobs; ms=3, markercolor=overlaymarkercolor(c.i), label=c.label)
+        scatter!(p2, c.x, c.wres; ms=3, markercolor=overlaymarkercolor(c.i), label=nothing)
+    end
+    for c in curves
+        plot!(p1, c.x[c.sortidx], c.ypred[c.sortidx]; lw=1.5, color=c.i, label=nothing)
     end
     vline!(p1, delta; ls=:dash, color=:black, label=nothing)
     vline!(p2, delta; ls=:dash, color=:black, label=nothing)
@@ -128,6 +150,9 @@ plot; observed/predicted intensities are normalised by the fitted `I0` (see
 The legend is drawn inset (`:bottomright`, where the CEST dip is not) rather
 than outside the axes, for the same alignment reason as
 `overlayr1rhooffres`.
+
+Data is drawn first for every experiment, then every fit line in a second
+pass, so fit lines render on top — see `_OVERLAY_MARKER_COLORS`.
 """
 function overlaycest(experiments, varyby::Symbol, params_value)
     delta = params_value.spin.delta
@@ -148,7 +173,7 @@ function overlaycest(experiments, varyby::Symbol, params_value)
     hline!(p2, [0]; color=:black, lw=0.5, primary=false)
 
     maxwres = 0.0
-    for (i, expt) in enumerate(sorted)
+    curves = map(enumerate(sorted)) do (i, expt)
         x = expt.δsat
         sortidx = sortperm(x)
         I0 = params_value.nuisance[Symbol("CEST_", field_label(expt), "_I0")]
@@ -156,14 +181,20 @@ function overlaycest(experiments, varyby::Symbol, params_value)
         ypred = expt.predicted_intensities ./ I0
         wres = residuals(expt)
         maxwres = max(maxwres, maximum(abs, wres))
-
         label = varyby == :saturation_time ?
                 "$(Int(round(expt.saturation_time * 1000; digits=0))) ms" :
                 "$(Int(round(expt.ν1; digits=0))) Hz"
+        return (; i, x, sortidx, yobs, ypred, wres, label)
+    end
 
-        scatter!(p1, x[sortidx], yobs[sortidx]; ms=3, alpha=0.6, color=i, label=label)
-        plot!(p1, x[sortidx], ypred[sortidx]; lw=0.5, color=i, label=nothing)
-        scatter!(p2, x[sortidx], wres[sortidx]; ms=3, alpha=0.6, color=i, label=nothing)
+    for c in curves
+        scatter!(p1, c.x[c.sortidx], c.yobs[c.sortidx]; ms=3,
+                 markercolor=overlaymarkercolor(c.i), label=c.label)
+        scatter!(p2, c.x[c.sortidx], c.wres[c.sortidx]; ms=3,
+                 markercolor=overlaymarkercolor(c.i), label=nothing)
+    end
+    for c in curves
+        plot!(p1, c.x[c.sortidx], c.ypred[c.sortidx]; lw=1.5, color=c.i, label=nothing)
     end
     vline!(p1, delta; ls=:dash, color=:black, label=nothing)
     vline!(p2, delta; ls=:dash, color=:black, label=nothing)

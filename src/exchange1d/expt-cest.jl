@@ -169,7 +169,7 @@ function plot_result(expt::CESTExperiment, fit_result; kwargs...)
               xflip=true)
 
     scatter!(p1, x[sortidx], yobs[sortidx]; label="observed", ms=3)
-    plot!(p1, x[sortidx], ypred[sortidx]; label="fit", lw=0.5)
+    plot!(p1, x[sortidx], ypred[sortidx]; label="fit", lw=1.5)
     vline!(p1, params_value.spin.delta; ls=:dash, label="peak positions")
     hline!(p1, [0.0]; primary=false, color=:black, lw=0.5)
 
