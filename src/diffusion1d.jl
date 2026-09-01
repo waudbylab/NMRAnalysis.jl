@@ -30,9 +30,10 @@ function diffusion1d(coherence=SQ(H1))
     return diffusion1d(experiment, coherence)
 end
 
-function diffusion1d(filename, coherence=SQ(H1))
-    return diffusion1d(loadnmr(string(filename)), coherence)
+function diffusion1d(filename::String, coherence=SQ(H1))
+    return diffusion1d(loadnmr(filename), coherence)
 end
+diffusion1d(filename::Integer, coherence=SQ(H1)) = diffusion1d(string(filename), coherence)
 
 function diffusion1d(spec::NMRData{T,2}, coherence=SQ(H1)) where {T}
     spec = deepcopy(spec) # work on copy of the data
