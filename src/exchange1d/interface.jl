@@ -73,9 +73,7 @@ function exchange1d(filenames::Vector{String})
         display(result)
 
         plots = plot(result)
-        for page in combineplots(plots)
-            display(page)
-        end
+        display(combineplots(plots))
 
         action = _prompt_after_fit()
         if action == :save
@@ -664,42 +662,32 @@ _format_value(v) = string(v)
 # ═══════════════════════════════════════════════════════════════════════════
 
 """
-    combineplots(plots; maxpanelsperpage=6) -> Vector{<:Plots.Plot}
+    combineplots(plots) -> Plot
 
-Combine individual experiment plots into one or more grid figures ("pages"),
-with scaled font/marker sizes and margins so the result stays legible.
+Combine all individual experiment plots into a single grid figure, with
+scaled font/marker sizes so the result stays legible with many experiments.
 
-Composing many pre-built `Plot`s into a single large grid runs into two
-long-standing Plots.jl/GR limitations: marker and legend sizes are computed
+Composing many pre-built `Plot`s into one large grid runs into a
+long-standing Plots.jl/GR limitation: marker and legend sizes are computed
 from the *overall combined canvas size* rather than each subplot's own size
-(JuliaPlots/Plots.jl#4092), and axis labels/titles start overlapping the
-subplot above once a grid has more than about six subplots in one direction
-(JuliaPlots/Plots.jl#3378) — both are backend bugs, not something fixable
-by simply choosing better constants. Splitting `plots` into pages of at
-most `maxpanelsperpage` keeps every grid comfortably clear of both
-thresholds; `thickness_scaling` (a backend-level, layout-size-independent
-control) is used instead of guessing at absolute marker/line sizes.
+(JuliaPlots/Plots.jl#4092) — not something fixable by simply choosing
+better constants. `thickness_scaling` (a backend-level, layout-size-
+independent control) is used here instead of guessing at absolute
+marker/line sizes.
 """
-function combineplots(plots; maxpanelsperpage::Int=6)
-    return [combineplotspage(collect(page))
-            for page in Iterators.partition(plots, maxpanelsperpage)]
-end
-
-"""Build one combined grid figure from at most `maxpanelsperpage` plots — see `combineplots`."""
-function combineplotspage(plots)
+function combineplots(plots)
     n = length(plots)
-    ncols = min(n, 3)
+    ncols = min(n, 4)
     nrows = ceil(Int, n / ncols)
 
-    # scale figure: each experiment column ~380px wide, each row pair ~360px tall
-    w = max(900, ncols * 380)
-    h = max(650, nrows * 360)
+    # scale figure: each experiment column ~350px wide, each row pair ~280px tall
+    w = max(1200, ncols * 350)
+    h = max(800, nrows * 280)
 
     plt = plot(plots...; size=(w, h), thickness_scaling=0.7)
 
     for sp in plt.subplots
         sp[:titlefontsize] = 8
-        sp[:top_margin] = 4Plots.mm  # keep titles clear of the row above
 
         # font sizes must be set on each axis object directly
         for axis in (:xaxis, :yaxis)
@@ -746,14 +734,11 @@ function _save_results(result::FitResult)
     prepare_outputfolder(outputfolder)
     saved = String[]
 
-    # save per-experiment plots, combined into one or more grid figures
+    # save per-experiment plots, combined into one grid figure
     plots = plot(result)
-    pages = combineplots(plots)
-    for (i, page) in enumerate(pages)
-        name = length(pages) == 1 ? "exchange1d_fit.pdf" : "exchange1d_fit_$i.pdf"
-        savefig(page, joinpath(outputfolder, name))
-        push!(saved, name)
-    end
+    plt = combineplots(plots)
+    savefig(plt, joinpath(outputfolder, "exchange1d_fit.pdf"))
+    push!(saved, "exchange1d_fit.pdf")
 
     for (i, p) in enumerate(plots)
         savefig(p, joinpath(outputfolder, "exchange1d_expt_$i.pdf"))
