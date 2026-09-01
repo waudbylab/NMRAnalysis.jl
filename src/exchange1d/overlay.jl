@@ -70,7 +70,8 @@ function overlayplots(result::FitResult)
 
     if length(cest) > 1
         for group in experimentgroups(e -> round(e.ν1; digits=1), cest)
-            length(group) > 1 && push!(plots, overlaycest(group, :saturation_time, params_value))
+            length(group) > 1 &&
+                push!(plots, overlaycest(group, :saturation_time, params_value))
         end
         for group in experimentgroups(e -> round(e.saturation_time; digits=6), cest)
             length(group) > 1 && push!(plots, overlaycest(group, :ν1, params_value))
@@ -110,10 +111,10 @@ function overlayr1rhooffres(experiments, params_value)
               legend=:topright)
     p2 = plot(; frame=:box, xlabel="Spin-lock offset / ppm", ylabel="Residual / σ",
               grid=nothing, xflip=true, legend=nothing)
-    vline!(p1, delta; ls=:dash, color=:black, label=nothing)
-    vline!(p2, delta; ls=:dash, color=:black, label=nothing)
+
     hspan!(p2, [-2, 2]; color=:grey, alpha=0.3, lw=0, la=0, primary=false)
     hspan!(p2, [-1, 1]; color=:grey, alpha=0.5, lw=0, la=0, primary=false)
+
     hline!(p2, [0]; color=:black, lw=0.5, primary=false)
 
     maxwres = 0.0
@@ -136,6 +137,11 @@ function overlayr1rhooffres(experiments, params_value)
     for c in curves
         plot!(p1, c.x[c.sortidx], c.ypred[c.sortidx]; lw=1.5, color=c.i, label=nothing)
     end
+
+    hline!(p1, [0.0]; color=:black, lw=0.5, primary=false, z_order=:back)
+    vline!(p1, delta; ls=:dash, color=:black, label=nothing, z_order=:back)
+    vline!(p2, delta; ls=:dash, color=:black, label=nothing, z_order=:back)
+
     ylims!(p2, -maxwres * 1.2, maxwres * 1.2)
 
     return plot(p1, p2; layout=grid(2, 1; heights=[0.75, 0.25]), link=:x)
@@ -175,8 +181,7 @@ function overlaycest(experiments, varyby::Symbol, params_value)
               xflip=true, legend=:bottomright)
     p2 = plot(; frame=:box, xlabel="Saturation frequency (ppm)", ylabel="Residual / σ",
               grid=nothing, xflip=true, legend=nothing)
-    vline!(p1, delta; ls=:dash, color=:black, label=nothing)
-    vline!(p2, delta; ls=:dash, color=:black, label=nothing)
+
     hspan!(p2, [-2, 2]; color=:grey, alpha=0.3, lw=0, la=0, primary=false)
     hspan!(p2, [-1, 1]; color=:grey, alpha=0.5, lw=0, la=0, primary=false)
     hline!(p2, [0]; color=:black, lw=0.5, primary=false)
@@ -198,12 +203,18 @@ function overlaycest(experiments, varyby::Symbol, params_value)
 
     for c in curves
         scatter!(p1, c.x[c.sortidx], c.yobs[c.sortidx]; ms=3,
-                 markercolor=overlaymarkercolor(c.i), markerstrokecolor=:black, label=c.label)
+                 markercolor=overlaymarkercolor(c.i), markerstrokecolor=:black,
+                 label=c.label)
         scatter!(p2, c.x[c.sortidx], c.wres[c.sortidx]; ms=3, color=c.i, label=nothing)
     end
     for c in curves
         plot!(p1, c.x[c.sortidx], c.ypred[c.sortidx]; lw=1.5, color=c.i, label=nothing)
     end
+
+    hline!(p1, [0.0]; color=:black, lw=0.5, primary=false, z_order=:back)
+    vline!(p1, delta; ls=:dash, color=:black, label=nothing, z_order=:back)
+    vline!(p2, delta; ls=:dash, color=:black, label=nothing, z_order=:back)
+
     ylims!(p2, -maxwres * 1.2, maxwres * 1.2)
 
     return plot(p1, p2; layout=grid(2, 1; heights=[0.75, 0.25]), link=:x)

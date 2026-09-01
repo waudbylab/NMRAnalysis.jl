@@ -244,7 +244,8 @@ function _prompt_concentrations!(model, prob::ExchangeProblem)
         name = model.moleculemap[role]
         haskey(model.concentrations, name) && continue
 
-        unmatched = filter(expt -> !haskey(sampleconcentrations(expt), name), prob.experiments)
+        unmatched = filter(expt -> !haskey(sampleconcentrations(expt), name),
+                           prob.experiments)
         isempty(unmatched) && continue
 
         if length(unmatched) < length(prob.experiments)
@@ -356,15 +357,17 @@ function _prompt_params(p0::ComponentArray, prob::ExchangeProblem, fixed::Set{In
         labels = [_pretty_label(item, state_labels, fields) for item in items]
         maxlen = maximum(length, labels)
         menu_items = ["▶ Continue to fit"]
-        append!(menu_items, [rpad(label, maxlen + 2) * "= " *
-                             _format_value(_displayvalue(item, p0)) *
-                             (item.flat_index in fixed ? "  [fixed]" : "")
-                             for (label, item) in zip(labels, items)])
+        append!(menu_items,
+                [rpad(label, maxlen + 2) * "= " *
+                 _format_value(_displayvalue(item, p0)) *
+                 (item.flat_index in fixed ? "  [fixed]" : "")
+                 for (label, item) in zip(labels, items)])
         push!(menu_items, "✕ Cancel")
 
         menu = RadioMenu(menu_items)
         choice = request("Review parameters (select to edit, 'fix'/'free' to lock, or continue):",
                          menu)
+        println()
 
         # cancel
         (choice == -1 || choice == length(menu_items)) && return nothing

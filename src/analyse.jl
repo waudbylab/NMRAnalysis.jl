@@ -315,6 +315,7 @@ function analyse(filenames::AbstractVector{<:AbstractString};
     # Multiple options: present menu
     menu_items = [opt.description for opt in options]
     menu = MultiSelectMenu(menu_items)
+    println()
     choices = request("Select analyses to run:", menu)
 
     if isempty(choices)

@@ -141,9 +141,10 @@ function experimentinfo(expt::CESTExperiment)
             "Field" => _format_field(expt.field_teslas),
             "Saturation power (ν1)" => "$(round(expt.ν1; digits=1)) Hz",
             "Saturation time" => "$(round(expt.saturation_time * 1000; digits=1)) ms",
-            "Saturation offsets" => "$(length(expt.δsat)) points, " *
-                                    "$(round(minimum(expt.δsat); digits=3)) to " *
-                                    "$(round(maximum(expt.δsat); digits=3)) ppm"]
+            "Saturation offsets" =>
+                "$(length(expt.δsat)) points, " *
+                "$(round(minimum(expt.δsat); digits=3)) to " *
+                "$(round(maximum(expt.δsat); digits=3)) ppm"]
 end
 
 function plot_result(expt::CESTExperiment, fit_result; kwargs...)
@@ -168,10 +169,11 @@ function plot_result(expt::CESTExperiment, fit_result; kwargs...)
               kwargs...,
               xflip=true)
 
-    vline!(p1, params_value.spin.delta; ls=:dash, label="peak positions")
-    scatter!(p1, x[sortidx], yobs[sortidx]; label="observed", ms=3)
-    plot!(p1, x[sortidx], ypred[sortidx]; label="fit", lw=1.5)
-    hline!(p1, [0.0]; primary=false, color=:black, lw=0.5)
+    scatter!(p1, x[sortidx], yobs[sortidx]; label="observed", ms=3, c=1)
+    plot!(p1, x[sortidx], ypred[sortidx]; label="fit", lw=1.5, c=2)
+    hline!(p1, [0.0]; primary=false, color=:black, lw=0.5, z_order=:back)
+    vline!(p1, params_value.spin.delta; ls=:dash, label="peak positions", c=3,
+           primary=false, z_order=:back)
 
     p2 = plot(; frame=:box,
               xlabel="Saturation frequency (ppm)",
@@ -182,11 +184,12 @@ function plot_result(expt::CESTExperiment, fit_result; kwargs...)
               kwargs...,
               xflip=true)
     wres = (Measurements.value.(yobs) .- ypred) ./ Measurements.uncertainty.(yobs)
-    vline!(p2, params_value.spin.delta; ls=:dash, label="peak positions", c=3)
     hspan!(p2, [-2, 2]; color=:limegreen, alpha=0.3, lw=0, la=0, primary=false)
     hspan!(p2, [-1, 1]; color=:limegreen, alpha=0.5, lw=0, la=0, primary=false)
     hline!(p2, [0]; color=:black, lw=0.5, primary=false)
-    scatter!(p2, x[sortidx], wres[sortidx]; ms=3)
+    scatter!(p2, x[sortidx], wres[sortidx]; ms=3, c=1)
+    vline!(p2, params_value.spin.delta; ls=:dash, label="peak positions", c=3,
+           primary=false, z_order=:back)
     ylims!(p2, -maximum(abs, wres) * 1.2, maximum(abs, wres) * 1.2)
 
     plt = plot(p1, p2; layout=grid(2, 1; heights=[0.75, 0.25]), link=:x)

@@ -114,9 +114,10 @@ Acquisition parameters worth recording alongside a saved fit (see
 function experimentinfo(expt::R1rhoOnResExperiment)
     return ["Type" => "On-resonance R1ρ",
             "Field" => _format_field(expt.field_teslas),
-            "Spinlock strengths" => "$(length(expt.νSL)) points, " *
-                                    "$(round(minimum(expt.νSL); digits=1)) to " *
-                                    "$(round(maximum(expt.νSL); digits=1)) Hz"]
+            "Spinlock strengths" =>
+                "$(length(expt.νSL)) points, " *
+                "$(round(minimum(expt.νSL); digits=1)) to " *
+                "$(round(maximum(expt.νSL); digits=1)) Hz"]
 end
 
 function plot_result(expt::R1rhoOnResExperiment, fit_result; kwargs...)
@@ -131,6 +132,7 @@ function plot_result(expt::R1rhoOnResExperiment, fit_result; kwargs...)
                  title="On-resonance R₁ρ",
                  frame=:box, legend=nothing, grid=nothing, kwargs...)
     plot!(p1, expt.νSL[sortidx], ypred[sortidx]; lw=1.5)
+    hline!(p1, [0.0]; color=:black, lw=0.5, primary=false)
 
     wres = (Measurements.value.(yobs) .- ypred) ./ Measurements.uncertainty.(yobs)
     p2 = plot(; xlabel="Spinlock strength / Hz",
