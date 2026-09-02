@@ -79,14 +79,17 @@ function BuildupModel()
 end
 
 """
-    analyse(e::STDExperiment, [dataset, regions]) -> NamedTuple
+    analyse(e::STDExperiment, [dataset, regions]; isfitting=true) -> NamedTuple
 
 Returns `(; points, buildups, epitope)`. As for the curve-fit experiments, the dataset
-and regions may be supplied explicitly so the GUI can recompute live.
+and regions may be supplied explicitly so the GUI can recompute live. `isfitting=false`
+(the GUI's Fitting toggle switched off) skips the buildup curve fit - the raw STD
+fractions (`points`) still come through, but `buildups` (and, following from it,
+`epitope`) come back empty.
 """
 analyse(e::STDExperiment) = analyse(e, e.dataset, e.regions)
 
-function analyse(e::STDExperiment, ds::Dataset1D, regs)
+function analyse(e::STDExperiment, ds::Dataset1D, regs; isfitting::Bool=true)
     sats = unique(column(ds.planes, :sat))
     onres = filter(!=(e.reference), sats)
 
@@ -114,7 +117,7 @@ function analyse(e::STDExperiment, ds::Dataset1D, regs)
                 push!(stds, pt)
             end
             # Buildup fit when enough saturation times are available.
-            if length(stds) ≥ 3
+            if isfitting && length(stds) ≥ 3
                 x = [p.tsat for p in stds]
                 y = [p.std for p in stds]
                 fit = fit_series(BuildupModel(), x, y)

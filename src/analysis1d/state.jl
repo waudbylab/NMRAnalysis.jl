@@ -58,10 +58,19 @@ function prepare_state(expt::Experiment1D)
     end
     state[:dataset] = lift(nc -> Dataset1D(planes, nc), state[:noisec])
 
-    # live analysis (independent of the fitting toggle; the toggle only hides fit curves)
-    state[:result] = lift(state[:dataset], state[:regionobjs]) do ds_, regs_
-        isempty(regs_) && return (; series=SeriesResult[], summary=nothing)
-        return analyse(expt, ds_, regs_)
+    # live analysis - the Fitting toggle genuinely disables curve-fitting here (see
+    # `analyse`/`series_results`' `isfitting`), not just the plot/text display of it.
+    #
+    # No special-casing for zero regions: `analyse` naturally returns an (empty but
+    # correctly-typed) result for every experiment - `series_results`'s loop over `regs`
+    # simply doesn't run. A hand-written empty fallback here previously hardcoded
+    # `summary=nothing`, which crashed for experiments whose `postprocess` returns a
+    # `Vector` (TRACT, nutation, diffusion): the Observable's element type gets fixed by
+    # its first (non-empty) value, and `nothing` doesn't convert to that Vector type.
+    state[:result] = lift(state[:dataset], state[:regionobjs], state[:isfitting]) do ds_,
+                                                                                      regs_,
+                                                                                      fitting
+        return analyse(expt, ds_, regs_; isfitting=fitting)
     end
 
     # spectra overlay (static) and current spectrum
@@ -120,7 +129,22 @@ function prepare_state(expt::Experiment1D)
     state[:seriestextcolor] = lift(sd -> [seriescolor(i) for i in eachindex(sd)],
                                    state[:seriesdata])
 
-    state[:summary] = lift(res -> summary_text(expt, res), state[:result])
+    # live results text for the results panel, split into the raw per-series fit (e.g.
+    # A, R) and the second-stage derived summary (e.g. TRACT's τc), so the GUI can show
+    # them as separate blocks. Both go blank when the Fitting toggle is off - fitting
+    # itself always runs (nothing here skips the actual curve_fit calls; see `isfitting`
+    # in reductions/experiments), but showing numbers while "Fitting" reads as off would
+    # be misleading.
+    state[:resultsheader] = lift(state[:result], state[:activelabel], state[:isfitting]) do res, lbl,
+                                                                                             fitting
+        fitting || return ""
+        return resultsheader(expt, res, lbl)
+    end
+    state[:secondaryresult] = lift(state[:result], state[:activelabel],
+                                   state[:isfitting]) do res, lbl, fitting
+        fitting || return ""
+        return secondarytext(expt, res, lbl)
+    end
 
     return state
 end
@@ -144,11 +168,20 @@ function set_region_center!(state, i, c)
     return state[:regions][] = rs
 end
 
-function set_region_width!(state, i, w)
+"""
+    set_region_edge!(state, i, fixed, moving)
+
+Move one edge of region `i` to `moving`, keeping the opposite edge at `fixed` - so both
+the centre and width update together. Used for edge-dragging (as opposed to
+`set_region_center!`, which drags the whole region and keeps its width fixed).
+"""
+function set_region_edge!(state, i, fixed, moving)
     (1 ≤ i ≤ length(state[:regions][])) || return
+    lo, hi = minmax(fixed, moving)
+    w = max(hi - lo, 1e-6)
     rs = copy(state[:regions][])
     r = rs[i]
-    rs[i] = (; label=r.label, c=r.c, w=w)
+    rs[i] = (; label=r.label, c=(lo + hi) / 2, w=w)
     return state[:regions][] = rs
 end
 

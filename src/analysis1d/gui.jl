@@ -8,6 +8,27 @@
 # treated as a single click, giving the default-width region.
 const ADD_TAP_THRESHOLD = 0.005
 
+"""Scale the spectrum axis's y-view by `factor` - `factor=2` makes peaks look twice as
+tall (divides both bounds by 2, i.e. halves the range), `factor=0.5` half as tall
+(doubles the range). Scales `ymin`/`ymax` directly rather than re-centring on the
+current view's midpoint, so it stays anchored to the data's own zero rather than
+drifting off-centre over repeated presses. The axis's y-interaction is locked
+(`yzoomlock`), so this is the controlled replacement for scroll/drag y-zoom - a
+button/keyboard shortcut rather than the mouse."""
+function scaleyaxis!(ax, factor)
+    fl = ax.finallimits[]
+    ylo, yhi = fl.origin[2], fl.origin[2] + fl.widths[2]
+    return ylims!(ax, ylo / factor, yhi / factor)
+end
+
+"""Step the spectrum slider by `delta` planes (clamped to range), moving its visual
+thumb via `set_close_to!` (not just `.value`, which the slider's thumb doesn't track -
+see `setup_keyboard!`). Shared by the ←/→ buttons and the Left/Right key shortcuts."""
+function stepslice!(sl, nplanes, delta)
+    i = sl.value[] + delta
+    return (1 ≤ i ≤ nplanes) && set_close_to!(sl, i)
+end
+
 """
     gui!(expt::Experiment1D)
 
@@ -16,14 +37,17 @@ planes with draggable integration region(s) and a noise marker; the result panel
 shows the live fit for the active region. Returns the GUI state when the window closes.
 
 # Keyboard shortcuts (mirroring the 2D fitting GUI)
-- `A`: add a region. A quick tap adds a default-width (0.05 ppm) region under the
-  cursor; press, drag, and release to choose the width.
+- `A`: add a region. A quick tap adds a default-width region under the cursor; press,
+  drag, and release to choose the width.
 - `R`: rename the active region.
 - `D`: delete the active region.
 - Left/Right arrows: step through spectra.
+- Up/Down arrows: scale the spectrum's y-axis (×2 / ÷2).
 """
 function gui!(expt::Experiment1D)
-    GLMakie.activate!(; focus_on_show=true, title="NMRAnalysis.jl: 1D analysis")
+    # the analysis type is already shown as a large bold label inside the window, so the
+    # OS titlebar just carries the application identity rather than repeating it
+    GLMakie.activate!(; focus_on_show=true, title="NMRAnalysis.jl")
     state = prepare_state(expt)
     state[:gui] = Dict{Symbol,Any}()
     gui = state[:gui]
@@ -32,12 +56,19 @@ function gui!(expt::Experiment1D)
 
     fig = Figure(; size=(1200, 800))
     left = fig[1, 1] = GridLayout()
-    right = fig[1, 2] = GridLayout()
-    # Without explicit column/row proportions, Makie sizes each cell to fit its content
-    # and leaves the remainder of the window blank on resize - match GUI2D's layout and
-    # give both columns a stretchy relative share so the interface fills the window.
-    colsize!(fig.layout, 1, Auto(false, 3))
-    colsize!(fig.layout, 2, Auto(false, 1))
+    # Fixed, narrow width: `right`'s content is short labels/buttons, not something that
+    # should compete with the spectra for space. Fixing it also makes every nested
+    # GridLayout inside it (the button rows, the rename/delete pair) resolve against a
+    # known, unambiguous width instead of an auto-determined one that shifts around as
+    # content changes. `valign=:top` keeps its rows packed at the top, so any leftover
+    # vertical space collects at the bottom instead of being spread between rows.
+    right = fig[1, 2] = GridLayout(; valign=:top)
+    colsize!(fig.layout, 2, Fixed(250))
+    # The single outer row defaults to `Auto()`, which - since the axes report no
+    # determinable height but the controls column's stack of labels/widgets does - was
+    # being sized to the controls column's (shorter) natural height instead of the full
+    # window, leaving blank space below. Force it to the whole available height.
+    rowsize!(fig.layout, 1, Relative(1))
 
     # mode-based background tint, matching the 2D fitting GUI's feedback style
     fig.scene.backgroundcolor = lift(state[:mode]) do mode
@@ -51,8 +82,13 @@ function gui!(expt::Experiment1D)
     end
 
     # --- spectral overlay ---
+    # y-axis locked (matches the R1rho GUI): chemical-shift regions are picked/dragged
+    # horizontally only, so zoom/pan/rectangle-select should never touch intensity. The
+    # title identifies which plane is on display (e.g. "0.4 s delay (anti-TROSY)").
+    spectitle = lift(i -> spectruminfo(expt, state[:planes].vars[i]), state[:currentspectrum_idx])
     ax = Axis(left[1, 1]; xreversed=true, xlabel="Chemical shift (ppm)", ylabel="Intensity",
-              title="Spectra – press A to add a region, drag to reposition")
+              title=spectitle, yzoomlock=true, ypanlock=true, xrectzoom=true, yrectzoom=false,
+              xgridvisible=false, ygridvisible=false)
     gui[:ax_spec] = ax
     hlines!(ax, [0]; color=:grey)
     lines!(ax, state[:overlay]; color=(:grey, 0.35), label="All spectra")
@@ -63,15 +99,20 @@ function gui!(expt::Experiment1D)
     on(rs -> length(rs) != length(gui[:regionspans]) && rebuild_regionspans!(ax, state),
        state[:regions])
 
-    text!(ax, lift(rs -> [Point2f(reg.c, 0.0) for reg in rs], state[:regions]);
-          text=lift(rs -> [reg.label for reg in rs], state[:regions]),
-          align=(:center, :bottom), fontsize=11, offset=(0, 4))
-
-    # noise marker: a vline for visibility, plus a narrow, mostly-transparent band as the
-    # drag target (a true zero-width line is fiddly to grab with the mouse)
+    # noise marker: a vline for visibility, plus a wider, mostly-transparent band as the
+    # drag target (a true zero-width line is fiddly to grab with the mouse) - the larger
+    # of 2% of the full spectral width or the widest region, so it's always at least as
+    # easy to grab as the regions it estimates noise for, and reactive since regions can
+    # be resized after the fact.
+    basedefaultwidth = defaultregionwidth(first(state[:planes].traces).δ)
+    noisehandlehw = lift(state[:regions]) do rs
+        widest = isempty(rs) ? 0.0 : maximum(r.w for r in rs)
+        return max(basedefaultwidth, widest) / 2
+    end
     vlines!(ax, state[:noisec]; color=:orchid, linewidth=2, label="Noise")
-    gui[:noisehit] = vspan!(ax, lift(c -> c - 0.01, state[:noisec]),
-                            lift(c -> c + 0.01, state[:noisec]); color=NOISE_COLOR)
+    gui[:noisehit] = vspan!(ax, lift((c, hw) -> c - hw, state[:noisec], noisehandlehw),
+                            lift((c, hw) -> c + hw, state[:noisec], noisehandlehw);
+                            color=NOISE_COLOR)
     axislegend(ax; position=:lt)
 
     # add-region drag preview
@@ -80,34 +121,129 @@ function gui!(expt::Experiment1D)
     addhi = lift((m, a, c) -> m == :addingdrag ? max(a, c) : 0.0, state[:mode],
                  state[:addstart], state[:addcurrent])
     addalpha = lift(m -> m == :addingdrag ? 0.25 : 0.0, state[:mode])
-    vspan!(ax, addlo, addhi; color=lift(a -> (:seagreen, a), addalpha))
+    # `xautolimits=false`: outside :addingdrag this span sits at the placeholder (0, 0),
+    # and without opting out, that phantom point at ppm=0 gets pulled into the axis's
+    # autolimits - forcing the view out to include zero even when the actual spectral
+    # data never goes near it.
+    vspan!(ax, addlo, addhi; color=lift(a -> (:seagreen, a), addalpha), xautolimits=false)
 
     # --- result panel ---
     xl, yl = result_labels(expt)
-    ax2 = Axis(left[2, 1]; xlabel=xl, ylabel=yl, title="Fit (active region)")
+    fittitle = lift(lbl -> isempty(lbl) ? "Fit" : "Fit: $lbl", state[:activelabel])
+    ax2 = Axis(left[2, 1]; xlabel=xl, ylabel=yl, title=fittitle,
+              xgridvisible=false, ygridvisible=false)
     gui[:ax_fit] = ax2
-    hlines!(ax2, [0]; linewidth=0)
+    hlines!(ax2, [0]; color=:grey)
     errorbars!(ax2, state[:flat_errors]; whiskerwidth=8, color=state[:flat_error_colors])
     scatter!(ax2, state[:flat_points]; color=state[:flat_point_colors])
     lines!(ax2, state[:flat_fit]; color=state[:flat_fit_colors])
-    text!(ax2, state[:seriestextpos]; text=state[:seriestexttxt],
-          color=state[:seriestextcolor], fontsize=11, align=(:left, :center), offset=(6, 0))
+    # Most experiments label each curve directly (group counts/names vary, e.g. STD's
+    # saturation frequencies); experiments with a fixed, small set of named groups (e.g.
+    # TRACT's TROSY/anti-TROSY) get a proper axislegend instead via `seriesnames`.
+    legendnames = seriesnames(expt)
+    if isnothing(legendnames)
+        text!(ax2, state[:seriestextpos]; text=state[:seriestexttxt],
+              color=state[:seriestextcolor], fontsize=11, align=(:left, :center), offset=(6, 0))
+    else
+        legendelements = [MarkerElement(; color=seriescolor(i), marker=:circle)
+                          for i in eachindex(legendnames)]
+        axislegend(ax2, legendelements, legendnames; position=:rt)
+    end
     rowsize!(left, 1, Relative(0.55))
     on(_ -> autolimits!(ax2), state[:seriesdata])
 
     # --- controls ---
+    # `right` uses a single column throughout: every row is either one widget, or its
+    # own small nested GridLayout for anything needing more than one widget side by
+    # side. Sharing `right`'s own columns directly across differently-shaped rows (a
+    # 7-item button row, a 2-item button pair, a label+textbox pair, ...) made Makie
+    # stretch each row's cells to line up with whichever row needed the most columns,
+    # which is what produced a very spread-out, misaligned layout. Now that `right`
+    # itself is a fixed width (see above), each nested row-grid resolves against that
+    # same known width instead of an ambiguous auto-determined one.
     r = 0
     r += 1
-    right[r, 1] = Label(fig, "Spectrum:")
-    sl = right[r, 2] = Slider(fig; range=1:state[:nplanes], width=170)
+    right[r, 1] = Label(fig, "NMRAnalysis: $(windowtitle(expt))"; font=:bold, fontsize=16,
+                        halign=:left, tellwidth=false)
+
+    # zoom row: y-scale and reset only - slice navigation is its own row below, so each
+    # row's few items comfortably fit the panel's fixed width
+    r += 1
+    zoomrow = right[r, 1] = GridLayout()
+    btn_yup = zoomrow[1, 1] = Button(fig; label="×2 (↑)")
+    btn_ydown = zoomrow[1, 2] = Button(fig; label="÷2 (↓)")
+    on(_ -> scaleyaxis!(ax, 2), btn_yup.clicks)
+    on(_ -> scaleyaxis!(ax, 0.5), btn_ydown.clicks)
+    btn_resetzoom = zoomrow[1, 3] = Button(fig; label="reset zoom")
+    # Clearing `ax.limits` (rather than calling `reset_limits!` directly) is what
+    # actually gives a *fresh* full-data view: `ylims!`/`rebuild_regionspans!` pin
+    # `ax.limits` to specific bounds as they run, and `reset_limits!` on its own just
+    # re-applies whatever is currently pinned there rather than recomputing from data.
+    on(_ -> (ax.limits[] = (nothing, nothing)), btn_resetzoom.clicks)
+
+    # slice navigation row
+    r += 1
+    slicerow = right[r, 1] = GridLayout()
+    btn_left = slicerow[1, 1] = Button(fig; label="←")
+    btn_right = slicerow[1, 2] = Button(fig; label="→")
+    sl = slicerow[1, 3] = Slider(fig; range=1:state[:nplanes], width=90)
+    gui[:slider] = sl
     connect!(state[:currentspectrum_idx], sl.value)
+    on(_ -> stepslice!(sl, state[:nplanes], -1), btn_left.clicks)
+    on(_ -> stepslice!(sl, state[:nplanes], 1), btn_right.clicks)
+    slicerow[1, 4] = Label(fig, lift(i -> "$i of $(state[:nplanes])", state[:currentspectrum_idx]))
+
+    r += 1
+    right[r, 1] = Label(fig,
+                        "Press A to add a region (tap for default width, drag to size it).";
+                        word_wrap=true, tellwidth=false, halign=:left)
+
+    r += 1
+    right[r, 1] = Label(fig,
+                        "Drag the middle of a shaded region to move it, its edge to resize it, or the noise marker to reposition it.";
+                        word_wrap=true, tellwidth=false, halign=:left)
+
+    r += 1
+    editrow = right[r, 1] = GridLayout()
+    # explicit matching widths rather than relying on grid-stretch semantics to split
+    # the row evenly - simpler and unambiguous
+    btn_rename = editrow[1, 1] = Button(fig; label="(R)ename", width=115)
+    on(btn_rename.clicks) do _
+        return state[:mode][] == :normal && beginrename!(state)
+    end
+    btn_delete = editrow[1, 2] = Button(fig; label="(D)elete", width=115)
+    on(btn_delete.clicks) do _
+        return state[:mode][] == :normal && deleteregion!(state, state[:active][])
+    end
+
+    r += 1
+    outputrow = right[r, 1] = GridLayout()
+    # empty (not pre-filled with "out") so the placeholder text is visible - `state[:outputdir]`
+    # already defaults to "out" independently (see `prepare_state`), so leaving this
+    # untouched still saves there
+    tout = outputrow[1, 1] = Textbox(fig; width=90, placeholder="out")
+    on(tout.stored_string) do s
+        return state[:outputdir][] = s
+    end
+    btn_save = outputrow[1, 2] = Button(fig; label="Save results")
+    on(btn_save.clicks) do _
+        return save_results(state)
+    end
+
+    r += 1
+    fitrow = right[r, 1] = GridLayout()
+    gui[:togglefit] = fitrow[1, 1] = Toggle(fig; active=true)
+    fitrow[1, 2] = Label(fig, "Fitting")
+    connect!(state[:isfitting], gui[:togglefit].active)
+    fittingrow = r  # extra gap added below this row, once later rows exist to gap against
 
     if !singleregion
         r += 1
-        right[r, 1] = Label(fig, "Region:")
-        gui[:menu] = right[r, 2] = Menu(fig;
-                                        options=lift(rs -> [reg.label for reg in rs],
-                                                     state[:regions]), width=170)
+        regionrow = right[r, 1] = GridLayout()
+        regionrow[1, 1] = Label(fig, "Region:")
+        gui[:menu] = regionrow[1, 2] = Menu(fig;
+                                            options=lift(rs -> [reg.label for reg in rs],
+                                                         state[:regions]), width=140)
         # Two-way sync between the dropdown and state[:active] (also driven by clicking or
         # hovering a region on the plot). Each side writes the other, so a reentrancy guard
         # is needed regardless of whether the underlying Observables suppress same-value
@@ -130,51 +266,21 @@ function gui!(expt::Experiment1D)
     end
 
     r += 1
-    right[r, 1] = Label(fig, "Region width (ppm):")
-    initw = isempty(state[:regions][]) ? 0.05 :
-            state[:regions][][clamp(state[:active][], 1, length(state[:regions][]))].w
-    tw = right[r, 2] = Textbox(fig; validator=Float64, width=170,
-                               stored_string=string(round(initw; digits=3)))
-    on(tw.stored_string) do s
-        return set_region_width!(state, state[:active][], parse(Float64, s))
-    end
-    on(state[:active]) do i
-        (1 ≤ i ≤ length(state[:regions][])) || return
-        return tw.displayed_string[] = string(round(state[:regions][][i].w; digits=3))
-    end
+    right[r, 1] = Label(fig,
+                        lift(lbl -> isempty(lbl) ? "No region selected" : "Region: $lbl",
+                             state[:activelabel]);
+                        font=:bold, halign=:left, tellwidth=false)
 
     r += 1
-    gui[:togglefit] = Toggle(fig; active=true)
-    right[r, 1] = gui[:togglefit]
-    right[r, 2] = Label(fig, "Fitting")
-    connect!(state[:isfitting], gui[:togglefit].active)
+    right[r, 1] = Label(fig, state[:resultsheader]; tellwidth=false, halign=:left,
+                        justification=:left)
 
     r += 1
-    right[r, 1] = Button(fig; label="(R)ename region")
-    on(_ -> beginrename!(state), right[r, 1].clicks)
-    right[r, 2] = Button(fig; label="(D)elete region")
-    on(_ -> deleteregion!(state, state[:active][]), right[r, 2].clicks)
+    right[r, 1] = Label(fig, state[:secondaryresult]; tellwidth=false, halign=:left,
+                        justification=:left, word_wrap=true)
 
-    r += 1
-    right[r, 1:2] = Label(fig,
-                          "Press A to add a region (tap for default width, drag to size it). Drag the shaded regions or the noise marker to reposition.";
-                          word_wrap=true, tellwidth=false, halign=:left)
-
-    r += 1
-    right[r, 1:2] = Label(fig, state[:summary]; tellwidth=false, halign=:left,
-                          justification=:left)
-
-    r += 1
-    right[r, 1] = Label(fig, "Output folder:")
-    tout = right[r, 2] = Textbox(fig; stored_string="out", width=170)
-    on(tout.stored_string) do s
-        return state[:outputdir][] = s
-    end
-    r += 1
-    btn_save = right[r, 1:2] = Button(fig; label="Save results")
-    on(btn_save.clicks) do _
-        return save_results(state)
-    end
+    # now that every later row exists, add breathing room below the fitting toggle
+    rowgap!(right, fittingrow, Fixed(20))
 
     setup_mouse!(fig, ax, state)
     setup_keyboard!(fig, ax, state)
@@ -191,20 +297,56 @@ end
 """(Re)create one `vspan!` per region, coloured to highlight the active one. Called once
 at startup and again whenever the number of regions changes (add/delete); simple
 position/width/active-state changes are handled by the spans' own Observables and don't
-need a rebuild."""
+need a rebuild.
+
+Each span's position/colour Observables are plain `Observable`s kept in sync by an
+explicit `on` listener (rather than `lift`ing straight off `state[:regions]`/
+`state[:active]`, index `i` baked in) so the listener can be `off`'d here before the next
+rebuild. Without that, an old listener for index `i` stays registered on `state[:regions]`
+after its span is deleted, and fires (indexing out of bounds) the next time a region is
+removed and the list is shorter than `i`."""
 function rebuild_regionspans!(ax, state)
     gui = state[:gui]
-    for sp in gui[:regionspans]
+    # Capture the current view and reapply it once the spans below are rebuilt. Deleting
+    # and re-adding plot objects makes Makie fall back to full-data autolimits on the
+    # next relimit, discarding whatever the user had zoomed/panned to. Only on a genuine
+    # rebuild (spans already exist): before the first render, `finallimits` is still its
+    # placeholder default rather than the real data range, so capturing it on the
+    # initial build would lock the axis to that tiny placeholder instead of letting the
+    # normal first-time autolimits happen.
+    #
+    # Restored via `targetlimits` (the transient "what's currently shown" state), not
+    # `xlims!`/`ax.limits` (a *permanent* override): an earlier version used `xlims!`
+    # here, which pins `ax.limits` until something explicitly clears it - and then the
+    # "reset zoom" button and the ×2/÷2 y-scale buttons (which read `ax.limits` back via
+    # `reset_limits!`/`ylims!` to decide what to leave unchanged) would silently re-apply
+    # that stale pin, snapping the x-view back to whatever it was at the last add/delete
+    # instead of leaving it alone or truly resetting it.
+    isrebuild = !isempty(gui[:regionspans])
+    preservedview = ax.finallimits[]
+
+    for (sp, obsfuncs) in gui[:regionspans]
         delete!(ax, sp)
+        foreach(off, obsfuncs)
     end
     empty!(gui[:regionspans])
     for i in eachindex(state[:regions][])
-        lo = lift(rs -> rs[i].c - rs[i].w / 2, state[:regions])
-        hi = lift(rs -> rs[i].c + rs[i].w / 2, state[:regions])
-        color = lift(a -> a == i ? ACTIVE_REGION_COLOR : INACTIVE_REGION_COLOR,
-                     state[:active])
-        push!(gui[:regionspans], vspan!(ax, lo, hi; color=color))
+        lo = Observable(0.0)
+        hi = Observable(0.0)
+        color = Observable(INACTIVE_REGION_COLOR)
+        of1 = on(state[:regions]; update=true) do rs
+            i <= length(rs) || return
+            r = rs[i]
+            lo[] = r.c - r.w / 2
+            hi[] = r.c + r.w / 2
+        end
+        of2 = on(state[:active]; update=true) do a
+            color[] = a == i ? ACTIVE_REGION_COLOR : INACTIVE_REGION_COLOR
+        end
+        sp = vspan!(ax, lo, hi; color=color)
+        push!(gui[:regionspans], (sp, (of1, of2)))
     end
+    isrebuild && (ax.targetlimits[] = preservedview)
 end
 
 """
@@ -233,9 +375,20 @@ function setup_mouse!(fig, ax, state)
         if ev.action == Mouse.press
             state[:mode][] == :normal || return Consume(false)
             gui[:dragging] = :nothing
-            for (i, sp) in enumerate(gui[:regionspans])
+            for (i, (sp, _)) in enumerate(gui[:regionspans])
                 if mouseover(fig, sp)
-                    gui[:dragging] = (:region, i)
+                    # dragging the outer 25% of the region drags that edge (moving both
+                    # centre and width); the middle 50% drags the whole region instead
+                    r = state[:regions][][i]
+                    lo, hi = r.c - r.w / 2, r.c + r.w / 2
+                    frac = r.w > 0 ? (mouseposition(ax)[1] - lo) / r.w : 0.5
+                    gui[:dragging] = if frac < 0.25
+                        (:regionedge, i, hi)
+                    elseif frac > 0.75
+                        (:regionedge, i, lo)
+                    else
+                        (:region, i)
+                    end
                     state[:active][] = i
                     break
                 end
@@ -262,10 +415,13 @@ function setup_mouse!(fig, ax, state)
         elseif d isa Tuple && d[1] == :region
             set_region_center!(state, d[2], mouseposition(ax)[1])
             return Consume(true)
+        elseif d isa Tuple && d[1] == :regionedge
+            set_region_edge!(state, d[2], d[3], mouseposition(ax)[1])
+            return Consume(true)
         elseif d == :nothing
             # hover highlight: select whichever region the mouse is over (does not
             # affect dragging, which takes over as soon as the button is pressed)
-            for (i, sp) in enumerate(gui[:regionspans])
+            for (i, (sp, _)) in enumerate(gui[:regionspans])
                 if mouseover(fig, sp)
                     state[:active][] = i
                     return Consume(false)
@@ -277,8 +433,10 @@ function setup_mouse!(fig, ax, state)
 end
 
 """Wire keyboard shortcuts: A to add a region (tap or drag), R to rename, D to delete,
-Left/Right to step through spectra, matching the 2D fitting GUI's key bindings."""
+Left/Right to step through spectra, Up/Down to scale the spectrum's y-axis, matching the
+2D fitting GUI's key bindings."""
 function setup_keyboard!(fig, ax, state)
+    defaultwidth = defaultregionwidth(first(state[:planes].traces).δ)
     on(events(fig).keyboardbutton; priority=2) do ev
         mode = state[:mode][]
         if mode == :normal && ev.action == Keyboard.press
@@ -295,12 +453,16 @@ function setup_keyboard!(fig, ax, state)
                 deleteregion!(state, state[:active][])
                 return Consume(true)
             elseif ev.key == Keyboard.left
-                i = state[:currentspectrum_idx][]
-                i > 1 && (state[:currentspectrum_idx][] = i - 1)
+                stepslice!(state[:gui][:slider], state[:nplanes], -1)
                 return Consume(true)
             elseif ev.key == Keyboard.right
-                i = state[:currentspectrum_idx][]
-                i < state[:nplanes] && (state[:currentspectrum_idx][] = i + 1)
+                stepslice!(state[:gui][:slider], state[:nplanes], 1)
+                return Consume(true)
+            elseif ev.key == Keyboard.up
+                scaleyaxis!(ax, 2)
+                return Consume(true)
+            elseif ev.key == Keyboard.down
+                scaleyaxis!(ax, 0.5)
                 return Consume(true)
             end
         elseif mode == :addingdrag
@@ -308,13 +470,11 @@ function setup_keyboard!(fig, ax, state)
                 lo, hi = minmax(state[:addstart][], state[:addcurrent][])
                 if hi - lo < ADD_TAP_THRESHOLD
                     c = state[:addstart][]
-                    addregion!(state, c - 0.025, c + 0.025)
+                    addregion!(state, c - defaultwidth / 2, c + defaultwidth / 2)
                 else
                     addregion!(state, lo, hi)
                 end
-                state[:mode][] = :renaming
-                state[:oldlabel][] = state[:activelabel][]
-                setactivelabel!(state, "‸")
+                state[:mode][] = :normal
                 return Consume(true)
             end
         elseif mode == :renaming || mode == :renamingstart
@@ -354,7 +514,7 @@ function setup_keyboard!(fig, ax, state)
 end
 
 """
-    pickregion(traces; peakppm=nothing, noiseppm=nothing, ppmwidth=0.05) -> (; peakppm, noiseppm, ppmwidth)
+    pickregion(traces; peakppm=nothing, noiseppm=nothing, ppmwidth=defaultregionwidth(...)) -> (; peakppm, noiseppm, ppmwidth)
     pickregion(specs; kwargs...)
 
 Interactively choose a single integration region and a noise position, returning the
@@ -367,9 +527,8 @@ This is the region-selection front-end on its own, without any fitting: use it w
 heavy fitting lives elsewhere.
 """
 function pickregion(traces::AbstractVector{Trace}; peakppm=nothing, noiseppm=nothing,
-                    ppmwidth=0.05)
-    GLMakie.activate!(; focus_on_show=true,
-                      title="NMRAnalysis.jl: select integration region")
+                    ppmwidth=defaultregionwidth(first(traces).δ))
+    GLMakie.activate!(; focus_on_show=true, title="NMRAnalysis.jl")
 
     t1 = first(traces)
     peakppm = isnothing(peakppm) ? t1.δ[argmax(abs.(t1.y))] : peakppm
@@ -380,33 +539,65 @@ function pickregion(traces::AbstractVector{Trace}; peakppm=nothing, noiseppm=not
     w = Observable(Float64(ppmwidth))
 
     fig = Figure(; size=(1000, 620))
+    # single column: force it to the full window width, otherwise it shrinks to the
+    # (narrower, content-determined) control row's width instead of filling the window
+    colsize!(fig.layout, 1, Relative(1))
     ax = Axis(fig[1, 1]; xreversed=true, xlabel="Chemical shift (ppm)", ylabel="Intensity",
-              title="Drag the peak region and noise marker, then press Accept")
+              title="Drag the peak region and noise marker, then press Accept",
+              yzoomlock=true, ypanlock=true, xrectzoom=true, yrectzoom=false,
+              xgridvisible=false, ygridvisible=false)
     hlines!(ax, [0]; color=:grey)
-    lines!(ax, _overlay_points([Point2f.(t.δ, t.y) for t in traces]); color=(:grey, 0.5),
+    # plot at most the first 10 traces - with e.g. a whole titration or pseudo-3D series,
+    # overlaying every one of them is slow to render and no more informative than a
+    # representative handful
+    plotted = traces[1:min(10, length(traces))]
+    lines!(ax, _overlay_points([Point2f.(t.δ, t.y) for t in plotted]); color=(:grey, 0.5),
            label="All spectra")
     peakspan = vspan!(ax, lift((p, ww) -> p - ww / 2, pk, w),
                       lift((p, ww) -> p + ww / 2, pk, w); color=ACTIVE_REGION_COLOR,
                       label="Peak")
     vlines!(ax, nz; color=:orchid, linewidth=2, label="Noise")
-    noisehit = vspan!(ax, lift(c -> c - 0.01, nz), lift(c -> c + 0.01, nz); color=NOISE_COLOR)
+    noisehandlehw = defaultregionwidth(t1.δ) / 2
+    noisehit = vspan!(ax, lift(c -> c - noisehandlehw, nz), lift(c -> c + noisehandlehw, nz);
+                      color=NOISE_COLOR)
     axislegend(ax; position=:lt)
+
+    # restrict the view to the width common to every input trace, rather than the union -
+    # with several experiments of differing sweep width, the wider ones would otherwise
+    # pad the view with a region where some inputs have no data at all
+    lo = maximum(minimum(t.δ) for t in traces)
+    hi = minimum(maximum(t.δ) for t in traces)
+    # `xlims!(ax, a, b)` sets `ax.xreversed[] = a > b`, so the larger value has to come
+    # first here too, to keep this axis's chemical-shift convention.
+    lo < hi && xlims!(ax, hi, lo)
 
     ctrl = fig[2, 1] = GridLayout()
     ctrl[1, 1] = Label(fig, "Integration width (ppm):")
     tb = ctrl[1, 2] = Textbox(fig; stored_string=string(round(w[]; digits=3)),
                               validator=Float64, width=100)
     on(s -> w[] = parse(Float64, s), tb.stored_string)
+    on(neww -> tb.displayed_string[] = string(round(neww; digits=3)), w)
     accept = ctrl[1, 3] = Button(fig; label="Accept")
     done = Ref(false)
     on(_ -> done[] = true, accept.clicks)
 
-    dragging = Ref(:nothing)
+    dragging = Ref{Any}(:nothing)
     on(events(ax).mousebutton) do ev
         ev.button == Mouse.left || return Consume(false)
         if ev.action == Mouse.press
             dragging[] = if mouseover(fig, peakspan)
-                :peak
+                # dragging the outer 25% of the span drags that edge (moving both
+                # centre and width, mirroring the main GUI's region-resize); the
+                # middle 50% drags the whole span instead
+                lo, hi = pk[] - w[] / 2, pk[] + w[] / 2
+                frac = w[] > 0 ? (mouseposition(ax)[1] - lo) / w[] : 0.5
+                if frac < 0.25
+                    (:edge, hi)
+                elseif frac > 0.75
+                    (:edge, lo)
+                else
+                    :peak
+                end
             elseif mouseover(fig, noisehit)
                 :noise
             else
@@ -419,11 +610,18 @@ function pickregion(traces::AbstractVector{Trace}; peakppm=nothing, noiseppm=not
         end
     end
     on(events(fig).mouseposition; priority=2) do _
-        if dragging[] == :peak
+        d = dragging[]
+        if d == :peak
             pk[] = mouseposition(ax)[1]
             return Consume(true)
-        elseif dragging[] == :noise
+        elseif d == :noise
             nz[] = mouseposition(ax)[1]
+            return Consume(true)
+        elseif d isa Tuple && d[1] == :edge
+            fixed = d[2]
+            lo, hi = minmax(fixed, mouseposition(ax)[1])
+            pk[] = (lo + hi) / 2
+            w[] = max(hi - lo, 1e-6)
             return Consume(true)
         end
         return Consume(false)
@@ -441,28 +639,68 @@ function pickregion(specs::AbstractVector; kwargs...)
     return pickregion(reduce(vcat, traces_from_spec.(specs)); kwargs...)
 end
 
-"""Save the active-region fit figure and a text summary to the output folder."""
+"""Save the fit figure(s) and a text summary, covering every region (not just the active
+one shown live in the GUI panels), to the output folder: an overlay of every region in
+`fit.pdf`, plus one `fit_<region>.pdf` per region on its own."""
 function save_results(state)
     dir = joinpath(pwd(), state[:outputdir][])
     isdir(dir) || mkpath(dir)
     expt = state[:expt]
-
-    sd = state[:seriesdata][]
+    result = state[:result][]
+    labels = [r.label for r in state[:regions][]]
     xl, yl = result_labels(expt)
-    fig = Figure()
-    ax = Axis(fig[1, 1]; xlabel=xl, ylabel=yl)
-    hlines!(ax, [0]; linewidth=0)
-    for (i, s) in enumerate(sd)
-        c = seriescolor(i)
-        errorbars!(ax, s.errors; whiskerwidth=8, color=c)
-        scatter!(ax, s.points; color=c, label=isempty(s.label) ? "Observed" : s.label)
-        isempty(s.fitline) || lines!(ax, s.fitline; color=c)
+
+    # no gridlines (matching the live GUI panels), but keep a visible zero line
+    newfitaxis(fig) = Axis(fig[1, 1]; xlabel=xl, ylabel=yl, xgridvisible=false,
+                           ygridvisible=false)
+
+    # plots `label`'s series into `ax`, starting colour indices at `i0 + 1`; returns the
+    # number of series drawn, so callers can decide whether a legend is worthwhile
+    function plotregion!(ax, label, i0)
+        i = i0
+        for s in result_plotdata(expt, result, label)
+            i += 1
+            c = seriescolor(i)
+            lbl = isempty(s.label) ? label : "$label ($(s.label))"
+            errorbars!(ax, s.errors; whiskerwidth=8, color=c)
+            scatter!(ax, s.points; color=c, label=lbl)
+            isempty(s.fitline) || lines!(ax, s.fitline; color=c)
+        end
+        return i - i0
     end
-    length(sd) > 1 && axislegend(ax; position=:rt)
+
+    # overlay of every region
+    fig = Figure()
+    ax = newfitaxis(fig)
+    hlines!(ax, [0]; color=:grey)
+    i = 0
+    for label in labels
+        i += plotregion!(ax, label, i)
+    end
+    i > 1 && axislegend(ax; position=:rt)
     save(joinpath(dir, "fit.pdf"), fig; backend=CairoMakie)
 
+    # one plot per region
+    for label in labels
+        fig1 = Figure()
+        ax1 = newfitaxis(fig1)
+        hlines!(ax1, [0]; color=:grey)
+        n1 = plotregion!(ax1, label, 0)
+        n1 > 1 && axislegend(ax1; position=:rt)
+        save(joinpath(dir, "fit_$label.pdf"), fig1; backend=CairoMakie)
+    end
+
     open(joinpath(dir, "summary.txt"), "w") do f
-        return println(f, state[:summary][])
+        println(f, "Integration regions (ppm):")
+        for r in state[:regions][]
+            println(f,
+                    "  $(r.label): $(round(r.c - r.w / 2; digits=4)) to $(round(r.c + r.w / 2; digits=4))")
+        end
+        println(f, "Noise position (ppm): $(round(state[:noisec][]; digits=4))")
+        println(f)
+        for label in labels
+            print(f, summary_text(expt, result, label))
+        end
     end
     @info "Saved results to $dir"
     return dir

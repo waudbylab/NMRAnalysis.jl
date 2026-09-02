@@ -37,6 +37,15 @@ end
 
 Region(label, δ::Real) = Region(label, δ, δ)
 
+"""
+    defaultregionwidth(δ) -> Float64
+
+A sensible default region width: 2% of the full chemical-shift range spanned by `δ`,
+matching the noise marker's drag-handle width. Used for the initial default integration
+region, `A`-key tap-to-add, and `pickregion`'s default `ppmwidth`.
+"""
+defaultregionwidth(δ::AbstractVector) = 0.02 * (maximum(δ) - minimum(δ))
+
 width(r::Region) = r.hi - r.lo
 
 """

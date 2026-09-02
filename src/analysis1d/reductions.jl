@@ -43,15 +43,17 @@ integrate(t::Trace, r::Region) = sum(@view t.y[roi_indices(t, r)])
 Integrate `region` over every plane of `dataset`, returning a `NamedTuple` of named
 quantity series. For `Integrate` there is a single series `I`, a `Vector{Measurement}`.
 
-Following the legacy 1D routines and `Exchange1D`, the noise estimate is the standard
-deviation, taken *across planes*, of the integral over a noise region of the **same
-width** as `region` (centred at `dataset.noisecenter`) — a region of matching width
-integrates the same amount of noise as the signal region, so this directly estimates the
-per-plane integration noise without needing a separate width control. Intensities are
-then scaled down by that noise level, so values read in signal-to-noise units instead of
-raw (often very large) integrated intensities; every point in the series then carries
-uncertainty exactly 1 by construction. Returning a `NamedTuple` keeps the contract
-general: a future NMF reduction can return several named component series.
+This is a different noise question from the point-wise spectrum normalisation done in
+`traces_from_spec` (dividing by `spec[:noise]`, the whole-spectrum RMS level): the
+uncertainty on an *integrated* region depends on its width and on the actual, possibly
+non-white noise there, not on a single global scalar. So, following the legacy 1D
+routines and `Exchange1D`, it's measured directly: integrate a noise region of the same
+width as `region` (centred at `dataset.noisecenter`, which the GUI lets the user
+reposition) over every plane, and take the standard deviation of those integrals across
+planes. Since the trace intensities are already noise-normalised, this comes out close
+to `sqrt(n points)` when the noise is uniform, but tracks the real, locally-measured
+noise otherwise. Returning a `NamedTuple` keeps the contract general: a future NMF
+reduction can return several named component series.
 """
 function reduce_region(::Integrate, region::Region, dataset::Dataset1D)
     planes = dataset.planes
@@ -64,7 +66,7 @@ function reduce_region(::Integrate, region::Region, dataset::Dataset1D)
     σ = length(noiseintegrals) > 1 ? std(noiseintegrals) : abs(noiseintegrals[1])
     (σ == 0 || isnan(σ)) && (σ = 1.0)
 
-    I = [(v / σ) ± 1.0 for v in raw]
+    I = [v ± σ for v in raw]
     return (; I)
 end
 

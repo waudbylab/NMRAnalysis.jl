@@ -27,6 +27,11 @@ chemical shift (`F1Dim`) — a pseudo-2D (shift × planes), or a pseudo-3D/-nD s
 axes are flattened (in the array's natural, column-major order) into one list of planes;
 `Planes`/`Dataset1D` only ever need "one 1D trace per plane" regardless of how many
 arrayed dimensions produced it.
+
+Intensities are divided by the spectrum's estimated RMS noise level (`spec[:noise]`,
+computed once by NMRTools when the spectrum is loaded) here, at the point traces are
+built - not live, per-analysis, from a user-positioned noise region - so every
+downstream `Trace` is already expressed in signal-to-noise units.
 """
 function traces_from_spec(spec)
     δ = collect(data(spec, F1Dim))
@@ -35,7 +40,8 @@ function traces_from_spec(spec)
     size(Y, 1) == n ||
         throw(ArgumentError("expected the chemical shift (F1Dim) to be the first " *
                             "dimension of $(typeof(spec)); got size $(size(Y))"))
-    Yflat = reshape(Y, n, :)
+    noise = something(spec[:noise], 1.0)
+    Yflat = reshape(Y, n, :) ./ noise
     return [Trace(δ, collect(view(Yflat, :, i))) for i in 1:size(Yflat, 2)]
 end
 

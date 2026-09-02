@@ -60,19 +60,23 @@ function param(r::SeriesResult, name::AbstractString)
 end
 
 """
-    series_results(e, [dataset, regions]) -> Vector{SeriesResult}
+    series_results(e, [dataset, regions]; isfitting=true) -> Vector{SeriesResult}
 
 Run the reduction and per-series curve fit for every region and grouping key. This is
 the curve-fit pipeline shared by relaxation, TRACT, nutation and kinetics.
 
 The `dataset`/`regions` arguments default to the experiment's own, but can be supplied
 explicitly so the GUI can refit live against interactively-positioned regions and noise.
+`isfitting=false` (the GUI's Fitting toggle switched off) substitutes [`NoFitting`](@ref)
+for the experiment's own model, so the reduced quantities (`x`/`y`) still come through
+for the plotted points, but no `curve_fit` call runs and `params`/`names` come back
+empty - not merely a display toggle, an actual "don't fit" switch.
 """
 series_results(e::Experiment1D) = series_results(e, dataset(e), regions(e))
 
-function series_results(e::Experiment1D, ds::Dataset1D, regs)
+function series_results(e::Experiment1D, ds::Dataset1D, regs; isfitting::Bool=true)
     red = reduction(e)
-    model = seriesmodel(e)
+    model = isfitting ? seriesmodel(e) : NoFitting()
     axis = fitaxis(e)
     results = SeriesResult[]
     for region in regs
@@ -92,16 +96,24 @@ function series_results(e::Experiment1D, ds::Dataset1D, regs)
 end
 
 """
-    analyse(e, [dataset, regions]) -> NamedTuple
+    analyse(e, [dataset, regions]; isfitting=true) -> NamedTuple
 
 Run the full analysis: `(; series, summary)` where `series` is a `Vector{SeriesResult}`
 and `summary` is the experiment-specific global result (or `nothing`).
+
+With `isfitting=false`, `postprocess` runs against an empty series list rather than
+being skipped outright: several `postprocess` overrides (e.g. TRACT's) return a
+`Vector`, and skipping straight to `nothing` would change `summary`'s type between
+"fitting on" and "fitting off" - fatal for the GUI's `state[:result]` Observable, whose
+element type is fixed by its first value. An empty series list keeps the same
+(now-empty) `Vector` type either way.
 """
 analyse(e::Experiment1D) = analyse(e, dataset(e), regions(e))
 
-function analyse(e::Experiment1D, ds::Dataset1D, regs)
-    series = series_results(e, ds, regs)
-    return (; series, summary=postprocess(e, series))
+function analyse(e::Experiment1D, ds::Dataset1D, regs; isfitting::Bool=true)
+    series = series_results(e, ds, regs; isfitting)
+    summary = postprocess(e, isfitting ? series : SeriesResult[])
+    return (; series, summary)
 end
 
 # =============================================================================
@@ -163,8 +175,12 @@ groupcols(::TractExperiment) = (:which,)
 
 function postprocess(e::TractExperiment, results)
     summaries = NamedTuple[]
-    for region in regions(e)
-        rs = filter(r -> r.region == region.label, results)
+    # Iterate the region labels actually present in `results`, not `regions(e)` (the
+    # experiment's own, fixed-at-construction region list) - the GUI's live `regs`
+    # argument to `analyse` can include regions added interactively after construction,
+    # and those still need a τc summary.
+    for label in unique(r.region for r in results)
+        rs = filter(r -> r.region == label, results)
         trosy = findfirst(r -> r.group.which == :trosy, rs)
         anti = findfirst(r -> r.group.which == :anti, rs)
         (isnothing(trosy) || isnothing(anti)) && continue
@@ -172,7 +188,7 @@ function postprocess(e::TractExperiment, results)
         Ranti = param(rs[anti], "R")
         ηxy = (Ranti - Rtrosy) / 2
         τc = tract_tauc(e.f, e.ωN, ηxy)
-        push!(summaries, (; region=region.label, Rtrosy, Ranti, ηxy, τc))
+        push!(summaries, (; region=label, Rtrosy, Ranti, ηxy, τc))
     end
     return summaries
 end
@@ -356,14 +372,15 @@ function run1d(expt::Experiment1D; integration=nothing)
 end
 
 """
-    defaultregion(dataset; label="signal", width=0.05) -> Region
+    defaultregion(dataset; label="signal", width=defaultregionwidth(...)) -> Region
 
-A sensible default single integration region: `width` ppm wide (0.05 ppm, matching
-typical amide/methyl linewidths) centred on the tallest peak (by absolute intensity) in
-the first plane. Used as the default `regions` for every experiment with a single
-signal; the GUI lets the user reposition and resize it, or add further regions.
+A sensible default single integration region: `width` ppm wide (2% of the spectral
+width by default) centred on the tallest peak (by absolute intensity) in the first
+plane. Used as the default `regions` for every experiment with a single signal; the GUI
+lets the user reposition and resize it, or add further regions.
 """
-function defaultregion(dataset::Dataset1D; label="signal", width=0.05)
+function defaultregion(dataset::Dataset1D; label="signal",
+                       width=defaultregionwidth(first(dataset.planes.traces).δ))
     t = first(dataset.planes.traces)
     peak = t.δ[argmax(abs.(t.y))]
     return Region(label, peak - width / 2, peak + width / 2)
