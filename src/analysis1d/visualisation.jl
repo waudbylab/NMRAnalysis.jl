@@ -56,6 +56,7 @@ result_labels(::RelaxationExperiment) = ("Relaxation delay / s", "Integral")
 result_labels(::TractExperiment) = ("Relaxation delay / s", "Integral")
 result_labels(::NutationExperiment) = ("Pulse duration / s", "Integral")
 result_labels(::KineticsExperiment) = ("Time", "Integral")
+result_labels(::DiffusionExperiment) = ("Relative gradient strength", "Integral")
 result_labels(::STDExperiment) = ("Saturation time / s", "STD fraction")
 
 # ---- summary text -------------------------------------------------------------
@@ -89,6 +90,14 @@ function _summary_extra(io::IOBuffer, ::NutationExperiment, summary)
     println(io, "")
     for s in summary
         println(io, "$(s.region): ν₁ = $(s.ν) Hz, 90° = $(1e6 * s.pulse90) µs")
+    end
+end
+function _summary_extra(io::IOBuffer, ::DiffusionExperiment, summary)
+    println(io, "")
+    for s in summary
+        line = "$(s.region): D = $(s.D) m² s⁻¹"
+        isnothing(s.rH) || (line *= ", rH = $(s.rH) Å (η = $(s.η) mPa s)")
+        println(io, line)
     end
 end
 

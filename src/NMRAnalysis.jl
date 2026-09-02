@@ -10,13 +10,8 @@ using Reexport
 using Statistics
 
 include("fileselection.jl")
-include("regions1d.jl")
 include("analyse.jl")
 include("viscosity.jl")
-include("calibration1d.jl")
-include("diffusion1d.jl")
-include("relaxation1d.jl")
-include("tract.jl")
 
 include("maybevector/MaybeVector.jl")
 using .MaybeVectorModule
@@ -34,9 +29,6 @@ include("precompile.jl")
 
 export analyse, register_analysis!, MultiFileRule
 export viscosity
-export diffusion1d
-export relaxation1d
-export tract
 
 include("R1rho/R1rho.jl")
 using .R1rho
@@ -58,13 +50,14 @@ using .Exchange1D
 
 @reexport using .Exchange1D: exchange1d
 
-# 1D analysis framework (Analysis1D). `analyse` is not re-exported (would collide with the
-# registry-based `analyse` above; use `analyse1d`). `tract` is not re-exported either, as it
-# collides with the legacy top-level `tract`; reach the new one as `Analysis1D.tract`.
-@reexport using .Analysis1D: Region, Dataset1D, analyse1d, gui!
+# 1D analysis framework (Analysis1D) - the interactive replacements for the former
+# readline-driven 1D routines. `analyse` is not re-exported (it would collide with the
+# registry-based `analyse` above); use `analyse1d`.
+@reexport using .Analysis1D: Region, Dataset1D, analyse1d, gui!, pickregion
 @reexport using .Analysis1D: RelaxationExperiment, TractExperiment, NutationExperiment
-@reexport using .Analysis1D: KineticsExperiment, STDExperiment
-@reexport using .Analysis1D: relaxation, nutation, stdnmr, kinetics
+@reexport using .Analysis1D: KineticsExperiment, DiffusionExperiment, STDExperiment
+@reexport using .Analysis1D: relaxation1d, tract, calibration1d, diffusion1d, std1d,
+                             kinetics1d
 
 @info """
 NMRAnalysis.jl (v$(pkgversion(NMRAnalysis)))
@@ -79,21 +72,19 @@ NMRAnalysis.jl (v$(pkgversion(NMRAnalysis)))
 - analyse(filename)
 - analyse([filename1, filename2, ...])
 
-# 1D Experiment Analysis Routines
+# 1D Experiment Analysis Routines (interactive)
 
-- relaxation1d([filename])
-- diffusion1d([filename])
-- tract([trosy_filename, antitrosy_filename])
+Each opens a window to pick the integration and noise regions, then fits live.
+Pass `integration=(; peakppm, noiseppm, ppmwidth)` to skip the GUI and analyse directly.
+
+- relaxation1d(filename)
+- tract(trosy_filename, antitrosy_filename)
+- calibration1d(filename)
+- diffusion1d(filename, gradients)
+- std1d(filename, sat, tsat; regions)
+- kinetics1d(filename, times; regions)
 - r1rho([directory_path]; minvSL=250, maxvSL=1e6, scalefactor=:automatic)
 - exchange1d([filenames]) - CEST / R1ρ chemical exchange analysis
-
-# 1D Analysis Framework (interactive; build an experiment then `gui!(expt)`)
-
-- relaxation(spec; ir=false)        |> gui!
-- nutation(spec)                    |> gui!
-- stdnmr(spec, sat, tsat; regions)  |> gui!
-- kinetics(spec, times; regions)    |> gui!
-- Analysis1D.tract(trosy, antitrosy) |> gui!
 
 # 2D Experiment Analysis Routines
 

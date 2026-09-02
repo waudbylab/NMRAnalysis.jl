@@ -18,6 +18,8 @@ using Measurements
 using NMRTools
 using Statistics
 
+using ..NMRAnalysis: register_analysis!, viscosity
+
 # pure analysis core (no Makie dependency in these files)
 include("types.jl")
 include("reductions.jl")
@@ -49,16 +51,37 @@ export Reduction, Integrate, integrate, integrals
 export SeriesModel, CurveFitModel, NoFitting, ContrastModel
 export ExponentialModel, RecoveryModel, DampedSinusoidModel
 
+export StejskalTannerModel
+
 # experiments
-export Experiment1D, analyse, analyse1d
+export Experiment1D, analyse, analyse1d, run1d, Integration
 export RelaxationExperiment, TractExperiment, NutationExperiment, KineticsExperiment
-export STDExperiment
+export DiffusionExperiment, STDExperiment
 export SeriesResult, param
 
 # interactive GUI
-export gui!
+export gui!, pickregion
 
-# file loaders (stdnmr rather than std, to avoid colliding with Statistics.std)
-export relaxation, tract, nutation, stdnmr, kinetics
+# top-level entry points (each opens the GUI, or analyses directly given an
+# `integration` triple). `std1d` rather than `std` also avoids colliding with Statistics.
+export relaxation1d, tract, calibration1d, diffusion1d, std1d, kinetics1d
+
+"""
+Register the interactive 1D analyses with the analysis-dispatch registry, so `analyse`
+routes annotated experiments here. These replace the registrations previously made by the
+readline-based routines.
+
+Only the analyses that can run from a filename alone are registered: TRACT needs a
+TROSY/anti-TROSY pair, diffusion needs the gradient list, and STD/kinetics need named
+regions, so those are invoked directly rather than dispatched.
+"""
+function __init__()
+    register_analysis!(["1d", "relaxation"], ["R1"],
+                       e -> relaxation1d(e.filename), "1D R1 relaxation")
+    register_analysis!(["1d", "relaxation"], ["R2"],
+                       e -> relaxation1d(e.filename), "1D R2 relaxation")
+    return register_analysis!(["1d", "calibration"], ["nutation"],
+                              e -> calibration1d(e.filename), "1D nutation calibration")
+end
 
 end # module Analysis1D

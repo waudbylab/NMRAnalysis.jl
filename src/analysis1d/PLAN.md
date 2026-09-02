@@ -80,8 +80,15 @@ out of both (start parallel, refactor toward shared core once 1D is proven).
 | relaxation | 1 | `time` | `time` | – | Integrate | Exponential / Recovery | – |
 | TRACT | 1 | `time, which` | `time` | `which` | Integrate | Exponential ×2 | τc(ΔR₂) inline |
 | nutation | 1 | `duration` | `duration` | – | Integrate | DampedSinusoid | 90° pulse |
+| diffusion | 1 | `gradient` | `gradient` | – | Integrate | Stejskal–Tanner | D, rH |
 | STD | N named | `sat, tsat` | `tsat` | `sat` | Integrate | Contrast (+ buildup) | epitope |
 | kinetics | N named | `time, run` | `time` | `run` | Integrate | NoFitting (v1) | – |
+
+Entry points take the names of the routines they replace (`relaxation1d`, `tract`,
+`calibration1d`, `diffusion1d`, plus `std1d`, `kinetics1d`). Each opens the GUI; passing
+`integration = (; peakppm, noiseppm, ppmwidth)` skips it and analyses that region
+directly, so a chosen region can be replayed from a script. The triple is deliberately
+the same one `Exchange1D` stores as `prob.integration`.
 
 ### STD details
 
@@ -103,24 +110,32 @@ Phase 1 — **analysis core + 5 experiments**  ✓
 - [x] series models: Exponential, Recovery, DampedSinusoid, NoFitting; Contrast (STD)
 - [x] grouping + curve-fit pipeline (noise-weighted) → `SeriesResult`
 - [x] experiments: Relaxation, TRACT (τc), Nutation (90°), STD (multi-freq + buildup + epitope), Kinetics
-- [x] NMRData → Dataset1D loaders (`relaxation`, `tract`, `nutation`, `stdnmr`, `kinetics`)
-- [x] coexists with main's legacy readline `*1d` routines. The new framework re-exports
-      `relaxation`/`nutation`/`stdnmr`/`kinetics`; the top-level `tract` remains the legacy
-      one, so the new tract is reached as `Analysis1D.tract`. Open question for review:
-      whether the new framework should supersede the legacy `relaxation1d`/`diffusion1d`/
-      `tract`/`calibration1d` routines.
+- [x] entry points `relaxation1d`, `tract`, `calibration1d`, `diffusion1d`, `std1d`,
+      `kinetics1d`, each opening the GUI or honouring an `integration` triple
 
-Phase 2 — **interactive GUI (Window 1)**  ← THIS ITERATION
+Phase 2 — **interactive GUI (Window 1)**  ✓
 - [x] spectral overlay (all planes + current), draggable region(s) + noise region
 - [x] plane slider, region selector, width boxes, fitting toggle, save
 - [x] live refit via `lift`; result panel dispatched per experiment (`result_plotdata`)
 - [x] launched with `gui!(expt)`; CairoMakie export of fit + summary
 - [ ] ComputeGraph substrate (deferred; prototype on the exchange popup first)
 - [ ] auto-generated per-axis sliders for multi-coordinate datasets
-- [ ] dispatch registration so `analyse(folder)` can route to these
 
-Phase 3 — Tier-2 exchange second window + `ExchangeModel`; R1ρ (on/off-res), CEST, CPMG
-onto this framework; combined/global exchange fitting.
+Phase 3 — **replace the readline routines + hook into dispatch**  ← THIS ITERATION
+- [x] `DiffusionExperiment` (Stejskal–Tanner, D + rH) so `diffusion1d` has a replacement
+- [x] legacy `relaxation1d.jl` / `tract.jl` / `calibration1d.jl` / `diffusion1d.jl` /
+      `regions1d.jl` removed; the new implementations take those names
+- [x] registered with the analysis-dispatch registry (R1/R2 relaxation, nutation
+      calibration), replacing the registrations the legacy files made
+- [x] `pickregion` — region selection on its own, overlaying every supplied spectrum —
+      and `Exchange1D._prompt_integration!` now uses it instead of readline prompts,
+      feeding the existing `integrate!(prob, peakppm, noiseppm, ppmwidth)` unchanged
+- [ ] dispatch rules for TRACT (needs a TROSY/anti pair), diffusion (needs the gradient
+      list) and STD/kinetics (need named regions)
 
-Phase 4 — additional reductions (NMF kinetics), diffusion, qNMR/PULCON, temperature cal;
-lift shared `AnalysisCore` out of GUI2D + GUI1D.
+Phase 4 — Tier-2 exchange second window (`ExchangeModel`, parameter table with fix/global)
+as a front-end onto `ExchangeProblem`/`FitResult`; the reduced dispersion / Z-profiles in
+the Tier-1 result panel.
+
+Phase 5 — additional reductions (NMF kinetics), qNMR/PULCON, temperature calibration;
+lift a shared `AnalysisCore` out of GUI2D + Analysis1D.

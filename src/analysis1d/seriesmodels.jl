@@ -65,6 +65,21 @@ function RecoveryModel()
 end
 
 """
+    StejskalTannerModel(; γ, δ, Δ, σ, Gmax)
+
+Stejskal–Tanner diffusion decay `A·exp(−(γ·δ·σ·g·Gmax)²·(Δ−δ/3)·D)`, fitted against the
+relative gradient strength `g` (0–1). Parameters are `[A, D]` with `D` in units of
+10⁻¹⁰ m² s⁻¹ (as in the legacy routine), so the physical coefficient is `D · 1e-10`.
+"""
+function StejskalTannerModel(; γ, δ, Δ, σ, Gmax)
+    k = (γ * δ * σ * Gmax)^2 * (Δ - δ / 3) * 1e-10
+    return CurveFitModel((x, p) -> @.(p[1] * exp(-k * x^2 * p[2])),
+                         ["A", "D"],
+                         (x, y) -> [maximum(abs.(y)), 1.0];
+                         xlabel="Relative gradient strength")
+end
+
+"""
     DampedSinusoidModel(; phase = :sine)
 
 Damped sinusoid for nutation calibration: `A·sin(2π·ν·t)·exp(−R·t)` (or `cos` when

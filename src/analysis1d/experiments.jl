@@ -253,6 +253,53 @@ function postprocess(::NutationExperiment, results)
 end
 
 # =============================================================================
+# Diffusion (Stejskal–Tanner)
+# =============================================================================
+
+"""
+    DiffusionExperiment(dataset; γ, δ, Δ, σ, Gmax, temp=nothing, solvent=nothing, regions=…)
+
+Fit integrated intensity vs relative gradient strength (`vars.gradient`, 0–1) to the
+Stejskal–Tanner equation. `postprocess` reports the diffusion coefficient and, when the
+solvent and temperature are known, the hydrodynamic radius via the Stokes–Einstein
+relation.
+"""
+struct DiffusionExperiment <: Experiment1D
+    dataset::Dataset1D
+    regions::Vector{Region}
+    model::SeriesModel
+    temp::Union{Nothing,Float64}
+    solvent::Any
+end
+
+function DiffusionExperiment(dataset::Dataset1D; γ, δ, Δ, σ, Gmax, temp=nothing,
+                             solvent=nothing,
+                             regions=[Region("signal", extrema_shift(dataset)...)])
+    return DiffusionExperiment(dataset, collect(Region, regions),
+                               StejskalTannerModel(; γ, δ, Δ, σ, Gmax),
+                               isnothing(temp) ? nothing : Float64(temp), solvent)
+end
+
+dataset(e::DiffusionExperiment) = e.dataset
+regions(e::DiffusionExperiment) = e.regions
+seriesmodel(e::DiffusionExperiment) = e.model
+fitaxis(::DiffusionExperiment) = :gradient
+
+function postprocess(e::DiffusionExperiment, results)
+    return map(results) do r
+        D = param(r, "D") * 1e-10                      # m² s⁻¹
+        η, rH = if isnothing(e.solvent) || isnothing(e.temp)
+            (nothing, nothing)
+        else
+            ηv = viscosity(e.solvent, e.temp)          # mPa s
+            kB = 1.38e-23
+            (ηv, kB * e.temp / (6π * ηv * 0.001 * D) * 1e10)   # Å
+        end
+        return (; region=r.region, D, η, rH)
+    end
+end
+
+# =============================================================================
 # Kinetics (intensity vs time, possibly over multiple runs)
 # =============================================================================
 
@@ -283,6 +330,31 @@ groupcols(e::KineticsExperiment) = hasvar(e.dataset.planes, :run) ? (:run,) : ()
 # =============================================================================
 # helpers
 # =============================================================================
+
+"""
+    Integration(peakppm, noiseppm, ppmwidth)
+
+The integration triple shared with `Exchange1D` (`prob.integration`): a peak position, a
+noise position, and a common width, all in ppm. Passing one to a top-level entry point
+skips the GUI and analyses directly, so a previously-chosen region can be replayed
+reproducibly from a script.
+"""
+const Integration = NamedTuple{(:peakppm, :noiseppm, :ppmwidth)}
+
+regions_from(i) = [Region("signal", i.peakppm - i.ppmwidth / 2, i.peakppm + i.ppmwidth / 2)]
+noise_from(i) = Region("noise", i.noiseppm - i.ppmwidth / 2, i.noiseppm + i.ppmwidth / 2)
+
+"""
+    run1d(expt; integration=nothing)
+
+Launch the GUI for `expt`, or - when an `integration` triple is supplied - skip the GUI
+and return the analysis for that region directly.
+"""
+function run1d(expt::Experiment1D; integration=nothing)
+    isnothing(integration) && return gui!(expt)
+    ds = Dataset1D(dataset(expt).planes, noise_from(integration))
+    return analyse(expt, ds, regions_from(integration))
+end
 
 """
     extrema_shift(dataset) -> (lo, hi)

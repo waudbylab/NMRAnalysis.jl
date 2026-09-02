@@ -117,6 +117,96 @@ function gui!(expt::Experiment1D)
     return state
 end
 
+"""
+    pickregion(traces; peakppm=nothing, noiseppm=nothing, ppmwidth=0.1) -> (; peakppm, noiseppm, ppmwidth)
+    pickregion(specs; kwargs...)
+
+Interactively choose a single integration region and a noise region, returning the
+integration triple. All traces are overlaid, so a region can be chosen that suits every
+spectrum at once - which is what is wanted when one region must serve a whole set of
+experiments (e.g. `Exchange1D`'s `integrate!`, which applies one triple to every
+experiment in the problem).
+
+This is the region-selection front-end on its own, without any fitting: use it where the
+heavy fitting lives elsewhere.
+"""
+function pickregion(traces::AbstractVector{Trace}; peakppm=nothing, noiseppm=nothing,
+                    ppmwidth=0.1)
+    GLMakie.activate!(; focus_on_show=true,
+                      title="NMRAnalysis.jl: select integration region")
+    cols = Makie.wong_colors()
+
+    t1 = first(traces)
+    peakppm = isnothing(peakppm) ? t1.δ[argmax(t1.y)] : peakppm
+    noiseppm = isnothing(noiseppm) ? t1.δ[max(1, round(Int, 0.9 * length(t1.δ)))] : noiseppm
+
+    pk = Observable(Float64(peakppm))
+    nz = Observable(Float64(noiseppm))
+    w = Observable(Float64(ppmwidth))
+
+    fig = Figure(; size=(1000, 620))
+    ax = Axis(fig[1, 1]; xreversed=true, xlabel="Chemical shift (ppm)", ylabel="Intensity",
+              title="Drag the shaded regions, then press Accept")
+    hlines!(ax, [0]; color=:grey)
+    lines!(ax, _overlay_points([Point2f.(t.δ, t.y) for t in traces]); color=(:grey, 0.5),
+           label="All spectra")
+    peakspan = vspan!(ax, lift((p, ww) -> p - ww / 2, pk, w),
+                      lift((p, ww) -> p + ww / 2, pk, w); alpha=0.3, color=cols[2],
+                      label="Peak")
+    noisespan = vspan!(ax, lift((p, ww) -> p - ww / 2, nz, w),
+                       lift((p, ww) -> p + ww / 2, nz, w); alpha=0.3, color=cols[4],
+                       label="Noise")
+    axislegend(ax; position=:lt)
+
+    ctrl = fig[2, 1] = GridLayout()
+    ctrl[1, 1] = Label(fig, "Integration width (ppm):")
+    tb = ctrl[1, 2] = Textbox(fig; stored_string=string(round(w[]; digits=3)),
+                              validator=Float64, width=100)
+    on(s -> w[] = parse(Float64, s), tb.stored_string)
+    accept = ctrl[1, 3] = Button(fig; label="Accept")
+    done = Ref(false)
+    on(_ -> done[] = true, accept.clicks)
+
+    dragging = Ref(:nothing)
+    on(events(ax).mousebutton) do ev
+        ev.button == Mouse.left || return Consume(false)
+        if ev.action == Mouse.press
+            dragging[] = if mouseover(fig, peakspan)
+                :peak
+            elseif mouseover(fig, noisespan)
+                :noise
+            else
+                :nothing
+            end
+            return Consume(dragging[] != :nothing)
+        elseif ev.action == Mouse.release
+            dragging[] = :nothing
+            return Consume(false)
+        end
+    end
+    on(events(fig).mouseposition; priority=2) do _
+        if dragging[] == :peak
+            pk[] = mouseposition(ax)[1]
+            return Consume(true)
+        elseif dragging[] == :noise
+            nz[] = mouseposition(ax)[1]
+            return Consume(true)
+        end
+        return Consume(false)
+    end
+
+    display(fig)
+    while isopen(fig.scene) && !done[]
+        sleep(0.1)
+    end
+    GLMakie.closeall()
+    return (; peakppm=pk[], noiseppm=nz[], ppmwidth=w[])
+end
+
+function pickregion(specs::AbstractVector; kwargs...)
+    return pickregion(reduce(vcat, traces_from_spec.(specs)); kwargs...)
+end
+
 """Wire mouse dragging of the region/noise spans on the spectrum axis."""
 function setup_dragging!(fig, ax, state)
     gui = state[:gui]
