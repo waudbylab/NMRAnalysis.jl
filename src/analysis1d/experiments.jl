@@ -121,9 +121,7 @@ struct RelaxationExperiment <: Experiment1D
     model::SeriesModel
 end
 
-function RelaxationExperiment(dataset::Dataset1D;
-                              regions=[Region("signal",
-                                              extrema_shift(dataset)...)],
+function RelaxationExperiment(dataset::Dataset1D; regions=[defaultregion(dataset)],
                               ir::Bool=false)
     return RelaxationExperiment(dataset, collect(Region, regions),
                                 ir ? RecoveryModel() : ExponentialModel())
@@ -153,8 +151,7 @@ struct TractExperiment <: Experiment1D
     f::Float64
 end
 
-function TractExperiment(dataset::Dataset1D; ωN, f,
-                         regions=[Region("signal", extrema_shift(dataset)...)])
+function TractExperiment(dataset::Dataset1D; ωN, f, regions=[defaultregion(dataset)])
     return TractExperiment(dataset, collect(Region, regions), Float64(ωN), Float64(f))
 end
 
@@ -232,7 +229,7 @@ struct NutationExperiment <: Experiment1D
 end
 
 function NutationExperiment(dataset::Dataset1D; phase::Symbol=:sine,
-                            regions=[Region("signal", extrema_shift(dataset)...)])
+                            regions=[defaultregion(dataset)])
     return NutationExperiment(dataset, collect(Region, regions),
                               DampedSinusoidModel(; phase))
 end
@@ -273,8 +270,7 @@ struct DiffusionExperiment <: Experiment1D
 end
 
 function DiffusionExperiment(dataset::Dataset1D; γ, δ, Δ, σ, Gmax, temp=nothing,
-                             solvent=nothing,
-                             regions=[Region("signal", extrema_shift(dataset)...)])
+                             solvent=nothing, regions=[defaultregion(dataset)])
     return DiffusionExperiment(dataset, collect(Region, regions),
                                StejskalTannerModel(; γ, δ, Δ, σ, Gmax),
                                isnothing(temp) ? nothing : Float64(temp), solvent)
@@ -304,10 +300,12 @@ end
 # =============================================================================
 
 """
-    KineticsExperiment(dataset; regions, model=NoFitting())
+    KineticsExperiment(dataset; regions=[defaultregion(dataset)], model=NoFitting())
 
 Track integrated intensity of one or more named regions vs time (`vars.time`), grouped
-by run (`vars.run`) when present. v1 defaults to `NoFitting` (the deliverable is the
+by run (`vars.run`) when present. `regions` defaults to a single peak-detected region;
+use the GUI (press `A`) to add further named regions of interest interactively rather
+than specifying them up front. v1 defaults to `NoFitting` (the deliverable is the
 intensity-vs-time trace); a kinetic `CurveFitModel` can be supplied to fit a model.
 A future iteration will add an NMF reduction over selected ROIs.
 """
@@ -317,7 +315,8 @@ struct KineticsExperiment <: Experiment1D
     model::SeriesModel
 end
 
-function KineticsExperiment(dataset::Dataset1D; regions, model::SeriesModel=NoFitting())
+function KineticsExperiment(dataset::Dataset1D; regions=[defaultregion(dataset)],
+                            model::SeriesModel=NoFitting())
     return KineticsExperiment(dataset, collect(Region, regions), model)
 end
 
@@ -335,14 +334,14 @@ groupcols(e::KineticsExperiment) = hasvar(e.dataset.planes, :run) ? (:run,) : ()
     Integration(peakppm, noiseppm, ppmwidth)
 
 The integration triple shared with `Exchange1D` (`prob.integration`): a peak position, a
-noise position, and a common width, all in ppm. Passing one to a top-level entry point
-skips the GUI and analyses directly, so a previously-chosen region can be replayed
-reproducibly from a script.
+noise position, and a common width, all in ppm (the noise region always has the same
+width as the signal region — see [`reduce_region`](@ref)). Passing one to a top-level
+entry point skips the GUI and analyses directly, so a previously-chosen region can be
+replayed reproducibly from a script.
 """
 const Integration = NamedTuple{(:peakppm, :noiseppm, :ppmwidth)}
 
 regions_from(i) = [Region("signal", i.peakppm - i.ppmwidth / 2, i.peakppm + i.ppmwidth / 2)]
-noise_from(i) = Region("noise", i.noiseppm - i.ppmwidth / 2, i.noiseppm + i.ppmwidth / 2)
 
 """
     run1d(expt; integration=nothing)
@@ -352,17 +351,20 @@ and return the analysis for that region directly.
 """
 function run1d(expt::Experiment1D; integration=nothing)
     isnothing(integration) && return gui!(expt)
-    ds = Dataset1D(dataset(expt).planes, noise_from(integration))
+    ds = Dataset1D(dataset(expt).planes, Float64(integration.noiseppm))
     return analyse(expt, ds, regions_from(integration))
 end
 
 """
-    extrema_shift(dataset) -> (lo, hi)
+    defaultregion(dataset; label="signal", width=0.05) -> Region
 
-Full chemical-shift span of the first plane — the default integration region when none
-is supplied (the GUI will let the user narrow it).
+A sensible default single integration region: `width` ppm wide (0.05 ppm, matching
+typical amide/methyl linewidths) centred on the tallest peak (by absolute intensity) in
+the first plane. Used as the default `regions` for every experiment with a single
+signal; the GUI lets the user reposition and resize it, or add further regions.
 """
-function extrema_shift(dataset::Dataset1D)
-    δ = first(dataset.planes.traces).δ
-    return (minimum(δ), maximum(δ))
+function defaultregion(dataset::Dataset1D; label="signal", width=0.05)
+    t = first(dataset.planes.traces)
+    peak = t.δ[argmax(abs.(t.y))]
+    return Region(label, peak - width / 2, peak + width / 2)
 end

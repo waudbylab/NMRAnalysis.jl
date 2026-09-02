@@ -121,7 +121,7 @@ Phase 2 — **interactive GUI (Window 1)**  ✓
 - [ ] ComputeGraph substrate (deferred; prototype on the exchange popup first)
 - [ ] auto-generated per-axis sliders for multi-coordinate datasets
 
-Phase 3 — **replace the readline routines + hook into dispatch**  ← THIS ITERATION
+Phase 3 — **replace the readline routines + hook into dispatch**  ✓
 - [x] `DiffusionExperiment` (Stejskal–Tanner, D + rH) so `diffusion1d` has a replacement
 - [x] legacy `relaxation1d.jl` / `tract.jl` / `calibration1d.jl` / `diffusion1d.jl` /
       `regions1d.jl` removed; the new implementations take those names
@@ -131,11 +131,50 @@ Phase 3 — **replace the readline routines + hook into dispatch**  ← THIS ITE
       and `Exchange1D._prompt_integration!` now uses it instead of readline prompts,
       feeding the existing `integrate!(prob, peakppm, noiseppm, ppmwidth)` unchanged
 - [ ] dispatch rules for TRACT (needs a TROSY/anti pair), diffusion (needs the gradient
-      list) and STD/kinetics (need named regions)
+      list) and STD/kinetics (their default single region is registrable in principle -
+      revisit)
+
+Phase 3.5 — **first real-session feedback round**  ← THIS ITERATION
+- [x] noise is now a single draggable position (vline + narrow drag target), not an
+      independently-sized region: the noise region always matches the width of whichever
+      signal region is being reduced (matching widths is what makes it a direct estimate
+      of that region's integration noise) — `Dataset1D.noisecenter::Float64` replaces the
+      old `noise::Region` field
+- [x] error bars corrected to standard practice: std, **across planes**, of the noise
+      region's integral (was: per-point noise inside one trace, scaled by √N) — see
+      `reduce_region`
+- [x] intensities scaled down by that noise level (every point then has σ = 1 by
+      construction), so numbers read in signal-to-noise units instead of raw integrated
+      intensities
+- [x] default region width fixed at 0.05 ppm, centred on the tallest peak
+      (`defaultregion`) — was defaulting to the full spectral span
+- [x] outer-layout `colsize!`/`rowsize!` (`Auto(false, ratio)`, matching GUI2D) so the
+      window actually fills on resize
+- [x] fitting toggle is now a `Toggle`, not a `Button`
+- [x] region dropdown only shown when there is more than one region
+- [x] interactive region add/rename/delete, matching the 2D fitting GUI's key bindings:
+      `A` (tap or press-drag-release) adds, `R` renames, `D` deletes, plus matching
+      buttons and on-screen help text; `std1d`/`kinetics1d` no longer require `regions`
+      up front
+- [x] Left/Right arrow keys step through spectra (renamed from "planes" throughout the UI)
+- [x] active-region highlighting on hover (and on click/drag), synced with the dropdown
+- [x] moving/resizing/switching the active region refreshes the fit-panel axis limits
+- [x] multi-series result plotting (`ResultSeries`): TRACT's TROSY/anti-TROSY and STD's
+      saturation frequencies each get their own colour, matched between points and fit
+      line, with an inline coloured label (no formal `Legend` yet)
+- [x] tidied `summary_text` (aligned, rounded, units) — still plain text; **open
+      question, not resolved here**: what should the canonical output format be across
+      1D *and* 2D (text vs CSV, units, precision)? Needs a decision, then one shared
+      formatter.
+- [x] fixed the `Exchange1D` crash: `traces_from_spec` assumed a 2D (shift × plane)
+      array and indexed `Y[:, i]`, which failed on genuinely N-D pseudo-3D/-nD Exchange1D
+      spectra (e.g. off-resonance R1ρ, shift × spinlock × delay); it now reshapes any
+      array whose first dimension is the chemical shift into a flat list of planes
 
 Phase 4 — Tier-2 exchange second window (`ExchangeModel`, parameter table with fix/global)
 as a front-end onto `ExchangeProblem`/`FitResult`; the reduced dispersion / Z-profiles in
 the Tier-1 result panel.
 
 Phase 5 — additional reductions (NMF kinetics), qNMR/PULCON, temperature calibration;
-lift a shared `AnalysisCore` out of GUI2D + Analysis1D.
+lift a shared `AnalysisCore` out of GUI2D + Analysis1D; a real `Legend` for multi-series
+result plots; per-region-edge drag-resize (currently: drag recentres, textbox resizes).

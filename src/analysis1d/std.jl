@@ -1,5 +1,5 @@
 """
-    STDExperiment(dataset; regions, reference=:reference, excess=1.0)
+    STDExperiment(dataset; regions=[defaultregion(dataset)], reference=:reference, excess=1.0)
 
 Saturation-transfer difference analysis. The planes carry two arrayed variables:
 
@@ -30,7 +30,8 @@ struct STDExperiment <: Experiment1D
     excess::Float64
 end
 
-function STDExperiment(dataset::Dataset1D; regions, reference=:reference, excess::Real=1.0)
+function STDExperiment(dataset::Dataset1D; regions=[defaultregion(dataset)],
+                       reference=:reference, excess::Real=1.0)
     haskey(first(dataset.planes.vars), :sat) ||
         throw(ArgumentError("STD planes must carry a :sat variable"))
     haskey(first(dataset.planes.vars), :tsat) ||

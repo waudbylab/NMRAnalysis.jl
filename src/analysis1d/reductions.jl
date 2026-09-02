@@ -38,30 +38,33 @@ Summed intensity of `trace` over `region`.
 integrate(t::Trace, r::Region) = sum(@view t.y[roi_indices(t, r)])
 
 """
-    noiselevel(trace, noise) -> Float64
-
-Per-point RMS noise estimated as the standard deviation of intensities in the noise
-region.
-"""
-noiselevel(t::Trace, noise::Region) = std(@view t.y[roi_indices(t, noise)])
-
-"""
     reduce_region(::Integrate, region, dataset) -> NamedTuple
 
 Integrate `region` over every plane of `dataset`, returning a `NamedTuple` of named
-quantity series. For `Integrate` there is a single series `I`, a
-`Vector{Measurement}` whose uncertainties propagate the per-point noise over the
-number of summed points (σ_I = σ_point · √N_roi). Returning a `NamedTuple` keeps the
-contract general: a future NMF reduction can return several named component series.
+quantity series. For `Integrate` there is a single series `I`, a `Vector{Measurement}`.
+
+Following the legacy 1D routines and `Exchange1D`, the noise estimate is the standard
+deviation, taken *across planes*, of the integral over a noise region of the **same
+width** as `region` (centred at `dataset.noisecenter`) — a region of matching width
+integrates the same amount of noise as the signal region, so this directly estimates the
+per-plane integration noise without needing a separate width control. Intensities are
+then scaled down by that noise level, so values read in signal-to-noise units instead of
+raw (often very large) integrated intensities; every point in the series then carries
+uncertainty exactly 1 by construction. Returning a `NamedTuple` keeps the contract
+general: a future NMF reduction can return several named component series.
 """
 function reduce_region(::Integrate, region::Region, dataset::Dataset1D)
     planes = dataset.planes
-    I = map(planes.traces) do t
-        val = integrate(t, region)
-        n = length(roi_indices(t, region))
-        σ = noiselevel(t, dataset.noise) * sqrt(n)
-        return val ± σ
-    end
+    w = width(region)
+    w == 0 && (w = 0.05)   # a height still needs a nominal window for the noise estimate
+    noiseregion = Region("noise", dataset.noisecenter - w / 2, dataset.noisecenter + w / 2)
+
+    raw = [integrate(t, region) for t in planes.traces]
+    noiseintegrals = [integrate(t, noiseregion) for t in planes.traces]
+    σ = length(noiseintegrals) > 1 ? std(noiseintegrals) : abs(noiseintegrals[1])
+    (σ == 0 || isnan(σ)) && (σ = 1.0)
+
+    I = [(v / σ) ± 1.0 for v in raw]
     return (; I)
 end
 

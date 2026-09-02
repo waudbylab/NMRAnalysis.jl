@@ -76,14 +76,18 @@ Whether the planes carry an arrayed variable called `name`.
 hasvar(p::Planes, name::Symbol) = !isempty(p.vars) && haskey(first(p.vars), name)
 
 """
-    Dataset1D(planes, noise)
+    Dataset1D(planes, noisecenter)
 
-The planes plus the universal noise `Region`. Noise handling is shared across all
-experiments rather than re-implemented per analysis.
+The planes plus the universal noise position (ppm). The noise *region* used to estimate
+uncertainty always has the same width as whichever signal region is being reduced (see
+[`reduce_region`](@ref)) — matching widths is what makes the noise-region integral a
+direct estimate of the signal-region integral's noise — so only the noise centre is
+stored here; noise handling is otherwise shared across all experiments rather than
+re-implemented per analysis.
 """
 struct Dataset1D
     planes::Planes
-    noise::Region
+    noisecenter::Float64
 end
 
 nplanes(d::Dataset1D) = nplanes(d.planes)

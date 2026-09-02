@@ -21,39 +21,45 @@ end
 """
     traces_from_spec(spec) -> Vector{Trace}
 
-Extract one `Trace` per plane from a 2D NMRData (dimension 1 = chemical shift,
-dimension 2 = planes).
+Extract one `Trace` per plane from an N-dimensional NMRData whose first axis is the
+chemical shift (`F1Dim`) — a pseudo-2D (shift × planes), or a pseudo-3D/-nD such as an
+`Exchange1D` off-resonance R1ρ spectrum (shift × spinlock × delay, say). The non-shift
+axes are flattened (in the array's natural, column-major order) into one list of planes;
+`Planes`/`Dataset1D` only ever need "one 1D trace per plane" regardless of how many
+arrayed dimensions produced it.
 """
 function traces_from_spec(spec)
     δ = collect(data(spec, F1Dim))
     Y = data(spec)
-    return [Trace(δ, collect(Y[:, i])) for i in 1:size(Y, 2)]
+    n = length(δ)
+    size(Y, 1) == n ||
+        throw(ArgumentError("expected the chemical shift (F1Dim) to be the first " *
+                            "dimension of $(typeof(spec)); got size $(size(Y))"))
+    Yflat = reshape(Y, n, :)
+    return [Trace(δ, collect(view(Yflat, :, i))) for i in 1:size(Yflat, 2)]
 end
 
 """
-    default_noise_region(spec; frac=0.9, widthfrac=0.05) -> Region
+    default_noise_center(spec; frac=0.9) -> Float64
 
-A fallback noise region: a window of width `widthfrac` of the spectral span, centred at
-`frac` of the way across the first axis. The GUI lets the user reposition it.
+A fallback noise position: `frac` of the way across the chemical-shift axis. The GUI lets
+the user reposition it.
 """
-function default_noise_region(spec; frac=0.9, widthfrac=0.05)
+function default_noise_center(spec; frac=0.9)
     δ = collect(data(spec, F1Dim))
     lo, hi = extrema(δ)
-    span = hi - lo
-    centre = lo + frac * span
-    half = 0.5 * widthfrac * span
-    return Region("noise", centre - half, centre + half)
+    return lo + frac * (hi - lo)
 end
 
 """
-    dataset_from_spec(spec, vars; noise=default_noise_region(spec)) -> Dataset1D
+    dataset_from_spec(spec, vars; noisecenter=default_noise_center(spec)) -> Dataset1D
 
 Build a `Dataset1D` from a pseudo-2D `spec` and a vector of per-plane variable
 `NamedTuple`s (`length(vars) == number of planes`).
 """
 function dataset_from_spec(spec, vars::AbstractVector{<:NamedTuple};
-                           noise::Region=default_noise_region(spec))
-    return Dataset1D(Planes(traces_from_spec(spec), collect(vars)), noise)
+                           noisecenter::Real=default_noise_center(spec))
+    return Dataset1D(Planes(traces_from_spec(spec), collect(vars)), Float64(noisecenter))
 end
 
 # ---- relaxation ---------------------------------------------------------------
@@ -102,7 +108,7 @@ function tract(trosy, antitrosy; tau=nothing, regions=nothing, integration=nothi
     ωN = 2π * acqus(trosy, :bf3)
     f = tract_f(; B0)
 
-    ds = Dataset1D(Planes(traces, vars), default_noise_region(trosy))
+    ds = Dataset1D(Planes(traces, vars), default_noise_center(trosy))
     expt = isnothing(regions) ? TractExperiment(ds; ωN, f) :
            TractExperiment(ds; ωN, f, regions)
     return run1d(expt; integration)
@@ -175,29 +181,37 @@ _solvent(s) = s == "D2O" ? :d2o : (s == "H2O+D2O" ? :h2o : nothing)
 # ---- STD ----------------------------------------------------------------------
 
 """
-    std1d(spec, sat, tsat; regions, reference=:reference, excess=1.0, integration=nothing)
+    std1d(spec, sat, tsat; regions=nothing, reference=:reference, excess=1.0, integration=nothing)
 
 Analyse an STD experiment. `sat` and `tsat` are per-plane vectors giving the saturation
 condition (one of which is the `reference`) and the saturation time. Reports STD fractions
 per region, buildup curves where several saturation times are present, and an epitope map.
+
+`regions` defaults to a single peak-detected region; add further named ligand regions
+interactively in the GUI (press `A`) rather than specifying them up front.
 """
-function std1d(spec, sat::AbstractVector, tsat::AbstractVector; regions,
+function std1d(spec, sat::AbstractVector, tsat::AbstractVector; regions=nothing,
                reference=:reference, excess::Real=1.0, integration=nothing)
     spec = _spec(spec)
     vars = [(; sat=sat[i], tsat=Float64(tsat[i])) for i in eachindex(sat)]
     ds = dataset_from_spec(spec, vars)
-    return run1d(STDExperiment(ds; regions, reference, excess); integration)
+    expt = isnothing(regions) ? STDExperiment(ds; reference, excess) :
+           STDExperiment(ds; regions, reference, excess)
+    return run1d(expt; integration)
 end
 
 # ---- kinetics -----------------------------------------------------------------
 
 """
-    kinetics1d(spec, times; run=nothing, regions, model=NoFitting(), integration=nothing)
+    kinetics1d(spec, times; run=nothing, regions=nothing, model=NoFitting(), integration=nothing)
 
 Track integrated intensity of one or more named regions against `times`, optionally tagged
 by `run` for several time series.
+
+`regions` defaults to a single peak-detected region; add further named regions of
+interest interactively in the GUI (press `A`) rather than specifying them up front.
 """
-function kinetics1d(spec, times::AbstractVector; run=nothing, regions,
+function kinetics1d(spec, times::AbstractVector; run=nothing, regions=nothing,
                     model::SeriesModel=NoFitting(), integration=nothing)
     spec = _spec(spec)
     vars = if isnothing(run)
@@ -206,5 +220,7 @@ function kinetics1d(spec, times::AbstractVector; run=nothing, regions,
         [(; time=Float64(times[i]), run=run[i]) for i in eachindex(times)]
     end
     ds = dataset_from_spec(spec, vars)
-    return run1d(KineticsExperiment(ds; regions, model); integration)
+    expt = isnothing(regions) ? KineticsExperiment(ds; model) :
+           KineticsExperiment(ds; regions, model)
+    return run1d(expt; integration)
 end

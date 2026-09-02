@@ -282,7 +282,7 @@ function _prompt_integration!(prob::ExchangeProblem)
 
     # One region serves every experiment in the problem, so overlay them all in the picker.
     peakppm, noiseppm, ppmwidth = pickregion([e.spec for e in prob.experiments];
-                                             peakppm=default_peak, ppmwidth=0.1)
+                                             peakppm=default_peak)
 
     detail("Integrating: peak=$peakppm ppm, noise=$noiseppm ppm, width=$ppmwidth ppm")
     return integrate!(prob, peakppm, noiseppm, ppmwidth)
