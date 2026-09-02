@@ -1,6 +1,6 @@
 # 1D Relaxation Analysis
 
-The relaxation analysis module in NMRAnalysis.jl provides a tool for analyzing R1 and R2 measurements, fitting either to an exponential decay:
+The relaxation analysis module in NMRAnalysis.jl provides a tool for analysing R1 and R2 measurements, fitting either to an exponential decay:
 
 ```math
 I(\tau) = I_0 \exp\left(-R\tau\right)
@@ -31,7 +31,7 @@ The experiment must also have types including `"1d"` and `"relaxation"`, with fe
 
 ### Automatic Dispatch
 
-The simplest way to analyze a relaxation experiment is using the `analyse()` function, which automatically detects the experiment type from annotations:
+The simplest way to analyse a relaxation experiment is using the `analyse()` function, which automatically detects the experiment type from annotations:
 
 ```julia
 using NMRAnalysis

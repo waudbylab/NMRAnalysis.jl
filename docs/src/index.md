@@ -22,9 +22,10 @@ that doesn't apply yet, start with the [Quick Start](quickstart.md) guide.
 ## 1D Analysis
 
 Routine 1D experiments, including diffusion, relaxation, TRACT, and chemical exchange
-(R1ρ dispersion or CEST/R1 Bloch-McConnell fitting), are each handled by a single function
-called from the Julia REPL. See [1D Analysis](analyses/diffusion.md) for the full set, or
-follow the [Quick Start](quickstart.md) for a first example.
+(an interactive R1ρ dispersion GUI, or a joint CEST/R1ρ/R1 Bloch-McConnell fit), are each
+handled by a single function called from the Julia REPL. See
+[1D Analysis](analyses/diffusion.md) for the full set, or follow the
+[Quick Start](quickstart.md) for a first example.
 
 ## 2D Analysis
 

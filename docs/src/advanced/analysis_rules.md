@@ -82,7 +82,7 @@ Analysis options are sorted by specificity:
 1. Multi-file rules appear first
 2. Then sorted by number of matched files (descending)
 
-This ensures more specific analyses (requiring multiple files) are prioritized over generic single-file analyses.
+This ensures more specific analyses (requiring multiple files) are prioritised over generic single-file analyses.
 
 ## Example: Complete Registration
 

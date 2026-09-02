@@ -1,6 +1,6 @@
 # 1D Calibration Analysis
 
-The calibration analysis module in NMRAnalysis.jl provides tools for analyzing pulse calibration experiments. These experiments are essential for determining accurate pulse lengths and power levels before running relaxation or other quantitative NMR experiments.
+The calibration analysis module in NMRAnalysis.jl provides tools for analysing pulse calibration experiments. These experiments are essential for determining accurate pulse lengths and power levels before running relaxation or other quantitative NMR experiments.
 
 ## The `analyse` Function
 
@@ -19,7 +19,7 @@ Based on these annotations, it calls the appropriate analysis function automatic
 
 ## 19F Nutation Calibration
 
-Nutation experiments measure the B1 field strength by varying the pulse duration and observing the resulting oscillation in signal intensity. This is particularly useful for calibrating spinlock powers in R1rho experiments.
+Nutation experiments measure the B1 field strength by varying the pulse duration and observing the resulting oscillation in signal intensity. This is particularly useful for calibrating spin-lock powers in R1rho experiments.
 
 ### Pulse Program
 
@@ -125,7 +125,7 @@ A typical B1 inhomogeneity of 5-10% is expected for standard NMR probes.
 
 ## Integration with R1rho Experiments
 
-Calibration experiments can be used directly with `setupR1rhopowers()` to calculate spinlock power levels. See the [R1rho tutorial](../tutorials/r1rho.md) for details.
+Calibration experiments can be used directly with `setupR1rhopowers()` to calculate spin-lock power levels. See the [R1rho tutorial](../tutorials/r1rho.md) for details.
 
 ```julia
 setupR1rhopowers("examples/calibration/1")

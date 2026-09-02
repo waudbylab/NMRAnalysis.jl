@@ -18,7 +18,7 @@ makedocs(;
                                   "TRACT" => "analyses/tract.md",
                                   "Chemical Exchange" => ["Calibration" => "analyses/calibration.md",
                                                            "R1ρ Relaxation Dispersion" => "analyses/r1rho.md",
-                                                           "CEST / R1 (Bloch-McConnell)" => "analyses/exchange1d.md"]],
+                                                           "Exchange Fitting (CEST, R1ρ, R1)" => "analyses/exchange1d.md"]],
                 "2D Analysis" => ["Overview" => "analyses/2d/overview.md",
                                   "Peak List Formats" => "analyses/2d/peaklistformats.md",
                                   "Summary Plots" => "analyses/2d/summary.md",

@@ -15,13 +15,13 @@ Bruker pulse programs used for on-resonance ``R_{1ρ}`` experiments, and pulse c
 - On-resonance 19F R1ρ dispersion **[`19f_onresR1p.cw`](https://waudbylab.org/pulseprograms/sequences/19f_onresR1p.cw/)**  
 - Pulse calibration **[`19f_calib_nut.cw`](https://waudbylab.org/pulseprograms/sequences/19f_calib_nut.cw/)**  
 
-The R1ρ sequence is adapted from Overbeck et al. (J. Magn. Reson. 2020, **74**, 753–766) and includes improved temperature compensation. It supports pseudo-3D acquisition with variable spinlock lengths and powers, read in via `VPLIST` and `VALIST`.
+The R1ρ sequence is adapted from Overbeck et al. (J. Magn. Reson. 2020, **74**, 753–766) and includes improved temperature compensation. It supports pseudo-3D acquisition with variable spin-lock lengths and powers, read in via `VPLIST` and `VALIST`.
 
-> Make sure to calibrate your hard pulse and spinlock powers before running the sequence. See the calibration section below for details.
+> Make sure to calibrate your hard pulse and spin-lock powers before running the sequence. See the calibration section below for details.
 
-### 3. Calibrate Spinlock Powers
+### 3. Calibrate Spin-lock Powers
 
-NMRAnalysis.jl provides the function `setupR1rhopowers()` for calculating spinlock powers. This function can either accept manual input of pulse parameters or automatically extract them from a calibration experiment.
+NMRAnalysis.jl provides the function `setupR1rhopowers()` for calculating spin-lock powers. This function can either accept manual input of pulse parameters or automatically extract them from a calibration experiment.
 
 #### Option A: Using a Calibration Experiment (Recommended)
 
@@ -31,7 +31,7 @@ The simplest approach is to provide a path to a nutation calibration experiment.
 setupR1rhopowers("examples/calibration/1")
 ```
 
-This first analyses the calibration experiment and then prompts for spinlock strengths:
+This first analyses the calibration experiment and then prompts for spin-lock strengths:
 
 ```
 [ Info:  - Power level: 16.997737581326444 dB
@@ -98,9 +98,9 @@ You will be prompted to enter:
 
 #### Notes
 
-- You may supply a custom list of spinlock strengths (in Hz), or use the default set provided.
-- For high spinlock powers (>10 kHz), a warning will be issued to verify that the spinlock duration remains within acceptable power limits.
-- The output is a list of calibrated spinlock powers (in Watts) that can be copied directly into VALIST in TopSpin.
+- You may supply a custom list of spin-lock strengths (in Hz), or use the default set provided.
+- For high spin-lock powers (>10 kHz), a warning will be issued to verify that the spin-lock duration remains within acceptable power limits.
+- The output is a list of calibrated spin-lock powers (in Watts) that can be copied directly into VALIST in TopSpin.
 - The list is shuffled to avoid systematic errors from sample heating.
 
 ![setupR1rhopowers](../assets/setupR1rhopowers.png)
@@ -111,7 +111,7 @@ You will be prompted to enter:
 
 Example R1ρ data is available for download: [example-R1rho.zip](../assets/example-R1rho.zip)
 
-This dataset contains two experiments (11 and 12) that should be analysed together, as they contain different spinlock strengths. Extract the zip file and use the extracted directory path in the examples below.
+This dataset contains two experiments (11 and 12) that should be analysed together, as they contain different spin-lock strengths. Extract the zip file and use the extracted directory path in the examples below.
 
 ### Launching the Interface
 
@@ -157,11 +157,11 @@ To view all available options and their default values, use Julia’s built-in h
 ![R1ρ Analysis Interface](../assets/r1rho-gui.png)
 
 - **Series Toggle**: Switch between measurements at different spin-lock field strengths.
-- **Integration Width**: Manually input a value or click **Optimise** to automatically minimize fitting error.
+- **Integration Width**: Manually input a value or click **Optimise** to automatically minimise fitting error.
 - **Peak Position (ppm)**: Automatically set to the chemical shift of a ligand; manually adjust accordingly if analysing a mixture.
 - **Noise Position (ppm)**: Automatically placed away from the peak; adjust if baseline noise is misestimated.
 - **Initial Guesses**: Provide starting values for ``R_{2,0}``, ``R_\mathrm{ex}``, and ``k_\mathrm{ex}`` to guide model fitting.
-- **Δδ stdev (ppm)**: Accounts for uncertainty in the chemical shift difference between free and bound states. Assumes a normal distribution centered at 0 ppm with a standard deviation of 2 ppm.
+- **Δδ stdev (ppm)**: Accounts for uncertainty in the chemical shift difference between free and bound states. Assumes a normal distribution centred at 0 ppm with a standard deviation of 2 ppm.
 - **Output Folder**: Specify a name for your results folder to keep outputs organised.
 - **Save Results**: Export fitted parameters and plots to the output folder.
 
@@ -222,13 +222,13 @@ Samples yielding nonphysical values are excluded, and the final estimate is repo
 
 ### 4. Output Files
 
-Upon saving results, the GUI generates both raw and fitted data files, along with summary plots. These outputs are organized by analysis type:
+Upon saving results, the GUI generates both raw and fitted data files, along with summary plots. These outputs are organised by analysis type:
 
 #### Dispersion Curve Outputs
 
-These files correspond to the global fit of ``R_{1ρ}`` versus spinlock field strength:
+These files correspond to the global fit of ``R_{1ρ}`` versus spin-lock field strength:
 
-- `dispersion-points.csv`: Raw ``R_{1ρ}`` values from exponential fits at each spinlock field
+- `dispersion-points.csv`: Raw ``R_{1ρ}`` values from exponential fits at each spin-lock field
 - `dispersion-fit.csv`: Fitted ``R_{1ρ}`` values based on the global model
 - `dispersion.pdf`: Plot of the dispersion curve with overlaid model fit
 
@@ -236,13 +236,13 @@ These files correspond to the global fit of ``R_{1ρ}`` versus spinlock field st
 
 #### Peak Integral Outputs
 
-For each spinlock power, the GUI exports:
+For each spin-lock power, the GUI exports:
 
-- `intensities_<spinlock>Hz-points.csv`: Raw peak intensities as a function of spinlock duration
+- `intensities_<spinlock>Hz-points.csv`: Raw peak intensities as a function of spin-lock duration
 - `intensities_<spinlock>Hz-fit.csv`: Fitted intensities using the relaxation model
 - `intensities_<spinlock>Hz.pdf`: Plot of intensity decay curves with fitted overlays
 
-> These files support detailed inspection of signal decay and fitting quality at individual spinlock powers.
+> These files support detailed inspection of signal decay and fitting quality at individual spin-lock powers.
  
  #### Summary File: `results.txt`
 

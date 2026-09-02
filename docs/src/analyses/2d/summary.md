@@ -80,6 +80,10 @@ fig = summaryplot("r2/", "r1/", "noe/"; size=(800, 900))
 
 ## Parameter selection (advanced)
 
+`summaryplot` already picks a sensible default column for every built-in experiment type,
+so most users will never need this section. It's here for the occasional case where you
+want a specific non-default column — comparing amplitudes rather than a fitted rate, say.
+
 By default each source plots its own primary parameter (the first derived column in
 `results.csv`, or the experiment's `primaryparam`). To plot a different column, pass
 its name as a `Symbol` — the column header in `results.csv` with a colon prefix:
@@ -98,7 +102,7 @@ use `Symbol("amp[1]")`. To see which parameters are available from a file or liv
 experiment, call `available_params`:
 
 ```julia
-available_params("results/results.csv")   # → [:R, :A, :amp_1, ...]
+available_params("results/results.csv")   # → [:R, :A, Symbol("amp[1]"), ...]
 available_params(expt)                    # → [:R2, :hetnoe, ...]
 ```
 

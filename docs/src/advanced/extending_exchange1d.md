@@ -256,7 +256,7 @@ end
 ```
 
 !!! note
-    The `observed` and `predicted` fields store whatever quantities are compared during fitting. For direct intensity experiments (e.g. CEST), these are normalised intensities. For relaxation dispersion experiments (e.g. R1ρ), these might be fitted relaxation rates extracted from intensity decays at each spinlock power.
+    The `observed` and `predicted` fields store whatever quantities are compared during fitting. For direct intensity experiments (e.g. CEST), these are normalised intensities. For relaxation dispersion experiments (e.g. R1ρ), these might be fitted relaxation rates extracted from intensity decays at each spin-lock power.
 
 ### Step 3: Implement required functions
 
@@ -342,7 +342,7 @@ end
 ```
 
 !!! tip
-    For direct intensity experiments (CEST, R1 calibration), `integrate!` extracts normalised intensities. For relaxation dispersion experiments (R1ρ, CPMG), you may need additional processing — for example, fitting exponential decays to intensity series at each spinlock power to extract observed relaxation rates. In such cases, `integrate!` would perform both the integration and the per-condition fitting to populate `observed` with rates rather than raw intensities.
+    For direct intensity experiments (CEST, R1 calibration), `integrate!` extracts normalised intensities. For relaxation dispersion experiments (R1ρ, CPMG), you may need additional processing — for example, fitting exponential decays to intensity series at each spin-lock power to extract observed relaxation rates. In such cases, `integrate!` would perform both the integration and the per-condition fitting to populate `observed` with rates rather than raw intensities.
 
 #### `simulate!(expt::YourExperiment, model::AbstractModel, params::ComponentArray)`
 
@@ -393,7 +393,7 @@ end
 ```
 
 !!! tip
-    Choose axis labels appropriate to your experiment type. For CEST, the y-axis might be "Intensity" vs saturation offset. For R1ρ dispersion, it would be "R₁ρ (s⁻¹)" vs spinlock power or effective field.
+    Choose axis labels appropriate to your experiment type. For CEST, the y-axis might be "Intensity" vs saturation offset. For R1ρ dispersion, it would be "R₁ρ (s⁻¹)" vs spin-lock power or effective field.
 
 ### Step 4: Include the file
 
