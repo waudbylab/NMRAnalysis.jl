@@ -19,15 +19,15 @@ that doesn't apply yet, start with the [Quick Start](quickstart.md) guide.
     NMRAnalysis.jl is under active development. Features and API may change as the
     package evolves.
 
-## 1D Analysis
+## 1D Experiments
 
 Routine 1D experiments, including diffusion, relaxation, TRACT, and chemical exchange
 (an interactive R1ρ dispersion GUI, or a joint CEST/R1ρ/R1 Bloch-McConnell fit), are each
 handled by a single function called from the Julia REPL. See
-[1D Analysis](analyses/diffusion.md) for the full set, or follow the
+[1D Experiments](analyses/diffusion.md) for the full set, or follow the
 [Quick Start](quickstart.md) for a first example.
 
-## 2D Analysis
+## 2D Experiments
 
 2D and pseudo-3D experiments, including relaxation, exchange, NOE, RDCs, and titrations,
 are handled through a shared interactive GUI: pick peaks with the mouse, watch lineshapes

@@ -61,8 +61,8 @@ An interactive graphical window opens for peak picking and fitting. See
 
 ## Next Steps
 
-- **[1D Analysis](analyses/diffusion.md)** — detailed guides for each 1D experiment type
-- **[2D Analysis](analyses/2d/overview.md)** — interactive GUI reference and per-experiment guides
+- **[1D Experiments](analyses/diffusion.md)** — detailed guides for each 1D experiment type
+- **[2D Experiments](analyses/2d/overview.md)** — interactive GUI reference and per-experiment guides
 - **[Tutorials](tutorials/r1rho.md)** — step-by-step worked examples
 
 ## Getting Help
