@@ -22,7 +22,7 @@ using NMRAnalysis
 analyse(["data/101", "data/102", "data/103"])
 ```
 
-See [The `analyse()` function](@ref) below for details on how automatic dispatch works.
+See [Automatic Analysis](analyse.md) for details on how dispatch works.
 
 ### Direct launch with a directory
 
@@ -151,31 +151,9 @@ The `exchange1d()` function returns a `FitResult` with the following fields:
 | `dof` | `Int` | Degrees of freedom |
 | `prob` | `ExchangeProblem` | Reference to the fitted problem |
 
-## The `analyse()` function
+## Automatic dispatch
 
-The `analyse()` function provides a convenient way to automatically detect and run appropriate analysis routines based on experiment metadata.
-
-### How it works
-
-1. **Classification**: Each input file is loaded and classified by its `types` (e.g. `"1d"`, `"cest"`, `"relaxation"`) and `features` (e.g. `"R1"`, `"nutation"`)
-2. **Matching**: Registered analysis rules are matched against the classified files
-3. **Selection**: If multiple analyses match, an interactive menu is presented
-4. **Execution**: Selected analyses are run and results returned
-
-### Usage
-
-```julia
-# Single file
-result = analyse("data/101")
-
-# Multiple files
-results = analyse(["data/101", "data/102", "data/103"])
-```
-
-When exchange analysis is available (at least one CEST or off-resonance R1ρ experiment is present), it appears in the menu as "Exchange analysis (CEST / R1rho)".
-
-!!! note
-    The `analyse()` function is extensible. Analysis modules register themselves at load time, so all available analyses are automatically discovered. See [Analysis Rules](@ref) for details on how to register custom analysis routines.
+When exchange analysis is available (at least one CEST or off-resonance R1ρ experiment is present), it appears in the `analyse()` menu as "Exchange analysis (CEST / R1rho)". See [Automatic Analysis](analyse.md) for how dispatch works in general, and [Analysis Rules](../advanced/analysis_rules.md) for how to register custom analysis routines.
 
 ## Theoretical Background
 

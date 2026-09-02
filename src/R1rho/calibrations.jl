@@ -54,12 +54,12 @@ function setupR1rhopowers(calibration_experiment_file="")
     end
 
     println()
-    println("Input a list of spinlock strengths (in Hz) separated by commas, or press ENTER for a default list:")
+    println("Input a list of spin-lock strengths (in Hz) separated by commas, or press ENTER for a default list:")
     print("> ")
     input = readline()
 
     if input == ""
-        println("Input minimum spinlock power (in Hz) [300 Hz]:")
+        println("Input minimum spin-lock power (in Hz) [300 Hz]:")
         print("> ")
         input = readline()
         if input == ""
@@ -67,7 +67,7 @@ function setupR1rhopowers(calibration_experiment_file="")
         else
             min_spinlock_strength = parse(Float64, input)
         end
-        println("Input maximum spinlock power (in Hz) [8000 Hz]:")
+        println("Input maximum spin-lock power (in Hz) [8000 Hz]:")
         print("> ")
         input = readline()
         if input == ""
@@ -82,13 +82,13 @@ function setupR1rhopowers(calibration_experiment_file="")
         target_spinlock_strengths = filter(x -> x >= min_spinlock_strength &&
                                                x <= max_spinlock_strength,
                                            target_spinlock_strengths)
-        println("Using spinlock strengths (in Hz):")
+        println("Using spin-lock strengths (in Hz):")
         println(target_spinlock_strengths)
     else
         target_spinlock_strengths = parse.(Float64, strip.(split(input, ",")))
     end
 
-    # Check for high spinlock strengths (above 10 kHz)
+    # Check for high spin-lock strengths (above 10 kHz)
     max_spinlock_strength = maximum(target_spinlock_strengths)
     if max_spinlock_strength > 10000
         println()
@@ -109,14 +109,14 @@ Type 'yes' to proceed. Do you want to proceed? (yes/no):$reset")
     final_powers = convert_Hz_to_dB.(target_spinlock_strengths, pl1, p1)
     final_powers_W = 10 .^ (-final_powers ./ 10) # Convert dB to Watts
 
-    # Shuffle the final powers list and the corresponding spinlock strengths
+    # Shuffle the final powers list and the corresponding spin-lock strengths
     shuffled_indices = shuffle(1:length(final_powers_W))
     shuffled_final_powers = final_powers_W[shuffled_indices]
     shuffled_spinlock_strengths = target_spinlock_strengths[shuffled_indices]
 
     # Print the final powers in the specified format
     println()
-    println("The list corresponds to the following spinlock strengths (Hz):\n",
+    println("The list corresponds to the following spin-lock strengths (Hz):\n",
             shuffled_spinlock_strengths)
     println()
     println("Copy & paste the list provided between the dashed lines.")

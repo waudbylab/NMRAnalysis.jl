@@ -39,6 +39,8 @@ using NMRAnalysis
 analyse("path/to/experiment")  # auto-detects and runs appropriate analysis
 ```
 
+See [Automatic Analysis](analyse.md) for how `analyse()` decides which routine to run.
+
 ### Direct Call
 
 You can also call `relaxation1d()` directly:

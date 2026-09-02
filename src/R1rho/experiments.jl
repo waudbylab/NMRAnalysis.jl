@@ -40,7 +40,7 @@ function processexperiments(experimentfiles; minvSL=250.0, maxvSL=1e6)
 end
 
 function process_offres_experiment(expt)
-    # Get list of spinlock strengths
+    # Get list of spin-lock strengths
     powers = annotations(expt, :r1rho, :power)
     p, pl = referencepulse(expt, annotations(expt, :r1rho, :channel))
     νSL = hz.(powers, pl, p, 90)
@@ -48,17 +48,17 @@ function process_offres_experiment(expt)
     # 3. Get relaxation times
     TSL = annotations(expt, :r1rho, :duration)
 
-    # 4. Get spinlock offset
+    # 4. Get spin-lock offset
     ΩSL = annotations(expt, :r1rho, :offset)
 
-    # 2. Get list of spinlock offsets
+    # 2. Get list of spin-lock offsets
     fqlist = annotations(expt, :r1rho, :offset)
     ΩSL = hz.(fqlist, dims(expt, F1Dim)) # in Hz
 
     # 3. Get list of relaxation times
     TSL = annotations(expt, :r1rho, :duration)
 
-    # 4. Get spinlock power (using 90 degree p1@pl1 as reference)
+    # 4. Get spin-lock power (using 90 degree p1@pl1 as reference)
     power = annotations(expt, :r1rho, :power)
     p, pl = referencepulse(expt, annotations(expt, :r1rho, :channel))
     νSL = hz.(power, pl, p, 90)
@@ -75,7 +75,7 @@ function process_offres_experiment(expt)
 end
 
 function process_onres_experiment(expt, minvSL, maxvSL)
-    # Get list of spinlock strengths
+    # Get list of spin-lock strengths
     powers = annotations(expt, :r1rho, :power)
     p, pl = referencepulse(expt, annotations(expt, :r1rho, :channel))
     νSL = hz.(powers, pl, p, 90)
@@ -83,11 +83,11 @@ function process_onres_experiment(expt, minvSL, maxvSL)
     # 3. Get relaxation times
     TSL = annotations(expt, :r1rho, :duration)
 
-    # 4. Get spinlock offset
+    # 4. Get spin-lock offset
     ΩSL = annotations(expt, :r1rho, :offset)
     # check that ΩSL is a scalar
     if !(ΩSL isa Number)
-        error("Spinlock offset (ΩSL) must be a single value for on-resonance R1rho experiments.")
+        error("Spin-lock offset (ΩSL) must be a single value for on-resonance R1rho experiments.")
     end
 
     nν = length(νSL)
@@ -98,14 +98,14 @@ function process_onres_experiment(expt, minvSL, maxvSL)
     ΩSL = vec([ΩSL for i in 1:nT, j in 1:nν])
     spec = vec([expt[:, j, i] for i in 1:nT, j in 1:nν])
 
-    # 5. Filter out unwanted spinlock strengths
+    # 5. Filter out unwanted spin-lock strengths
     low_vals = unique(round.(νSL[νSL .< minvSL]; digits=1))
     high_vals = unique(round.(νSL[νSL .> maxvSL]; digits=1))
     if !isempty(low_vals)
-        @info "Filtering out spinlock strengths below $minvSL Hz ($(expt[:filename])): $(low_vals) Hz"
+        @info "Filtering out spin-lock strengths below $minvSL Hz ($(expt[:filename])): $(low_vals) Hz"
     end
     if !isempty(high_vals)
-        @info "Filtering out spinlock strengths above $maxvSL Hz ($(expt[:filename])): $(high_vals) Hz"
+        @info "Filtering out spin-lock strengths above $maxvSL Hz ($(expt[:filename])): $(high_vals) Hz"
     end
     idx = findall(minvSL .< νSL .< maxvSL)
     ΩSL = ΩSL[idx]

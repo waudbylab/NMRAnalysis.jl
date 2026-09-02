@@ -3,7 +3,7 @@
     diffusion1d(filename, coherence=SQ(H1))
     diffusion1d(nmrdata, coherence=SQ(H1))
 
-Analyze NMR diffusion experiments by fitting signal decay to extract diffusion coefficients.
+Analyse NMR diffusion experiments by fitting signal decay to extract diffusion coefficients.
 
 Interactively configure gradient parameters, select integration and noise regions, then fit
 diffusion data to the Stejskal-Tanner equation to extract diffusion coefficients and hydrodynamic radii.

@@ -40,13 +40,13 @@ This first analyses the calibration experiment and then prompts for spin-lock st
 [ Info:  - Decay rate: 327.0 ± 69.0 s⁻¹
 [ Info:  - B₁ inhomogeneity (R/2πν₁): 5.1 ± 1.1 %
 
-Input a list of spinlock strengths (in Hz) separated by commas, or press ENTER for a default list:
+Input a list of spin-lock strengths (in Hz) separated by commas, or press ENTER for a default list:
 > 
-Input minimum spinlock power (in Hz) [300 Hz]:
+Input minimum spin-lock power (in Hz) [300 Hz]:
 > 
-Input maximum spinlock power (in Hz) [8000 Hz]:
+Input maximum spin-lock power (in Hz) [8000 Hz]:
 > 15000
-Using spinlock strengths (in Hz):
+Using spin-lock strengths (in Hz):
 [300, 500, 750, 1000, 1500, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000, 13000, 14000, 15000]
 
 WARNING - high spin-lock powers may cause damage to your probe! 
@@ -56,7 +56,7 @@ Type 'yes' to proceed. Do you want to proceed? (yes/no):
 
 > yes
 
-The list corresponds to the following spinlock strengths (Hz):
+The list corresponds to the following spin-lock strengths (Hz):
 [7000, 13000, 12000, 11000, 14000, 750, 500, 300, 1500, 15000, 5000, 1000, 10000, 6000, 9000, 4000, 2000, 3000, 8000]
 
 Copy & paste the list provided between the dashed lines.
@@ -238,9 +238,9 @@ These files correspond to the global fit of ``R_{1ρ}`` versus spin-lock field s
 
 For each spin-lock power, the GUI exports:
 
-- `intensities_<spinlock>Hz-points.csv`: Raw peak intensities as a function of spin-lock duration
-- `intensities_<spinlock>Hz-fit.csv`: Fitted intensities using the relaxation model
-- `intensities_<spinlock>Hz.pdf`: Plot of intensity decay curves with fitted overlays
+- `intensities_<value>_kHz-points.csv`: Raw peak intensities as a function of spin-lock duration
+- `intensities_<value>_kHz-fit.csv`: Fitted intensities using the relaxation model
+- `intensities_<value>_kHz.pdf`: Plot of intensity decay curves with fitted overlays
 
 > These files support detailed inspection of signal decay and fitting quality at individual spin-lock powers.
  

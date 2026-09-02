@@ -1,7 +1,7 @@
 """
     hetnoe2d(reference, saturated)
 
-Start interactive GUI for analyzing 2D heteronuclear NOE data.
+Start interactive GUI for analysing 2D heteronuclear NOE data.
 
 `reference` and `saturated` can each be a single filename or a list of filenames.
 When lists are provided, results are averaged across all pairs.

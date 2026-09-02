@@ -2,20 +2,14 @@
 
 The calibration analysis module in NMRAnalysis.jl provides tools for analysing pulse calibration experiments. These experiments are essential for determining accurate pulse lengths and power levels before running relaxation or other quantitative NMR experiments.
 
-## The `analyse` Function
-
-NMRAnalysis.jl provides a generic `analyse()` function that automatically detects experiment types based on pulse sequence annotations and dispatches to the appropriate analysis routine.
+A calibration experiment can also be analysed via automatic dispatch:
 
 ```julia
 using NMRAnalysis
 analyse("path/to/experiment")
 ```
 
-The function reads metadata from the NMR experiment to determine:
-- **Experiment type**: e.g., "1d", "calibration"
-- **Features**: e.g., "nutation"
-
-Based on these annotations, it calls the appropriate analysis function automatically.
+See [Automatic Analysis](analyse.md) for how `analyse()` decides which routine to run.
 
 ## 19F Nutation Calibration
 

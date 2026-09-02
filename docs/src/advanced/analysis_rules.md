@@ -1,13 +1,6 @@
 # Analysis Rules
 
-The `analyse()` function uses a registry-based dispatch system to match experiment files to appropriate analysis routines. This page describes how to extend the system with custom analysis rules.
-
-## How It Works
-
-1. **Classification**: Each input file is classified by its `types` (e.g., "1d", "calibration", "r1rho") and `features` (e.g., "nutation", "on_resonance")
-2. **Matching**: Registered rules are matched against the classified files
-3. **Selection**: If multiple analyses match, an interactive menu is presented
-4. **Execution**: Selected analyses are run and results returned
+The `analyse()` function uses a registry-based dispatch system to match experiment files to appropriate analysis routines. See [Automatic Analysis](../analyses/analyse.md) for how dispatch works from a user's perspective. This page describes how to extend the system with custom analysis rules.
 
 ## Registering Single-File Rules
 
