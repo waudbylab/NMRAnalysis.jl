@@ -109,12 +109,12 @@ end
     experimentinfo(expt::R1rhoOnResExperiment) -> Vector{Pair{String,String}}
 
 Acquisition parameters worth recording alongside a saved fit (see
-`_save_results`): field strength and spinlock strength range.
+`_save_results`): field strength and spin-lock strength range.
 """
 function experimentinfo(expt::R1rhoOnResExperiment)
     return ["Type" => "On-resonance R1ρ",
             "Field" => _format_field(expt.field_teslas),
-            "Spinlock strengths" =>
+            "Spin-lock strengths" =>
                 "$(length(expt.νSL)) points, " *
                 "$(round(minimum(expt.νSL); digits=1)) to " *
                 "$(round(maximum(expt.νSL); digits=1)) Hz"]
@@ -127,7 +127,7 @@ function plot_result(expt::R1rhoOnResExperiment, fit_result; kwargs...)
     sortidx = sortperm(x)
 
     p1 = scatter(expt.νSL, yobs; ms=3,
-                 xlabel="Spinlock strength / Hz",
+                 xlabel="Spin-lock strength / Hz",
                  ylabel="R₁ρ / s⁻¹",
                  title="On-resonance R₁ρ",
                  frame=:box, legend=nothing, grid=nothing, kwargs...)
@@ -135,7 +135,7 @@ function plot_result(expt::R1rhoOnResExperiment, fit_result; kwargs...)
     hline!(p1, [0.0]; color=:black, lw=0.5, primary=false)
 
     wres = (Measurements.value.(yobs) .- ypred) ./ Measurements.uncertainty.(yobs)
-    p2 = plot(; xlabel="Spinlock strength / Hz",
+    p2 = plot(; xlabel="Spin-lock strength / Hz",
               ylabel="Residual / σ",
               frame=:box, legend=nothing, grid=nothing, kwargs...)
     hspan!(p2, [-2, 2]; color=:limegreen, alpha=0.3, lw=0, la=0, primary=false)

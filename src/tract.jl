@@ -2,7 +2,7 @@
     tract()
     tract(trosy_filename, antitrosy_filename)
 
-Analyze 1D TRACT relaxation experiments.
+Analyse 1D TRACT relaxation experiments.
 
 Interactively select integration and noise regions, then fit relaxation data to extract
 relaxation rates and an effective correlation time.

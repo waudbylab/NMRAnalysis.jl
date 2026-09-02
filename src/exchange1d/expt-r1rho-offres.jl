@@ -112,12 +112,12 @@ end
     experimentinfo(expt::R1rhoOffResExperiment) -> Vector{Pair{String,String}}
 
 Acquisition parameters worth recording alongside a saved fit (see
-`_save_results`): field strength, spinlock strength, and offset range.
+`_save_results`): field strength, spin-lock strength, and offset range.
 """
 function experimentinfo(expt::R1rhoOffResExperiment)
     return ["Type" => "Off-resonance R1ρ",
             "Field" => _format_field(expt.field_teslas),
-            "Spinlock strength" => "$(round(expt.νSL; digits=1)) Hz",
+            "Spin-lock strength" => "$(round(expt.νSL; digits=1)) Hz",
             "Offsets" =>
                 "$(length(expt.offsets_ppm)) points, " *
                 "$(round(minimum(expt.offsets_ppm); digits=3)) to " *

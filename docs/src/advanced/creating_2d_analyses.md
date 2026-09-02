@@ -16,7 +16,7 @@ All concrete subtypes must include the following fields:
 
 ## Required Implementation
 
-Concrete subtypes must implement both the core analysis functions below and the visualization functions documented separately. Note that many other functions have default implementations that can be used unless special behaviour is needed.
+Concrete subtypes must implement both the core analysis functions below and the visualisation functions documented separately. Note that many other functions have default implementations that can be used unless special behaviour is needed.
 
 ### Type Hierarchy
 
@@ -119,12 +119,12 @@ The following functions are implemented generically and do not need to be reimpl
 ### Observable Setup
 - `setupexptobservables!(expt)`: Set up reactive behaviours for experiment observables
 
-### Required Visualization Functions
+### Required Visualisation Functions
 
-Concrete subtypes must implement the following visualization functions:
+Concrete subtypes must implement the following visualisation functions:
 
 ### `makepeakplot!(gui, state, expt)`
-Create the interactive peak plot in the GUI context. This function is crucial for real-time visualization and interaction.
+Create the interactive peak plot in the GUI context. This function is crucial for real-time visualisation and interaction.
 
 **Arguments:**
 - `gui`: The GUI context containing plot panels
@@ -178,9 +178,9 @@ Here's a step-by-step guide to implementing a new type of NMR experiment:
    ```
 
 3. **Constructor**
-   - Create a constructor that initializes all required fields
+   - Create a constructor that initialises all required fields
    - Set up observables using `setupexptobservables!`
-   - Initialize experiment-specific parameters
+   - Initialise experiment-specific parameters
 
 4. **Core Analysis Functions**
    - Implement `addpeak!` to set up experiment-specific peak parameters
@@ -199,7 +199,7 @@ Here's a step-by-step guide to implementing a new type of NMR experiment:
          notify(expt.peaks)
      end
      ```
-   - Implement `simulate!` for your specific peak shapes/behavior
+   - Implement `simulate!` for your specific peak shapes/behaviour
    - Implement `postfit!` to calculate final parameters from fit results
 
 5. **Information Functions**
@@ -207,7 +207,7 @@ Here's a step-by-step guide to implementing a new type of NMR experiment:
    - Implement `peakinfotext` to show fit results
    - Implement `experimentinfo` to show experiment details
 
-6. **Visualization Functions**
+6. **Visualisation Functions**
    - Implement `makepeakplot!` for the interactive GUI
      ```julia
      function makepeakplot!(gui, state, expt::MyNewExperiment)

@@ -12,7 +12,7 @@ register_analysis!(["1d", "relaxation"],
     relaxation1d(filename)
     relaxation1d(spec, signalselector, noiseselector)
 
-Analyze 1D NMR relaxation experiments (T1 or T2) by fitting signal decay/recovery curves.
+Analyse 1D NMR relaxation experiments (T1 or T2) by fitting signal decay/recovery curves.
 
 Interactively select integration and noise regions, then fit relaxation data to extract
 relaxation rates and times. Supports standard exponential decay and inversion-recovery experiments.

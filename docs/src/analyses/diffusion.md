@@ -1,6 +1,6 @@
 # 1D Diffusion Analysis
 
-The diffusion analysis module in NMRAnalysis.jl provides a basic tool for analyzing diffusion-ordered spectroscopy (DOSY) experiments. This analysis determines the translational diffusion coefficient of molecules and estimates their hydrodynamic radius using the Stokes-Einstein relation.
+The diffusion analysis module in NMRAnalysis.jl provides a basic tool for analysing diffusion-ordered spectroscopy (DOSY) experiments. This analysis determines the translational diffusion coefficient of molecules and estimates their hydrodynamic radius using the Stokes-Einstein relation.
 
 ## Launching Diffusion Analysis
 

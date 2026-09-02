@@ -1,7 +1,7 @@
 """
     ccr2d(decay_expts, buildup_expts, T)
 
-Start interactive GUI for analyzing 2D measurements of cross-correlated relaxation data.
+Start interactive GUI for analysing 2D measurements of cross-correlated relaxation data.
 
 Fits intensities of peaks in a series of 2D spectra to a model of the form:
 

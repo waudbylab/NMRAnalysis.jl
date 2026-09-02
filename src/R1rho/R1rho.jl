@@ -32,11 +32,11 @@ include("calibrations.jl")
 Launch the R1rho analysis GUI for a given directory or experiment folder.
 
 - `directory_path`: Path to the experiment folder or parent directory. If not specified, a dialog will prompt for selection.
-- `filenames`: Vector of experiment files to analyze.
-- `minvSL`: Minimum value for on-resonance spinlock strengths (in Hz). Default is 250 Hz. Set to zero to disable the lower limit.
-  This allows low spinlock strengths with poor alignment to be excluded from the analysis.
-- `maxvSL`: Maximum value for on-resonance spinlock strengths (in Hz). Default is 1 MHz (effectively no upper limit).
-  This allows high spinlock strengths that may have detuning effects to be excluded from the analysis.
+- `filenames`: Vector of experiment files to analyse.
+- `minvSL`: Minimum value for on-resonance spin-lock strengths (in Hz). Default is 250 Hz. Set to zero to disable the lower limit.
+  This allows low spin-lock strengths with poor alignment to be excluded from the analysis.
+- `maxvSL`: Maximum value for on-resonance spin-lock strengths (in Hz). Default is 1 MHz (effectively no upper limit).
+  This allows high spin-lock strengths that may have detuning effects to be excluded from the analysis.
 - `scalefactor`: Adjusts the size of the display window. By default, this is `2` for high-resolution displays and `1` for low-resolution displays. Omit or set to `:automatic` to use the default, or provide a numeric value to override.
 
 # Example
@@ -48,10 +48,10 @@ r1rho(["examples/R1rho/11", "examples/R1rho/12"])
 # open a dialog to select a directory, and scale the display size by 1.5
 r1rho(scalefactor=1.5)
 
-# filter out spinlock strengths below 500 Hz (e.g. to exclude poorly aligned experiments, 250 Hz is the default)
+# filter out spin-lock strengths below 500 Hz (e.g. to exclude poorly aligned experiments, 250 Hz is the default)
 r1rho("examples/R1rho", minvSL=500)
 
-# filter out spinlock strengths about 10 kHz (e.g. to exclude data with detuning effects)
+# filter out spin-lock strengths about 10 kHz (e.g. to exclude data with detuning effects)
 r1rho("examples/R1rho", maxvSL=10_000)
 ```
 """

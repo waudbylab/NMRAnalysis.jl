@@ -1,63 +1,50 @@
 # NMRAnalysis.jl
 
-NMRAnalysis.jl is a Julia package for interactive analysis of biomolecular NMR experiments,
-with a particular focus on relaxation, diffusion, exchange, and protein dynamics measurements.
-It provides both 1D command-line workflows and 2D interactive graphical interfaces, and is
-designed to make common NMR analyses straightforward without sacrificing flexibility.
+NMRAnalysis.jl is a Julia package for analysing biomolecular NMR relaxation, diffusion,
+exchange, and dynamics experiments. It is aimed at NMR spectroscopists, not necessarily
+experienced Julia programmers: each experiment type is handled by a single function that
+takes you from processed spectra to a fitted result, either from the command line for
+routine 1D experiments, or through an interactive graphical interface for 2D and
+pseudo-3D series, where peaks are picked with the mouse and fits update as you work.
+
+This documentation assumes that you have Julia installed, that you have processed
+Bruker-format spectra ready to analyse, and that you have some familiarity with the NMR
+experiment you want to analyse, since NMRAnalysis.jl fits your data to established
+relaxation, diffusion, or exchange models rather than choosing one for you. If any of
+that doesn't apply yet, start with the [Quick Start](quickstart.md) guide.
+
+![The 2D interactive fitting interface: a contour plot with picked peaks alongside a live model fit](assets/screenshot-relaxation2d.png)
 
 !!! note "Active development"
     NMRAnalysis.jl is under active development. Features and API may change as the
     package evolves.
 
-## What's available
+## 1D Analysis
 
-### 1D Analyses
-Command-line tools for routine 1D experiments:
+Routine 1D experiments, including diffusion, relaxation, TRACT, and chemical exchange
+(an interactive R1ρ dispersion GUI, or a joint CEST/R1ρ/R1 Bloch-McConnell fit), are each
+handled by a single function called from the Julia REPL. See
+[1D Analysis](analyses/diffusion.md) for the full set, or follow the
+[Quick Start](quickstart.md) for a first example.
 
-| Function | Experiment |
-|----------|-----------|
-| [`diffusion1d()`](analyses/diffusion.md) | DOSY / diffusion coefficient measurement |
-| [`relaxation1d()`](analyses/relaxation.md) | R1 and R2 relaxation (exponential or inversion-recovery fit) |
-| [`tract()`](analyses/tract.md) | TRACT experiment for rotational correlation time |
-| [`r1rho()`](analyses/r1rho.md) | ¹⁹F R1ρ relaxation dispersion |
-| [`exchange1d()`](analyses/exchange1d.md) | Chemical exchange analysis via CEST and R1ρ |
+## 2D Analysis
 
-Automatic detection and dispatch of the appropriate 1D analysis routine is also
-available via `analyse(filename)` — see [Analysis Rules](@ref) for details.
+2D and pseudo-3D experiments, including relaxation, exchange, NOE, RDCs, and titrations,
+are handled through a shared interactive GUI: pick peaks with the mouse, watch lineshapes
+and model fits update in real time, and export results to a folder. See the
+[2D Overview](analyses/2d/overview.md) for a tour of the interface and the full list of
+supported experiment types.
 
-### 2D Analyses
-Interactive graphical interfaces for 2D and pseudo-3D experiments:
+## Tutorials
 
-| Function | Experiment |
-|----------|-----------|
-| [`fit2d()`](analyses/2d/fit.md) | Peak fitting: positions, linewidths, and amplitudes |
-| [`peaktrack2d()`](analyses/2d/peaktracking.md) | Tracking peak positions across a series of 2D spectra |
-| [`titration2d()`](analyses/2d/titration.md) | Binding isotherms from a titration series |
-| [`relaxation2d()`](analyses/2d/relaxation.md) | R1 / R2 relaxation from a series of 2D spectra |
-| [`recovery2d()`](analyses/2d/magnetisationrecovery.md) | Inversion or saturation recovery |
-| [`modelfit2d()`](analyses/2d/modelfit.md) | Custom model fitting |
-| [`hetnoe2d()`](analyses/2d/hetnoe.md) | Heteronuclear NOE |
-| [`cpmg2d()`](analyses/2d/cpmg.md) | CPMG relaxation dispersion |
-| [`cest2d()`](analyses/2d/cest.md) | CEST (Chemical Exchange Saturation Transfer) |
-| [`ccr2d()`](analyses/2d/ccr.md) | Cross-correlated relaxation |
-| [`methylccr2d()`](analyses/2d/methylccr.md) | Methyl CCR: S²τc from buildup/decay series |
-| [`rdc2d()`](analyses/2d/rdc.md) | Residual dipolar couplings |
-
-All 2D functions share the same interactive GUI — see the [2D Overview](analyses/2d/overview.md) for
-a guide to the interface and common workflow.
+Worked, step-by-step examples are collected under [Tutorials](tutorials/r1rho.md),
+starting with a full ¹⁹F R1ρ acquisition and analysis walkthrough.
 
 ## Ecosystem
 
-NMRAnalysis.jl is part of a suite of Julia packages for NMR data handling developed
-by the [Waudby lab](https://waudbylab.org):
-
-- **[NMRTools.jl](https://waudbylab.org/NMRTools.jl)** — the foundation for
-  NMR data import and processing in Julia. NMRAnalysis.jl is built on top of NMRTools
-  for all data loading, axis handling, and spectral processing.
-
-- **[NMRScreen.jl](https://waudbylab.org/NMRScreen.jl)** — tools for
-  fragment and ligand screening by NMR, including automated analysis of large
-  compound libraries.
+NMRAnalysis.jl is part of a suite of Julia packages for NMR data handling developed by
+the [Waudby lab](https://waudbylab.org). See [Ecosystem](ecosystem.md) for the related
+packages and how they fit together.
 
 ## Contributing
 

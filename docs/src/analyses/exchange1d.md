@@ -1,19 +1,28 @@
 # 1D Exchange Analysis
 
-The Exchange1D module in NMRAnalysis.jl provides tools for analysing chemical exchange processes using 1D NMR experiments. It performs joint fitting of CEST (Chemical Exchange Saturation Transfer) and R1 relaxation data using Bloch-McConnell equations to extract exchange kinetics, populations, and chemical shift differences.
+The Exchange1D module in NMRAnalysis.jl provides tools for analysing chemical exchange processes using 1D NMR experiments. It performs joint fitting of CEST (Chemical Exchange Saturation Transfer), on- and off-resonance R1ρ relaxation dispersion, and R1 relaxation data using Bloch-McConnell equations to extract exchange kinetics, populations, and chemical shift differences.
+
+!!! note "Relationship to `r1rho()`"
+    This is a different tool from the standalone [`r1rho()`](r1rho.md) GUI. `r1rho()` fits
+    on-resonance R1ρ dispersion data alone, with its own dedicated interactive interface.
+    `exchange1d()` instead performs joint Bloch-McConnell fitting across any combination of
+    CEST, R1, and on-/off-resonance R1ρ experiments against a shared exchange model, through
+    a text-based workflow rather than a GUI. Use `r1rho()` for routine on-resonance dispersion
+    measurements; use `exchange1d()` when you need to combine multiple experiment types, or
+    both resonance offsets, in a single global fit.
 
 ## Launching Exchange Analysis
 
 ### Via automatic dispatch
 
-If your experiments have appropriate annotations, the `analyse()` function will detect CEST and R1 experiments and offer exchange analysis automatically:
+If your experiments have appropriate annotations, the `analyse()` function will detect a CEST or off-resonance R1ρ experiment (any accompanying R1 or on-resonance R1ρ experiments are included automatically) and offer exchange analysis:
 
 ```julia
 using NMRAnalysis
 analyse(["data/101", "data/102", "data/103"])
 ```
 
-See [The `analyse()` function](@ref) below for details on how automatic dispatch works.
+See [Automatic Analysis](analyse.md) for details on how dispatch works.
 
 ### Direct launch with a directory
 
@@ -41,14 +50,20 @@ exchange1d()
 
 ## Supported Experiment Types
 
-Exchange1D currently supports two experiment types, which can be combined in a joint fit:
+Exchange1D currently supports four experiment types, which can be combined in a joint fit:
 
 | Experiment | Annotation type | Annotation feature | Description |
 |---|---|---|---|
 | **CEST** | `"cest"` | — | Saturation transfer profiles at varying offsets |
+| **R1ρ (on-resonance)** | `"r1rho"` | `"on_resonance"` | Relaxation dispersion vs spin-lock field strength, spin-lock applied on-resonance |
+| **R1ρ (off-resonance)** | `"r1rho"` | `"off_resonance"` | Relaxation dispersion vs saturation offset, at a fixed spin-lock field strength |
 | **R1 relaxation** | `"relaxation"` | `"R1"` | Longitudinal relaxation decay or inversion-recovery |
 
-At least one exchange-sensitive experiment (CEST and/or off-resonance R1ρ) is required. R1 experiments are optional and help constrain the longitudinal relaxation rate during fitting.
+When using automatic dispatch via `analyse()`, at least one CEST or off-resonance R1ρ
+experiment must be present to offer exchange analysis; on-resonance R1ρ and R1 experiments
+can be included in the joint fit but do not by themselves trigger it. Calling `exchange1d()`
+directly accepts any combination of the four experiment types above; R1 experiments are
+always optional and help constrain the longitudinal relaxation rate during fitting.
 
 ## Available Models
 
@@ -136,31 +151,9 @@ The `exchange1d()` function returns a `FitResult` with the following fields:
 | `dof` | `Int` | Degrees of freedom |
 | `prob` | `ExchangeProblem` | Reference to the fitted problem |
 
-## The `analyse()` function
+## Automatic dispatch
 
-The `analyse()` function provides a convenient way to automatically detect and run appropriate analysis routines based on experiment metadata.
-
-### How it works
-
-1. **Classification**: Each input file is loaded and classified by its `types` (e.g. `"1d"`, `"cest"`, `"relaxation"`) and `features` (e.g. `"R1"`, `"nutation"`)
-2. **Matching**: Registered analysis rules are matched against the classified files
-3. **Selection**: If multiple analyses match, an interactive menu is presented
-4. **Execution**: Selected analyses are run and results returned
-
-### Usage
-
-```julia
-# Single file
-result = analyse("data/101")
-
-# Multiple files
-results = analyse(["data/101", "data/102", "data/103"])
-```
-
-When exchange analysis is available (at least one CEST experiment is present), it appears in the menu as "Exchange analysis (CEST + R1)".
-
-!!! note
-    The `analyse()` function is extensible. Analysis modules register themselves at load time, so all available analyses are automatically discovered. See [Analysis Rules](@ref) for details on how to register custom analysis routines.
+When exchange analysis is available (at least one CEST or off-resonance R1ρ experiment is present), it appears in the `analyse()` menu as "Exchange analysis (CEST / R1rho)". See [Automatic Analysis](analyse.md) for how dispatch works in general, and [Analysis Rules](../advanced/analysis_rules.md) for how to register custom analysis routines.
 
 ## Theoretical Background
 
@@ -187,6 +180,20 @@ For CEST experiments, the Liouvillian is augmented with an inhomogeneous term to
 ```
 
 The observed intensity is the sum of ``M_z`` components across all states.
+
+### R1ρ Simulation
+
+For on- and off-resonance R1ρ experiments, the effective relaxation rate at each spin-lock
+condition is obtained directly from the Liouvillian ``\mathbf{L}`` (evaluated at that
+experiment's spin-lock offset and field strength), via the inverse-trace relation
+
+```math
+R_{1\rho} = -\frac{1}{\mathrm{tr}(\mathbf{L}^{-1})},
+```
+
+sometimes referred to as the Koss method. On-resonance experiments vary the spin-lock field
+strength at zero offset; off-resonance experiments hold the spin-lock field fixed and vary
+the offset.
 
 ### R1 Simulation
 
