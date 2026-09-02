@@ -6,6 +6,11 @@ saves you from having to know in advance which function handles a given experime
 useful when working through a folder of mixed experiment types, or when scripting a
 pipeline that shouldn't need to know what's coming next.
 
+!!! note "1D only, for now"
+    Automatic dispatch currently covers 1D experiments only. 2D analyses (`fit2d()`,
+    `relaxation2d()`, and the rest) are always called directly — see [2D
+    Analysis](2d/overview.md). Dispatch for 2D experiments is planned.
+
 ```julia
 using NMRAnalysis
 
