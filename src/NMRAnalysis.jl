@@ -24,6 +24,11 @@ using .MaybeVectorModule
 include("gui2d/GUI2D.jl")
 using .GUI2D
 
+include("analysis1d/Analysis1D.jl")
+# N.B. deliberately no blanket `using .Analysis1D`: it exports `analyse`, which would
+# collide with the registry-based `analyse` above. Names are brought in by the selective
+# `@reexport using .Analysis1D: …` below instead.
+
 using PrecompileTools
 include("precompile.jl")
 
@@ -53,6 +58,14 @@ using .Exchange1D
 
 @reexport using .Exchange1D: exchange1d
 
+# 1D analysis framework (Analysis1D). `analyse` is not re-exported (would collide with the
+# registry-based `analyse` above; use `analyse1d`). `tract` is not re-exported either, as it
+# collides with the legacy top-level `tract`; reach the new one as `Analysis1D.tract`.
+@reexport using .Analysis1D: Region, Dataset1D, analyse1d, gui!
+@reexport using .Analysis1D: RelaxationExperiment, TractExperiment, NutationExperiment
+@reexport using .Analysis1D: KineticsExperiment, STDExperiment
+@reexport using .Analysis1D: relaxation, nutation, stdnmr, kinetics
+
 @info """
 NMRAnalysis.jl (v$(pkgversion(NMRAnalysis)))
 
@@ -73,6 +86,14 @@ NMRAnalysis.jl (v$(pkgversion(NMRAnalysis)))
 - tract([trosy_filename, antitrosy_filename])
 - r1rho([directory_path]; minvSL=250, maxvSL=1e6, scalefactor=:automatic)
 - exchange1d([filenames]) - CEST / R1ρ chemical exchange analysis
+
+# 1D Analysis Framework (interactive; build an experiment then `gui!(expt)`)
+
+- relaxation(spec; ir=false)        |> gui!
+- nutation(spec)                    |> gui!
+- stdnmr(spec, sat, tsat; regions)  |> gui!
+- kinetics(spec, times; regions)    |> gui!
+- Analysis1D.tract(trosy, antitrosy) |> gui!
 
 # 2D Experiment Analysis Routines
 
