@@ -66,7 +66,7 @@ end
 """Human-readable label for a grouping key, e.g. `(which = :trosy,)` → `"trosy"`."""
 function groupname(group::NamedTuple)
     isempty(group) && return ""
-    return join(string(v) for v in values(group), ", ")
+    return join((string(v) for v in values(group)), ", ")
 end
 
 # axis labels for the result panel
