@@ -229,10 +229,10 @@ Phase 3.7 — **second feedback round**  ✓
       peak position, noise position and width each get a two-way-bound text box
       (`ppmbox!`) for exact entry alongside dragging
 - [x] the results panel's group headers (`resultsheader`) and derived-quantity headers
-      (`secondarytext`, "Derived" or the group name) are now bold `RichText`, so the panel
-      reads as labelled sections rather than one undifferentiated block of text -
-      `state[:resultsheader]`/`state[:secondaryresult]` carry `RichText` throughout,
-      including their Fitting-toggle-off blank state (`rich()`, not `""`), for the same
+      (`secondarytext`, via the new `derivedheader` hook) are now bold `RichText`
+      (`boldheader`), so the panel reads as labelled sections rather than one
+      undifferentiated block of text - `state[:resultspanel]` (see below) carries
+      `RichText` throughout, including its blank states, for the same
       Observable-element-type reason `RegionResult` exists
 - [x] regions added with `A` default to `peak1`, `peak2`, … rather than `region1`,
       `region2`, … - so the panel's "Region: peak2" heading doesn't repeat "region"
@@ -248,6 +248,37 @@ Phase 3.7 — **second feedback round**  ✓
       x-zoom still works normally
 - [x] the spectrum axis title reads "Spectrum: 0.4 s delay" rather than a bare
       "0.4 s delay"
+
+Phase 3.8 — **third feedback round: one info panel, real alignment**  ✓
+- [x] the right-hand info panel (which region, its bounds, the fit, and the quantities
+      derived from it) is now `state[:resultspanel]`, a single `RichText` Label rather
+      than three separately-sized ones. Each Label in a GridLayout column auto-sizes its
+      row from its own reported height, and that reporting does not reliably track a
+      `RichText`'s actual rendered height as its content changes - so a later row could
+      start before an earlier one had actually finished, overlapping it (TRACT's η/τc
+      block visibly colliding with its own trosy/anti blocks). One Label sidesteps the
+      question entirely: everything after the heading is just more content appended to
+      the same growing block, with nothing else positioned relative to it to collide with
+- [x] `panelwidth` computes the label-column width once, across every block shown for the
+      active region, rather than each block aligning only to its own labels - so
+      "Amplitude" in a TROSY block and "Correlation time (τc)" in TRACT's derived block
+      now share one column
+- [x] `paramlabel`/`paramunit` are experiment-dispatched, not one global table: `:A` is
+      safely "Amplitude" everywhere, but `:R` is deliberately *not* given a global
+      "Relaxation rate" label, since nutation's damped-sinusoid model uses the same bare
+      symbol for a decay rate that is not conventionally called that - relaxation and
+      TRACT each override it themselves, where it is actually true
+- [x] fixed a real bug this surfaced: TRACT's derived (η/τc) block was headed "trosy",
+      because `postfitglobal!` has to pick one series of the pair to record them on and
+      the header defaulted to that series' own group name. New `derivedheader` hook,
+      overridden per experiment, decouples "whose `RegionResult` holds this" from
+      "what to call it" - TRACT now says "TRACT results" regardless of which member
+      carries the values
+- [x] `groupheader` (new hook, default = `groupname`) lets TRACT show "TROSY"/"Anti-TROSY"
+      in the panel, matching the wording `seriesnames` already uses for the plot legend,
+      instead of the raw `:trosy`/`:anti` group values
+- [x] every panel heading is now colon-suffixed and the "=" between name and value is
+      gone, matching plain name/value columns rather than an equation
 
 Still open after this iteration:
 - **Canonical output format across 1D and 2D** (text vs CSV, units, precision). 1D now has

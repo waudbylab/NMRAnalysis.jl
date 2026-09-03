@@ -145,3 +145,20 @@ function spectruminfo(::TractExperiment, vars::NamedTuple)
     which = vars.which == :trosy ? "TROSY" : "anti-TROSY"
     return "$(round(vars.time; digits=3)) s delay ($which)"
 end
+
+# :R genuinely means "relaxation rate" for both TROSY and anti-TROSY decays, so it's
+# safe to override here (unlike the global PARAM_LABELS table, which leaves :R alone
+# because nutation's decay rate shares the same bare symbol without the same meaning).
+function paramlabel(::TractExperiment, name::Symbol)
+    return name === :R ? "Relaxation rate" : get(PARAM_LABELS, name, string(name))
+end
+
+# Matches the TROSY/anti-TROSY wording `seriesnames` already uses for the plot legend.
+function groupheader(::TractExperiment, group::NamedTuple)
+    return group.which == :trosy ? "TROSY" : "Anti-TROSY"
+end
+
+# η and τc describe the TROSY/anti-TROSY *pair*, not specifically the TROSY series they
+# are recorded on (postfitglobal! has to pick one member to hold them - see there) - so
+# the header names the analysis, not the group.
+derivedheader(::TractExperiment, ::RegionResult) = "TRACT results"

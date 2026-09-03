@@ -74,47 +74,53 @@ function preparestate(expt::Experiment1D)
         return state[:spectra][clamp(i, 1, length(state[:spectra]))]
     end
 
-    # active region label, and its bounds ("8.17-9.01 ppm") shown underneath it
+    # active region label - still needed on its own for the fit-panel title, the
+    # rename flow, and filtering `result` down to the active region's series
     state[:activelabel] = lift(state[:regions], state[:active]) do rs, i
         return (i < 1 || i > length(rs)) ? "" : rs[i].label
-    end
-    state[:activebounds] = lift(state[:regions], state[:active]) do rs, i
-        (i < 1 || i > length(rs)) && return ""
-        r = rs[i]
-        return "$(round(r.lo; digits=2))–$(round(r.hi; digits=2)) ppm"
     end
 
     # Result-panel Observables are built by the experiment's visualisation strategy, not
     # here: what the panel needs depends on how it draws (see `ResultVisualisation`).
     completeresultstate!(state, expt)
 
-    # Live results text for the results panel: the fit's own parameters (e.g. A, R)
-    # followed by the quantities derived from them (e.g. TRACT's τc), in one combined
-    # RichText rather than two separately-sized Labels. They were two Labels stacked in
-    # one GridLayout column, each relying on GridLayoutBase auto-sizing its row from the
-    # Label's reported height; that reporting does not track a RichText's actual rendered
-    # height reliably as its content changes, so the second Label's row could start before
-    # the first had actually finished, and the two would overlap. One Label sidesteps
-    # this: the derived section is just more content appended to the same growing block,
-    # with no second, independently-positioned row for the first's own misjudged height to
-    # collide with. `resultsheader`/`secondarytext` still exist as separate functions -
-    # the fitted-vs-derived split they read (`RegionResult.parameters`/`.postparameters`)
-    # is the real division of labour, used independently by `summarytext`/`resultstable`;
-    # only the *panel's* two Labels are merged here.
+    # The whole right-hand info panel - which region is active and its bounds, the fit's
+    # own parameters, and the quantities derived from them - as one RichText, built fresh
+    # whenever the region list, the active region, the fit, or the Fitting toggle changes.
     #
-    # Blank when the Fitting toggle is off - which genuinely skips the `curve_fit` calls
-    # (see `isfitting` in `seriesresults`), so there would be nothing to show in any case.
-    # Rich text throughout, not plain String, so the blank branch returns
-    # `BLANK_RICHTEXT` rather than "" - an Observable's element type is fixed by its first
-    # value, and a later String wouldn't convert to the RichText the non-blank branch
-    # produces (the same hazard `RegionResult` was introduced to avoid). `BLANK_RICHTEXT`
-    # rather than the genuinely-empty `rich()`: an empty `RichText` renders zero glyphs,
-    # which crashes Makie's `GlyphCollection` construction rather than rendering blank -
-    # see its docstring.
-    state[:resultspanel] = lift(state[:result], state[:activelabel], state[:isfitting]) do res, lbl,
-                                                                                            fitting
-        fitting || return BLANK_RICHTEXT
-        return rich(resultsheader(expt, res, lbl), secondarytext(expt, res, lbl))
+    # One Label rather than several stacked ones (as this used to be, and as GUI2D's own
+    # info panel still is): each Label in a GridLayout column auto-sizes its row from its
+    # own reported height, and that reporting does not track a RichText's actual rendered
+    # height reliably as its content changes, so a later row could start before an earlier
+    # one had actually finished, overlapping it - which is exactly what happened here. One
+    # Label sidesteps the whole question: everything below the heading is just more
+    # content appended to the same growing block, with no second, independently-positioned
+    # row for an earlier misjudged height to collide with.
+    #
+    # `resultsheader`/`secondarytext` still exist as separate functions - the
+    # fitted-vs-derived split they read (`RegionResult.parameters`/`.postparameters`) is
+    # the real division of labour, used independently by `summarytext`/`resultstable`;
+    # only the panel's *presentation* is merged here. `panelwidth` aligns every block's
+    # values to one shared column, computed once across the whole panel rather than once
+    # per block, so "Amplitude" in a TROSY block and "Correlation time (τc)" in TRACT's
+    # results line up together rather than each block aligning only to its own labels.
+    #
+    # Always RichText, for the same Observable-element-type reason `RegionResult` exists:
+    # every branch below returns one, including "no region selected" and the
+    # Fitting-toggle-off case, so the Observable's inferred type never has to change to
+    # accommodate a later branch.
+    state[:resultspanel] = lift(state[:result], state[:regions], state[:active],
+                                state[:isfitting]) do res, rs, i, fitting
+        (1 ≤ i ≤ length(rs)) || return plaintext("No region selected")
+        r = rs[i]
+        heading = rich(rich("Selected region:"; font=:bold), plaintext(" "),
+                       plaintext(r.label), "\n")
+        bounds = plaintext("$(round(r.lo; digits=2)) – $(round(r.hi; digits=2)) ppm")
+        fitting || return rich(heading, bounds)
+        width = panelwidth(expt, res, r.label)
+        body = rich(resultsheader(expt, res, r.label, width),
+                    secondarytext(expt, res, r.label, width))
+        return rich(heading, bounds, "\n\n", body)
     end
 
     return state

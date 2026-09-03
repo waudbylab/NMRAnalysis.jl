@@ -68,3 +68,9 @@ function resultlabels(e::RelaxationExperiment)
 end
 
 spectruminfo(::RelaxationExperiment, vars::NamedTuple) = "$(round(vars.time; digits=3)) s delay"
+
+# :R genuinely means "relaxation rate" here (T1/T2, or the recovery rate) - see the note
+# on TractExperiment's own override, which shares this model and this reasoning.
+function paramlabel(::RelaxationExperiment, name::Symbol)
+    return name === :R ? "Relaxation rate" : get(PARAM_LABELS, name, string(name))
+end
