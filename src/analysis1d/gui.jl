@@ -106,7 +106,7 @@ function gui!(expt::Experiment1D)
     # be resized after the fact.
     basedefaultwidth = defaultregionwidth(first(state[:planes].traces).δ)
     noisehandlehw = lift(state[:regions]) do rs
-        widest = isempty(rs) ? 0.0 : maximum(r.w for r in rs)
+        widest = isempty(rs) ? 0.0 : maximum(width(r) for r in rs)
         return max(basedefaultwidth, widest) / 2
     end
     vlines!(ax, state[:noisec]; color=:orchid, linewidth=2, label="Noise")
@@ -319,8 +319,8 @@ function rebuild_regionspans!(ax, state)
         of1 = on(state[:regions]; update=true) do rs
             i <= length(rs) || return
             r = rs[i]
-            lo[] = r.c - r.w / 2
-            hi[] = r.c + r.w / 2
+            lo[] = r.lo
+            hi[] = r.hi
         end
         of2 = on(state[:active]; update=true) do a
             color[] = a == i ? ACTIVE_REGION_COLOR : INACTIVE_REGION_COLOR
@@ -362,8 +362,9 @@ function setup_mouse!(fig, ax, state)
                     # dragging the outer 25% of the region drags that edge (moving both
                     # centre and width); the middle 50% drags the whole region instead
                     r = state[:regions][][i]
-                    lo, hi = r.c - r.w / 2, r.c + r.w / 2
-                    frac = r.w > 0 ? (mouseposition(ax)[1] - lo) / r.w : 0.5
+                    lo, hi = r.lo, r.hi
+                    w = width(r)
+                    frac = w > 0 ? (mouseposition(ax)[1] - lo) / w : 0.5
                     gui[:dragging] = if frac < 0.25
                         (:regionedge, i, hi)
                     elseif frac > 0.75
@@ -661,7 +662,7 @@ function save_results(state)
         println(f, "Integration regions (ppm):")
         for r in state[:regions][]
             println(f,
-                    "  $(r.label): $(round(r.c - r.w / 2; digits=4)) to $(round(r.c + r.w / 2; digits=4))")
+                    "  $(r.label): $(round(r.lo; digits=4)) to $(round(r.hi; digits=4))")
         end
         println(f, "Noise position (ppm): $(round(state[:noisec][]; digits=4))")
         println(f)

@@ -49,6 +49,29 @@ defaultregionwidth(δ::AbstractVector) = 0.02 * (maximum(δ) - minimum(δ))
 width(r::Region) = r.hi - r.lo
 
 """
+    centre(region) -> Float64
+
+Midpoint of a region (ppm). Regions are stored by their bounds, but centre-and-width is
+the natural handle for interaction - dragging moves the centre, the width box resizes
+about it - so both views are available and there is only ever one representation.
+"""
+centre(r::Region) = (r.lo + r.hi) / 2
+
+"""
+    recentre(region, c) -> Region
+
+The same region, same width and label, moved to be centred on `c`.
+"""
+recentre(r::Region, c) = Region(r.label, c - width(r) / 2, c + width(r) / 2)
+
+"""
+    setwidth(region, w) -> Region
+
+The same region, same label and centre, with width `w`.
+"""
+setwidth(r::Region, w) = Region(r.label, centre(r) - w / 2, centre(r) + w / 2)
+
+"""
     Planes(traces, vars)
 
 Long-format collection of 1D spectra: one `Trace` per row, with `vars[i]` a `NamedTuple`

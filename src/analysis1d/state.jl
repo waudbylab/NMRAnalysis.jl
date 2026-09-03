@@ -8,6 +8,10 @@ const ACTIVE_REGION_COLOR = (:orange, 0.4)
 const INACTIVE_REGION_COLOR = (:steelblue, 0.25)
 const NOISE_COLOR = (:orchid, 0.3)
 
+"Width (ppm) a zero-width region is opened at in the GUI, where it would otherwise be
+invisible and impossible to grab."
+const MIN_GUI_REGION_WIDTH = 0.05
+
 """
     prepare_state(expt) -> Dict{Symbol,Any}
 
@@ -23,13 +27,16 @@ function prepare_state(expt::Experiment1D)
     state[:planes] = planes
     state[:nplanes] = nplanes(planes)
 
-    # regions: (label, centre, width) triples. A region with w == 0 is a height.
-    regs0 = map(regions(expt)) do r
-        w = width(r)
-        return (; label=r.label, c=(r.lo + r.hi) / 2, w=(w == 0 ? 0.05 : w))
-    end
-    state[:regions] = Observable(collect(regs0))
-    state[:active] = Observable(isempty(regs0) ? 0 : 1)
+    # The GUI holds `Region`s directly - the same type the analysis layer takes - so there
+    # is no second representation to keep in step. Mutation is copy-and-replace, which is
+    # what makes the Observable fire.
+    #
+    # A zero-width region (`Region`'s "height" form) is opened at a visible width: it can
+    # be neither seen nor grabbed otherwise. Height semantics still apply everywhere the
+    # GUI isn't involved.
+    state[:regions] = Observable([width(r) == 0 ? setwidth(r, MIN_GUI_REGION_WIDTH) : r
+                                  for r in regions(expt)])
+    state[:active] = Observable(isempty(state[:regions][]) ? 0 : 1)
 
     # noise marker: a single position, no independent width (matches whichever region is
     # being reduced - see reduce_region).
@@ -46,9 +53,6 @@ function prepare_state(expt::Experiment1D)
     state[:oldlabel] = Observable("")
 
     # current Region objects + dataset (noise position applied)
-    state[:regionobjs] = lift(state[:regions]) do rs
-        return [Region(r.label, r.c - r.w / 2, r.c + r.w / 2) for r in rs]
-    end
     state[:dataset] = lift(nc -> Dataset1D(planes, nc), state[:noisec])
 
     # live analysis - the Fitting toggle genuinely disables curve-fitting here (see
@@ -57,7 +61,7 @@ function prepare_state(expt::Experiment1D)
     # No special-casing for zero regions: `analyse` returns a `Vector{RegionResult}` for
     # every experiment, fitted or not, empty or not, so the Observable's element type -
     # fixed by its first value - is stable whatever the user does.
-    state[:result] = lift(state[:dataset], state[:regionobjs], state[:isfitting]) do ds_,
+    state[:result] = lift(state[:dataset], state[:regions], state[:isfitting]) do ds_,
                                                                                       regs_,
                                                                                       fitting
         return analyse(expt, ds_, regs_; isfitting=fitting)
@@ -112,8 +116,7 @@ end
 function set_region_center!(state, i, c)
     (1 ≤ i ≤ length(state[:regions][])) || return
     rs = copy(state[:regions][])
-    r = rs[i]
-    rs[i] = (; label=r.label, c=c, w=r.w)
+    rs[i] = recentre(rs[i], c)
     return state[:regions][] = rs
 end
 
@@ -127,10 +130,8 @@ the centre and width update together. Used for edge-dragging (as opposed to
 function set_region_edge!(state, i, fixed, moving)
     (1 ≤ i ≤ length(state[:regions][])) || return
     lo, hi = minmax(fixed, moving)
-    w = max(hi - lo, 1e-6)
     rs = copy(state[:regions][])
-    r = rs[i]
-    rs[i] = (; label=r.label, c=(lo + hi) / 2, w=w)
+    rs[i] = Region(rs[i].label, lo, max(hi, lo + 1e-6))
     return state[:regions][] = rs
 end
 
@@ -138,8 +139,7 @@ function setactivelabel!(state, label)
     i = state[:active][]
     (1 ≤ i ≤ length(state[:regions][])) || return
     rs = copy(state[:regions][])
-    r = rs[i]
-    rs[i] = (; label=label, c=r.c, w=r.w)
+    rs[i] = Region(label, rs[i].lo, rs[i].hi)
     return state[:regions][] = rs
 end
 
@@ -164,9 +164,8 @@ rename mode themselves.
 """
 function addregion!(state, lo, hi)
     lo, hi = minmax(lo, hi)
-    w = max(hi - lo, 1e-6)
     rs = copy(state[:regions][])
-    push!(rs, (; label=nextlabel(state), c=(lo + hi) / 2, w=w))
+    push!(rs, Region(nextlabel(state), lo, max(hi, lo + 1e-6)))
     state[:regions][] = rs
     return state[:active][] = length(rs)
 end
