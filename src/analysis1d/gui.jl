@@ -45,7 +45,7 @@ window closes.
 - `D`: delete the active region.
 - Left/Right arrows: step through spectra.
 - Up/Down arrows: scale the spectrum's y-axis (×2 / ÷2).
-- Shift+scroll: resize the region under the cursor, about its own centre.
+- Shift+scroll: resize the active region, about its own centre.
 """
 function gui!(expt::Experiment1D)
     # the analysis type is already shown as a large bold label inside the window, so the
@@ -237,9 +237,21 @@ function gui!(expt::Experiment1D)
 
     # The whole info panel - active region, its bounds, the fit and its derived
     # quantities - as one Label (see `state[:resultspanel]` for why one, not several).
+    #
+    # Deliberately no `word_wrap`: every line break here is an explicit "\n" the panel
+    # itself puts in (one parameter per line, aligned into columns), never text that
+    # should reflow at the column edge - and `word_wrap` has a real cost beyond being
+    # unnecessary. It makes the Label's wrap width follow `computedbbox` (the cell
+    # GridLayout has already given it) while that cell's own size is set from the
+    # Label's *reported* size - a live feedback loop between two Observables that, for a
+    # panel whose content keeps changing, does not reliably settle: on this panel it
+    # showed up as a large fixed gap above the text that didn't track the window height.
+    # Without `word_wrap`, the Label sizes to its own text with no such loop, and
+    # `halign=:left` then places that (possibly narrower-than-the-column) block at the
+    # column's left edge rather than centring it.
     r += 1
     right[r, 1] = Label(fig, state[:resultspanel]; tellwidth=false, halign=:left,
-                        valign=:top, justification=:left, word_wrap=true)
+                        valign=:top, justification=:left)
 
     # now that every later row exists, add breathing room below the fitting toggle
     rowgap!(right, fittingrow, Fixed(20))
@@ -393,22 +405,28 @@ function setupmouse!(fig, ax, state)
         end
         return Consume(false)
     end
-    # Shift+scroll resizes whichever region is under the cursor, about its own centre -
-    # the same operation the width textbox performs, just via the wheel. Plain scroll (no
-    # Shift) is untouched, so the Axis's own x-zoom interaction still handles it; Consume
-    # only fires when a region is actually under the cursor, so scrolling elsewhere on the
-    # axis while holding Shift still zooms as normal.
+    # Shift+scroll resizes the *active* region, about its own centre - the same
+    # operation the width textbox performs, just via the wheel. Deliberately not gated on
+    # the cursor being precisely over that region's span: the active region is already
+    # whatever the user last hovered or clicked (see the hover-highlight case above), and
+    # requiring the cursor to stay exactly on a possibly-narrow span while scrolling is
+    # more fragile than it needs to be - a physical mouse wheel in particular tends to
+    # nudge the cursor slightly as it turns, which was enough to drop off a span and make
+    # scroll-resize silently do nothing. Still requires the cursor to be over the
+    # spectrum axis at all (that's what listening on `events(ax).scroll` rather than
+    # `events(fig).scroll` buys - Makie only forwards scroll events to the axis whose
+    # scene the cursor is actually inside), so scrolling over the controls or the fit
+    # panel is unaffected. Plain scroll (no Shift) is untouched: Consume only fires when
+    # Shift is held and a region exists to resize, so the axis's own x-zoom interaction
+    # still handles everything else.
     on(events(ax).scroll; priority=2) do (_, dy)
         (dy == 0 || !ispressed(fig, Keyboard.left_shift | Keyboard.right_shift)) &&
             return Consume(false)
-        for (i, (sp, _)) in enumerate(gui[:regionspans])
-            if mouseover(fig, sp)
-                r = state[:regions][][i]
-                setregionwidth!(state, i, width(r) * (dy > 0 ? 1.1 : 1 / 1.1))
-                return Consume(true)
-            end
-        end
-        return Consume(false)
+        i = state[:active][]
+        (1 ≤ i ≤ length(state[:regions][])) || return Consume(false)
+        r = state[:regions][][i]
+        setregionwidth!(state, i, width(r) * (dy > 0 ? 1.1 : 1 / 1.1))
+        return Consume(true)
     end
 end
 

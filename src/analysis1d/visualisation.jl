@@ -197,6 +197,10 @@ const PARAM_UNITS = Dict(:R => " s⁻¹",
 # for its decay rate, which "Relaxation rate" would mislabel. So `:R` stays out of this
 # global table and is instead overridden per experiment, below, only where it is true.
 const PARAM_LABELS = Dict(:A => "Amplitude",
+                          :C => "Recovery factor",
+                          :D => "Diffusion coefficient",
+                          :ν => "Nutation frequency",
+                          :k => "Buildup rate",
                           :pulse90 => "90°",
                           :inhomogeneity => "B₁ inhom.",
                           :ηxy => "CCR rate (η)",
