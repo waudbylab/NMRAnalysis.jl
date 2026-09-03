@@ -215,6 +215,40 @@ Phase 3.6 — **restructure onto the GUI2D pattern**  ✓
 - [x] internals renamed to house style (no underscores, no `_` prefixes)
 - [x] `docs/src/advanced/creating_1d_analyses.md`
 
+Phase 3.7 — **second feedback round**  ✓
+- [x] TRACT's `postfitglobal!` recorded η/τc on both series of the TROSY/anti-TROSY pair,
+      so the results panel - which prints every series of the active region - showed the
+      derived summary twice; recorded once, on the TROSY member, instead
+- [x] the redundant region dropdown removed: hovering (or clicking/dragging) a region
+      already makes it active, which is how the dropdown's own selection was driven in the
+      first place, and it was only ever populated from the region list at GUI-open time,
+      so a region added afterwards was never listed there anyway
+- [x] `pickregion`'s noise band now tracks the integration width the way `gui!`'s does
+      (matching widths is what makes the noise integral a direct estimate of the signal
+      region's noise), floored at the default region width, rather than a fixed size; and
+      peak position, noise position and width each get a two-way-bound text box
+      (`ppmbox!`) for exact entry alongside dragging
+- [x] the results panel's group headers (`resultsheader`) and derived-quantity headers
+      (`secondarytext`, "Derived" or the group name) are now bold `RichText`, so the panel
+      reads as labelled sections rather than one undifferentiated block of text -
+      `state[:resultsheader]`/`state[:secondaryresult]` carry `RichText` throughout,
+      including their Fitting-toggle-off blank state (`rich()`, not `""`), for the same
+      Observable-element-type reason `RegionResult` exists
+- [x] regions added with `A` default to `peak1`, `peak2`, … rather than `region1`,
+      `region2`, … - so the panel's "Region: peak2" heading doesn't repeat "region"
+      (`defaultregion`'s own "signal" default, used by every experiment's *first* region,
+      is untouched)
+- [x] TRACT's default region is now the conventional 7.5-9.5 ppm amide envelope
+      (`defaultamideregion`), not a narrow window on the tallest peak - TRACT integrates
+      the bulk backbone signal, and a single-peak default made little scientific sense
+      for it specifically
+- [x] shift+scroll resizes the region under the cursor (about its own centre), in both
+      `gui!`'s main window and `pickregion`'s standalone popup - the same operation the
+      width textbox performs, via the wheel; plain scroll is untouched, so the axis's own
+      x-zoom still works normally
+- [x] the spectrum axis title reads "Spectrum: 0.4 s delay" rather than a bare
+      "0.4 s delay"
+
 Still open after this iteration:
 - **Canonical output format across 1D and 2D** (text vs CSV, units, precision). 1D now has
   a `results.csv` following 2D's conventions and a single units/labels table, but the two

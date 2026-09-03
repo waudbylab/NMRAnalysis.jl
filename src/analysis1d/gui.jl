@@ -45,6 +45,7 @@ window closes.
 - `D`: delete the active region.
 - Left/Right arrows: step through spectra.
 - Up/Down arrows: scale the spectrum's y-axis (×2 / ÷2).
+- Shift+scroll: resize the region under the cursor, about its own centre.
 """
 function gui!(expt::Experiment1D)
     # the analysis type is already shown as a large bold label inside the window, so the
@@ -85,8 +86,9 @@ function gui!(expt::Experiment1D)
     # --- spectral overlay ---
     # y-axis locked (matches the R1rho GUI): chemical-shift regions are picked/dragged
     # horizontally only, so zoom/pan/rectangle-select should never touch intensity. The
-    # title identifies which plane is on display (e.g. "0.4 s delay (anti-TROSY)").
-    spectitle = lift(i -> spectruminfo(expt, state[:planes].vars[i]), state[:currentspectrumidx])
+    # title identifies which plane is on display (e.g. "Spectrum: 0.4 s delay (anti-TROSY)").
+    spectitle = lift(i -> "Spectrum: $(spectruminfo(expt, state[:planes].vars[i]))",
+                     state[:currentspectrumidx])
     ax = Axis(left[1, 1]; xreversed=true, xlabel="Chemical shift (ppm)", ylabel="Intensity",
               title=spectitle, yzoomlock=true, ypanlock=true, xrectzoom=true, yrectzoom=false,
               xgridvisible=false, ygridvisible=false)
@@ -399,6 +401,23 @@ function setupmouse!(fig, ax, state)
         end
         return Consume(false)
     end
+    # Shift+scroll resizes whichever region is under the cursor, about its own centre -
+    # the same operation the width textbox performs, just via the wheel. Plain scroll (no
+    # Shift) is untouched, so the Axis's own x-zoom interaction still handles it; Consume
+    # only fires when a region is actually under the cursor, so scrolling elsewhere on the
+    # axis while holding Shift still zooms as normal.
+    on(events(ax).scroll; priority=2) do (_, dy)
+        (dy == 0 || !ispressed(fig, Keyboard.left_shift | Keyboard.right_shift)) &&
+            return Consume(false)
+        for (i, (sp, _)) in enumerate(gui[:regionspans])
+            if mouseover(fig, sp)
+                r = state[:regions][][i]
+                setregionwidth!(state, i, width(r) * (dy > 0 ? 1.1 : 1 / 1.1))
+                return Consume(true)
+            end
+        end
+        return Consume(false)
+    end
 end
 
 """Wire keyboard shortcuts: A to add a region (tap or drag), R to rename, D to delete,
@@ -504,7 +523,9 @@ Interactively choose a single integration region and a noise position, returning
 integration triple. All traces are overlaid, so a region can be chosen that suits every
 spectrum at once - which is what is wanted when one region must serve a whole set of
 experiments (e.g. `Exchange1D`'s `integrate!`, which applies one triple to every
-experiment in the problem).
+experiment in the problem). Drag the peak region or noise marker to move it, its edges to
+resize it, type an exact ppm value into the text boxes, or Shift+scroll to resize -
+matching `gui!`'s main GUI.
 
 This is the region-selection front-end on its own, without any fitting: use it where the
 heavy fitting lives elsewhere.
@@ -616,6 +637,15 @@ function pickregion(traces::AbstractVector{Trace}; peakppm=nothing, noiseppm=not
             return Consume(true)
         end
         return Consume(false)
+    end
+    # Shift+scroll resizes the region, matching `gui!`'s main GUI. There is only one
+    # width here (the noise band tracks it automatically - see above), so this needs no
+    # "which span is the mouse over" check: anywhere on the axis resizes it.
+    on(events(ax).scroll; priority=2) do (_, dy)
+        (dy == 0 || !ispressed(fig, Keyboard.left_shift | Keyboard.right_shift)) &&
+            return Consume(false)
+        w[] = max(w[] * (dy > 0 ? 1.1 : 1 / 1.1), 1e-6)
+        return Consume(true)
     end
 
     display(fig)

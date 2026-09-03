@@ -48,9 +48,18 @@ struct TractExperiment <: Experiment1D
     f::Float64
 end
 
-function TractExperiment(dataset::Dataset1D; ωN, f, regions=[defaultregion(dataset)])
+function TractExperiment(dataset::Dataset1D; ωN, f, regions=[defaultamideregion()])
     return TractExperiment(dataset, collect(Region, regions), Float64(ωN), Float64(f))
 end
+
+"""
+    defaultamideregion(; label="amide") -> Region
+
+TRACT integrates the bulk backbone amide envelope rather than a single resolved peak, so
+its default region is the conventional 7.5-9.5 ppm amide window - unlike every other
+experiment's `defaultregion`, which centres a narrow window on the tallest peak.
+"""
+defaultamideregion(; label="amide") = Region(label, 7.5, 9.5)
 
 # ---- 3. interface -------------------------------------------------------------
 

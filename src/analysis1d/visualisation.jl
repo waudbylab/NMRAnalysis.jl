@@ -221,43 +221,85 @@ function paramblock(io::IO, params)
 end
 
 """
-    resultsheader(expt, result, activelabel) -> String
+    paramtext(params) -> String
+
+`paramblock`, returned as a string rather than written to an `IO` - the form the GUI
+panel wants, built from the same alignment logic `summarytext` uses for `summary.txt` so
+the two never drift apart. Empty (not a blank line) when `params` is empty, so a caller
+can skip a block that has nothing to show.
+"""
+function paramtext(params)
+    io = IOBuffer()
+    paramblock(io, params)
+    return String(take!(io))
+end
+
+"""
+    boldheader(text) -> RichText
+
+A group/section heading in the results panel: bold, on its own line. The one piece of
+visual hierarchy the panel uses - everything else in it is plain, aligned parameter text.
+"""
+boldheader(text::AbstractString) = rich(rich(text; font=:bold), "\n")
+
+"""
+    plaintext(text) -> RichText
+
+Wrap `text` in an explicit `font=:regular` span. `RichText`'s font is not scoped to each
+sibling - a plain `String` child simply inherits whatever font the previous sibling left
+active - so without this, the parameter block immediately after a `boldheader` would
+render bold too, the bold state leaking straight past the header it belongs to.
+"""
+plaintext(text::AbstractString) = rich(text; font=:regular)
+
+"""
+    resultsheader(expt, result, activelabel) -> RichText
 
 The active region's raw fitted parameters (e.g. `A`, `R`) - the "primary" half of
 [`summarytext`](@ref), split out so the GUI can show it and the derived
 [`secondarytext`](@ref) (e.g. TRACT's τc) as visually separate blocks. Doesn't repeat the
 region name, group headers only (e.g. TRACT's "trosy"/"anti"), since the region itself is
-already named elsewhere in the GUI (the fit axis title).
+already named elsewhere in the GUI (the fit axis title). A group header is bold, matching
+[`secondarytext`](@ref)'s.
 
 Generic across every experiment: with the fit recorded in `RegionResult.parameters`, there
 is nothing here that depends on which analysis produced it.
 """
 function resultsheader(::Experiment1D, result, activelabel::AbstractString)
-    io = IOBuffer()
+    spans = Any[]
     for r in result
         r.region == activelabel || continue
-        isempty(r.group) || println(io, groupname(r.group))
-        paramblock(io, r.parameters)
-        println(io)
+        block = paramtext(r.parameters)
+        isempty(block) && continue
+        isempty(r.group) || push!(spans, boldheader(groupname(r.group)))
+        push!(spans, plaintext(block), "\n")
     end
-    return String(take!(io))
+    return rich(spans...)
 end
 
 """
-    secondarytext(expt, result, activelabel) -> String
+    secondarytext(expt, result, activelabel) -> RichText
 
 The active region's derived quantities alone (TRACT's τc and η, nutation's 90° pulse,
 diffusion's D and rH) - empty when the experiment derives none, or when the active region
 isn't ready yet (e.g. only one of a TRACT pair fitted so far). Like `resultsheader`, fully
 generic: it reads `RegionResult.postparameters`, whatever wrote them.
+
+Each block gets a bold header, styled like `resultsheader`'s group headers - the group
+name where the result is grouped (STD's saturation frequency, say), or "Derived" for an
+ungrouped result, so the block reads as a labelled section rather than an unheaded
+afterthought below the raw fit.
 """
 function secondarytext(::Experiment1D, result, activelabel::AbstractString)
-    io = IOBuffer()
+    spans = Any[]
     for r in result
         (r.region == activelabel && r.postfitted) || continue
-        paramblock(io, r.postparameters)
+        block = paramtext(r.postparameters)
+        isempty(block) && continue
+        push!(spans, boldheader(isempty(r.group) ? "Derived" : groupname(r.group)))
+        push!(spans, plaintext(block), "\n")
     end
-    return String(take!(io))
+    return rich(spans...)
 end
 
 """

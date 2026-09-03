@@ -88,14 +88,20 @@ function preparestate(expt::Experiment1D)
     # can show them as separate blocks. Both go blank when the Fitting toggle is off -
     # which genuinely skips the `curve_fit` calls (see `isfitting` in `seriesresults`),
     # so there would be nothing to show in any case.
+    #
+    # Both are rich text (bold group/derived headers over plain parameter lines), not
+    # plain String, so the blank branch below returns `rich()` rather than "" - an
+    # Observable's element type is fixed by its first value, and a later String wouldn't
+    # convert to the RichText the non-blank branch produces (the same hazard `RegionResult`
+    # was introduced to avoid).
     state[:resultsheader] = lift(state[:result], state[:activelabel], state[:isfitting]) do res, lbl,
                                                                                              fitting
-        fitting || return ""
+        fitting || return rich()
         return resultsheader(expt, res, lbl)
     end
     state[:secondaryresult] = lift(state[:result], state[:activelabel],
                                    state[:isfitting]) do res, lbl, fitting
-        fitting || return ""
+        fitting || return rich()
         return secondarytext(expt, res, lbl)
     end
 
@@ -135,6 +141,20 @@ function setregionedge!(state, i, fixed, moving)
     return state[:regions][] = rs
 end
 
+"""
+    setregionwidth!(state, i, w)
+
+Resize region `i` to width `w` about its current centre (as opposed to
+`setregionedge!`, which changes the centre along with the width). Used by
+shift+scroll resizing.
+"""
+function setregionwidth!(state, i, w)
+    (1 ≤ i ≤ length(state[:regions][])) || return
+    rs = copy(state[:regions][])
+    rs[i] = setwidth(rs[i], max(w, 1e-6))
+    return state[:regions][] = rs
+end
+
 function setactivelabel!(state, label)
     i = state[:active][]
     (1 ≤ i ≤ length(state[:regions][])) || return
@@ -143,14 +163,16 @@ function setactivelabel!(state, label)
     return state[:regions][] = rs
 end
 
-"""Number the default label uniquely against the current region list."""
+"""Number the default label uniquely against the current region list. "peak" rather than
+"region", so the heading built from it ("Region: peak2") doesn't repeat "region" - and to
+match the vocabulary GUI2D uses for the same idea."""
 function nextlabel(state)
     n = length(state[:regions][]) + 1
     existing = Set(r.label for r in state[:regions][])
-    label = "region$n"
+    label = "peak$n"
     while label in existing
         n += 1
-        label = "region$n"
+        label = "peak$n"
     end
     return label
 end
