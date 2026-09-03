@@ -34,7 +34,9 @@ end
 
 Launch the interactive analysis window for `expt`. The left column overlays all spectral
 planes with draggable integration region(s) and a noise marker; the result panel below
-shows the live fit for the active region. Returns the GUI state when the window closes.
+shows the live fit for the active region. The active region is whichever the mouse is over
+(or was last clicked), named in the right-hand column. Returns the GUI state when the
+window closes.
 
 # Keyboard shortcuts (mirroring the 2D fitting GUI)
 - `A`: add a region. A quick tap adds a default-width region under the cursor; press,
@@ -52,7 +54,6 @@ function gui!(expt::Experiment1D)
     state[:gui] = Dict{Symbol,Any}()
     gui = state[:gui]
     cols = Makie.wong_colors()
-    singleregion = length(state[:regions][]) ≤ 1
 
     fig = Figure(; size=(1200, 800))
     left = fig[1, 1] = GridLayout()
@@ -231,34 +232,6 @@ function gui!(expt::Experiment1D)
     fitrow[1, 2] = Label(fig, "Fitting")
     connect!(state[:isfitting], gui[:togglefit].active)
     fittingrow = r  # extra gap added below this row, once later rows exist to gap against
-
-    if !singleregion
-        r += 1
-        regionrow = right[r, 1] = GridLayout()
-        regionrow[1, 1] = Label(fig, "Region:")
-        gui[:menu] = regionrow[1, 2] = Menu(fig;
-                                            options=lift(rs -> [reg.label for reg in rs],
-                                                         state[:regions]), width=140)
-        # Two-way sync between the dropdown and state[:active] (also driven by clicking or
-        # hovering a region on the plot). Each side writes the other, so a reentrancy guard
-        # is needed regardless of whether the underlying Observables suppress same-value
-        # notifications - without it, a click bounces forever between the two handlers.
-        syncingmenu = Ref(false)
-        on(gui[:menu].i_selected) do i
-            (isnothing(i) || syncingmenu[]) && return
-            syncingmenu[] = true
-            state[:active][] = i
-            syncingmenu[] = false
-        end
-        on(state[:active]) do i
-            (syncingmenu[] || !(1 ≤ i ≤ length(state[:regions][]))) && return
-            syncingmenu[] = true
-            gui[:menu].i_selected[] = i
-            syncingmenu[] = false
-        end
-        # `on` only fires on future changes - set the initial displayed selection explicitly.
-        gui[:menu].i_selected[] = state[:active][]
-    end
 
     r += 1
     right[r, 1] = Label(fig,
@@ -510,6 +483,20 @@ function setupkeyboard!(fig, ax, state)
 end
 
 """
+    ppmbox!(fig, parent, row, col, obs; digits=3, boxwidth=90)
+
+A chemical-shift text box two-way bound to `obs`: typing a number sets it, and dragging the
+corresponding marker on the plot rewrites the displayed text.
+"""
+function ppmbox!(fig, parent, row, col, obs; digits=3, boxwidth=90)
+    tb = parent[row, col] = Textbox(fig; stored_string=string(round(obs[]; digits)),
+                                    validator=Float64, width=boxwidth)
+    on(str -> obs[] = parse(Float64, str), tb.stored_string)
+    on(v -> tb.displayed_string[] = string(round(v; digits)), obs)
+    return tb
+end
+
+"""
     pickregion(traces; peakppm=nothing, noiseppm=nothing, ppmwidth=defaultregionwidth(...)) -> (; peakppm, noiseppm, ppmwidth)
     pickregion(specs; kwargs...)
 
@@ -553,9 +540,14 @@ function pickregion(traces::AbstractVector{Trace}; peakppm=nothing, noiseppm=not
                       lift((p, ww) -> p + ww / 2, pk, w); color=ACTIVE_REGION_COLOR,
                       label="Peak")
     vlines!(ax, nz; color=:orchid, linewidth=2, label="Noise")
-    noisehandlehw = defaultregionwidth(t1.δ) / 2
-    noisehit = vspan!(ax, lift(c -> c - noisehandlehw, nz), lift(c -> c + noisehandlehw, nz);
-                      color=NOISE_COLOR)
+    # The noise band shows the window actually used to estimate the noise, which always
+    # matches the integration width (that equality is what makes it a direct estimate of
+    # the signal region's noise - see `reduceregion`). Floored at the default region width
+    # so a narrow integration still leaves something grabbable, exactly as in `gui!`.
+    basedefaultwidth = defaultregionwidth(t1.δ)
+    noisehandlehw = lift(ww -> max(basedefaultwidth, ww) / 2, w)
+    noisehit = vspan!(ax, lift((c, hw) -> c - hw, nz, noisehandlehw),
+                      lift((c, hw) -> c + hw, nz, noisehandlehw); color=NOISE_COLOR)
     axislegend(ax; position=:lt)
 
     # restrict the view to the width common to every input trace, rather than the union -
@@ -567,13 +559,16 @@ function pickregion(traces::AbstractVector{Trace}; peakppm=nothing, noiseppm=not
     # first here too, to keep this axis's chemical-shift convention.
     lo < hi && xlims!(ax, hi, lo)
 
+    # Every position is editable both ways: drag it on the plot, or type it here for a
+    # value that has to be exact (or reproduced from a previous session).
     ctrl = fig[2, 1] = GridLayout()
-    ctrl[1, 1] = Label(fig, "Integration width (ppm):")
-    tb = ctrl[1, 2] = Textbox(fig; stored_string=string(round(w[]; digits=3)),
-                              validator=Float64, width=100)
-    on(s -> w[] = parse(Float64, s), tb.stored_string)
-    on(neww -> tb.displayed_string[] = string(round(neww; digits=3)), w)
-    accept = ctrl[1, 3] = Button(fig; label="Accept")
+    ctrl[1, 1] = Label(fig, "Peak (ppm):")
+    ppmbox!(fig, ctrl, 1, 2, pk)
+    ctrl[1, 3] = Label(fig, "Noise (ppm):")
+    ppmbox!(fig, ctrl, 1, 4, nz)
+    ctrl[1, 5] = Label(fig, "Width (ppm):")
+    ppmbox!(fig, ctrl, 1, 6, w)
+    accept = ctrl[1, 7] = Button(fig; label="Accept")
     done = Ref(false)
     on(_ -> done[] = true, accept.clicks)
 

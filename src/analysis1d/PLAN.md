@@ -157,12 +157,14 @@ Phase 3.5 — **first real-session feedback round**  ← THIS ITERATION
       window actually fills on resize
 - [x] fitting toggle is now a `Toggle`, not a `Button`
 - [x] region dropdown only shown when there is more than one region
+      (later removed entirely - see Phase 3.6; hovering selects a region, so the dropdown
+      was redundant)
 - [x] interactive region add/rename/delete, matching the 2D fitting GUI's key bindings:
       `A` (tap or press-drag-release) adds, `R` renames, `D` deletes, plus matching
       buttons and on-screen help text; `std1d`/`kinetics1d` no longer require `regions`
       up front
 - [x] Left/Right arrow keys step through spectra (renamed from "planes" throughout the UI)
-- [x] active-region highlighting on hover (and on click/drag), synced with the dropdown
+- [x] active-region highlighting on hover (and on click/drag)
 - [x] moving/resizing/switching the active region refreshes the fit-panel axis limits
 - [x] multi-series result plotting (`ResultSeries`): TRACT's TROSY/anti-TROSY and STD's
       saturation frequencies each get their own colour, matched between points and fit
@@ -207,6 +209,9 @@ Phase 3.6 — **restructure onto the GUI2D pattern**  ✓
 - [x] regions have one representation (`Region`) rather than two
 - [x] `files.jl`: `results.csv` plus a region round-trip, as in 2D, so a multi-region STD
       or kinetics session is reproducible; `experimentinfo` supplies its header
+- [x] region dropdown removed: hovering a region makes it active, so the menu was
+      redundant - and it was only ever created when the experiment *started* with more
+      than one region, so it never listed regions added later
 - [x] internals renamed to house style (no underscores, no `_` prefixes)
 - [x] `docs/src/advanced/creating_1d_analyses.md`
 
@@ -214,6 +219,3 @@ Still open after this iteration:
 - **Canonical output format across 1D and 2D** (text vs CSV, units, precision). 1D now has
   a `results.csv` following 2D's conventions and a single units/labels table, but the two
   tables have not been merged and the question itself is not settled.
-- The region dropdown is created only when the experiment starts with more than one
-  region, so regions added later (with `A`, or by loading a saved list) are selectable by
-  clicking the plot but do not appear in a menu.

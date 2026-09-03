@@ -76,12 +76,12 @@ function postfitglobal!(results::AbstractVector{RegionResult}, e::TractExperimen
         (isnothing(trosy) || isnothing(anti)) && continue
         ηxy = (param(rs[anti], :R) - param(rs[trosy], :R)) / 2
         τc = tracttauc(e.f, e.ωN, ηxy)
-        # Recorded on both series of the pair: either is a complete answer for the
-        # region, and the GUI shows whichever the user has selected.
-        for r in (rs[trosy], rs[anti])
-            setpost!(r, :ηxy, ηxy)
-            setpost!(r, :τc, τc)
-        end
+        # η and τc belong to the region, not to either series of the pair, so they are
+        # recorded once - on the TROSY member by convention. Recording them on both would
+        # print them twice in the results panel, which shows every series of the active
+        # region, and duplicate them down the results file.
+        setpost!(rs[trosy], :ηxy, ηxy)
+        setpost!(rs[trosy], :τc, τc)
     end
     return nothing
 end
