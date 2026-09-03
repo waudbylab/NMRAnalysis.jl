@@ -90,18 +90,20 @@ function preparestate(expt::Experiment1D)
     # so there would be nothing to show in any case.
     #
     # Both are rich text (bold group/derived headers over plain parameter lines), not
-    # plain String, so the blank branch below returns `rich()` rather than "" - an
+    # plain String, so the blank branch below returns `BLANK_RICHTEXT` rather than "" - an
     # Observable's element type is fixed by its first value, and a later String wouldn't
     # convert to the RichText the non-blank branch produces (the same hazard `RegionResult`
-    # was introduced to avoid).
+    # was introduced to avoid). Note it's `BLANK_RICHTEXT`, not the genuinely-empty
+    # `rich()`: an empty `RichText` renders zero glyphs, which crashes Makie's
+    # `GlyphCollection` construction rather than rendering blank - see its docstring.
     state[:resultsheader] = lift(state[:result], state[:activelabel], state[:isfitting]) do res, lbl,
                                                                                              fitting
-        fitting || return rich()
+        fitting || return BLANK_RICHTEXT
         return resultsheader(expt, res, lbl)
     end
     state[:secondaryresult] = lift(state[:result], state[:activelabel],
                                    state[:isfitting]) do res, lbl, fitting
-        fitting || return rich()
+        fitting || return BLANK_RICHTEXT
         return secondarytext(expt, res, lbl)
     end
 

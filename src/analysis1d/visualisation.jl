@@ -253,6 +253,28 @@ render bold too, the bold state leaking straight past the header it belongs to.
 plaintext(text::AbstractString) = rich(text; font=:regular)
 
 """
+    BLANK_RICHTEXT
+
+Placeholder for "nothing to show". A genuinely empty `RichText` - `rich()`, zero children -
+renders zero glyphs, and Makie's `GlyphCollection` cannot build itself from a zero-length
+glyph vector (it can't infer the vector's `rotations` field as `Vector{Quaternionf}` from
+an empty comprehension, and errors instead of rendering blank). A single space has exactly
+one glyph, so it sidesteps that without being visible - not a cosmetic choice, without it
+`secondarytext` crashes outright for every experiment that derives nothing (relaxation,
+kinetics: `postfit!`'s default never marks a result `postfitted`, so its span list is
+always empty), and `resultsheader` for a `NoFitting` series.
+"""
+const BLANK_RICHTEXT = rich(" ")
+
+"""
+    richtext(spans) -> RichText
+
+`rich(spans...)`, substituting [`BLANK_RICHTEXT`](@ref) when `spans` is empty - see its
+docstring for why that substitution is load-bearing, not decorative.
+"""
+richtext(spans) = isempty(spans) ? BLANK_RICHTEXT : rich(spans...)
+
+"""
     resultsheader(expt, result, activelabel) -> RichText
 
 The active region's raw fitted parameters (e.g. `A`, `R`) - the "primary" half of
@@ -274,7 +296,7 @@ function resultsheader(::Experiment1D, result, activelabel::AbstractString)
         isempty(r.group) || push!(spans, boldheader(groupname(r.group)))
         push!(spans, plaintext(block), "\n")
     end
-    return rich(spans...)
+    return richtext(spans)
 end
 
 """
@@ -299,7 +321,7 @@ function secondarytext(::Experiment1D, result, activelabel::AbstractString)
         push!(spans, boldheader(isempty(r.group) ? "Derived" : groupname(r.group)))
         push!(spans, plaintext(block), "\n")
     end
-    return rich(spans...)
+    return richtext(spans)
 end
 
 """
