@@ -29,9 +29,9 @@ optional global post-fit:
 
 Plus:
 
-- **Global post-fit** (`postprocess`) — combine series into a derived result
-  (TRACT τc from ΔR₂; STD epitope normalisation). Returns a scalar/table shown inline,
-  or — where it is an interactive model fit (exchange) — drives a second window.
+- **Post-fit** (`postfit!` / `postfitglobal!`) — derive further quantities from a fit and
+  record them on the result (TRACT τc from ΔR₂; STD epitope normalisation), the same hooks
+  GUI2D uses. `postfitglobal!` is the one to use when the derivation spans several series.
 - **Noise region and the region list are universal** and live in the shared base.
 
 ## Data model
@@ -71,7 +71,12 @@ coordinate/second-window layer added. Reused wholesale: the `Parameter` idea, th
 Genuinely new: `planes` (multi-axis navigation) and the exchange second window.
 
 Module layout deliberately mirrors GUI2D so a shared `AnalysisCore` can later be lifted
-out of both (start parallel, refactor toward shared core once 1D is proven).
+out of both (start parallel, refactor toward shared core once 1D is proven). As of the
+restructure below this is no longer approximate: the two modules share the same file
+layout, the same `postfit!`/`postfitglobal!`/`primaryparam` hooks, the same uniform
+`parameters`/`postparameters` result container, and the same
+visualisation-strategy composition. See `docs/src/advanced/creating_1d_analyses.md` for the
+full correspondence table.
 
 ## Experiments (this iteration)
 
@@ -108,7 +113,7 @@ Phase 1 — **analysis core + 5 experiments**  ✓
 - [x] `Trace` / `Planes` / `Region` / `Dataset1D`
 - [x] `Integrate` reduction with noise propagation (Measurements), height = zero width
 - [x] series models: Exponential, Recovery, DampedSinusoid, NoFitting; Contrast (STD)
-- [x] grouping + curve-fit pipeline (noise-weighted) → `SeriesResult`
+- [x] grouping + curve-fit pipeline (noise-weighted) → `RegionResult`
 - [x] experiments: Relaxation, TRACT (τc), Nutation (90°), STD (multi-freq + buildup + epitope), Kinetics
 - [x] entry points `relaxation1d`, `tract`, `calibration1d`, `diffusion1d`, `std1d`,
       `kinetics1d`, each opening the GUI or honouring an `integration` triple
@@ -178,3 +183,37 @@ the Tier-1 result panel.
 Phase 5 — additional reductions (NMF kinetics), qNMR/PULCON, temperature calibration;
 lift a shared `AnalysisCore` out of GUI2D + Analysis1D; a real `Legend` for multi-series
 result plots; per-region-edge drag-resize (currently: drag recentres, textbox resizes).
+
+Phase 3.6 — **restructure onto the GUI2D pattern**  ✓
+- [x] one self-contained `expt-<name>.jl` per experiment (entry point, type, interface,
+      science, presentation), included from `experiments.jl`; `loaders.jl` reduced to the
+      NMRData adapters in `nmrdata.jl`, and each experiment's acquisition-parameter
+      physics moved beside the science that uses it
+- [x] `RegionResult` replaces `SeriesResult`: the uniform `parameters`/`postparameters`
+      pair GUI2D's `Peak` carries, filled by `postfit!`/`postfitglobal!`, with
+      `primaryparam` naming the headline quantity. `analyse` returns a
+      `Vector{RegionResult}` for every experiment, which also removes the Observable
+      element-type fragility the old `(; series, summary)` shape caused
+- [x] the summary formatter is now generic over those two dictionaries — the six
+      per-experiment `_summary_extra` methods are gone — with one `PARAM_UNITS` /
+      `PARAM_LABELS` table. **This is the first step on the open question below**: the
+      remaining work is to merge it with `gui2d/summary.jl`'s `PARAM_LABELS`
+- [x] STD no longer overrides `analyse`; it contrasts and fits in `postfitglobal!`, the
+      way `cest2d` does in `postfit!`, and its four presentation overrides are deleted
+- [x] `ResultVisualisation` trait (`completeresultstate!` / `resultpanel!` /
+      `plotresult!`), mirroring GUI2D's `VisualisationStrategy`, so a future experiment
+      needing a different panel — CEST Z-profiles, the exchange window — has somewhere to
+      go. `gui.jl` still contains no per-experiment special-casing at all
+- [x] regions have one representation (`Region`) rather than two
+- [x] `files.jl`: `results.csv` plus a region round-trip, as in 2D, so a multi-region STD
+      or kinetics session is reproducible; `experimentinfo` supplies its header
+- [x] internals renamed to house style (no underscores, no `_` prefixes)
+- [x] `docs/src/advanced/creating_1d_analyses.md`
+
+Still open after this iteration:
+- **Canonical output format across 1D and 2D** (text vs CSV, units, precision). 1D now has
+  a `results.csv` following 2D's conventions and a single units/labels table, but the two
+  tables have not been merged and the question itself is not settled.
+- The region dropdown is created only when the experiment starts with more than one
+  region, so regions added later (with `A`, or by loading a saved list) are selectable by
+  clicking the plot but do not appear in a menu.
