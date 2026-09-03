@@ -20,6 +20,7 @@ using GLMakie
 using LsqFit
 using Measurements
 using NMRTools
+using OrderedCollections
 using Statistics
 
 using ..NMRAnalysis: register_analysis!, viscosity
@@ -37,7 +38,7 @@ include("state.jl")
 include("gui.jl")
 
 """
-    analyse1d(experiment) -> NamedTuple
+    analyse1d(experiment) -> Vector{RegionResult}
 
 Run a 1D analysis. Equivalent to [`analyse`](@ref) on an `Experiment1D`; provided under
 a distinct name so it can be re-exported without colliding with the registry-based
@@ -60,7 +61,7 @@ export StejskalTannerModel
 export Experiment1D, analyse, analyse1d, run1d, Integration
 export RelaxationExperiment, TractExperiment, NutationExperiment, KineticsExperiment
 export DiffusionExperiment, STDExperiment
-export SeriesResult, param
+export RegionResult, param
 
 # interactive GUI
 export gui!, pickregion

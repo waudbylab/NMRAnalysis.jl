@@ -51,6 +51,7 @@ end
 # dataset/regions/seriesmodel come from the field-assuming defaults in experiments.jl
 
 fitaxis(::RelaxationExperiment) = :time
+primaryparam(::RelaxationExperiment) = :R
 
 # ---- 4. science ---------------------------------------------------------------
 # The fitted rate is the deliverable; nothing further is derived from it.

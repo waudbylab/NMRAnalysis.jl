@@ -56,15 +56,16 @@ distinct, matching colour. The generic method covers the curve-fit / NoFitting
 experiments; STD overrides it.
 """
 function result_plotdata(e::Experiment1D, result, activelabel::AbstractString)
-    series = filter(s -> s.region == activelabel, result.series)
+    series = filter(s -> s.region == activelabel, result)
     factor = resultxfactor(e)
     return map(series) do s
         points = Point2f.(factor .* s.x, Measurements.value.(s.y))
         errors = [(factor * s.x[k], Measurements.value(s.y[k]), Measurements.uncertainty(s.y[k]))
                   for k in eachindex(s.x)]
-        fitline = if !(s.model isa NoFitting) && !isempty(s.params)
+        fitline = if !(s.model isa NoFitting) && !isempty(s.parameters)
             xs = collect(range(min(0.0, minimum(s.x)), 1.05 * maximum(s.x), 100))
-            Point2f.(factor .* xs, s.model.func(xs, Measurements.value.(s.params)))
+            ps = Measurements.value.(collect(values(s.parameters)))
+            Point2f.(factor .* xs, s.model.func(xs, ps))
         else
             Point2f[]
         end
@@ -118,26 +119,85 @@ fmt(x::Measurement, digits=4) = string(round(Measurements.value(x); sigdigits=di
 fmt(x::Real, digits=4) = string(round(x; sigdigits=digits))
 fmt(::Nothing, digits=4) = "n/a"
 
-const PARAM_UNITS = Dict("R" => " s⁻¹", "ν" => " Hz")
+# Units and display names for parameters, fitted and derived alike. Derived quantities are
+# *stored* in the unit named here (see `RegionResult`), so one number serves the summary
+# and any tabular export. The 2D side keeps an equivalent table in `gui2d/summary.jl`
+# (`PARAM_LABELS`); merging the two is the first step of the open question in PLAN.md about
+# a canonical output format across 1D and 2D.
+# Keys are unique across every experiment - a symbol means one quantity in one unit
+# everywhere, which is why TRACT's cross-correlated rate is `:ηxy` and diffusion's
+# viscosity is `:viscosity` rather than both being `:η`.
+const PARAM_UNITS = Dict(:R => " s⁻¹",
+                         :ν => " Hz",
+                         :k => " s⁻¹",
+                         :ηxy => " s⁻¹",
+                         :τc => " ns",
+                         :pulse90 => " µs",
+                         :D => " ×10⁻¹⁰ m² s⁻¹",
+                         :rH => " Å",
+                         :viscosity => " mPa s")
+
+const PARAM_LABELS = Dict(:pulse90 => "90°",
+                          :inhomogeneity => "B₁ inhom.",
+                          :ηxy => "η",
+                          :viscosity => "η")
+
+paramlabel(name::Symbol) = get(PARAM_LABELS, name, string(name))
+paramunit(name::Symbol) = get(PARAM_UNITS, name, "")
+
+"""
+    paramblock(io, params)
+
+Write every entry of a parameter dictionary as `name = value unit`, in insertion order,
+with the names padded to a common width so the values line up. The minimum width of 6
+keeps short-named fits (`A`, `R`) laid out as they always have been, while a long name
+(`inhomogeneity`) widens the block rather than knocking one line out of alignment.
+"""
+function paramblock(io::IO, params)
+    isempty(params) && return nothing
+    w = max(6, maximum(length(paramlabel(name)) for name in keys(params)))
+    for (name, value) in params
+        println(io, "  $(rpad(paramlabel(name), w)) = $(fmt(value))$(paramunit(name))")
+    end
+    return nothing
+end
 
 """
     resultsheader(expt, result, activelabel) -> String
 
-Just the active region's raw per-series fitted parameters (e.g. `A`, `R`) - the
-"primary" half of `summary_text`, split out so the GUI can show it and the "second-stage"
-derived summary (see `secondarytext`, e.g. TRACT's τc) as visually separate blocks.
-Doesn't repeat the region name, group headers only (e.g. TRACT's "trosy"/"anti"), since
-the region itself is already named elsewhere in the GUI (the fit axis title).
+The active region's raw fitted parameters (e.g. `A`, `R`) - the "primary" half of
+[`summary_text`](@ref), split out so the GUI can show it and the derived
+[`secondarytext`](@ref) (e.g. TRACT's τc) as visually separate blocks. Doesn't repeat the
+region name, group headers only (e.g. TRACT's "trosy"/"anti"), since the region itself is
+already named elsewhere in the GUI (the fit axis title).
+
+Generic across every experiment: with the fit recorded in `RegionResult.parameters`, there
+is nothing here that depends on which analysis produced it.
 """
-function resultsheader(e::Experiment1D, result, activelabel::AbstractString)
+function resultsheader(::Experiment1D, result, activelabel::AbstractString)
     io = IOBuffer()
-    for s in result.series
-        s.region == activelabel || continue
-        isempty(s.group) || println(io, groupname(s.group))
-        for (name, p) in zip(s.names, s.params)
-            println(io, "  $(rpad(name, 6)) = $(fmt(p))$(get(PARAM_UNITS, name, ""))")
-        end
+    for r in result
+        r.region == activelabel || continue
+        isempty(r.group) || println(io, groupname(r.group))
+        paramblock(io, r.parameters)
         println(io)
+    end
+    return String(take!(io))
+end
+
+"""
+    secondarytext(expt, result, activelabel) -> String
+
+The active region's derived quantities alone (TRACT's τc and η, nutation's 90° pulse,
+diffusion's D and rH) - empty when the experiment derives none, or when the active region
+isn't ready yet (e.g. only one of a TRACT pair fitted so far). Like `resultsheader`, fully
+generic: it reads `RegionResult.postparameters`, whatever wrote them.
+"""
+function secondarytext(::Experiment1D, result, activelabel::AbstractString)
+    io = IOBuffer()
+    for r in result
+        (r.region == activelabel && r.postfitted) || continue
+        paramblock(io, r.postparameters)
     end
     return String(take!(io))
 end
@@ -151,43 +211,18 @@ restricted to the active region).
 
 # Note
 Output-format consistency across the different 1D/2D analyses (units, significant
-figures, CSV vs text) is an open question — see `PLAN.md` — this only tidies the
-single-experiment summary shown here.
+figures, CSV vs text) is an open question — see `PLAN.md`.
 """
-function summary_text(e::Experiment1D, result, activelabel::AbstractString)
+function summary_text(::Experiment1D, result, activelabel::AbstractString)
     io = IOBuffer()
-    for s in result.series
-        s.region == activelabel || continue
-        header = isempty(s.group) ? s.region : "$(s.region) ($(groupname(s.group)))"
+    for r in result
+        r.region == activelabel || continue
+        header = isempty(r.group) ? r.region : "$(r.region) ($(groupname(r.group)))"
         println(io, header)
         println(io, "-"^length(header))
-        for (name, p) in zip(s.names, s.params)
-            println(io, "  $(rpad(name, 6)) = $(fmt(p))$(get(PARAM_UNITS, name, ""))")
-        end
+        paramblock(io, r.parameters)
+        r.postfitted && paramblock(io, r.postparameters)
         println(io)
     end
-    _summary_extra(io, e, result.summary, activelabel)
-    return String(take!(io))
-end
-
-# Per-experiment "second-stage" formatting (TRACT's τc, nutation's 90°, diffusion's D/rH)
-# lives with each experiment; the generic case has nothing to add. Same
-# "  name  = value" shape as `resultsheader`'s per-series parameters, and no region name
-# repeated - the region is already named once, above both blocks, in the GUI (and in
-# `summary_text`'s own per-series header, when saved to a file).
-_summary_extra(::IOBuffer, ::Experiment1D, ::Nothing, ::AbstractString) = nothing
-
-"""
-    secondarytext(expt, result, activelabel) -> String
-
-Formatted text for the active region's "second-stage" derived summary alone (e.g.
-TRACT's τc and ΔR, computed by combining its trosy/anti series) - empty when the
-experiment has none (`result.summary === nothing`, e.g. relaxation/kinetics) or the
-active region isn't ready yet (e.g. only one of a TRACT pair fitted so far). Reuses
-`_summary_extra`, which already knows how to format and filter this per experiment type.
-"""
-function secondarytext(e::Experiment1D, result, activelabel::AbstractString)
-    io = IOBuffer()
-    _summary_extra(io, e, result.summary, activelabel)
     return String(take!(io))
 end

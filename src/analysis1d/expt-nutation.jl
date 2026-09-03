@@ -49,6 +49,7 @@ end
 # ---- 3. interface -------------------------------------------------------------
 
 fitaxis(::NutationExperiment) = :duration
+primaryparam(::NutationExperiment) = :pulse90
 
 # ---- 4. science ---------------------------------------------------------------
 
@@ -73,14 +74,13 @@ function DampedSinusoidModel(; phase::Symbol=:sine)
                          xlabel="Pulse duration / s")
 end
 
-function postprocess(::NutationExperiment, results)
-    return map(results) do r
-        ν = param(r, "ν")
-        R = param(r, "R")
-        pulse90 = 1 / (4ν)
-        inhomogeneity = R / (2π * ν)
-        return (; region=r.region, ν, pulse90, inhomogeneity)
-    end
+# Stored in the units `PARAM_UNITS` names for them: a 90° pulse reads naturally in µs,
+# never in seconds.
+function postfit!(r::RegionResult, ::NutationExperiment)
+    ν = param(r, :ν)
+    setpost!(r, :pulse90, 1e6 / (4ν))
+    setpost!(r, :inhomogeneity, param(r, :R) / (2π * ν))
+    return nothing
 end
 
 # ---- 5. presentation ----------------------------------------------------------
@@ -96,12 +96,4 @@ end
 
 function spectruminfo(::NutationExperiment, vars::NamedTuple)
     return "$(round(1e6 * vars.duration; digits=1)) µs pulse"
-end
-
-function _summary_extra(io::IOBuffer, ::NutationExperiment, summary, activelabel)
-    for s in summary
-        s.region == activelabel || continue
-        println(io, "  $(rpad("ν₁", 6)) = $(fmt(s.ν)) Hz")
-        println(io, "  $(rpad("90°", 6)) = $(fmt(1e6 * s.pulse90)) µs")
-    end
 end

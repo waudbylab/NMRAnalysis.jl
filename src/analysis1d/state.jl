@@ -61,12 +61,9 @@ function prepare_state(expt::Experiment1D)
     # live analysis - the Fitting toggle genuinely disables curve-fitting here (see
     # `analyse`/`series_results`' `isfitting`), not just the plot/text display of it.
     #
-    # No special-casing for zero regions: `analyse` naturally returns an (empty but
-    # correctly-typed) result for every experiment - `series_results`'s loop over `regs`
-    # simply doesn't run. A hand-written empty fallback here previously hardcoded
-    # `summary=nothing`, which crashed for experiments whose `postprocess` returns a
-    # `Vector` (TRACT, nutation, diffusion): the Observable's element type gets fixed by
-    # its first (non-empty) value, and `nothing` doesn't convert to that Vector type.
+    # No special-casing for zero regions: `analyse` returns a `Vector{RegionResult}` for
+    # every experiment, fitted or not, empty or not, so the Observable's element type -
+    # fixed by its first value - is stable whatever the user does.
     state[:result] = lift(state[:dataset], state[:regionobjs], state[:isfitting]) do ds_,
                                                                                       regs_,
                                                                                       fitting

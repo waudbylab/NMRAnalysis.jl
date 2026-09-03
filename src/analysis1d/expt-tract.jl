@@ -56,14 +56,14 @@ end
 seriesmodel(::TractExperiment) = ExponentialModel()
 fitaxis(::TractExperiment) = :time
 groupcols(::TractExperiment) = (:which,)
+primaryparam(::TractExperiment) = :τc
 
 # ---- 4. science ---------------------------------------------------------------
 
 "¹H gyromagnetic ratio / rad s⁻¹ T⁻¹."
 const GAMMA_H = 2.6752218744e8
 
-function postprocess(e::TractExperiment, results)
-    summaries = NamedTuple[]
+function postfitglobal!(results::AbstractVector{RegionResult}, e::TractExperiment)
     # Iterate the region labels actually present in `results`, not `regions(e)` (the
     # experiment's own, fixed-at-construction region list) - the GUI's live `regs`
     # argument to `analyse` can include regions added interactively after construction,
@@ -73,13 +73,16 @@ function postprocess(e::TractExperiment, results)
         trosy = findfirst(r -> r.group.which == :trosy, rs)
         anti = findfirst(r -> r.group.which == :anti, rs)
         (isnothing(trosy) || isnothing(anti)) && continue
-        Rtrosy = param(rs[trosy], "R")
-        Ranti = param(rs[anti], "R")
-        ηxy = (Ranti - Rtrosy) / 2
+        ηxy = (param(rs[anti], :R) - param(rs[trosy], :R)) / 2
         τc = tract_tauc(e.f, e.ωN, ηxy)
-        push!(summaries, (; region=label, Rtrosy, Ranti, ηxy, τc))
+        # Recorded on both series of the pair: either is a complete answer for the
+        # region, and the GUI shows whichever the user has selected.
+        for r in (rs[trosy], rs[anti])
+            setpost!(r, :ηxy, ηxy)
+            setpost!(r, :τc, τc)
+        end
     end
-    return summaries
+    return nothing
 end
 
 """
@@ -131,12 +134,4 @@ seriesnames(::TractExperiment) = ["TROSY", "anti-TROSY"]
 function spectruminfo(::TractExperiment, vars::NamedTuple)
     which = vars.which == :trosy ? "TROSY" : "anti-TROSY"
     return "$(round(vars.time; digits=3)) s delay ($which)"
-end
-
-function _summary_extra(io::IOBuffer, ::TractExperiment, summary, activelabel)
-    for s in summary
-        s.region == activelabel || continue
-        println(io, "  $(rpad("η", 6)) = $(fmt(s.ηxy)) s⁻¹")
-        println(io, "  $(rpad("τc", 6)) = $(fmt(s.τc)) ns")
-    end
 end

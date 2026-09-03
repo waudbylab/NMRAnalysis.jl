@@ -4,7 +4,7 @@
 Abstract supertype for 1D analyses. A concrete experiment is a thin composition that
 supplies a dataset, a list of regions, a reduction, a series model, and the
 fit-axis / grouping designation. The generic [`analyse`](@ref) pipeline does the rest;
-experiments override [`postprocess`](@ref) to derive a global result (e.g. TRACT τc),
+experiments derive further quantities in [`postfit!`](@ref) / [`postfitglobal!`](@ref),
 and may override `analyse` entirely for non-curve-fit shapes (e.g. STD contrast).
 
 # Adding an experiment
@@ -26,7 +26,9 @@ Interface (with defaults):
 - `seriesmodel(e)`    — `SeriesModel` (default: `e.model`)
 - `fitaxis(e)`        — `Symbol` naming the evolution variable (required)
 - `groupcols(e)`      — `Tuple` of grouping variables (default `()`)
-- `postprocess(e, results)` — global derived result (default `nothing`)
+- `postfit!(r, e)`    — derived quantities from one series (default: none)
+- `postfitglobal!(results, e)` — derived quantities spanning series (default: none)
+- `primaryparam(e)`   — the headline quantity (default `:A`)
 """
 abstract type Experiment1D end
 
@@ -39,57 +41,109 @@ seriesmodel(e::Experiment1D) = e.model
 
 reduction(::Experiment1D) = Integrate()
 groupcols(::Experiment1D) = ()
-postprocess(::Experiment1D, results) = nothing
 
 """
-    SeriesResult
+    RegionResult
 
-The fit of one series (one region × one grouping key).
+The analysis of one series: one region × one grouping key. The 1D analogue of GUI2D's
+`Peak`, and like it the *uniform* container every experiment fills, however different
+their science.
 
 # Fields
-- `region`  : region label
-- `group`   : `NamedTuple` of grouping values (empty if ungrouped)
-- `x`       : evolution-parameter values (sorted)
-- `y`       : reduced quantities (`Vector{Measurement}`)
-- `params`  : fitted parameters (`Vector{Measurement}`)
-- `names`   : parameter names
-- `model`   : the series model used
+- `region`    : region label
+- `group`     : `NamedTuple` of grouping values (empty if ungrouped)
+- `x`         : evolution-parameter values (sorted)
+- `y`         : reduced quantities (`Vector{Measurement}`)
+- `parameters`     : the curve fit's own parameters (`A`, `R`, `ν`, …)
+- `postparameters` : quantities derived from them by [`postfit!`](@ref) /
+  [`postfitglobal!`](@ref) (`τc`, `pulse90`, `rH`, …)
+- `model`     : the series model used
 - `converged` : whether the fit converged
+- `postfitted`: whether a derived result has been recorded
+
+Both parameter dictionaries are `Symbol`-keyed, mirroring `peak.parameters` /
+`peak.postparameters`, so generic consumers (the summary formatter, `primaryparam`) read
+them by name without knowing the experiment. Values are untyped because not every derived
+quantity carries an uncertainty - a solvent viscosity looked up from temperature is a
+plain number, where a fitted rate is a `Measurement`.
+
+Derived quantities are stored **in the unit named by `PARAM_UNITS`** (a 90° pulse in µs,
+τc in ns), not in SI, so that one stored number serves both the summary and any later
+tabular export.
 """
-struct SeriesResult
+mutable struct RegionResult
     region::String
     group::NamedTuple
     x::Vector{Float64}
     y::Vector{Measurement{Float64}}
-    params::Vector{Measurement{Float64}}
-    names::Vector{String}
+    parameters::OrderedDict{Symbol,Any}
+    postparameters::OrderedDict{Symbol,Any}
     model::Any
     converged::Bool
+    postfitted::Bool
 end
 
 """
-    param(result, name) -> Measurement
+    param(result, name) -> value
 
-Fitted value of parameter `name` from a `SeriesResult`.
+Fitted value of parameter `name` (a `Symbol` or a `String`) from a `RegionResult`.
 """
-function param(r::SeriesResult, name::AbstractString)
-    i = findfirst(==(name), r.names)
-    isnothing(i) && throw(KeyError(name))
-    return r.params[i]
+param(r::RegionResult, name::Symbol) = r.parameters[name]
+param(r::RegionResult, name::AbstractString) = param(r, Symbol(name))
+
+"""
+    setpost!(result, name, value)
+
+Record a derived quantity on `result` and mark it post-fitted. The `postfit!` /
+`postfitglobal!` counterpart of writing into `peak.postparameters` and setting
+`peak.postfitted[]` in GUI2D.
+"""
+function setpost!(r::RegionResult, name::Symbol, value)
+    r.postparameters[name] = value
+    r.postfitted = true
+    return value
 end
 
 """
-    series_results(e, [dataset, regions]; isfitting=true) -> Vector{SeriesResult}
+    postfit!(result, expt)
 
-Run the reduction and per-series curve fit for every region and grouping key. This is
-the curve-fit pipeline shared by relaxation, TRACT, nutation and kinetics.
+Derive further quantities from one series' own fitted parameters and record them with
+[`setpost!`](@ref) - nutation's 90° pulse length from ν, diffusion's rH from D. The
+default does nothing (relaxation and kinetics derive nothing). Mirrors GUI2D's
+`postfit!(peak, expt)`.
+"""
+postfit!(::RegionResult, ::Experiment1D) = nothing
+
+"""
+    postfitglobal!(results, expt)
+
+Derive quantities that need more than one series - TRACT's τc, which combines the TROSY
+and anti-TROSY rates for a region - and record them on the relevant results. Runs after
+every `postfit!`. Mirrors GUI2D's `postfitglobal!(expt)`.
+"""
+postfitglobal!(::AbstractVector{RegionResult}, ::Experiment1D) = nothing
+
+"""
+    primaryparam(expt) -> Symbol
+
+The experiment's headline quantity: the parameter a reader wants first, listed first
+among the derived columns of any tabular export. Defaults to the amplitude `A` that every
+`CurveFitModel` here fits. Mirrors GUI2D's `primaryparam(expt)`.
+"""
+primaryparam(::Experiment1D) = :A
+
+"""
+    series_results(e, [dataset, regions]; isfitting=true) -> Vector{RegionResult}
+
+Run the reduction and per-series curve fit for every region and grouping key, without the
+post-fit stage. This is the pipeline shared by every curve-fit experiment.
 
 The `dataset`/`regions` arguments default to the experiment's own, but can be supplied
 explicitly so the GUI can refit live against interactively-positioned regions and noise.
 `isfitting=false` (the GUI's Fitting toggle switched off) substitutes [`NoFitting`](@ref)
 for the experiment's own model, so the reduced quantities (`x`/`y`) still come through
-for the plotted points, but no `curve_fit` call runs and `params`/`names` come back
-empty - not merely a display toggle, an actual "don't fit" switch.
+for the plotted points, but no `curve_fit` call runs and `parameters` comes back empty -
+not merely a display toggle, an actual "don't fit" switch.
 """
 series_results(e::Experiment1D) = series_results(e, dataset(e), regions(e))
 
@@ -97,7 +151,7 @@ function series_results(e::Experiment1D, ds::Dataset1D, regs; isfitting::Bool=tr
     red = reduction(e)
     model = isfitting ? seriesmodel(e) : NoFitting()
     axis = fitaxis(e)
-    results = SeriesResult[]
+    results = RegionResult[]
     for region in regs
         I = reduce_region(red, region, ds).I
         for (gkey, idx) in groupseries(ds.planes, groupcols(e))
@@ -106,33 +160,35 @@ function series_results(e::Experiment1D, ds::Dataset1D, regs; isfitting::Bool=tr
             perm = sortperm(x)
             x, y = x[perm], y[perm]
             fit = fit_series(model, x, y)
+            parameters = OrderedDict{Symbol,Any}(Symbol(n) => p
+                                                 for (n, p) in zip(fit.names, fit.params))
             push!(results,
-                  SeriesResult(region.label, gkey, x, y, fit.params, fit.names, fit.model,
-                               fit.converged))
+                  RegionResult(region.label, gkey, x, y, parameters,
+                               OrderedDict{Symbol,Any}(), fit.model, fit.converged, false))
         end
     end
     return results
 end
 
 """
-    analyse(e, [dataset, regions]; isfitting=true) -> NamedTuple
+    analyse(e, [dataset, regions]; isfitting=true) -> Vector{RegionResult}
 
-Run the full analysis: `(; series, summary)` where `series` is a `Vector{SeriesResult}`
-and `summary` is the experiment-specific global result (or `nothing`).
-
-With `isfitting=false`, `postprocess` runs against an empty series list rather than
-being skipped outright: several `postprocess` overrides (e.g. TRACT's) return a
-`Vector`, and skipping straight to `nothing` would change `summary`'s type between
-"fitting on" and "fitting off" - fatal for the GUI's `state[:result]` Observable, whose
-element type is fixed by its first value. An empty series list keeps the same
-(now-empty) `Vector` type either way.
+Run the full analysis: reduce, fit, then post-fit. The return type does not depend on the
+experiment or on whether anything was fitted, so the GUI's `state[:result]` Observable has
+a stable element type even when it starts out empty - which the old
+`(; series, summary)` shape did not, `summary` being `nothing` for some experiments and a
+`Vector` for others.
 """
 analyse(e::Experiment1D) = analyse(e, dataset(e), regions(e))
 
 function analyse(e::Experiment1D, ds::Dataset1D, regs; isfitting::Bool=true)
-    series = series_results(e, ds, regs; isfitting)
-    summary = postprocess(e, isfitting ? series : SeriesResult[])
-    return (; series, summary)
+    results = series_results(e, ds, regs; isfitting)
+    isfitting || return results
+    for r in results
+        postfit!(r, e)
+    end
+    postfitglobal!(results, e)
+    return results
 end
 
 # =============================================================================

@@ -50,9 +50,9 @@ _solvent(s) = s == "D2O" ? :d2o : (s == "H2O+D2O" ? :h2o : nothing)
     DiffusionExperiment(dataset; γ, δ, Δ, σ, Gmax, temp=nothing, solvent=nothing, regions=…)
 
 Fit integrated intensity vs relative gradient strength (`vars.gradient`, 0–1) to the
-Stejskal–Tanner equation. `postprocess` reports the diffusion coefficient and, when the
-solvent and temperature are known, the hydrodynamic radius via the Stokes–Einstein
-relation.
+Stejskal–Tanner equation. The fitted `D` is the diffusion coefficient; `postfit!` adds the
+hydrodynamic radius via the Stokes–Einstein relation when the solvent and temperature are
+known.
 """
 struct DiffusionExperiment <: Experiment1D
     dataset::Dataset1D
@@ -72,6 +72,7 @@ end
 # ---- 3. interface -------------------------------------------------------------
 
 fitaxis(::DiffusionExperiment) = :gradient
+primaryparam(::DiffusionExperiment) = :D
 
 # ---- 4. science ---------------------------------------------------------------
 
@@ -90,18 +91,18 @@ function StejskalTannerModel(; γ, δ, Δ, σ, Gmax)
                          xlabel="Relative gradient strength")
 end
 
-function postprocess(e::DiffusionExperiment, results)
-    return map(results) do r
-        D = param(r, "D") * 1e-10                      # m² s⁻¹
-        η, rH = if isnothing(e.solvent) || isnothing(e.temp)
-            (nothing, nothing)
-        else
-            ηv = viscosity(e.solvent, e.temp)          # mPa s
-            kB = 1.38e-23
-            (ηv, kB * e.temp / (6π * ηv * 0.001 * D) * 1e10)   # Å
-        end
-        return (; region=r.region, D, η, rH)
-    end
+# D itself needs no post-fit: the fitted parameter is already the diffusion coefficient in
+# the ×10⁻¹⁰ m² s⁻¹ that such coefficients are conventionally quoted in (and that the fit
+# is conditioned on), so it is reported straight from `parameters`. Only the
+# Stokes–Einstein radius is derived, and only when the solvent and temperature are known.
+function postfit!(r::RegionResult, e::DiffusionExperiment)
+    (isnothing(e.solvent) || isnothing(e.temp)) && return nothing
+    D = param(r, :D) * 1e-10                       # m² s⁻¹
+    η = viscosity(e.solvent, e.temp)               # mPa s
+    kB = 1.38e-23
+    setpost!(r, :viscosity, η)
+    setpost!(r, :rH, kB * e.temp / (6π * η * 0.001 * D) * 1e10)   # Å
+    return nothing
 end
 
 # ---- 5. presentation ----------------------------------------------------------
@@ -113,13 +114,4 @@ result_labels(::DiffusionExperiment) = ("Relative gradient strength",
 
 function spectruminfo(::DiffusionExperiment, vars::NamedTuple)
     return "gradient = $(round(100 * vars.gradient; digits=1))%"
-end
-
-function _summary_extra(io::IOBuffer, ::DiffusionExperiment, summary, activelabel)
-    for s in summary
-        s.region == activelabel || continue
-        println(io, "  $(rpad("D", 6)) = $(fmt(s.D)) m² s⁻¹")
-        isnothing(s.rH) || println(io, "  $(rpad("rH", 6)) = $(fmt(s.rH)) Å")
-        isnothing(s.η) || println(io, "  $(rpad("η", 6)) = $(fmt(s.η)) mPa s")
-    end
 end
