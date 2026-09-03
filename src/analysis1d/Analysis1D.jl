@@ -31,6 +31,7 @@ include("reductions.jl")
 include("seriesmodels.jl")
 include("nmrdata.jl")
 include("experiments.jl")   # interface + pipeline; includes one expt-*.jl per experiment
+include("files.jl")
 
 # interactive GUI
 include("visualisation.jl")

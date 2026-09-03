@@ -207,9 +207,22 @@ function gui!(expt::Experiment1D)
     on(tout.stored_string) do s
         return state[:outputdir][] = s
     end
-    btn_save = outputrow[1, 2] = Button(fig; label="Save results")
+    btn_save = outputrow[1, 2] = Button(fig; label="Save")
     on(btn_save.clicks) do _
         return save_results(state)
+    end
+    # Restores a region list saved earlier from the same output folder, so a multi-region
+    # session can be picked up again rather than re-picked by hand.
+    btn_load = outputrow[1, 3] = Button(fig; label="Load")
+    on(btn_load.clicks) do _
+        path = joinpath(pwd(), state[:outputdir][], "results.csv")
+        try
+            n = readregions!(state, path)
+            @info "Restored $n region(s) from $path"
+        catch err
+            @warn "Could not load regions" path exception=err
+        end
+        return nothing
     end
 
     r += 1
@@ -622,9 +635,10 @@ function pickregion(specs::AbstractVector; kwargs...)
     return pickregion(reduce(vcat, traces_from_spec.(specs)); kwargs...)
 end
 
-"""Save the fit figure(s) and a text summary, covering every region (not just the active
-one shown live in the GUI panels), to the output folder: an overlay of every region in
-`fit.pdf`, plus one `fit_<region>.pdf` per region on its own."""
+"""Save the results, covering every region (not just the active one shown live in the GUI
+panels), to the output folder: `results.csv` (machine-readable, and the file a region list
+is restored from - see `readregions!`), `summary.txt`, an overlay of every region in
+`fit.pdf`, and one `fit_<region>.pdf` per region on its own."""
 function save_results(state)
     dir = joinpath(pwd(), state[:outputdir][])
     isdir(dir) || mkpath(dir)
@@ -670,6 +684,7 @@ function save_results(state)
             print(f, summary_text(expt, result, label))
         end
     end
+    writeresults!(expt, state, dir)
     @info "Saved results to $dir"
     return dir
 end

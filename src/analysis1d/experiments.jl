@@ -216,7 +216,8 @@ and return the analysis for that region directly.
 """
 function run1d(expt::Experiment1D; integration=nothing)
     isnothing(integration) && return gui!(expt)
-    ds = Dataset1D(dataset(expt).planes, Float64(integration.noiseppm))
+    d = dataset(expt)
+    ds = Dataset1D(d.planes, Float64(integration.noiseppm), d.label)
     return analyse(expt, ds, regions_from(integration))
 end
 

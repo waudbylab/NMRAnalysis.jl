@@ -53,7 +53,7 @@ function prepare_state(expt::Experiment1D)
     state[:oldlabel] = Observable("")
 
     # current Region objects + dataset (noise position applied)
-    state[:dataset] = lift(nc -> Dataset1D(planes, nc), state[:noisec])
+    state[:dataset] = lift(nc -> Dataset1D(planes, nc, ds.label), state[:noisec])
 
     # live analysis - the Fitting toggle genuinely disables curve-fitting here (see
     # `analyse`/`series_results`' `isfitting`), not just the plot/text display of it.

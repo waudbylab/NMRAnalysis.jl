@@ -24,7 +24,8 @@ function tract(trosy, antitrosy; tau=nothing, regions=nothing, integration=nothi
     ωN = 2π * acqus(trosy, :bf3)
     f = tract_f(; B0)
 
-    ds = Dataset1D(Planes(traces, vars), default_noise_center(trosy))
+    ds = Dataset1D(Planes(traces, vars), default_noise_center(trosy),
+                   speclabel(trosy))
     expt = isnothing(regions) ? TractExperiment(ds; ωN, f) :
            TractExperiment(ds; ωN, f, regions)
     return run1d(expt; integration)

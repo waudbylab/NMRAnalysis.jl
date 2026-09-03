@@ -108,9 +108,11 @@ Whether the planes carry an arrayed variable called `name`.
 hasvar(p::Planes, name::Symbol) = !isempty(p.vars) && haskey(first(p.vars), name)
 
 """
-    Dataset1D(planes, noisecenter)
+    Dataset1D(planes, noisecenter, [label])
 
-The planes plus the universal noise position (ppm). The noise *region* used to estimate
+The planes plus the universal noise position (ppm), and a `label` describing where the
+data came from (a filename, say) - a plain `String`, so results files can say what they
+were computed from without NMRData re-entering the analysis core. The noise *region* used to estimate
 uncertainty always has the same width as whichever signal region is being reduced (see
 [`reduce_region`](@ref)) — matching widths is what makes the noise-region integral a
 direct estimate of the signal-region integral's noise — so only the noise centre is
@@ -120,7 +122,10 @@ re-implemented per analysis.
 struct Dataset1D
     planes::Planes
     noisecenter::Float64
+    label::String
 end
+
+Dataset1D(planes, noisecenter) = Dataset1D(planes, Float64(noisecenter), "")
 
 nplanes(d::Dataset1D) = nplanes(d.planes)
 

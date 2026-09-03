@@ -62,5 +62,9 @@ Build a `Dataset1D` from a pseudo-2D `spec` and a vector of per-plane variable
 """
 function dataset_from_spec(spec, vars::AbstractVector{<:NamedTuple};
                            noisecenter::Real=default_noise_center(spec))
-    return Dataset1D(Planes(traces_from_spec(spec), collect(vars)), Float64(noisecenter))
+    return Dataset1D(Planes(traces_from_spec(spec), collect(vars)), Float64(noisecenter),
+                     speclabel(spec))
 end
+
+"""A short description of where a spectrum came from, for results-file provenance."""
+speclabel(spec) = string(something(spec[:filename], spec[:title], ""))
