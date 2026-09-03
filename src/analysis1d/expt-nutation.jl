@@ -14,11 +14,11 @@ annotation. The modulation defaults to the `calibration.model` annotation
 """
 function calibration1d(spec; durations=nothing, phase=nothing, regions=nothing,
                        integration=nothing)
-    spec = _spec(spec)
-    t = something(durations, _ann(spec, :calibration, :duration))
+    spec = loadspec(spec)
+    t = something(durations, annotation(spec, :calibration, :duration))
     ph = isnothing(phase) ?
-         (_ann(spec, :calibration, :model) == "cosine_modulated" ? :cosine : :sine) : phase
-    ds = dataset_from_spec(spec, [(; duration=Float64(d)) for d in t])
+         (annotation(spec, :calibration, :model) == "cosine_modulated" ? :cosine : :sine) : phase
+    ds = datasetfromspec(spec, [(; duration=Float64(d)) for d in t])
     expt = isnothing(regions) ? NutationExperiment(ds; phase=ph) :
            NutationExperiment(ds; phase=ph, regions)
     return run1d(expt; integration)

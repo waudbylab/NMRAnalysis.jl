@@ -13,13 +13,13 @@ invisible and impossible to grab."
 const MIN_GUI_REGION_WIDTH = 0.05
 
 """
-    prepare_state(expt) -> Dict{Symbol,Any}
+    preparestate(expt) -> Dict{Symbol,Any}
 
 Build the Observable graph for `expt`: regions (position/width/label), the noise marker
 position, current spectrum, GUI interaction mode, and the live analysis result with its
 derived plot data.
 """
-function prepare_state(expt::Experiment1D)
+function preparestate(expt::Experiment1D)
     state = Dict{Symbol,Any}()
     state[:expt] = expt
     ds = dataset(expt)
@@ -39,10 +39,10 @@ function prepare_state(expt::Experiment1D)
     state[:active] = Observable(isempty(state[:regions][]) ? 0 : 1)
 
     # noise marker: a single position, no independent width (matches whichever region is
-    # being reduced - see reduce_region).
+    # being reduced - see reduceregion).
     state[:noisec] = Observable(ds.noisecenter)
 
-    state[:currentspectrum_idx] = Observable(1)
+    state[:currentspectrumidx] = Observable(1)
     state[:isfitting] = Observable(true)
     state[:outputdir] = Observable("out")
 
@@ -56,7 +56,7 @@ function prepare_state(expt::Experiment1D)
     state[:dataset] = lift(nc -> Dataset1D(planes, nc, ds.label), state[:noisec])
 
     # live analysis - the Fitting toggle genuinely disables curve-fitting here (see
-    # `analyse`/`series_results`' `isfitting`), not just the plot/text display of it.
+    # `analyse`/`seriesresults`' `isfitting`), not just the plot/text display of it.
     #
     # No special-casing for zero regions: `analyse` returns a `Vector{RegionResult}` for
     # every experiment, fitted or not, empty or not, so the Observable's element type -
@@ -69,8 +69,8 @@ function prepare_state(expt::Experiment1D)
 
     # spectra overlay (static) and current spectrum
     state[:spectra] = [Point2f.(t.δ, t.y) for t in planes.traces]
-    state[:overlay] = _overlay_points(state[:spectra])
-    state[:currentspectrum] = lift(state[:currentspectrum_idx]) do i
+    state[:overlay] = overlaypoints(state[:spectra])
+    state[:currentspectrum] = lift(state[:currentspectrumidx]) do i
         return state[:spectra][clamp(i, 1, length(state[:spectra]))]
     end
 
@@ -86,7 +86,7 @@ function prepare_state(expt::Experiment1D)
     # live results text for the results panel, split into the fit's own parameters (e.g.
     # A, R) and the derived quantities post-fitted from them (e.g. TRACT's τc), so the GUI
     # can show them as separate blocks. Both go blank when the Fitting toggle is off -
-    # which genuinely skips the `curve_fit` calls (see `isfitting` in `series_results`),
+    # which genuinely skips the `curve_fit` calls (see `isfitting` in `seriesresults`),
     # so there would be nothing to show in any case.
     state[:resultsheader] = lift(state[:result], state[:activelabel], state[:isfitting]) do res, lbl,
                                                                                              fitting
@@ -102,7 +102,7 @@ function prepare_state(expt::Experiment1D)
     return state
 end
 
-function _overlay_points(spectra)
+function overlaypoints(spectra)
     pts = Point2f[]
     for s in spectra
         append!(pts, s)
@@ -113,7 +113,7 @@ end
 
 # ---- region mutation (copy-and-replace so the Observable fires) ---------------
 
-function set_region_center!(state, i, c)
+function setregioncentre!(state, i, c)
     (1 ≤ i ≤ length(state[:regions][])) || return
     rs = copy(state[:regions][])
     rs[i] = recentre(rs[i], c)
@@ -121,13 +121,13 @@ function set_region_center!(state, i, c)
 end
 
 """
-    set_region_edge!(state, i, fixed, moving)
+    setregionedge!(state, i, fixed, moving)
 
 Move one edge of region `i` to `moving`, keeping the opposite edge at `fixed` - so both
 the centre and width update together. Used for edge-dragging (as opposed to
-`set_region_center!`, which drags the whole region and keeps its width fixed).
+`setregioncentre!`, which drags the whole region and keeps its width fixed).
 """
-function set_region_edge!(state, i, fixed, moving)
+function setregionedge!(state, i, fixed, moving)
     (1 ≤ i ≤ length(state[:regions][])) || return
     lo, hi = minmax(fixed, moving)
     rs = copy(state[:regions][])

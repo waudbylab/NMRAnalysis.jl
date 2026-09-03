@@ -18,16 +18,16 @@ gradient pulse length `δ` (`2·p30`), diffusion delay `Δ` (`d20`) and shape fa
 """
 function diffusion1d(spec, gradients; coherence=SQ(H1), δ=nothing, Δ=nothing, σ=nothing,
                      Gmax=0.55, regions=nothing, integration=nothing)
-    spec = _spec(spec)
+    spec = loadspec(spec)
     γ = gyromagneticratio(coherence)
     δ = isnothing(δ) ? acqus(spec, :p, 30) * 2.0 : δ
     Δ = isnothing(Δ) ? acqus(spec, :d, 20) : Δ
-    σ = isnothing(σ) ? _shapefactor(acqus(spec, :gpnam, 6)) : σ
+    σ = isnothing(σ) ? shapefactor(acqus(spec, :gpnam, 6)) : σ
 
     temp = acqus(spec, :te)
-    solvent = _solvent(acqus(spec, :solvent))
+    solvent = solventname(acqus(spec, :solvent))
 
-    ds = dataset_from_spec(spec, [(; gradient=Float64(g)) for g in gradients])
+    ds = datasetfromspec(spec, [(; gradient=Float64(g)) for g in gradients])
     kw = (; γ, δ, Δ, σ, Gmax, temp, solvent)
     expt = isnothing(regions) ? DiffusionExperiment(ds; kw...) :
            DiffusionExperiment(ds; kw..., regions)
@@ -35,14 +35,14 @@ function diffusion1d(spec, gradients; coherence=SQ(H1), δ=nothing, Δ=nothing, 
 end
 
 """Gradient shape factor from the Bruker shape name (as in the legacy routine)."""
-function _shapefactor(gpnam)
+function shapefactor(gpnam)
     length(gpnam) ≥ 4 || return 1.0
     gpnam[1:4] == "SMSQ" && return 0.9
     gpnam[1:4] == "SINE" && return 0.6366
     return 1.0
 end
 
-_solvent(s) = s == "D2O" ? :d2o : (s == "H2O+D2O" ? :h2o : nothing)
+solventname(s) = s == "D2O" ? :d2o : (s == "H2O+D2O" ? :h2o : nothing)
 
 # ---- 2. type ------------------------------------------------------------------
 

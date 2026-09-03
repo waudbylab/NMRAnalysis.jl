@@ -133,7 +133,7 @@ among the derived columns of any tabular export. Defaults to the amplitude `A` t
 primaryparam(::Experiment1D) = :A
 
 """
-    series_results(e, [dataset, regions]; isfitting=true) -> Vector{RegionResult}
+    seriesresults(e, [dataset, regions]; isfitting=true) -> Vector{RegionResult}
 
 Run the reduction and per-series curve fit for every region and grouping key, without the
 post-fit stage. This is the pipeline shared by every curve-fit experiment.
@@ -145,21 +145,21 @@ for the experiment's own model, so the reduced quantities (`x`/`y`) still come t
 for the plotted points, but no `curve_fit` call runs and `parameters` comes back empty -
 not merely a display toggle, an actual "don't fit" switch.
 """
-series_results(e::Experiment1D) = series_results(e, dataset(e), regions(e))
+seriesresults(e::Experiment1D) = seriesresults(e, dataset(e), regions(e))
 
-function series_results(e::Experiment1D, ds::Dataset1D, regs; isfitting::Bool=true)
+function seriesresults(e::Experiment1D, ds::Dataset1D, regs; isfitting::Bool=true)
     red = reduction(e)
     model = isfitting ? seriesmodel(e) : NoFitting()
     axis = fitaxis(e)
     results = RegionResult[]
     for region in regs
-        I = reduce_region(red, region, ds).I
+        I = reduceregion(red, region, ds).I
         for (gkey, idx) in groupseries(ds.planes, groupcols(e))
             x = Float64[ds.planes.vars[i][axis] for i in idx]
             y = I[idx]
             perm = sortperm(x)
             x, y = x[perm], y[perm]
-            fit = fit_series(model, x, y)
+            fit = fitseries(model, x, y)
             parameters = OrderedDict{Symbol,Any}(Symbol(n) => p
                                                  for (n, p) in zip(fit.names, fit.params))
             push!(results,
@@ -182,7 +182,7 @@ a stable element type even when it starts out empty - which the old
 analyse(e::Experiment1D) = analyse(e, dataset(e), regions(e))
 
 function analyse(e::Experiment1D, ds::Dataset1D, regs; isfitting::Bool=true)
-    results = series_results(e, ds, regs; isfitting)
+    results = seriesresults(e, ds, regs; isfitting)
     isfitting || return results
     for r in results
         postfit!(r, e)
@@ -200,13 +200,13 @@ end
 
 The integration triple shared with `Exchange1D` (`prob.integration`): a peak position, a
 noise position, and a common width, all in ppm (the noise region always has the same
-width as the signal region — see [`reduce_region`](@ref)). Passing one to a top-level
+width as the signal region — see [`reduceregion`](@ref)). Passing one to a top-level
 entry point skips the GUI and analyses directly, so a previously-chosen region can be
 replayed reproducibly from a script.
 """
 const Integration = NamedTuple{(:peakppm, :noiseppm, :ppmwidth)}
 
-regions_from(i) = [Region("signal", i.peakppm - i.ppmwidth / 2, i.peakppm + i.ppmwidth / 2)]
+regionsfrom(i) = [Region("signal", i.peakppm - i.ppmwidth / 2, i.peakppm + i.ppmwidth / 2)]
 
 """
     run1d(expt; integration=nothing)
@@ -218,7 +218,7 @@ function run1d(expt::Experiment1D; integration=nothing)
     isnothing(integration) && return gui!(expt)
     d = dataset(expt)
     ds = Dataset1D(d.planes, Float64(integration.noiseppm), d.label)
-    return analyse(expt, ds, regions_from(integration))
+    return analyse(expt, ds, regionsfrom(integration))
 end
 
 """

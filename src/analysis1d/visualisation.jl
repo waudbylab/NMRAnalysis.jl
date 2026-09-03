@@ -224,7 +224,7 @@ end
     resultsheader(expt, result, activelabel) -> String
 
 The active region's raw fitted parameters (e.g. `A`, `R`) - the "primary" half of
-[`summary_text`](@ref), split out so the GUI can show it and the derived
+[`summarytext`](@ref), split out so the GUI can show it and the derived
 [`secondarytext`](@ref) (e.g. TRACT's τc) as visually separate blocks. Doesn't repeat the
 region name, group headers only (e.g. TRACT's "trosy"/"anti"), since the region itself is
 already named elsewhere in the GUI (the fit axis title).
@@ -261,7 +261,7 @@ function secondarytext(::Experiment1D, result, activelabel::AbstractString)
 end
 
 """
-    summary_text(expt, result, activelabel) -> String
+    summarytext(expt, result, activelabel) -> String
 
 Human-readable summary of the fit for the active region only, shown in the GUI and
 written to `summary.txt` (matching the result panel and plot, which are likewise
@@ -271,7 +271,7 @@ restricted to the active region).
 Output-format consistency across the different 1D/2D analyses (units, significant
 figures, CSV vs text) is an open question — see `PLAN.md`.
 """
-function summary_text(::Experiment1D, result, activelabel::AbstractString)
+function summarytext(::Experiment1D, result, activelabel::AbstractString)
     io = IOBuffer()
     for r in result
         r.region == activelabel || continue
@@ -298,19 +298,19 @@ function completeresultstate!(state, expt::Experiment1D, ::SeriesVisualisation)
     state[:seriesdata] = lift(state[:result], state[:activelabel]) do res, lbl
         return resultplotdata(expt, res, lbl)
     end
-    state[:flat_points] = lift(sd -> reduce(vcat, (s.points for s in sd); init=Point2f[]),
+    state[:flatpoints] = lift(sd -> reduce(vcat, (s.points for s in sd); init=Point2f[]),
                                state[:seriesdata])
-    state[:flat_point_colors] = lift(state[:seriesdata]) do sd
+    state[:flatpointcolors] = lift(state[:seriesdata]) do sd
         return reduce(vcat,
                       (fill(seriescolor(i), length(s.points)) for (i, s) in enumerate(sd));
                       init=RGBAf[])
     end
-    state[:flat_errors] = lift(state[:seriesdata]) do sd
+    state[:flaterrors] = lift(state[:seriesdata]) do sd
         return reduce(vcat, (s.errors for s in sd);
                       init=Tuple{Float64,Float64,Float64}[])
     end
-    state[:flat_error_colors] = state[:flat_point_colors]
-    state[:flat_fit] = lift(state[:seriesdata], state[:isfitting]) do sd, fitting
+    state[:flaterrorcolors] = state[:flatpointcolors]
+    state[:flatfit] = lift(state[:seriesdata], state[:isfitting]) do sd, fitting
         fitting || return Point2f[]
         pts = Point2f[]
         for s in sd
@@ -320,7 +320,7 @@ function completeresultstate!(state, expt::Experiment1D, ::SeriesVisualisation)
         end
         return pts
     end
-    state[:flat_fit_colors] = lift(state[:seriesdata], state[:isfitting]) do sd, fitting
+    state[:flatfitcolors] = lift(state[:seriesdata], state[:isfitting]) do sd, fitting
         fitting || return RGBAf[]
         cols = RGBAf[]
         for (i, s) in enumerate(sd)
@@ -340,18 +340,18 @@ end
 """
     resultpanel!(gui, state, expt, ::SeriesVisualisation)
 
-Build the live fit panel into `gui[:panelresult]`, and record its axis as `gui[:ax_fit]`.
+Build the live fit panel into `gui[:panelresult]`, and record its axis as `gui[:axfit]`.
 """
 function resultpanel!(gui, state, expt::Experiment1D, ::SeriesVisualisation)
     xl, yl = resultlabels(expt)
     fittitle = lift(lbl -> isempty(lbl) ? "Fit" : "Fit: $lbl", state[:activelabel])
     ax = Axis(gui[:panelresult]; xlabel=xl, ylabel=yl, title=fittitle,
               xgridvisible=false, ygridvisible=false)
-    gui[:ax_fit] = ax
+    gui[:axfit] = ax
     hlines!(ax, [0]; color=:grey)
-    errorbars!(ax, state[:flat_errors]; whiskerwidth=8, color=state[:flat_error_colors])
-    scatter!(ax, state[:flat_points]; color=state[:flat_point_colors])
-    lines!(ax, state[:flat_fit]; color=state[:flat_fit_colors])
+    errorbars!(ax, state[:flaterrors]; whiskerwidth=8, color=state[:flaterrorcolors])
+    scatter!(ax, state[:flatpoints]; color=state[:flatpointcolors])
+    lines!(ax, state[:flatfit]; color=state[:flatfitcolors])
     # Most experiments label each curve directly (group counts/names vary, e.g. STD's
     # saturation frequencies); experiments with a fixed, small set of named groups (e.g.
     # TRACT's TROSY/anti-TROSY) get a proper axislegend instead via `seriesnames`.

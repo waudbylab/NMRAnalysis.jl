@@ -12,19 +12,19 @@ The two spectra are combined into one dataset tagged by `which ∈ {:trosy, :ant
 a single integration region.
 """
 function tract(trosy, antitrosy; tau=nothing, regions=nothing, integration=nothing)
-    trosy, antitrosy = _spec(trosy), _spec(antitrosy)
+    trosy, antitrosy = loadspec(trosy), loadspec(antitrosy)
     ttau = isnothing(tau) ? acqus(trosy, :vdlist) : tau
     atau = isnothing(tau) ? acqus(antitrosy, :vdlist) : tau
 
-    traces = vcat(traces_from_spec(trosy), traces_from_spec(antitrosy))
+    traces = vcat(tracesfromspec(trosy), tracesfromspec(antitrosy))
     vars = vcat([(; time=Float64(t), which=:trosy) for t in ttau],
                 [(; time=Float64(t), which=:anti) for t in atau])
 
     B0 = 2π * acqus(trosy, :bf1) / GAMMA_H
     ωN = 2π * acqus(trosy, :bf3)
-    f = tract_f(; B0)
+    f = tractf(; B0)
 
-    ds = Dataset1D(Planes(traces, vars), default_noise_center(trosy),
+    ds = Dataset1D(Planes(traces, vars), defaultnoisecentre(trosy),
                    speclabel(trosy))
     expt = isnothing(regions) ? TractExperiment(ds; ωN, f) :
            TractExperiment(ds; ωN, f, regions)
@@ -39,7 +39,7 @@ end
 Fit TROSY and anti-TROSY decays (grouped by `vars.which ∈ {:trosy, :anti}`) and derive
 the rotational correlation time τc from the cross-correlated relaxation-rate difference
 ΔR = R(anti) − R(trosy). `ωN` is the ¹⁵N Larmor frequency (rad s⁻¹) and `f` the
-dipole/CSA cross-correlation prefactor (see `tract_f`).
+dipole/CSA cross-correlation prefactor (see `tractf`).
 """
 struct TractExperiment <: Experiment1D
     dataset::Dataset1D
@@ -75,7 +75,7 @@ function postfitglobal!(results::AbstractVector{RegionResult}, e::TractExperimen
         anti = findfirst(r -> r.group.which == :anti, rs)
         (isnothing(trosy) || isnothing(anti)) && continue
         ηxy = (param(rs[anti], :R) - param(rs[trosy], :R)) / 2
-        τc = tract_tauc(e.f, e.ωN, ηxy)
+        τc = tracttauc(e.f, e.ωN, ηxy)
         # Recorded on both series of the pair: either is a complete answer for the
         # region, and the GUI shows whichever the user has selected.
         for r in (rs[trosy], rs[anti])
@@ -87,12 +87,12 @@ function postfitglobal!(results::AbstractVector{RegionResult}, e::TractExperimen
 end
 
 """
-    tract_f(; B0, θ=17π/180) -> Float64
+    tractf(; B0, θ=17π/180) -> Float64
 
 Dipole/CSA cross-correlation prefactor used in the TRACT τc relation, given the static
 field `B0` (T). Constants follow the standard ¹⁵N–¹H amide treatment.
 """
-function tract_f(; B0, θ=17 * π / 180)
+function tractf(; B0, θ=17 * π / 180)
     μ0 = 4π * 1e-7
     γH = GAMMA_H
     γN = -2.7126180e7
@@ -105,13 +105,13 @@ function tract_f(; B0, θ=17 * π / 180)
 end
 
 """
-    tract_tauc(f, ωN, ηxy) -> Float64
+    tracttauc(f, ωN, ηxy) -> Float64
 
 Rotational correlation time τc (ns) from the cross-correlated cross-relaxation rate
 `ηxy`, by the analytic inversion of `ηxy = f·(4/5·τc + 3/5·τc/(1+(ωN·τc)²))` used in the
 existing `tract` routine.
 """
-function tract_tauc(f, ωN, ηxy)
+function tracttauc(f, ωN, ηxy)
     x = sqrt(21952 * f^6 * ωN^6 - 3025 * f^4 * ηxy^2 * ωN^8 + 625 * f^2 * ηxy^4 * ωN^10)
     y = cbrt(1800 * f^2 * ηxy * ωN^4 + 125 * ηxy^3 * ωN^6 + 24 * sqrt(3) * x)
     τc = (5 * ηxy) / (24 * f) -

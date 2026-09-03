@@ -16,11 +16,11 @@ Relaxation delays come from `tau`, else the `relaxation.duration` annotation, el
 (`"inversion_recovery"` selects a recovery fit); pass `ir=true`/`false` to override.
 """
 function relaxation1d(spec; ir=nothing, tau=nothing, regions=nothing, integration=nothing)
-    spec = _spec(spec)
-    times = something(tau, _ann(spec, :relaxation, :duration), acqus(spec, :vdlist))
+    spec = loadspec(spec)
+    times = something(tau, annotation(spec, :relaxation, :duration), acqus(spec, :vdlist))
     isrecovery = isnothing(ir) ?
-                 (_ann(spec, :relaxation, :model) == "inversion_recovery") : ir
-    ds = dataset_from_spec(spec, [(; time=Float64(t)) for t in times])
+                 (annotation(spec, :relaxation, :model) == "inversion_recovery") : ir
+    ds = datasetfromspec(spec, [(; time=Float64(t)) for t in times])
     expt = isnothing(regions) ? RelaxationExperiment(ds; ir=isrecovery) :
            RelaxationExperiment(ds; ir=isrecovery, regions)
     return run1d(expt; integration)

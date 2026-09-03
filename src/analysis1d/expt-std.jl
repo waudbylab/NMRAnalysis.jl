@@ -16,9 +16,9 @@ interactively in the GUI (press `A`) rather than specifying them up front.
 """
 function std1d(spec, sat::AbstractVector, tsat::AbstractVector; regions=nothing,
                reference=:reference, excess::Real=1.0, integration=nothing)
-    spec = _spec(spec)
+    spec = loadspec(spec)
     vars = [(; sat=sat[i], tsat=Float64(tsat[i])) for i in eachindex(sat)]
-    ds = dataset_from_spec(spec, vars)
+    ds = datasetfromspec(spec, vars)
     expt = isnothing(regions) ? STDExperiment(ds; reference, excess) :
            STDExperiment(ds; regions, reference, excess)
     return run1d(expt; integration)
@@ -139,7 +139,7 @@ function contrast!(r::RegionResult, reference::RegionResult, excess::Real)
     stds = [excess * (at(reference, τ) - at(r, τ)) / at(reference, τ) for τ in times]
     r.x, r.y = times, stds
     if length(times) ≥ 3
-        fit = fit_series(BuildupModel(), times, stds)
+        fit = fitseries(BuildupModel(), times, stds)
         r.parameters = OrderedDict{Symbol,Any}(Symbol(n) => p
                                                for (n, p) in zip(fit.names, fit.params))
         r.model = fit.model

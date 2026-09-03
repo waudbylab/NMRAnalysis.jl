@@ -2,12 +2,12 @@
 # NMRData; everything downstream works on plain vectors (`Trace`/`Planes`/`Dataset1D`).
 # The per-experiment entry points that use them live in the `expt-*.jl` files.
 
-_spec(x::AbstractString) = loadnmr(String(x))
-_spec(x::Integer) = loadnmr(string(x))
-_spec(x) = x
+loadspec(x::AbstractString) = loadnmr(String(x))
+loadspec(x::Integer) = loadnmr(string(x))
+loadspec(x) = x
 
 """Annotation lookup returning `nothing` rather than throwing when absent."""
-function _ann(spec, keys...)
+function annotation(spec, keys...)
     try
         return annotations(spec, keys...)
     catch
@@ -16,7 +16,7 @@ function _ann(spec, keys...)
 end
 
 """
-    traces_from_spec(spec) -> Vector{Trace}
+    tracesfromspec(spec) -> Vector{Trace}
 
 Extract one `Trace` per plane from an N-dimensional NMRData whose first axis is the
 chemical shift (`F1Dim`) — a pseudo-2D (shift × planes), or a pseudo-3D/-nD such as an
@@ -30,7 +30,7 @@ computed once by NMRTools when the spectrum is loaded) here, at the point traces
 built - not live, per-analysis, from a user-positioned noise region - so every
 downstream `Trace` is already expressed in signal-to-noise units.
 """
-function traces_from_spec(spec)
+function tracesfromspec(spec)
     δ = collect(data(spec, F1Dim))
     Y = data(spec)
     n = length(δ)
@@ -43,26 +43,26 @@ function traces_from_spec(spec)
 end
 
 """
-    default_noise_center(spec; frac=0.9) -> Float64
+    defaultnoisecentre(spec; frac=0.9) -> Float64
 
 A fallback noise position: `frac` of the way across the chemical-shift axis. The GUI lets
 the user reposition it.
 """
-function default_noise_center(spec; frac=0.9)
+function defaultnoisecentre(spec; frac=0.9)
     δ = collect(data(spec, F1Dim))
     lo, hi = extrema(δ)
     return lo + frac * (hi - lo)
 end
 
 """
-    dataset_from_spec(spec, vars; noisecenter=default_noise_center(spec)) -> Dataset1D
+    datasetfromspec(spec, vars; noisecenter=defaultnoisecentre(spec)) -> Dataset1D
 
 Build a `Dataset1D` from a pseudo-2D `spec` and a vector of per-plane variable
 `NamedTuple`s (`length(vars) == number of planes`).
 """
-function dataset_from_spec(spec, vars::AbstractVector{<:NamedTuple};
-                           noisecenter::Real=default_noise_center(spec))
-    return Dataset1D(Planes(traces_from_spec(spec), collect(vars)), Float64(noisecenter),
+function datasetfromspec(spec, vars::AbstractVector{<:NamedTuple};
+                           noisecenter::Real=defaultnoisecentre(spec))
+    return Dataset1D(Planes(tracesfromspec(spec), collect(vars)), Float64(noisecenter),
                      speclabel(spec))
 end
 

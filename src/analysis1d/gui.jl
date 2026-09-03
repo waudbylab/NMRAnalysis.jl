@@ -23,7 +23,7 @@ end
 
 """Step the spectrum slider by `delta` planes (clamped to range), moving its visual
 thumb via `set_close_to!` (not just `.value`, which the slider's thumb doesn't track -
-see `setup_keyboard!`). Shared by the ←/→ buttons and the Left/Right key shortcuts."""
+see `setupkeyboard!`). Shared by the ←/→ buttons and the Left/Right key shortcuts."""
 function stepslice!(sl, nplanes, delta)
     i = sl.value[] + delta
     return (1 ≤ i ≤ nplanes) && set_close_to!(sl, i)
@@ -48,7 +48,7 @@ function gui!(expt::Experiment1D)
     # the analysis type is already shown as a large bold label inside the window, so the
     # OS titlebar just carries the application identity rather than repeating it
     GLMakie.activate!(; focus_on_show=true, title="NMRAnalysis.jl")
-    state = prepare_state(expt)
+    state = preparestate(expt)
     state[:gui] = Dict{Symbol,Any}()
     gui = state[:gui]
     cols = Makie.wong_colors()
@@ -85,18 +85,18 @@ function gui!(expt::Experiment1D)
     # y-axis locked (matches the R1rho GUI): chemical-shift regions are picked/dragged
     # horizontally only, so zoom/pan/rectangle-select should never touch intensity. The
     # title identifies which plane is on display (e.g. "0.4 s delay (anti-TROSY)").
-    spectitle = lift(i -> spectruminfo(expt, state[:planes].vars[i]), state[:currentspectrum_idx])
+    spectitle = lift(i -> spectruminfo(expt, state[:planes].vars[i]), state[:currentspectrumidx])
     ax = Axis(left[1, 1]; xreversed=true, xlabel="Chemical shift (ppm)", ylabel="Intensity",
               title=spectitle, yzoomlock=true, ypanlock=true, xrectzoom=true, yrectzoom=false,
               xgridvisible=false, ygridvisible=false)
-    gui[:ax_spec] = ax
+    gui[:axspec] = ax
     hlines!(ax, [0]; color=:grey)
     lines!(ax, state[:overlay]; color=(:grey, 0.35), label="All spectra")
     lines!(ax, state[:currentspectrum]; color=cols[1], label="Current spectrum")
 
     gui[:regionspans] = Any[]
-    rebuild_regionspans!(ax, state)
-    on(rs -> length(rs) != length(gui[:regionspans]) && rebuild_regionspans!(ax, state),
+    rebuildregionspans!(ax, state)
+    on(rs -> length(rs) != length(gui[:regionspans]) && rebuildregionspans!(ax, state),
        state[:regions])
 
     # noise marker: a vline for visibility, plus a wider, mostly-transparent band as the
@@ -128,7 +128,7 @@ function gui!(expt::Experiment1D)
     vspan!(ax, addlo, addhi; color=lift(a -> (:seagreen, a), addalpha), xautolimits=false)
 
     # --- result panel ---
-    # Built by the experiment's visualisation strategy; `gui[:ax_fit]` is set there.
+    # Built by the experiment's visualisation strategy; `gui[:axfit]` is set there.
     gui[:panelresult] = left[2, 1]
     resultpanel!(gui, state, expt)
 
@@ -152,28 +152,28 @@ function gui!(expt::Experiment1D)
     # row's few items comfortably fit the panel's fixed width
     r += 1
     zoomrow = right[r, 1] = GridLayout()
-    btn_yup = zoomrow[1, 1] = Button(fig; label="×2 (↑)")
-    btn_ydown = zoomrow[1, 2] = Button(fig; label="÷2 (↓)")
-    on(_ -> scaleyaxis!(ax, 2), btn_yup.clicks)
-    on(_ -> scaleyaxis!(ax, 0.5), btn_ydown.clicks)
-    btn_resetzoom = zoomrow[1, 3] = Button(fig; label="reset zoom")
+    btnyup = zoomrow[1, 1] = Button(fig; label="×2 (↑)")
+    btnydown = zoomrow[1, 2] = Button(fig; label="÷2 (↓)")
+    on(_ -> scaleyaxis!(ax, 2), btnyup.clicks)
+    on(_ -> scaleyaxis!(ax, 0.5), btnydown.clicks)
+    btnresetzoom = zoomrow[1, 3] = Button(fig; label="reset zoom")
     # Clearing `ax.limits` (rather than calling `reset_limits!` directly) is what
-    # actually gives a *fresh* full-data view: `ylims!`/`rebuild_regionspans!` pin
+    # actually gives a *fresh* full-data view: `ylims!`/`rebuildregionspans!` pin
     # `ax.limits` to specific bounds as they run, and `reset_limits!` on its own just
     # re-applies whatever is currently pinned there rather than recomputing from data.
-    on(_ -> (ax.limits[] = (nothing, nothing)), btn_resetzoom.clicks)
+    on(_ -> (ax.limits[] = (nothing, nothing)), btnresetzoom.clicks)
 
     # slice navigation row
     r += 1
     slicerow = right[r, 1] = GridLayout()
-    btn_left = slicerow[1, 1] = Button(fig; label="←")
-    btn_right = slicerow[1, 2] = Button(fig; label="→")
+    btnleft = slicerow[1, 1] = Button(fig; label="←")
+    btnright = slicerow[1, 2] = Button(fig; label="→")
     sl = slicerow[1, 3] = Slider(fig; range=1:state[:nplanes], width=90)
     gui[:slider] = sl
-    connect!(state[:currentspectrum_idx], sl.value)
-    on(_ -> stepslice!(sl, state[:nplanes], -1), btn_left.clicks)
-    on(_ -> stepslice!(sl, state[:nplanes], 1), btn_right.clicks)
-    slicerow[1, 4] = Label(fig, lift(i -> "$i of $(state[:nplanes])", state[:currentspectrum_idx]))
+    connect!(state[:currentspectrumidx], sl.value)
+    on(_ -> stepslice!(sl, state[:nplanes], -1), btnleft.clicks)
+    on(_ -> stepslice!(sl, state[:nplanes], 1), btnright.clicks)
+    slicerow[1, 4] = Label(fig, lift(i -> "$i of $(state[:nplanes])", state[:currentspectrumidx]))
 
     r += 1
     right[r, 1] = Label(fig,
@@ -189,32 +189,32 @@ function gui!(expt::Experiment1D)
     editrow = right[r, 1] = GridLayout()
     # explicit matching widths rather than relying on grid-stretch semantics to split
     # the row evenly - simpler and unambiguous
-    btn_rename = editrow[1, 1] = Button(fig; label="(R)ename", width=115)
-    on(btn_rename.clicks) do _
+    btnrename = editrow[1, 1] = Button(fig; label="(R)ename", width=115)
+    on(btnrename.clicks) do _
         return state[:mode][] == :normal && beginrename!(state)
     end
-    btn_delete = editrow[1, 2] = Button(fig; label="(D)elete", width=115)
-    on(btn_delete.clicks) do _
+    btndelete = editrow[1, 2] = Button(fig; label="(D)elete", width=115)
+    on(btndelete.clicks) do _
         return state[:mode][] == :normal && deleteregion!(state, state[:active][])
     end
 
     r += 1
     outputrow = right[r, 1] = GridLayout()
     # empty (not pre-filled with "out") so the placeholder text is visible - `state[:outputdir]`
-    # already defaults to "out" independently (see `prepare_state`), so leaving this
+    # already defaults to "out" independently (see `preparestate`), so leaving this
     # untouched still saves there
     tout = outputrow[1, 1] = Textbox(fig; width=90, placeholder="out")
     on(tout.stored_string) do s
         return state[:outputdir][] = s
     end
-    btn_save = outputrow[1, 2] = Button(fig; label="Save")
-    on(btn_save.clicks) do _
-        return save_results(state)
+    btnsave = outputrow[1, 2] = Button(fig; label="Save")
+    on(btnsave.clicks) do _
+        return saveresults(state)
     end
     # Restores a region list saved earlier from the same output folder, so a multi-region
     # session can be picked up again rather than re-picked by hand.
-    btn_load = outputrow[1, 3] = Button(fig; label="Load")
-    on(btn_load.clicks) do _
+    btnload = outputrow[1, 3] = Button(fig; label="Load")
+    on(btnload.clicks) do _
         path = joinpath(pwd(), state[:outputdir][], "results.csv")
         try
             n = readregions!(state, path)
@@ -277,11 +277,11 @@ function gui!(expt::Experiment1D)
     # now that every later row exists, add breathing room below the fitting toggle
     rowgap!(right, fittingrow, Fixed(20))
 
-    setup_mouse!(fig, ax, state)
-    setup_keyboard!(fig, ax, state)
+    setupmouse!(fig, ax, state)
+    setupkeyboard!(fig, ax, state)
 
     display(fig)
-    autolimits!(gui[:ax_fit])
+    autolimits!(gui[:axfit])
     while isopen(fig.scene)
         sleep(0.1)
     end
@@ -300,7 +300,7 @@ explicit `on` listener (rather than `lift`ing straight off `state[:regions]`/
 rebuild. Without that, an old listener for index `i` stays registered on `state[:regions]`
 after its span is deleted, and fires (indexing out of bounds) the next time a region is
 removed and the list is shorter than `i`."""
-function rebuild_regionspans!(ax, state)
+function rebuildregionspans!(ax, state)
     gui = state[:gui]
     # Capture the current view and reapply it once the spans below are rebuilt. Deleting
     # and re-adding plot objects makes Makie fall back to full-data autolimits on the
@@ -350,7 +350,7 @@ end
 Begin renaming the active region (shared by the button and the 'R' key). When triggered
 `:keyboard`, the same keypress that opened rename mode also emits a unicode-input event
 for its own character (e.g. 'r') a moment later — enter the intermediate `:renamingstart`
-mode so `setup_keyboard!`'s unicode handler can swallow that spillover character rather
+mode so `setupkeyboard!`'s unicode handler can swallow that spillover character rather
 than prepending it to the new name (mirrors the 2D fitting GUI's rename handshake).
 """
 function beginrename!(state; initiator=:mouse)
@@ -362,7 +362,7 @@ end
 
 """Wire mouse dragging of the region/noise spans, and hover-highlighting of the region
 under the cursor, on the spectrum axis."""
-function setup_mouse!(fig, ax, state)
+function setupmouse!(fig, ax, state)
     gui = state[:gui]
     gui[:dragging] = :nothing
     on(events(ax).mousebutton) do ev
@@ -409,10 +409,10 @@ function setup_mouse!(fig, ax, state)
             state[:noisec][] = mouseposition(ax)[1]
             return Consume(true)
         elseif d isa Tuple && d[1] == :region
-            set_region_center!(state, d[2], mouseposition(ax)[1])
+            setregioncentre!(state, d[2], mouseposition(ax)[1])
             return Consume(true)
         elseif d isa Tuple && d[1] == :regionedge
-            set_region_edge!(state, d[2], d[3], mouseposition(ax)[1])
+            setregionedge!(state, d[2], d[3], mouseposition(ax)[1])
             return Consume(true)
         elseif d == :nothing
             # hover highlight: select whichever region the mouse is over (does not
@@ -431,7 +431,7 @@ end
 """Wire keyboard shortcuts: A to add a region (tap or drag), R to rename, D to delete,
 Left/Right to step through spectra, Up/Down to scale the spectrum's y-axis, matching the
 2D fitting GUI's key bindings."""
-function setup_keyboard!(fig, ax, state)
+function setupkeyboard!(fig, ax, state)
     defaultwidth = defaultregionwidth(first(state[:planes].traces).δ)
     on(events(fig).keyboardbutton; priority=2) do ev
         mode = state[:mode][]
@@ -547,7 +547,7 @@ function pickregion(traces::AbstractVector{Trace}; peakppm=nothing, noiseppm=not
     # overlaying every one of them is slow to render and no more informative than a
     # representative handful
     plotted = traces[1:min(10, length(traces))]
-    lines!(ax, _overlay_points([Point2f.(t.δ, t.y) for t in plotted]); color=(:grey, 0.5),
+    lines!(ax, overlaypoints([Point2f.(t.δ, t.y) for t in plotted]); color=(:grey, 0.5),
            label="All spectra")
     peakspan = vspan!(ax, lift((p, ww) -> p - ww / 2, pk, w),
                       lift((p, ww) -> p + ww / 2, pk, w); color=ACTIVE_REGION_COLOR,
@@ -632,14 +632,14 @@ function pickregion(traces::AbstractVector{Trace}; peakppm=nothing, noiseppm=not
 end
 
 function pickregion(specs::AbstractVector; kwargs...)
-    return pickregion(reduce(vcat, traces_from_spec.(specs)); kwargs...)
+    return pickregion(reduce(vcat, tracesfromspec.(specs)); kwargs...)
 end
 
 """Save the results, covering every region (not just the active one shown live in the GUI
 panels), to the output folder: `results.csv` (machine-readable, and the file a region list
 is restored from - see `readregions!`), `summary.txt`, an overlay of every region in
 `fit.pdf`, and one `fit_<region>.pdf` per region on its own."""
-function save_results(state)
+function saveresults(state)
     dir = joinpath(pwd(), state[:outputdir][])
     isdir(dir) || mkpath(dir)
     expt = state[:expt]
@@ -681,7 +681,7 @@ function save_results(state)
         println(f, "Noise position (ppm): $(round(state[:noisec][]; digits=4))")
         println(f)
         for label in labels
-            print(f, summary_text(expt, result, label))
+            print(f, summarytext(expt, result, label))
         end
     end
     writeresults!(expt, state, dir)

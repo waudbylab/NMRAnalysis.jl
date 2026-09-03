@@ -114,7 +114,7 @@ The planes plus the universal noise position (ppm), and a `label` describing whe
 data came from (a filename, say) - a plain `String`, so results files can say what they
 were computed from without NMRData re-entering the analysis core. The noise *region* used to estimate
 uncertainty always has the same width as whichever signal region is being reduced (see
-[`reduce_region`](@ref)) — matching widths is what makes the noise-region integral a
+[`reduceregion`](@ref)) — matching widths is what makes the noise-region integral a
 direct estimate of the signal-region integral's noise — so only the noise centre is
 stored here; noise handling is otherwise shared across all experiments rather than
 re-implemented per analysis.

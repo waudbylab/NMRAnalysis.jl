@@ -4,7 +4,7 @@
 Abstract supertype for the rule mapping a region across all planes to a series of
 quantities (one or more per plane). v1 provides only [`Integrate`](@ref). Future
 reductions (e.g. NMF for kinetics) plug in here by implementing
-[`reduce_region`](@ref).
+[`reduceregion`](@ref).
 """
 abstract type Reduction end
 
@@ -18,12 +18,12 @@ by the existing 1D routines and by GUI2D's intensity analysis.
 struct Integrate <: Reduction end
 
 """
-    roi_indices(trace, region) -> Vector{Int}
+    roiindices(trace, region) -> Vector{Int}
 
 Indices of `trace.δ` falling within `region`. For a zero-width region (or one that
 contains no grid points) the single nearest point is returned, giving a peak height.
 """
-function roi_indices(t::Trace, r::Region)
+function roiindices(t::Trace, r::Region)
     idx = findall(δ -> r.lo ≤ δ ≤ r.hi, t.δ)
     isempty(idx) || return idx
     mid = (r.lo + r.hi) / 2
@@ -35,16 +35,16 @@ end
 
 Summed intensity of `trace` over `region`.
 """
-integrate(t::Trace, r::Region) = sum(@view t.y[roi_indices(t, r)])
+integrate(t::Trace, r::Region) = sum(@view t.y[roiindices(t, r)])
 
 """
-    reduce_region(::Integrate, region, dataset) -> NamedTuple
+    reduceregion(::Integrate, region, dataset) -> NamedTuple
 
 Integrate `region` over every plane of `dataset`, returning a `NamedTuple` of named
 quantity series. For `Integrate` there is a single series `I`, a `Vector{Measurement}`.
 
 This is a different noise question from the point-wise spectrum normalisation done in
-`traces_from_spec` (dividing by `spec[:noise]`, the whole-spectrum RMS level): the
+`tracesfromspec` (dividing by `spec[:noise]`, the whole-spectrum RMS level): the
 uncertainty on an *integrated* region depends on its width and on the actual, possibly
 non-white noise there, not on a single global scalar. So, following the legacy 1D
 routines and `Exchange1D`, it's measured directly: integrate a noise region of the same
@@ -55,7 +55,7 @@ to `sqrt(n points)` when the noise is uniform, but tracks the real, locally-meas
 noise otherwise. Returning a `NamedTuple` keeps the contract general: a future NMF
 reduction can return several named component series.
 """
-function reduce_region(::Integrate, region::Region, dataset::Dataset1D)
+function reduceregion(::Integrate, region::Region, dataset::Dataset1D)
     planes = dataset.planes
     w = width(region)
     w == 0 && (w = 0.05)   # a height still needs a nominal window for the noise estimate
@@ -75,4 +75,4 @@ end
 
 Convenience accessor for the primary (`I`) series of an `Integrate` reduction.
 """
-integrals(region::Region, dataset::Dataset1D) = reduce_region(Integrate(), region, dataset).I
+integrals(region::Region, dataset::Dataset1D) = reduceregion(Integrate(), region, dataset).I

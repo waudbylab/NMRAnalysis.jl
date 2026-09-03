@@ -15,13 +15,13 @@ interest interactively in the GUI (press `A`) rather than specifying them up fro
 """
 function kinetics1d(spec, times::AbstractVector; run=nothing, regions=nothing,
                     model::SeriesModel=NoFitting(), integration=nothing)
-    spec = _spec(spec)
+    spec = loadspec(spec)
     vars = if isnothing(run)
         [(; time=Float64(times[i])) for i in eachindex(times)]
     else
         [(; time=Float64(times[i]), run=run[i]) for i in eachindex(times)]
     end
-    ds = dataset_from_spec(spec, vars)
+    ds = datasetfromspec(spec, vars)
     expt = isnothing(regions) ? KineticsExperiment(ds; model) :
            KineticsExperiment(ds; regions, model)
     return run1d(expt; integration)

@@ -17,21 +17,21 @@ Abstract supertype for the rule mapping a quantity series to derived parameters.
 abstract type SeriesModel end
 
 """
-    CurveFitModel(func, param_names, estimate; xlabel, ylabel)
+    CurveFitModel(func, paramnames, estimate; xlabel, ylabel)
 
 A parametric model fitted to `(x, y)` with `func(x, p)`. `estimate(x, y)` returns initial
 parameters. Mirrors the `ParametricModel` pattern in GUI2D's `models.jl`.
 """
 struct CurveFitModel <: SeriesModel
     func::Function
-    param_names::Vector{String}
+    paramnames::Vector{String}
     estimate::Function
     xlabel::String
     ylabel::String
 end
 
-function CurveFitModel(func, param_names, estimate; xlabel="x", ylabel="Intensity")
-    return CurveFitModel(func, collect(String, param_names), estimate, xlabel, ylabel)
+function CurveFitModel(func, paramnames, estimate; xlabel="x", ylabel="Intensity")
+    return CurveFitModel(func, collect(String, paramnames), estimate, xlabel, ylabel)
 end
 
 """
@@ -72,14 +72,14 @@ end
 # ---- fitting ------------------------------------------------------------------
 
 """
-    fit_series(model, x, y) -> NamedTuple
+    fitseries(model, x, y) -> NamedTuple
 
 Fit `model` to evolution values `x` and reduced quantities `y` (a
 `Vector{Measurement}`). Returns `(; params, names, model, converged)` with `params` a
 `Vector{Measurement}` (value ± standard error). The fit is noise-weighted using the
 uncertainties carried by `y` (addressing the "scale fitting by noise" TODO).
 """
-function fit_series(m::CurveFitModel, x::AbstractVector, y::AbstractVector)
+function fitseries(m::CurveFitModel, x::AbstractVector, y::AbstractVector)
     yv = Measurements.value.(y)
     yσ = Measurements.uncertainty.(y)
     p0 = m.estimate(x, yv)
@@ -89,10 +89,10 @@ function fit_series(m::CurveFitModel, x::AbstractVector, y::AbstractVector)
         curve_fit(m.func, x, yv, p0)
     end
     params = coef(fit) .± stderror(fit)
-    return (; params, names=m.param_names, model=m, converged=fit.converged)
+    return (; params, names=m.paramnames, model=m, converged=fit.converged)
 end
 
-function fit_series(::NoFitting, x::AbstractVector, y::AbstractVector)
+function fitseries(::NoFitting, x::AbstractVector, y::AbstractVector)
     return (; params=Measurement{Float64}[], names=String[], model=NoFitting(),
             converged=true)
 end
