@@ -241,12 +241,14 @@ function gui!(expt::Experiment1D)
                              state[:activelabel]);
                         font=:bold, halign=:left, tellwidth=false)
 
+    # bounds of the active region ("8.17-9.01 ppm"), underneath its name
     r += 1
-    right[r, 1] = Label(fig, state[:resultsheader]; tellwidth=false, halign=:left,
-                        justification=:left)
+    right[r, 1] = Label(fig, state[:activebounds]; halign=:left, tellwidth=false)
 
+    # One Label for the fit's own parameters and the quantities derived from them
+    # together (see `state[:resultspanel]` for why this is one Label rather than two).
     r += 1
-    right[r, 1] = Label(fig, state[:secondaryresult]; tellwidth=false, halign=:left,
+    right[r, 1] = Label(fig, state[:resultspanel]; tellwidth=false, halign=:left,
                         justification=:left, word_wrap=true)
 
     # now that every later row exists, add breathing room below the fitting toggle
