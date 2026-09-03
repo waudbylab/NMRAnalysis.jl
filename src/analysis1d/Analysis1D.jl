@@ -6,8 +6,12 @@ calibration, STD, kinetics, …). See `PLAN.md` in this directory for the design
 
 The analysis core operates on plain `Trace`/`Planes`/`Dataset1D` values and has no GUI
 or NMRData dependency in its computational path (the agreed "keep the science pure"
-split). NMRData is touched only by the loader adapters in `loaders.jl`. The interactive
-GUI is a later phase layered on top.
+split). NMRData is touched only by the adapters in `nmrdata.jl`.
+
+Each analysis lives in a single self-contained `expt-<name>.jl` holding its entry point,
+type, interface methods, science and presentation - the layout used by `GUI2D` and
+`Exchange1D`. `experiments.jl` documents the interface and includes them; see
+`expt-tract.jl` for the fullest example.
 """
 module Analysis1D
 
@@ -24,9 +28,8 @@ using ..NMRAnalysis: register_analysis!, viscosity
 include("types.jl")
 include("reductions.jl")
 include("seriesmodels.jl")
-include("experiments.jl")
-include("std.jl")
-include("loaders.jl")
+include("nmrdata.jl")
+include("experiments.jl")   # interface + pipeline; includes one expt-*.jl per experiment
 
 # interactive GUI
 include("visualisation.jl")

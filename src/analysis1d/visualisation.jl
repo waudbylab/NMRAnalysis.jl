@@ -1,6 +1,9 @@
-# Result-panel visualisation. Pure data builders (result -> plot primitives) dispatched on
-# the experiment type, plus axis labels and a summary string. The GUI lifts Observables off
-# these; saving reuses the same builders, so live and exported plots share one code path.
+# Result-panel visualisation: the generic half. Pure data builders (result -> plot
+# primitives), axis labels, and the summary formatter, each with a default that covers
+# the curve-fit experiments. Per-experiment overrides live in the `expt-*.jl` files.
+#
+# The GUI lifts Observables off these builders; saving reuses them, so live and exported
+# plots share one code path.
 
 """
     ResultSeries
@@ -43,9 +46,6 @@ switch to whichever of s/ms/µs suits their actual scale (see `timescale`). Curv
 itself always uses the raw, unscaled values; this only affects what's plotted/exported.
 """
 resultxfactor(::Experiment1D) = 1.0
-resultxfactor(e::RelaxationExperiment) = timescale(column(dataset(e).planes, :time))[1]
-resultxfactor(e::TractExperiment) = timescale(column(dataset(e).planes, :time))[1]
-resultxfactor(e::NutationExperiment) = timescale(column(dataset(e).planes, :duration))[1]
 
 """
     result_plotdata(expt, result, activelabel) -> Vector{ResultSeries}
@@ -72,51 +72,14 @@ function result_plotdata(e::Experiment1D, result, activelabel::AbstractString)
     end
 end
 
-function result_plotdata(::STDExperiment, result, activelabel::AbstractString)
-    pts = filter(p -> p.region == activelabel, result.points)
-    sats = unique(p.sat for p in pts)
-    return map(sats) do sat
-        ps = filter(p -> p.sat == sat, pts)
-        points = [Point2f(p.tsat, Measurements.value(p.std)) for p in ps]
-        errors = [(p.tsat, Measurements.value(p.std), Measurements.uncertainty(p.std))
-                  for p in ps]
-        bi = findfirst(b -> b.region == activelabel && b.sat == sat, result.buildups)
-        fitline = if !isnothing(bi)
-            b = result.buildups[bi]
-            tmax = maximum(p.tsat for p in ps)
-            xs = collect(range(0.0, 1.05 * tmax, 100))
-            smax, k = Measurements.value(b.std_af_max), Measurements.value(b.k)
-            Point2f.(xs, @.(smax * (1 - exp(-k * xs))))
-        else
-            Point2f[]
-        end
-        ResultSeries(points, errors, fitline, string(sat))
-    end
-end
-
 """Human-readable label for a grouping key, e.g. `(which = :trosy,)` → `"trosy"`."""
 function groupname(group::NamedTuple)
     isempty(group) && return ""
     return join((string(v) for v in values(group)), ", ")
 end
 
-# axis labels for the result panel
+"axis labels for the result panel"
 result_labels(::Experiment1D) = ("x", "Integrated intensity (a.u.)")
-function result_labels(e::RelaxationExperiment)
-    _, unit = timescale(column(dataset(e).planes, :time))
-    return ("Relaxation delay / $unit", "Integrated intensity (a.u.)")
-end
-function result_labels(e::TractExperiment)
-    _, unit = timescale(column(dataset(e).planes, :time))
-    return ("Relaxation delay / $unit", "Integrated intensity (a.u.)")
-end
-function result_labels(e::NutationExperiment)
-    _, unit = timescale(column(dataset(e).planes, :duration))
-    return ("Pulse duration / $unit", "Integrated intensity (a.u.)")
-end
-result_labels(::KineticsExperiment) = ("Time", "Integrated intensity (a.u.)")
-result_labels(::DiffusionExperiment) = ("Relative gradient strength", "Integrated intensity (a.u.)")
-result_labels(::STDExperiment) = ("Saturation time / s", "STD fraction")
 
 """
     seriesnames(expt) -> Union{Nothing,Vector{String}}
@@ -128,16 +91,9 @@ default) keeps the inline curve labels, which suit experiments whose group count
 vary per dataset (e.g. STD's saturation frequencies).
 """
 seriesnames(::Experiment1D) = nothing
-seriesnames(::TractExperiment) = ["TROSY", "anti-TROSY"]
 
-# analysis-type name shown in the GUI's bold in-panel title, e.g. "NMRAnalysis: Relaxation"
+"analysis-type name shown in the GUI's bold in-panel title, e.g. \"NMRAnalysis: Relaxation\""
 windowtitle(::Experiment1D) = "1D analysis"
-windowtitle(::RelaxationExperiment) = "Relaxation"
-windowtitle(::TractExperiment) = "TRACT"
-windowtitle(::NutationExperiment) = "Nutation calibration"
-windowtitle(::KineticsExperiment) = "Kinetics"
-windowtitle(::DiffusionExperiment) = "Diffusion"
-windowtitle(::STDExperiment) = "STD"
 
 """
     spectruminfo(expt, vars) -> String
@@ -152,29 +108,6 @@ function spectruminfo(::Experiment1D, vars::NamedTuple)
     isempty(vars) && return ""
     return join(("$k=$v" for (k, v) in pairs(vars)), ", ")
 end
-
-spectruminfo(::RelaxationExperiment, vars::NamedTuple) = "$(round(vars.time; digits=3)) s delay"
-
-function spectruminfo(::TractExperiment, vars::NamedTuple)
-    which = vars.which == :trosy ? "TROSY" : "anti-TROSY"
-    return "$(round(vars.time; digits=3)) s delay ($which)"
-end
-
-function spectruminfo(::NutationExperiment, vars::NamedTuple)
-    return "$(round(1e6 * vars.duration; digits=1)) µs pulse"
-end
-
-function spectruminfo(::KineticsExperiment, vars::NamedTuple)
-    s = "$(round(vars.time; digits=3)) s"
-    haskey(vars, :run) && (s *= " (run $(vars.run))")
-    return s
-end
-
-function spectruminfo(::DiffusionExperiment, vars::NamedTuple)
-    return "gradient = $(round(100 * vars.gradient; digits=1))%"
-end
-
-spectruminfo(::STDExperiment, vars::NamedTuple) = "$(vars.sat), $(round(vars.tsat; digits=3)) s sat"
 
 # ---- summary text -------------------------------------------------------------
 
@@ -208,7 +141,6 @@ function resultsheader(e::Experiment1D, result, activelabel::AbstractString)
     end
     return String(take!(io))
 end
-resultsheader(::STDExperiment, result, activelabel::AbstractString) = ""
 
 """
     summary_text(expt, result, activelabel) -> String
@@ -238,32 +170,12 @@ function summary_text(e::Experiment1D, result, activelabel::AbstractString)
     return String(take!(io))
 end
 
+# Per-experiment "second-stage" formatting (TRACT's τc, nutation's 90°, diffusion's D/rH)
+# lives with each experiment; the generic case has nothing to add. Same
+# "  name  = value" shape as `resultsheader`'s per-series parameters, and no region name
+# repeated - the region is already named once, above both blocks, in the GUI (and in
+# `summary_text`'s own per-series header, when saved to a file).
 _summary_extra(::IOBuffer, ::Experiment1D, ::Nothing, ::AbstractString) = nothing
-# Same "  name  = value" shape as `resultsheader`'s per-series parameters, and no region
-# name repeated - the region is already named once, above both blocks, in the GUI (and
-# in `summary_text`'s own per-series header, when saved to a file).
-function _summary_extra(io::IOBuffer, ::TractExperiment, summary, activelabel)
-    for s in summary
-        s.region == activelabel || continue
-        println(io, "  $(rpad("η", 6)) = $(fmt(s.ηxy)) s⁻¹")
-        println(io, "  $(rpad("τc", 6)) = $(fmt(s.τc)) ns")
-    end
-end
-function _summary_extra(io::IOBuffer, ::NutationExperiment, summary, activelabel)
-    for s in summary
-        s.region == activelabel || continue
-        println(io, "  $(rpad("ν₁", 6)) = $(fmt(s.ν)) Hz")
-        println(io, "  $(rpad("90°", 6)) = $(fmt(1e6 * s.pulse90)) µs")
-    end
-end
-function _summary_extra(io::IOBuffer, ::DiffusionExperiment, summary, activelabel)
-    for s in summary
-        s.region == activelabel || continue
-        println(io, "  $(rpad("D", 6)) = $(fmt(s.D)) m² s⁻¹")
-        isnothing(s.rH) || println(io, "  $(rpad("rH", 6)) = $(fmt(s.rH)) Å")
-        isnothing(s.η) || println(io, "  $(rpad("η", 6)) = $(fmt(s.η)) mPa s")
-    end
-end
 
 """
     secondarytext(expt, result, activelabel) -> String
@@ -277,39 +189,5 @@ active region isn't ready yet (e.g. only one of a TRACT pair fitted so far). Reu
 function secondarytext(e::Experiment1D, result, activelabel::AbstractString)
     io = IOBuffer()
     _summary_extra(io, e, result.summary, activelabel)
-    return String(take!(io))
-end
-# STD's result has no `.series`/`.summary` fields to split into a resultsheader/
-# secondarytext pair (it's a contrast rather than a curve-fit experiment - see
-# `resultsheader`'s STD override above, near `PARAM_UNITS`) - show its whole summary
-# here instead.
-secondarytext(e::STDExperiment, result, activelabel::AbstractString) = summary_text(e, result,
-                                                                                    activelabel)
-
-function summary_text(::STDExperiment, result, activelabel::AbstractString)
-    io = IOBuffer()
-    println(io, "STD fractions")
-    println(io, "-------------")
-    for p in result.points
-        p.region == activelabel || continue
-        println(io, "  $(p.region) / $(p.sat) @ $(p.tsat) s : $(fmt(p.std))")
-    end
-    buildups = filter(b -> b.region == activelabel, result.buildups)
-    if !isempty(buildups)
-        println(io, "\nBuildup (initial slope, T1-corrected)")
-        println(io, "--------------------------------------")
-        for b in buildups
-            println(io,
-                    "  $(b.region) / $(b.sat) : STD-AF₀ = $(fmt(b.std_af0)), k = $(fmt(b.k)) s⁻¹")
-        end
-    end
-    epitope = filter(ep -> ep.region == activelabel, result.epitope)
-    if !isempty(epitope)
-        println(io, "\nEpitope map (relative to strongest signal)")
-        println(io, "-------------------------------------------")
-        for ep in epitope
-            println(io, "  $(ep.region) / $(ep.sat) : $(round(100 * ep.relative; digits=0)) %")
-        end
-    end
     return String(take!(io))
 end

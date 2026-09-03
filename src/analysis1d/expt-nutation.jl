@@ -1,0 +1,107 @@
+# Nutation calibration: pulse-length calibration from a damped sinusoid.
+#
+#   1. entry point   2. type   3. interface   4. science   5. presentation
+
+# ---- 1. entry point -----------------------------------------------------------
+
+"""
+    calibration1d(spec; durations=nothing, phase=nothing, regions=nothing, integration=nothing)
+
+Analyse a 1D nutation calibration, reporting the nutation frequency, 90° pulse length and
+B₁ inhomogeneity. Pulse durations come from `durations`, else the `calibration.duration`
+annotation. The modulation defaults to the `calibration.model` annotation
+(`"cosine_modulated"` selects a cosine); pass `phase=:sine`/`:cosine` to override.
+"""
+function calibration1d(spec; durations=nothing, phase=nothing, regions=nothing,
+                       integration=nothing)
+    spec = _spec(spec)
+    t = something(durations, _ann(spec, :calibration, :duration))
+    ph = isnothing(phase) ?
+         (_ann(spec, :calibration, :model) == "cosine_modulated" ? :cosine : :sine) : phase
+    ds = dataset_from_spec(spec, [(; duration=Float64(d)) for d in t])
+    expt = isnothing(regions) ? NutationExperiment(ds; phase=ph) :
+           NutationExperiment(ds; phase=ph, regions)
+    return run1d(expt; integration)
+end
+
+# ---- 2. type ------------------------------------------------------------------
+
+"""
+    NutationExperiment(dataset; phase=:sine, regions=…)
+
+Fit integrated intensity vs pulse duration (`vars.duration`) to a damped sinusoid and
+derive the 90° pulse length (`1/(4ν)`) and B₁ inhomogeneity (`R/2πν`). A height
+(zero-width region at the observed signal) is the natural reduction but a finite region
+works identically.
+"""
+struct NutationExperiment <: Experiment1D
+    dataset::Dataset1D
+    regions::Vector{Region}
+    model::SeriesModel
+end
+
+function NutationExperiment(dataset::Dataset1D; phase::Symbol=:sine,
+                            regions=[defaultregion(dataset)])
+    return NutationExperiment(dataset, collect(Region, regions),
+                              DampedSinusoidModel(; phase))
+end
+
+# ---- 3. interface -------------------------------------------------------------
+
+fitaxis(::NutationExperiment) = :duration
+
+# ---- 4. science ---------------------------------------------------------------
+
+"""
+    DampedSinusoidModel(; phase = :sine)
+
+Damped sinusoid for nutation calibration: `A·sin(2π·ν·t)·exp(−R·t)` (or `cos` when
+`phase = :cosine`), parameters `[A, ν, R]`. `ν` is the nutation frequency (Hz) from
+which the 90° pulse length follows as `1/(4ν)`.
+"""
+function DampedSinusoidModel(; phase::Symbol=:sine)
+    trig = phase === :cosine ? cos : sin
+    function est(x, y)
+        A = maximum(abs.(y))
+        # rough frequency: assume ~half a period across the sampled range
+        ν = 0.5 / (maximum(x) - minimum(x))
+        return [A, ν, 1.0 / maximum(x)]
+    end
+    return CurveFitModel((x, p) -> @.(p[1] * trig(2π * p[2] * x) * exp(-p[3] * x)),
+                         ["A", "ν", "R"],
+                         est;
+                         xlabel="Pulse duration / s")
+end
+
+function postprocess(::NutationExperiment, results)
+    return map(results) do r
+        ν = param(r, "ν")
+        R = param(r, "R")
+        pulse90 = 1 / (4ν)
+        inhomogeneity = R / (2π * ν)
+        return (; region=r.region, ν, pulse90, inhomogeneity)
+    end
+end
+
+# ---- 5. presentation ----------------------------------------------------------
+
+windowtitle(::NutationExperiment) = "Nutation calibration"
+
+resultxfactor(e::NutationExperiment) = timescale(column(dataset(e).planes, :duration))[1]
+
+function result_labels(e::NutationExperiment)
+    _, unit = timescale(column(dataset(e).planes, :duration))
+    return ("Pulse duration / $unit", "Integrated intensity (a.u.)")
+end
+
+function spectruminfo(::NutationExperiment, vars::NamedTuple)
+    return "$(round(1e6 * vars.duration; digits=1)) µs pulse"
+end
+
+function _summary_extra(io::IOBuffer, ::NutationExperiment, summary, activelabel)
+    for s in summary
+        s.region == activelabel || continue
+        println(io, "  $(rpad("ν₁", 6)) = $(fmt(s.ν)) Hz")
+        println(io, "  $(rpad("90°", 6)) = $(fmt(1e6 * s.pulse90)) µs")
+    end
+end

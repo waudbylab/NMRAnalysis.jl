@@ -5,7 +5,7 @@ A single 1D spectrum: a chemical-shift axis `δ` (ppm) and intensities `y`.
 
 Deliberately holds plain vectors and has no dependency on NMRData, Makie, or any GUI
 state — the analysis layer operates on `Trace`s so the science stays independent of the
-GUI. Loaders (`loaders.jl`) convert NMRData into `Trace`s.
+GUI. The adapters in `nmrdata.jl` convert NMRData into `Trace`s.
 """
 struct Trace
     δ::Vector{Float64}

@@ -1,3 +1,9 @@
+# Series models: the rule mapping a quantity series to derived parameters.
+#
+# Models used by two or more experiments live here; a model used by exactly one lives in
+# that experiment's own `expt-*.jl` (StejskalTanner in expt-diffusion.jl, DampedSinusoid
+# in expt-nutation.jl, Buildup and Contrast in expt-std.jl).
+
 """
     SeriesModel
 
@@ -37,7 +43,7 @@ where the deliverable is intensity vs time).
 """
 struct NoFitting <: SeriesModel end
 
-# ---- concrete curve-fit models ------------------------------------------------
+# ---- shared curve-fit models ---------------------------------------------------
 
 """
     ExponentialModel()
@@ -63,57 +69,6 @@ function RecoveryModel()
                          (x, y) -> [maximum(y), 2.0, 3.0 / maximum(x)];
                          xlabel="Time / s")
 end
-
-"""
-    StejskalTannerModel(; γ, δ, Δ, σ, Gmax)
-
-Stejskal–Tanner diffusion decay `A·exp(−(γ·δ·σ·g·Gmax)²·(Δ−δ/3)·D)`, fitted against the
-relative gradient strength `g` (0–1). Parameters are `[A, D]` with `D` in units of
-10⁻¹⁰ m² s⁻¹ (as in the legacy routine), so the physical coefficient is `D · 1e-10`.
-"""
-function StejskalTannerModel(; γ, δ, Δ, σ, Gmax)
-    k = (γ * δ * σ * Gmax)^2 * (Δ - δ / 3) * 1e-10
-    return CurveFitModel((x, p) -> @.(p[1] * exp(-k * x^2 * p[2])),
-                         ["A", "D"],
-                         (x, y) -> [maximum(abs.(y)), 1.0];
-                         xlabel="Relative gradient strength")
-end
-
-"""
-    DampedSinusoidModel(; phase = :sine)
-
-Damped sinusoid for nutation calibration: `A·sin(2π·ν·t)·exp(−R·t)` (or `cos` when
-`phase = :cosine`), parameters `[A, ν, R]`. `ν` is the nutation frequency (Hz) from
-which the 90° pulse length follows as `1/(4ν)`.
-"""
-function DampedSinusoidModel(; phase::Symbol=:sine)
-    trig = phase === :cosine ? cos : sin
-    function est(x, y)
-        A = maximum(abs.(y))
-        # rough frequency: assume ~half a period across the sampled range
-        ν = 0.5 / (maximum(x) - minimum(x))
-        return [A, ν, 1.0 / maximum(x)]
-    end
-    return CurveFitModel((x, p) -> @.(p[1] * trig(2π * p[2] * x) * exp(-p[3] * x)),
-                         ["A", "ν", "R"],
-                         est;
-                         xlabel="Pulse duration / s")
-end
-
-# ---- contrast model (STD / waterLOGSY) ----------------------------------------
-
-"""
-    ContrastModel(; reference)
-
-A categorical series model: within a group of slices it contrasts each non-reference
-slice against the `reference` slice. The contrast value is `(I_ref − I_slice)/I_ref`
-(the STD fraction). Used by the STD experiment; the 1D analogue of GUI2D's `hetnoe2d`.
-"""
-struct ContrastModel <: SeriesModel
-    reference::Any
-end
-
-ContrastModel(; reference) = ContrastModel(reference)
 
 # ---- fitting ------------------------------------------------------------------
 

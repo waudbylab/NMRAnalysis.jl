@@ -1,3 +1,31 @@
+# STD: saturation-transfer difference, with buildup curves and an epitope map.
+#
+#   1. entry point   2. type   3. interface   4. science   5. presentation
+
+# ---- 1. entry point -----------------------------------------------------------
+
+"""
+    std1d(spec, sat, tsat; regions=nothing, reference=:reference, excess=1.0, integration=nothing)
+
+Analyse an STD experiment. `sat` and `tsat` are per-plane vectors giving the saturation
+condition (one of which is the `reference`) and the saturation time. Reports STD fractions
+per region, buildup curves where several saturation times are present, and an epitope map.
+
+`regions` defaults to a single peak-detected region; add further named ligand regions
+interactively in the GUI (press `A`) rather than specifying them up front.
+"""
+function std1d(spec, sat::AbstractVector, tsat::AbstractVector; regions=nothing,
+               reference=:reference, excess::Real=1.0, integration=nothing)
+    spec = _spec(spec)
+    vars = [(; sat=sat[i], tsat=Float64(tsat[i])) for i in eachindex(sat)]
+    ds = dataset_from_spec(spec, vars)
+    expt = isnothing(regions) ? STDExperiment(ds; reference, excess) :
+           STDExperiment(ds; regions, reference, excess)
+    return run1d(expt; integration)
+end
+
+# ---- 2. type ------------------------------------------------------------------
+
 """
     STDExperiment(dataset; regions=[defaultregion(dataset)], reference=:reference, excess=1.0)
 
@@ -41,8 +69,8 @@ function STDExperiment(dataset::Dataset1D; regions=[defaultregion(dataset)],
     return STDExperiment(dataset, collect(Region, regions), reference, Float64(excess))
 end
 
-dataset(e::STDExperiment) = e.dataset
-regions(e::STDExperiment) = e.regions
+# ---- 3. interface -------------------------------------------------------------
+# STD overrides `analyse` wholesale, so it declares no fitaxis/groupcols.
 
 """STD fraction (× excess) for one region, saturation and saturation time."""
 struct STDPoint
@@ -70,6 +98,21 @@ struct EpitopePoint
     std_af::Measurement{Float64}
     relative::Float64
 end
+
+# ---- 4. science ---------------------------------------------------------------
+
+"""
+    ContrastModel(; reference)
+
+A categorical series model: within a group of slices it contrasts each non-reference
+slice against the `reference` slice. The contrast value is `(I_ref − I_slice)/I_ref`
+(the STD fraction). Used by the STD experiment; the 1D analogue of GUI2D's `hetnoe2d`.
+"""
+struct ContrastModel <: SeriesModel
+    reference::Any
+end
+
+ContrastModel(; reference) = ContrastModel(reference)
 
 function BuildupModel()
     return CurveFitModel((x, p) -> @.(p[1] * (1 - exp(-p[2] * x))),
@@ -153,4 +196,70 @@ function epitope_map(points::Vector{STDPoint})
         end
     end
     return epitope
+end
+
+# ---- 5. presentation ----------------------------------------------------------
+
+windowtitle(::STDExperiment) = "STD"
+
+result_labels(::STDExperiment) = ("Saturation time / s", "STD fraction")
+
+spectruminfo(::STDExperiment, vars::NamedTuple) = "$(vars.sat), $(round(vars.tsat; digits=3)) s sat"
+
+function result_plotdata(::STDExperiment, result, activelabel::AbstractString)
+    pts = filter(p -> p.region == activelabel, result.points)
+    sats = unique(p.sat for p in pts)
+    return map(sats) do sat
+        ps = filter(p -> p.sat == sat, pts)
+        points = [Point2f(p.tsat, Measurements.value(p.std)) for p in ps]
+        errors = [(p.tsat, Measurements.value(p.std), Measurements.uncertainty(p.std))
+                  for p in ps]
+        bi = findfirst(b -> b.region == activelabel && b.sat == sat, result.buildups)
+        fitline = if !isnothing(bi)
+            b = result.buildups[bi]
+            tmax = maximum(p.tsat for p in ps)
+            xs = collect(range(0.0, 1.05 * tmax, 100))
+            smax, k = Measurements.value(b.std_af_max), Measurements.value(b.k)
+            Point2f.(xs, @.(smax * (1 - exp(-k * xs))))
+        else
+            Point2f[]
+        end
+        ResultSeries(points, errors, fitline, string(sat))
+    end
+end
+
+# STD's result has no `.series`/`.summary` fields to split into a resultsheader/
+# secondarytext pair (it's a contrast rather than a curve-fit experiment) - show its
+# whole summary in the secondary block instead.
+resultsheader(::STDExperiment, result, activelabel::AbstractString) = ""
+function secondarytext(e::STDExperiment, result, activelabel::AbstractString)
+    return summary_text(e, result, activelabel)
+end
+
+function summary_text(::STDExperiment, result, activelabel::AbstractString)
+    io = IOBuffer()
+    println(io, "STD fractions")
+    println(io, "-------------")
+    for p in result.points
+        p.region == activelabel || continue
+        println(io, "  $(p.region) / $(p.sat) @ $(p.tsat) s : $(fmt(p.std))")
+    end
+    buildups = filter(b -> b.region == activelabel, result.buildups)
+    if !isempty(buildups)
+        println(io, "\nBuildup (initial slope, T1-corrected)")
+        println(io, "--------------------------------------")
+        for b in buildups
+            println(io,
+                    "  $(b.region) / $(b.sat) : STD-AF₀ = $(fmt(b.std_af0)), k = $(fmt(b.k)) s⁻¹")
+        end
+    end
+    epitope = filter(ep -> ep.region == activelabel, result.epitope)
+    if !isempty(epitope)
+        println(io, "\nEpitope map (relative to strongest signal)")
+        println(io, "-------------------------------------------")
+        for ep in epitope
+            println(io, "  $(ep.region) / $(ep.sat) : $(round(100 * ep.relative; digits=0)) %")
+        end
+    end
+    return String(take!(io))
 end

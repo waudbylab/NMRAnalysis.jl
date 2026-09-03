@@ -7,16 +7,35 @@ fit-axis / grouping designation. The generic [`analyse`](@ref) pipeline does the
 experiments override [`postprocess`](@ref) to derive a global result (e.g. TRACT τc),
 and may override `analyse` entirely for non-curve-fit shapes (e.g. STD contrast).
 
+# Adding an experiment
+
+One file per experiment, `expt-<name>.jl`, included at the foot of this file, laid out in
+a fixed five-section order (see `expt-tract.jl` for the fullest example):
+
+1. **entry point** — the exported `<name>1d(...)` function: load the spectra, pull the
+   acquisition parameters, build the experiment, `run1d(expt; integration)`.
+2. **type** — the `struct <Name>Experiment <: Experiment1D` and its keyword constructor.
+3. **interface** — only the hooks that differ from the defaults below.
+4. **science** — the series model, the derived-quantity maths, physics constants.
+5. **presentation** — `windowtitle`, `result_labels`, `spectruminfo`, and friends.
+
 Interface (with defaults):
-- `dataset(e)`        — the `Dataset1D`
-- `regions(e)`        — `Vector{Region}`, length ≥ 1
+- `dataset(e)`        — the `Dataset1D` (default: `e.dataset`)
+- `regions(e)`        — `Vector{Region}`, length ≥ 1 (default: `e.regions`)
 - `reduction(e)`      — `Reduction` (default `Integrate()`)
-- `seriesmodel(e)`    — `SeriesModel`
-- `fitaxis(e)`        — `Symbol` naming the evolution variable
+- `seriesmodel(e)`    — `SeriesModel` (default: `e.model`)
+- `fitaxis(e)`        — `Symbol` naming the evolution variable (required)
 - `groupcols(e)`      — `Tuple` of grouping variables (default `()`)
 - `postprocess(e, results)` — global derived result (default `nothing`)
 """
 abstract type Experiment1D end
+
+# Field-assuming defaults, in the style of GUI2D's `nslices(expt)`. An experiment whose
+# fields are named `dataset`/`regions`/`model` needs none of these three methods; one
+# that computes them (or names them differently) overrides just the one it needs.
+dataset(e::Experiment1D) = e.dataset
+regions(e::Experiment1D) = e.regions
+seriesmodel(e::Experiment1D) = e.model
 
 reduction(::Experiment1D) = Integrate()
 groupcols(::Experiment1D) = ()
@@ -117,233 +136,7 @@ function analyse(e::Experiment1D, ds::Dataset1D, regs; isfitting::Bool=true)
 end
 
 # =============================================================================
-# Relaxation (T1/T2 decay, or inversion/saturation recovery)
-# =============================================================================
-
-"""
-    RelaxationExperiment(dataset; ir=false)
-
-Fit integrated intensity vs relaxation delay (`vars.time`) to a single exponential, or
-to a recovery curve when `ir = true`. A single integration region (override via
-`regions`).
-"""
-struct RelaxationExperiment <: Experiment1D
-    dataset::Dataset1D
-    regions::Vector{Region}
-    model::SeriesModel
-end
-
-function RelaxationExperiment(dataset::Dataset1D; regions=[defaultregion(dataset)],
-                              ir::Bool=false)
-    return RelaxationExperiment(dataset, collect(Region, regions),
-                                ir ? RecoveryModel() : ExponentialModel())
-end
-
-dataset(e::RelaxationExperiment) = e.dataset
-regions(e::RelaxationExperiment) = e.regions
-seriesmodel(e::RelaxationExperiment) = e.model
-fitaxis(::RelaxationExperiment) = :time
-
-# =============================================================================
-# TRACT (TROSY / anti-TROSY pair → τc)
-# =============================================================================
-
-"""
-    TractExperiment(dataset; ωN, f, regions=…)
-
-Fit TROSY and anti-TROSY decays (grouped by `vars.which ∈ {:trosy, :anti}`) and derive
-the rotational correlation time τc from the cross-correlated relaxation-rate difference
-ΔR = R(anti) − R(trosy). `ωN` is the ¹⁵N Larmor frequency (rad s⁻¹) and `f` the
-dipole/CSA cross-correlation prefactor (see `tract_f`).
-"""
-struct TractExperiment <: Experiment1D
-    dataset::Dataset1D
-    regions::Vector{Region}
-    ωN::Float64
-    f::Float64
-end
-
-function TractExperiment(dataset::Dataset1D; ωN, f, regions=[defaultregion(dataset)])
-    return TractExperiment(dataset, collect(Region, regions), Float64(ωN), Float64(f))
-end
-
-dataset(e::TractExperiment) = e.dataset
-regions(e::TractExperiment) = e.regions
-seriesmodel(::TractExperiment) = ExponentialModel()
-fitaxis(::TractExperiment) = :time
-groupcols(::TractExperiment) = (:which,)
-
-function postprocess(e::TractExperiment, results)
-    summaries = NamedTuple[]
-    # Iterate the region labels actually present in `results`, not `regions(e)` (the
-    # experiment's own, fixed-at-construction region list) - the GUI's live `regs`
-    # argument to `analyse` can include regions added interactively after construction,
-    # and those still need a τc summary.
-    for label in unique(r.region for r in results)
-        rs = filter(r -> r.region == label, results)
-        trosy = findfirst(r -> r.group.which == :trosy, rs)
-        anti = findfirst(r -> r.group.which == :anti, rs)
-        (isnothing(trosy) || isnothing(anti)) && continue
-        Rtrosy = param(rs[trosy], "R")
-        Ranti = param(rs[anti], "R")
-        ηxy = (Ranti - Rtrosy) / 2
-        τc = tract_tauc(e.f, e.ωN, ηxy)
-        push!(summaries, (; region=label, Rtrosy, Ranti, ηxy, τc))
-    end
-    return summaries
-end
-
-"""
-    tract_f(; B0, θ=17π/180) -> Float64
-
-Dipole/CSA cross-correlation prefactor used in the TRACT τc relation, given the static
-field `B0` (T). Constants follow the standard ¹⁵N–¹H amide treatment.
-"""
-function tract_f(; B0, θ=17 * π / 180)
-    μ0 = 4π * 1e-7
-    γH = 2.6752218744e8
-    γN = -2.7126180e7
-    ħ = 6.62607015e-34 / 2π
-    rNH = 1.02e-10
-    ΔδN = 160e-6
-    p = μ0 * γH * γN * ħ / (8π * sqrt(2) * rNH^3)
-    c = B0 * γN * ΔδN / (3 * sqrt(2))
-    return p * c * (3cos(θ)^2 - 1)
-end
-
-"""
-    tract_tauc(f, ωN, ηxy) -> Float64
-
-Rotational correlation time τc (ns) from the cross-correlated cross-relaxation rate
-`ηxy`, by the analytic inversion of `ηxy = f·(4/5·τc + 3/5·τc/(1+(ωN·τc)²))` used in the
-existing `tract` routine.
-"""
-function tract_tauc(f, ωN, ηxy)
-    x = sqrt(21952 * f^6 * ωN^6 - 3025 * f^4 * ηxy^2 * ωN^8 + 625 * f^2 * ηxy^4 * ωN^10)
-    y = cbrt(1800 * f^2 * ηxy * ωN^4 + 125 * ηxy^3 * ωN^6 + 24 * sqrt(3) * x)
-    τc = (5 * ηxy) / (24 * f) -
-         (336 * f^2 * ωN^2 - 25 * ηxy^2 * ωN^4) / (24 * f * ωN^2 * y) + y / (24 * f * ωN^2)
-    return 1e9 * τc
-end
-
-# =============================================================================
-# Nutation calibration (pulse-length calibration)
-# =============================================================================
-
-"""
-    NutationExperiment(dataset; phase=:sine, regions=…)
-
-Fit integrated intensity vs pulse duration (`vars.duration`) to a damped sinusoid and
-derive the 90° pulse length (`1/(4ν)`) and B₁ inhomogeneity (`R/2πν`). A height
-(zero-width region at the observed signal) is the natural reduction but a finite region
-works identically.
-"""
-struct NutationExperiment <: Experiment1D
-    dataset::Dataset1D
-    regions::Vector{Region}
-    model::SeriesModel
-end
-
-function NutationExperiment(dataset::Dataset1D; phase::Symbol=:sine,
-                            regions=[defaultregion(dataset)])
-    return NutationExperiment(dataset, collect(Region, regions),
-                              DampedSinusoidModel(; phase))
-end
-
-dataset(e::NutationExperiment) = e.dataset
-regions(e::NutationExperiment) = e.regions
-seriesmodel(e::NutationExperiment) = e.model
-fitaxis(::NutationExperiment) = :duration
-
-function postprocess(::NutationExperiment, results)
-    return map(results) do r
-        ν = param(r, "ν")
-        R = param(r, "R")
-        pulse90 = 1 / (4ν)
-        inhomogeneity = R / (2π * ν)
-        return (; region=r.region, ν, pulse90, inhomogeneity)
-    end
-end
-
-# =============================================================================
-# Diffusion (Stejskal–Tanner)
-# =============================================================================
-
-"""
-    DiffusionExperiment(dataset; γ, δ, Δ, σ, Gmax, temp=nothing, solvent=nothing, regions=…)
-
-Fit integrated intensity vs relative gradient strength (`vars.gradient`, 0–1) to the
-Stejskal–Tanner equation. `postprocess` reports the diffusion coefficient and, when the
-solvent and temperature are known, the hydrodynamic radius via the Stokes–Einstein
-relation.
-"""
-struct DiffusionExperiment <: Experiment1D
-    dataset::Dataset1D
-    regions::Vector{Region}
-    model::SeriesModel
-    temp::Union{Nothing,Float64}
-    solvent::Any
-end
-
-function DiffusionExperiment(dataset::Dataset1D; γ, δ, Δ, σ, Gmax, temp=nothing,
-                             solvent=nothing, regions=[defaultregion(dataset)])
-    return DiffusionExperiment(dataset, collect(Region, regions),
-                               StejskalTannerModel(; γ, δ, Δ, σ, Gmax),
-                               isnothing(temp) ? nothing : Float64(temp), solvent)
-end
-
-dataset(e::DiffusionExperiment) = e.dataset
-regions(e::DiffusionExperiment) = e.regions
-seriesmodel(e::DiffusionExperiment) = e.model
-fitaxis(::DiffusionExperiment) = :gradient
-
-function postprocess(e::DiffusionExperiment, results)
-    return map(results) do r
-        D = param(r, "D") * 1e-10                      # m² s⁻¹
-        η, rH = if isnothing(e.solvent) || isnothing(e.temp)
-            (nothing, nothing)
-        else
-            ηv = viscosity(e.solvent, e.temp)          # mPa s
-            kB = 1.38e-23
-            (ηv, kB * e.temp / (6π * ηv * 0.001 * D) * 1e10)   # Å
-        end
-        return (; region=r.region, D, η, rH)
-    end
-end
-
-# =============================================================================
-# Kinetics (intensity vs time, possibly over multiple runs)
-# =============================================================================
-
-"""
-    KineticsExperiment(dataset; regions=[defaultregion(dataset)], model=NoFitting())
-
-Track integrated intensity of one or more named regions vs time (`vars.time`), grouped
-by run (`vars.run`) when present. `regions` defaults to a single peak-detected region;
-use the GUI (press `A`) to add further named regions of interest interactively rather
-than specifying them up front. v1 defaults to `NoFitting` (the deliverable is the
-intensity-vs-time trace); a kinetic `CurveFitModel` can be supplied to fit a model.
-A future iteration will add an NMF reduction over selected ROIs.
-"""
-struct KineticsExperiment <: Experiment1D
-    dataset::Dataset1D
-    regions::Vector{Region}
-    model::SeriesModel
-end
-
-function KineticsExperiment(dataset::Dataset1D; regions=[defaultregion(dataset)],
-                            model::SeriesModel=NoFitting())
-    return KineticsExperiment(dataset, collect(Region, regions), model)
-end
-
-dataset(e::KineticsExperiment) = e.dataset
-regions(e::KineticsExperiment) = e.regions
-seriesmodel(e::KineticsExperiment) = e.model
-fitaxis(::KineticsExperiment) = :time
-groupcols(e::KineticsExperiment) = hasvar(e.dataset.planes, :run) ? (:run,) : ()
-
-# =============================================================================
-# helpers
+# shared helpers
 # =============================================================================
 
 """
@@ -385,3 +178,14 @@ function defaultregion(dataset::Dataset1D; label="signal",
     peak = t.δ[argmax(abs.(t.y))]
     return Region(label, peak - width / 2, peak + width / 2)
 end
+
+# =============================================================================
+# implementations - one file per experiment
+# =============================================================================
+
+include("expt-relaxation.jl")
+include("expt-tract.jl")
+include("expt-nutation.jl")
+include("expt-diffusion.jl")
+include("expt-std.jl")
+include("expt-kinetics.jl")
