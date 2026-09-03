@@ -8,6 +8,11 @@
 # treated as a single click, giving the default-width region.
 const ADD_TAP_THRESHOLD = 0.005
 
+# Rough line height (px) for the results panel's row-sizing - see the note above its
+# construction in `gui!` for why this is computed directly rather than left to Makie's
+# own auto-sizing. Generous for the theme's default 14pt font rather than exact.
+const PANEL_LINE_HEIGHT = 20
+
 """Scale the spectrum axis's y-view by `factor` - `factor=2` makes peaks look twice as
 tall (divides both bounds by 2, i.e. halves the range), `factor=0.5` half as tall
 (doubles the range). Scales `ymin`/`ymax` directly rather than re-centring on the
@@ -244,14 +249,29 @@ function gui!(expt::Experiment1D)
     # unnecessary. It makes the Label's wrap width follow `computedbbox` (the cell
     # GridLayout has already given it) while that cell's own size is set from the
     # Label's *reported* size - a live feedback loop between two Observables that, for a
-    # panel whose content keeps changing, does not reliably settle: on this panel it
-    # showed up as a large fixed gap above the text that didn't track the window height.
-    # Without `word_wrap`, the Label sizes to its own text with no such loop, and
-    # `halign=:left` then places that (possibly narrower-than-the-column) block at the
-    # column's left edge rather than centring it.
+    # panel whose content keeps changing, does not reliably settle. `halign=:left` then
+    # places the (possibly narrower-than-the-column) text block at the column's left
+    # edge rather than centring it.
     r += 1
+    resultsrow = r
     right[r, 1] = Label(fig, state[:resultspanel]; tellwidth=false, halign=:left,
                         valign=:top, justification=:left)
+    # Row height set explicitly from the text itself, rather than left to GridLayout's
+    # own "Auto" sizing off the Label's reported bounding box. That reporting comes from
+    # Makie's own RichText boundingbox/autosize machinery, and for this panel - reactive,
+    # multi-font (bold headers over plain aligned text), variable line count - it turned
+    # out not to reliably settle: fixed for relaxation1d (a short, single-block panel)
+    # but still stuck at a fixed height for calibration1d (longer, with a derived-quantity
+    # block too), so the row started too low and didn't track the window. Counting
+    # newlines in the flattened text is a few lines of plain Julia string handling with
+    # nothing uncertain about it, so the row height no longer depends on trusting that
+    # machinery at all. `PANEL_LINE_HEIGHT` is a rough estimate for the theme's default
+    # 14pt font - generous rather than tight, since underestimating recreates the
+    # original overlap this panel was merged into one Label to avoid, while a few extra
+    # pixels of blank space below the text is harmless.
+    on(rt -> rowsize!(right, resultsrow,
+                      Fixed(PANEL_LINE_HEIGHT * (count('\n', String(rt)) + 1) + 10)),
+       state[:resultspanel]; update=true)
 
     # now that every later row exists, add breathing room below the fitting toggle
     rowgap!(right, fittingrow, Fixed(20))

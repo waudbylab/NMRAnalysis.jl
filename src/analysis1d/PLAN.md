@@ -279,6 +279,24 @@ Phase 3.8 — **third feedback round: one info panel, real alignment**  ✓
       instead of the raw `:trosy`/`:anti` group values
 - [x] every panel heading is now colon-suffixed and the "=" between name and value is
       gone, matching plain name/value columns rather than an equation
+- [x] `word_wrap` removed from the results-panel Label - it made the Label's wrap width
+      follow the cell GridLayout had given it while that cell's own size came from the
+      Label's *reported* size, a feedback loop that does not reliably settle for
+      reactively-changing content; symptoms were a large fixed gap that didn't track the
+      window height and text reading as centred rather than left-aligned
+- [x] the same row's *height*, however, turned out not to be reliably reported by Makie's
+      own RichText boundingbox/autosize machinery either - fixed for a short,
+      single-block panel (`relaxation1d`) but still stuck too short for a longer one with
+      a derived-quantity block too (`calibration1d`). Rather than continue chasing that
+      machinery, the row height is now computed directly (`PANEL_LINE_HEIGHT` ×
+      newline-count in the flattened text) and set explicitly via `rowsize!`, so it no
+      longer depends on Makie's auto-sizing for this element at all
+- [x] shift+scroll resizes `state[:active][]` directly rather than requiring the cursor
+      to stay precisely over the region's own span - more robust for a physical mouse
+      wheel's tendency to nudge the cursor slightly as it turns
+- [x] four more fit parameters given display names (`C` "Recovery factor", `D` "Diffusion
+      coefficient", `ν` "Nutation frequency", `k` "Buildup rate") - each used by exactly
+      one model, so safe in the global table unlike `:R`
 
 Still open after this iteration:
 - **Canonical output format across 1D and 2D** (text vs CSV, units, precision). 1D now has
