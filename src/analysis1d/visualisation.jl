@@ -188,11 +188,16 @@ const PARAM_UNITS = Dict(:R => " s⁻¹",
                          :pulse90 => " µs",
                          :D => " ×10⁻¹⁰ m² s⁻¹",
                          :rH => " Å",
-                         :viscosity => " mPa s")
+                         :viscosity => " mPa s",
+                         :relative => " %")
 
 const PARAM_LABELS = Dict(:pulse90 => "90°",
                           :inhomogeneity => "B₁ inhom.",
                           :ηxy => "η",
+                          :STD_AF0 => "STD-AF₀",
+                          :STD_AF => "STD-AF",
+                          :STD_AF_max => "STD-AF_max",
+                          :relative => "epitope",
                           :viscosity => "η")
 
 paramlabel(name::Symbol) = get(PARAM_LABELS, name, string(name))

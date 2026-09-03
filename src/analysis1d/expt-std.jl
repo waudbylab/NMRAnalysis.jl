@@ -48,8 +48,13 @@ and the initial slope `STD-AF₀ = STD-AF_max·k` reported (this removes the T1 
 makes raw STD% an unreliable epitope ranking). Finally an epitope map normalises STD-AF
 across regions to the strongest signal.
 
-This is a *contrast* experiment (the 1D analogue of GUI2D's `hetnoe2d`); it overrides
-`analyse` rather than using the curve-fit pipeline.
+This is a *contrast* experiment - the 1D analogue of GUI2D's `hetnoe2d`/`cest2d` - but it
+runs through the ordinary pipeline: the reduction produces raw integrals per saturation
+frequency, and [`postfitglobal!`](@ref) rewrites each non-reference series as its STD
+fractions and fits the buildup curve, just as `postfit!(peak, ::CESTExperiment)` normalises
+against its reference plane before fitting. It needs the *global* hook rather than the
+per-series one only because in 1D the reference is a separate series (a distinct `sat`
+value), where in 2D it is one of the peak's own planes.
 """
 struct STDExperiment <: Experiment1D
     dataset::Dataset1D
@@ -70,50 +75,24 @@ function STDExperiment(dataset::Dataset1D; regions=[defaultregion(dataset)],
 end
 
 # ---- 3. interface -------------------------------------------------------------
-# STD overrides `analyse` wholesale, so it declares no fitaxis/groupcols.
 
-"""STD fraction (× excess) for one region, saturation and saturation time."""
-struct STDPoint
-    region::String
-    sat::Any
-    tsat::Float64
-    std::Measurement{Float64}
-end
-
-"""Buildup fit for one region/saturation: initial slope, plateau and rate."""
-struct STDBuildup
-    region::String
-    sat::Any
-    std_af0::Measurement{Float64}
-    std_af_max::Measurement{Float64}
-    k::Measurement{Float64}
-    converged::Bool
-end
-
-"""Epitope entry: STD-AF and its value relative to the strongest region."""
-struct EpitopePoint
-    region::String
-    sat::Any
-    tsat::Float64
-    std_af::Measurement{Float64}
-    relative::Float64
-end
+# The reduction yields raw integrals per (region, sat); the contrast against the reference
+# happens in `postfitglobal!`, which then fits the buildup curve, so no series model is
+# fitted up front.
+seriesmodel(::STDExperiment) = NoFitting()
+fitaxis(::STDExperiment) = :tsat
+groupcols(::STDExperiment) = (:sat,)
+primaryparam(::STDExperiment) = :STD_AF
 
 # ---- 4. science ---------------------------------------------------------------
 
 """
-    ContrastModel(; reference)
+    BuildupModel()
 
-A categorical series model: within a group of slices it contrasts each non-reference
-slice against the `reference` slice. The contrast value is `(I_ref − I_slice)/I_ref`
-(the STD fraction). Used by the STD experiment; the 1D analogue of GUI2D's `hetnoe2d`.
+STD buildup `STD-AF(t) = STD-AF_max·(1 − exp(−k·t))`, parameters `[STD_AF_max, k]`. The
+reported epitope measure is the initial slope `STD-AF₀ = STD-AF_max·k`, which removes the
+T1 bias that makes a raw STD% at a single saturation time an unreliable ranking.
 """
-struct ContrastModel <: SeriesModel
-    reference::Any
-end
-
-ContrastModel(; reference) = ContrastModel(reference)
-
 function BuildupModel()
     return CurveFitModel((x, p) -> @.(p[1] * (1 - exp(-p[2] * x))),
                          ["STD_AF_max", "k"],
@@ -122,80 +101,76 @@ function BuildupModel()
 end
 
 """
-    analyse(e::STDExperiment, [dataset, regions]; isfitting=true) -> NamedTuple
+    postfitglobal!(results, e::STDExperiment)
 
-Returns `(; points, buildups, epitope)`. As for the curve-fit experiments, the dataset
-and regions may be supplied explicitly so the GUI can recompute live. `isfitting=false`
-(the GUI's Fitting toggle switched off) skips the buildup curve fit - the raw STD
-fractions (`points`) still come through, but `buildups` (and, following from it,
-`epitope`) come back empty.
+Turn the raw per-saturation integral series into STD series: contrast each non-reference
+saturation against the reference at matching saturation time, fit the buildup curve where
+there are enough times, then normalise across regions into an epitope map. The reference
+series are dropped once they have been used - they carry no STD value of their own, and
+the old readline routine did not report them either.
 """
-analyse(e::STDExperiment) = analyse(e, e.dataset, e.regions)
-
-function analyse(e::STDExperiment, ds::Dataset1D, regs; isfitting::Bool=true)
-    sats = unique(column(ds.planes, :sat))
-    onres = filter(!=(e.reference), sats)
-
-    # Per-region integrals over every plane.
-    points = STDPoint[]
-    buildups = STDBuildup[]
-    for region in regs
-        I = integrals(region, ds)
-        sat_of = column(ds.planes, :sat)
-        tsat_of = column(ds.planes, :tsat)
-
-        # Reference integral at each saturation time (average duplicates).
-        reftimes = unique(tsat_of[sat_of .== e.reference])
-        refI = Dict(τ => mean(I[(sat_of .== e.reference) .& (tsat_of .== τ)])
-                    for τ in reftimes)
-
-        for s in onres
-            stds = STDPoint[]
-            for τ in sort(unique(tsat_of[sat_of .== s]))
-                haskey(refI, τ) || continue
-                Is = mean(I[(sat_of .== s) .& (tsat_of .== τ)])
-                std = e.excess * (refI[τ] - Is) / refI[τ]
-                pt = STDPoint(region.label, s, τ, std)
-                push!(points, pt)
-                push!(stds, pt)
-            end
-            # Buildup fit when enough saturation times are available.
-            if isfitting && length(stds) ≥ 3
-                x = [p.tsat for p in stds]
-                y = [p.std for p in stds]
-                fit = fit_series(BuildupModel(), x, y)
-                stdmax = fit.params[1]
-                k = fit.params[2]
-                push!(buildups,
-                      STDBuildup(region.label, s, stdmax * k, stdmax, k, fit.converged))
-            end
+function postfitglobal!(results::AbstractVector{RegionResult}, e::STDExperiment)
+    isreference(r) = r.group.sat == e.reference
+    for label in unique(r.region for r in results)
+        rs = filter(r -> r.region == label, results)
+        i = findfirst(isreference, rs)
+        isnothing(i) && continue
+        for r in rs
+            isreference(r) || contrast!(r, rs[i], e.excess)
         end
     end
-
-    epitope = epitope_map(points)
-    return (; points, buildups, epitope)
+    filter!(!isreference, results)
+    epitope!(results)
+    return nothing
 end
 
 """
-    epitope_map(points) -> Vector{EpitopePoint}
+    contrast!(r, reference, excess)
 
-Normalise STD-AF across regions, separately for each (sat, tsat), to the strongest
-region.
+Rewrite `r` in place as the STD series for its saturation frequency: at each saturation
+time present in both `r` and the `reference`, `STD = excess·(I_ref − I_sat)/I_ref`, with
+replicates averaged on both sides. With three or more saturation times the buildup curve
+is fitted, so that `r` ends up carrying an ordinary fit that the generic result panel and
+summary render without knowing anything about STD.
 """
-function epitope_map(points::Vector{STDPoint})
-    epitope = EpitopePoint[]
-    for s in unique(p.sat for p in points)
-        for τ in unique(p.tsat for p in points if p.sat == s)
-            group = filter(p -> p.sat == s && p.tsat == τ, points)
-            maxstd = maximum(Measurements.value(p.std) for p in group)
-            maxstd == 0 && continue
-            for p in group
-                rel = Measurements.value(p.std) / maxstd
-                push!(epitope, EpitopePoint(p.region, s, τ, p.std, rel))
-            end
+function contrast!(r::RegionResult, reference::RegionResult, excess::Real)
+    at(s, τ) = mean(s.y[s.x .== τ])
+    times = sort!(collect(Float64, intersect(unique(r.x), unique(reference.x))))
+    stds = [excess * (at(reference, τ) - at(r, τ)) / at(reference, τ) for τ in times]
+    r.x, r.y = times, stds
+    if length(times) ≥ 3
+        fit = fit_series(BuildupModel(), times, stds)
+        r.parameters = OrderedDict{Symbol,Any}(Symbol(n) => p
+                                               for (n, p) in zip(fit.names, fit.params))
+        r.model = fit.model
+        r.converged = fit.converged
+        setpost!(r, :STD_AF0, param(r, :STD_AF_max) * param(r, :k))
+    end
+    # The epitope measure: the T1-unbiased initial slope where a buildup was fitted,
+    # otherwise the STD fraction at the longest saturation time available.
+    isempty(stds) ||
+        setpost!(r, :STD_AF, get(r.postparameters, :STD_AF0, last(stds)))
+    return r
+end
+
+"""
+    epitope!(results)
+
+Normalise the STD amplification factor across regions, separately for each saturation
+frequency, to the strongest region - recording each as a percentage of it.
+"""
+function epitope!(results::AbstractVector{RegionResult})
+    for sat in unique(r.group.sat for r in results)
+        rs = filter(r -> r.group.sat == sat && haskey(r.postparameters, :STD_AF), results)
+        isempty(rs) && continue
+        values = [Measurements.value(r.postparameters[:STD_AF]) for r in rs]
+        strongest = maximum(values)
+        strongest == 0 && continue
+        for (r, v) in zip(rs, values)
+            setpost!(r, :relative, 100 * v / strongest)
         end
     end
-    return epitope
+    return results
 end
 
 # ---- 5. presentation ----------------------------------------------------------
@@ -205,61 +180,3 @@ windowtitle(::STDExperiment) = "STD"
 resultlabels(::STDExperiment) = ("Saturation time / s", "STD fraction")
 
 spectruminfo(::STDExperiment, vars::NamedTuple) = "$(vars.sat), $(round(vars.tsat; digits=3)) s sat"
-
-function resultplotdata(::STDExperiment, result, activelabel::AbstractString)
-    pts = filter(p -> p.region == activelabel, result.points)
-    sats = unique(p.sat for p in pts)
-    return map(sats) do sat
-        ps = filter(p -> p.sat == sat, pts)
-        points = [Point2f(p.tsat, Measurements.value(p.std)) for p in ps]
-        errors = [(p.tsat, Measurements.value(p.std), Measurements.uncertainty(p.std))
-                  for p in ps]
-        bi = findfirst(b -> b.region == activelabel && b.sat == sat, result.buildups)
-        fitline = if !isnothing(bi)
-            b = result.buildups[bi]
-            tmax = maximum(p.tsat for p in ps)
-            xs = collect(range(0.0, 1.05 * tmax, 100))
-            smax, k = Measurements.value(b.std_af_max), Measurements.value(b.k)
-            Point2f.(xs, @.(smax * (1 - exp(-k * xs))))
-        else
-            Point2f[]
-        end
-        ResultSeries(points, errors, fitline, string(sat))
-    end
-end
-
-# STD's result has no `.series`/`.summary` fields to split into a resultsheader/
-# secondarytext pair (it's a contrast rather than a curve-fit experiment) - show its
-# whole summary in the secondary block instead.
-resultsheader(::STDExperiment, result, activelabel::AbstractString) = ""
-function secondarytext(e::STDExperiment, result, activelabel::AbstractString)
-    return summary_text(e, result, activelabel)
-end
-
-function summary_text(::STDExperiment, result, activelabel::AbstractString)
-    io = IOBuffer()
-    println(io, "STD fractions")
-    println(io, "-------------")
-    for p in result.points
-        p.region == activelabel || continue
-        println(io, "  $(p.region) / $(p.sat) @ $(p.tsat) s : $(fmt(p.std))")
-    end
-    buildups = filter(b -> b.region == activelabel, result.buildups)
-    if !isempty(buildups)
-        println(io, "\nBuildup (initial slope, T1-corrected)")
-        println(io, "--------------------------------------")
-        for b in buildups
-            println(io,
-                    "  $(b.region) / $(b.sat) : STD-AF₀ = $(fmt(b.std_af0)), k = $(fmt(b.k)) s⁻¹")
-        end
-    end
-    epitope = filter(ep -> ep.region == activelabel, result.epitope)
-    if !isempty(epitope)
-        println(io, "\nEpitope map (relative to strongest signal)")
-        println(io, "-------------------------------------------")
-        for ep in epitope
-            println(io, "  $(ep.region) / $(ep.sat) : $(round(100 * ep.relative; digits=0)) %")
-        end
-    end
-    return String(take!(io))
-end

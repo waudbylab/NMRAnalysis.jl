@@ -52,10 +52,8 @@ export column, hasvar, nplanes, groupseries
 
 # reductions & models
 export Reduction, Integrate, integrate, integrals
-export SeriesModel, CurveFitModel, NoFitting, ContrastModel
-export ExponentialModel, RecoveryModel, DampedSinusoidModel
-
-export StejskalTannerModel
+export SeriesModel, CurveFitModel, NoFitting
+export ExponentialModel, RecoveryModel, DampedSinusoidModel, StejskalTannerModel
 
 # experiments
 export Experiment1D, analyse, analyse1d, run1d, Integration

@@ -7,13 +7,12 @@
 """
     SeriesModel
 
-Abstract supertype for the rule mapping a quantity series (vs an evolution parameter,
-or between categorical slices) to derived parameters. Two concrete shapes:
+Abstract supertype for the rule mapping a quantity series to derived parameters.
 
 - [`CurveFitModel`](@ref): a continuous fit-axis, fitted by nonlinear least squares.
-- [`ContrastModel`](@ref): categorical slices combined algebraically (e.g. STD).
-
-[`NoFitting`](@ref) simply carries the reduced quantities through (kinetics v1).
+- [`NoFitting`](@ref): carry the reduced quantities through unfitted, for an experiment
+  whose deliverable is the series itself (kinetics), or one that fits in `postfit!`
+  because it must transform the series first (STD).
 """
 abstract type SeriesModel end
 
