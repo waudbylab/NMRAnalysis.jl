@@ -128,29 +128,11 @@ function gui!(expt::Experiment1D)
     vspan!(ax, addlo, addhi; color=lift(a -> (:seagreen, a), addalpha), xautolimits=false)
 
     # --- result panel ---
-    xl, yl = result_labels(expt)
-    fittitle = lift(lbl -> isempty(lbl) ? "Fit" : "Fit: $lbl", state[:activelabel])
-    ax2 = Axis(left[2, 1]; xlabel=xl, ylabel=yl, title=fittitle,
-              xgridvisible=false, ygridvisible=false)
-    gui[:ax_fit] = ax2
-    hlines!(ax2, [0]; color=:grey)
-    errorbars!(ax2, state[:flat_errors]; whiskerwidth=8, color=state[:flat_error_colors])
-    scatter!(ax2, state[:flat_points]; color=state[:flat_point_colors])
-    lines!(ax2, state[:flat_fit]; color=state[:flat_fit_colors])
-    # Most experiments label each curve directly (group counts/names vary, e.g. STD's
-    # saturation frequencies); experiments with a fixed, small set of named groups (e.g.
-    # TRACT's TROSY/anti-TROSY) get a proper axislegend instead via `seriesnames`.
-    legendnames = seriesnames(expt)
-    if isnothing(legendnames)
-        text!(ax2, state[:seriestextpos]; text=state[:seriestexttxt],
-              color=state[:seriestextcolor], fontsize=11, align=(:left, :center), offset=(6, 0))
-    else
-        legendelements = [MarkerElement(; color=seriescolor(i), marker=:circle)
-                          for i in eachindex(legendnames)]
-        axislegend(ax2, legendelements, legendnames; position=:rt)
-    end
+    # Built by the experiment's visualisation strategy; `gui[:ax_fit]` is set there.
+    gui[:panelresult] = left[2, 1]
+    resultpanel!(gui, state, expt)
+
     rowsize!(left, 1, Relative(0.55))
-    on(_ -> autolimits!(ax2), state[:seriesdata])
 
     # --- controls ---
     # `right` uses a single column throughout: every row is either one widget, or its
@@ -286,7 +268,7 @@ function gui!(expt::Experiment1D)
     setup_keyboard!(fig, ax, state)
 
     display(fig)
-    autolimits!(ax2)
+    autolimits!(gui[:ax_fit])
     while isopen(fig.scene)
         sleep(0.1)
     end
@@ -648,26 +630,11 @@ function save_results(state)
     expt = state[:expt]
     result = state[:result][]
     labels = [r.label for r in state[:regions][]]
-    xl, yl = result_labels(expt)
+    xl, yl = resultlabels(expt)
 
     # no gridlines (matching the live GUI panels), but keep a visible zero line
     newfitaxis(fig) = Axis(fig[1, 1]; xlabel=xl, ylabel=yl, xgridvisible=false,
                            ygridvisible=false)
-
-    # plots `label`'s series into `ax`, starting colour indices at `i0 + 1`; returns the
-    # number of series drawn, so callers can decide whether a legend is worthwhile
-    function plotregion!(ax, label, i0)
-        i = i0
-        for s in result_plotdata(expt, result, label)
-            i += 1
-            c = seriescolor(i)
-            lbl = isempty(s.label) ? label : "$label ($(s.label))"
-            errorbars!(ax, s.errors; whiskerwidth=8, color=c)
-            scatter!(ax, s.points; color=c, label=lbl)
-            isempty(s.fitline) || lines!(ax, s.fitline; color=c)
-        end
-        return i - i0
-    end
 
     # overlay of every region
     fig = Figure()
@@ -675,7 +642,7 @@ function save_results(state)
     hlines!(ax, [0]; color=:grey)
     i = 0
     for label in labels
-        i += plotregion!(ax, label, i)
+        i += plotresult!(ax, expt, result, label, i)
     end
     i > 1 && axislegend(ax; position=:rt)
     save(joinpath(dir, "fit.pdf"), fig; backend=CairoMakie)
@@ -685,7 +652,7 @@ function save_results(state)
         fig1 = Figure()
         ax1 = newfitaxis(fig1)
         hlines!(ax1, [0]; color=:grey)
-        n1 = plotregion!(ax1, label, 0)
+        n1 = plotresult!(ax1, expt, result, label, 0)
         n1 > 1 && axislegend(ax1; position=:rt)
         save(joinpath(dir, "fit_$label.pdf"), fig1; backend=CairoMakie)
     end

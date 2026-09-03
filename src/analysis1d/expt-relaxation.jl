@@ -62,7 +62,7 @@ windowtitle(::RelaxationExperiment) = "Relaxation"
 
 resultxfactor(e::RelaxationExperiment) = timescale(column(dataset(e).planes, :time))[1]
 
-function result_labels(e::RelaxationExperiment)
+function resultlabels(e::RelaxationExperiment)
     _, unit = timescale(column(dataset(e).planes, :time))
     return ("Relaxation delay / $unit", "Integrated intensity (a.u.)")
 end

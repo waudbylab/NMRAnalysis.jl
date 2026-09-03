@@ -17,7 +17,7 @@ a fixed five-section order (see `expt-tract.jl` for the fullest example):
 2. **type** — the `struct <Name>Experiment <: Experiment1D` and its keyword constructor.
 3. **interface** — only the hooks that differ from the defaults below.
 4. **science** — the series model, the derived-quantity maths, physics constants.
-5. **presentation** — `windowtitle`, `result_labels`, `spectruminfo`, and friends.
+5. **presentation** — `windowtitle`, `resultlabels`, `spectruminfo`, and friends.
 
 Interface (with defaults):
 - `dataset(e)`        — the `Dataset1D` (default: `e.dataset`)

@@ -89,7 +89,7 @@ windowtitle(::NutationExperiment) = "Nutation calibration"
 
 resultxfactor(e::NutationExperiment) = timescale(column(dataset(e).planes, :duration))[1]
 
-function result_labels(e::NutationExperiment)
+function resultlabels(e::NutationExperiment)
     _, unit = timescale(column(dataset(e).planes, :duration))
     return ("Pulse duration / $unit", "Integrated intensity (a.u.)")
 end

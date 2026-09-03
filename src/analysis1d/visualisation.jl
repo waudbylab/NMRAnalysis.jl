@@ -40,7 +40,7 @@ end
     resultxfactor(expt) -> Float64
 
 Multiplier applied to the result panel's x-values (and its axis label, via
-`result_labels`) for display - `1.0` (unscaled) for every experiment except those with a
+`resultlabels`) for display - `1.0` (unscaled) for every experiment except those with a
 time-valued x-axis (relaxation delays, TRACT delays, nutation pulse durations), which
 switch to whichever of s/ms/µs suits their actual scale (see `timescale`). Curve-fitting
 itself always uses the raw, unscaled values; this only affects what's plotted/exported.
@@ -48,14 +48,14 @@ itself always uses the raw, unscaled values; this only affects what's plotted/ex
 resultxfactor(::Experiment1D) = 1.0
 
 """
-    result_plotdata(expt, result, activelabel) -> Vector{ResultSeries}
+    resultplotdata(expt, result, activelabel) -> Vector{ResultSeries}
 
 Plot primitives for the active region, one `ResultSeries` per group (e.g. TRACT's
 TROSY/anti-TROSY pair, or STD's saturation frequencies) so each can be drawn in a
 distinct, matching colour. The generic method covers the curve-fit / NoFitting
 experiments; STD overrides it.
 """
-function result_plotdata(e::Experiment1D, result, activelabel::AbstractString)
+function resultplotdata(e::Experiment1D, result, activelabel::AbstractString)
     series = filter(s -> s.region == activelabel, result)
     factor = resultxfactor(e)
     return map(series) do s
@@ -80,7 +80,7 @@ function groupname(group::NamedTuple)
 end
 
 "axis labels for the result panel"
-result_labels(::Experiment1D) = ("x", "Integrated intensity (a.u.)")
+resultlabels(::Experiment1D) = ("x", "Integrated intensity (a.u.)")
 
 """
     seriesnames(expt) -> Union{Nothing,Vector{String}}
@@ -109,6 +109,59 @@ function spectruminfo(::Experiment1D, vars::NamedTuple)
     isempty(vars) && return ""
     return join(("$k=$v" for (k, v) in pairs(vars)), ", ")
 end
+
+# ---- visualisation strategy ---------------------------------------------------
+
+"""
+    ResultVisualisation
+
+How an experiment's results are drawn in the fit panel. A hierarchy deliberately
+*orthogonal* to `Experiment1D`, joined by [`visualisationtype`](@ref), exactly as GUI2D's
+`VisualisationStrategy` is orthogonal to its `Experiment` - so that a presentation can be
+shared by unrelated experiments, or swapped without touching the science.
+
+A strategy implements three methods, the same trio GUI2D uses:
+
+- `completeresultstate!(state, expt, ::V)` — build the Observables the panel reads
+- `resultpanel!(gui, state, expt, ::V)`    — the live GUI panel
+- `plotresult!(ax, expt, result, label, i0, ::V)` — the static CairoMakie export
+
+The live and export paths share one data getter (here `resultplotdata`) so that what is
+saved is what was on screen. A strategy's getter may return whatever shape suits it: it is
+only ever consumed by the three methods paired with it.
+
+[`SeriesVisualisation`](@ref) covers every curve-fit experiment and is the default.
+"""
+abstract type ResultVisualisation end
+
+"""
+    SeriesVisualisation()
+
+Observed points with error bars plus a fitted line, one colour per group. The default,
+and what relaxation, TRACT, nutation, diffusion and kinetics all use.
+"""
+struct SeriesVisualisation <: ResultVisualisation end
+
+visualisationtype(::Experiment1D) = SeriesVisualisation()
+
+# Trait forwarding: callers use the three-argument forms and never name a strategy.
+function completeresultstate!(state, expt::Experiment1D)
+    return completeresultstate!(state, expt, visualisationtype(expt))
+end
+resultpanel!(gui, state, expt::Experiment1D) = resultpanel!(gui, state, expt,
+                                                            visualisationtype(expt))
+function plotresult!(ax, expt::Experiment1D, result, label, i0=0)
+    return plotresult!(ax, expt, result, label, i0, visualisationtype(expt))
+end
+
+# ---- colours ------------------------------------------------------------------
+
+# Explicit RGBAf conversion, so every colour flowing into the same Observable/plot-array
+# is the same concrete type as `Makie.wong_colors()` returns colours without alpha.
+const PALETTE = [RGBAf(c.r, c.g, c.b, 1.0) for c in Makie.wong_colors()]
+
+"""Colour for the `i`-th result series, cycling through a fixed palette."""
+seriescolor(i) = PALETTE[mod1(i, length(PALETTE))]
 
 # ---- summary text -------------------------------------------------------------
 
@@ -225,4 +278,108 @@ function summary_text(::Experiment1D, result, activelabel::AbstractString)
         println(io)
     end
     return String(take!(io))
+end
+
+# ---- SeriesVisualisation ------------------------------------------------------
+
+"""
+    completeresultstate!(state, expt, ::SeriesVisualisation)
+
+Per-series plot data for the active region (one entry per group, e.g. TRACT's
+TROSY/anti-TROSY), flattened into the contiguous, coloured arrays Makie plot objects want -
+one `scatter!`/`lines!` per panel rather than a variable number of separate plot calls.
+"""
+function completeresultstate!(state, expt::Experiment1D, ::SeriesVisualisation)
+    state[:seriesdata] = lift(state[:result], state[:activelabel]) do res, lbl
+        return resultplotdata(expt, res, lbl)
+    end
+    state[:flat_points] = lift(sd -> reduce(vcat, (s.points for s in sd); init=Point2f[]),
+                               state[:seriesdata])
+    state[:flat_point_colors] = lift(state[:seriesdata]) do sd
+        return reduce(vcat,
+                      (fill(seriescolor(i), length(s.points)) for (i, s) in enumerate(sd));
+                      init=RGBAf[])
+    end
+    state[:flat_errors] = lift(state[:seriesdata]) do sd
+        return reduce(vcat, (s.errors for s in sd);
+                      init=Tuple{Float64,Float64,Float64}[])
+    end
+    state[:flat_error_colors] = state[:flat_point_colors]
+    state[:flat_fit] = lift(state[:seriesdata], state[:isfitting]) do sd, fitting
+        fitting || return Point2f[]
+        pts = Point2f[]
+        for s in sd
+            isempty(s.fitline) && continue
+            append!(pts, s.fitline)
+            push!(pts, Point2f(NaN32, NaN32))
+        end
+        return pts
+    end
+    state[:flat_fit_colors] = lift(state[:seriesdata], state[:isfitting]) do sd, fitting
+        fitting || return RGBAf[]
+        cols = RGBAf[]
+        for (i, s) in enumerate(sd)
+            isempty(s.fitline) && continue
+            append!(cols, fill(seriescolor(i), length(s.fitline) + 1))
+        end
+        return cols
+    end
+    state[:seriestextpos] = lift(sd -> [isempty(s.points) ? Point2f(NaN32, NaN32) :
+                                        last(s.points) for s in sd], state[:seriesdata])
+    state[:seriestexttxt] = lift(sd -> [s.label for s in sd], state[:seriesdata])
+    state[:seriestextcolor] = lift(sd -> [seriescolor(i) for i in eachindex(sd)],
+                                   state[:seriesdata])
+    return state
+end
+
+"""
+    resultpanel!(gui, state, expt, ::SeriesVisualisation)
+
+Build the live fit panel into `gui[:panelresult]`, and record its axis as `gui[:ax_fit]`.
+"""
+function resultpanel!(gui, state, expt::Experiment1D, ::SeriesVisualisation)
+    xl, yl = resultlabels(expt)
+    fittitle = lift(lbl -> isempty(lbl) ? "Fit" : "Fit: $lbl", state[:activelabel])
+    ax = Axis(gui[:panelresult]; xlabel=xl, ylabel=yl, title=fittitle,
+              xgridvisible=false, ygridvisible=false)
+    gui[:ax_fit] = ax
+    hlines!(ax, [0]; color=:grey)
+    errorbars!(ax, state[:flat_errors]; whiskerwidth=8, color=state[:flat_error_colors])
+    scatter!(ax, state[:flat_points]; color=state[:flat_point_colors])
+    lines!(ax, state[:flat_fit]; color=state[:flat_fit_colors])
+    # Most experiments label each curve directly (group counts/names vary, e.g. STD's
+    # saturation frequencies); experiments with a fixed, small set of named groups (e.g.
+    # TRACT's TROSY/anti-TROSY) get a proper axislegend instead via `seriesnames`.
+    legendnames = seriesnames(expt)
+    if isnothing(legendnames)
+        text!(ax, state[:seriestextpos]; text=state[:seriestexttxt],
+              color=state[:seriestextcolor], fontsize=11, align=(:left, :center),
+              offset=(6, 0))
+    else
+        legendelements = [MarkerElement(; color=seriescolor(i), marker=:circle)
+                          for i in eachindex(legendnames)]
+        axislegend(ax, legendelements, legendnames; position=:rt)
+    end
+    on(_ -> autolimits!(ax), state[:seriesdata])
+    return ax
+end
+
+"""
+    plotresult!(ax, expt, result, label, i0, ::SeriesVisualisation) -> Int
+
+Draw region `label` into a static axis, starting colour indices at `i0 + 1`; returns the
+number of series drawn, so callers can decide whether a legend is worthwhile. Shares
+`resultplotdata` with the live panel, so an exported plot matches what was on screen.
+"""
+function plotresult!(ax, expt::Experiment1D, result, label, i0, ::SeriesVisualisation)
+    i = i0
+    for s in resultplotdata(expt, result, label)
+        i += 1
+        c = seriescolor(i)
+        lbl = isempty(s.label) ? label : "$label ($(s.label))"
+        errorbars!(ax, s.errors; whiskerwidth=8, color=c)
+        scatter!(ax, s.points; color=c, label=lbl)
+        isempty(s.fitline) || lines!(ax, s.fitline; color=c)
+    end
+    return i - i0
 end

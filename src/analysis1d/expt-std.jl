@@ -202,11 +202,11 @@ end
 
 windowtitle(::STDExperiment) = "STD"
 
-result_labels(::STDExperiment) = ("Saturation time / s", "STD fraction")
+resultlabels(::STDExperiment) = ("Saturation time / s", "STD fraction")
 
 spectruminfo(::STDExperiment, vars::NamedTuple) = "$(vars.sat), $(round(vars.tsat; digits=3)) s sat"
 
-function result_plotdata(::STDExperiment, result, activelabel::AbstractString)
+function resultplotdata(::STDExperiment, result, activelabel::AbstractString)
     pts = filter(p -> p.region == activelabel, result.points)
     sats = unique(p.sat for p in pts)
     return map(sats) do sat

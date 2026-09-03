@@ -62,7 +62,7 @@ groupcols(e::KineticsExperiment) = hasvar(e.dataset.planes, :run) ? (:run,) : ()
 
 windowtitle(::KineticsExperiment) = "Kinetics"
 
-result_labels(::KineticsExperiment) = ("Time", "Integrated intensity (a.u.)")
+resultlabels(::KineticsExperiment) = ("Time", "Integrated intensity (a.u.)")
 
 function spectruminfo(::KineticsExperiment, vars::NamedTuple)
     s = "$(round(vars.time; digits=3)) s"

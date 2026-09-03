@@ -109,7 +109,7 @@ end
 
 windowtitle(::DiffusionExperiment) = "Diffusion"
 
-result_labels(::DiffusionExperiment) = ("Relative gradient strength",
+resultlabels(::DiffusionExperiment) = ("Relative gradient strength",
                                         "Integrated intensity (a.u.)")
 
 function spectruminfo(::DiffusionExperiment, vars::NamedTuple)

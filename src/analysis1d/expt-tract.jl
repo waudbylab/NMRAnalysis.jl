@@ -124,7 +124,7 @@ windowtitle(::TractExperiment) = "TRACT"
 
 resultxfactor(e::TractExperiment) = timescale(column(dataset(e).planes, :time))[1]
 
-function result_labels(e::TractExperiment)
+function resultlabels(e::TractExperiment)
     _, unit = timescale(column(dataset(e).planes, :time))
     return ("Relaxation delay / $unit", "Integrated intensity (a.u.)")
 end

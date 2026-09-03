@@ -8,13 +8,6 @@ const ACTIVE_REGION_COLOR = (:orange, 0.4)
 const INACTIVE_REGION_COLOR = (:steelblue, 0.25)
 const NOISE_COLOR = (:orchid, 0.3)
 
-# Explicit RGBAf conversion, so every colour flowing into the same Observable/plot-array
-# is the same concrete type as `Makie.wong_colors()` returns colours without alpha.
-const PALETTE = [RGBAf(c.r, c.g, c.b, 1.0) for c in Makie.wong_colors()]
-
-"""Colour for the `i`-th result series, cycling through a fixed palette."""
-seriescolor(i) = PALETTE[mod1(i, length(PALETTE))]
-
 """
     prepare_state(expt) -> Dict{Symbol,Any}
 
@@ -82,56 +75,15 @@ function prepare_state(expt::Experiment1D)
         return (i < 1 || i > length(rs)) ? "" : rs[i].label
     end
 
-    # per-series plot data for the active region (one entry per group, e.g. TRACT's
-    # TROSY/anti-TROSY, or STD's saturation frequencies), and flattened/coloured arrays
-    # for plotting (Makie plot objects want contiguous arrays, not a variable number of
-    # separate plot calls).
-    state[:seriesdata] = lift(state[:result], state[:activelabel]) do res, lbl
-        return result_plotdata(expt, res, lbl)
-    end
-    state[:flat_points] = lift(sd -> reduce(vcat, (s.points for s in sd); init=Point2f[]),
-                               state[:seriesdata])
-    state[:flat_point_colors] = lift(state[:seriesdata]) do sd
-        return reduce(vcat,
-                      (fill(seriescolor(i), length(s.points)) for (i, s) in enumerate(sd));
-                      init=RGBAf[])
-    end
-    state[:flat_errors] = lift(state[:seriesdata]) do sd
-        return reduce(vcat, (s.errors for s in sd);
-                      init=Tuple{Float64,Float64,Float64}[])
-    end
-    state[:flat_error_colors] = state[:flat_point_colors]
-    state[:flat_fit] = lift(state[:seriesdata], state[:isfitting]) do sd, fitting
-        fitting || return Point2f[]
-        pts = Point2f[]
-        for s in sd
-            isempty(s.fitline) && continue
-            append!(pts, s.fitline)
-            push!(pts, Point2f(NaN32, NaN32))
-        end
-        return pts
-    end
-    state[:flat_fit_colors] = lift(state[:seriesdata], state[:isfitting]) do sd, fitting
-        fitting || return RGBAf[]
-        cols = RGBAf[]
-        for (i, s) in enumerate(sd)
-            isempty(s.fitline) && continue
-            append!(cols, fill(seriescolor(i), length(s.fitline) + 1))
-        end
-        return cols
-    end
-    state[:seriestextpos] = lift(sd -> [isempty(s.points) ? Point2f(NaN32, NaN32) :
-                                        last(s.points) for s in sd], state[:seriesdata])
-    state[:seriestexttxt] = lift(sd -> [s.label for s in sd], state[:seriesdata])
-    state[:seriestextcolor] = lift(sd -> [seriescolor(i) for i in eachindex(sd)],
-                                   state[:seriesdata])
+    # Result-panel Observables are built by the experiment's visualisation strategy, not
+    # here: what the panel needs depends on how it draws (see `ResultVisualisation`).
+    completeresultstate!(state, expt)
 
-    # live results text for the results panel, split into the raw per-series fit (e.g.
-    # A, R) and the second-stage derived summary (e.g. TRACT's τc), so the GUI can show
-    # them as separate blocks. Both go blank when the Fitting toggle is off - fitting
-    # itself always runs (nothing here skips the actual curve_fit calls; see `isfitting`
-    # in reductions/experiments), but showing numbers while "Fitting" reads as off would
-    # be misleading.
+    # live results text for the results panel, split into the fit's own parameters (e.g.
+    # A, R) and the derived quantities post-fitted from them (e.g. TRACT's τc), so the GUI
+    # can show them as separate blocks. Both go blank when the Fitting toggle is off -
+    # which genuinely skips the `curve_fit` calls (see `isfitting` in `series_results`),
+    # so there would be nothing to show in any case.
     state[:resultsheader] = lift(state[:result], state[:activelabel], state[:isfitting]) do res, lbl,
                                                                                              fitting
         fitting || return ""
