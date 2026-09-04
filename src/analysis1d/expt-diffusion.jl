@@ -115,3 +115,21 @@ resultlabels(::DiffusionExperiment) = ("Relative gradient strength",
 function spectruminfo(::DiffusionExperiment, vars::NamedTuple)
     return "gradient = $(round(100 * vars.gradient; digits=1))%"
 end
+
+# Own display names and units, not the shared PARAM_LABELS/PARAM_UNITS tables -
+# everything about this experiment's presentation lives here. :D, :rH and :viscosity
+# only ever appear in this file (StejskalTannerModel and postfit!, above); :rH has no
+# entry in the labels table below (it stays the bare "rH" it already was) but does need
+# its unit, which was previously sitting in the shared table for no reason but this.
+const DIFFUSION_PARAM_LABELS = Dict(:D => "Diffusion coefficient",
+                                    :viscosity => "η")
+const DIFFUSION_PARAM_UNITS = Dict(:D => " ×10⁻¹⁰ m² s⁻¹",
+                                   :rH => " Å",
+                                   :viscosity => " mPa s")
+
+function paramlabel(::DiffusionExperiment, name::Symbol)
+    return get(DIFFUSION_PARAM_LABELS, name, get(PARAM_LABELS, name, string(name)))
+end
+function paramunit(::DiffusionExperiment, name::Symbol)
+    return get(DIFFUSION_PARAM_UNITS, name, get(PARAM_UNITS, name, ""))
+end

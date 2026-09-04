@@ -180,3 +180,22 @@ windowtitle(::STDExperiment) = "STD"
 resultlabels(::STDExperiment) = ("Saturation time / s", "STD fraction")
 
 spectruminfo(::STDExperiment, vars::NamedTuple) = "$(vars.sat), $(round(vars.tsat; digits=3)) s sat"
+
+# Own display names and units, not the shared PARAM_LABELS/PARAM_UNITS tables -
+# everything about this experiment's presentation lives here. :k, :STD_AF0, :STD_AF,
+# :STD_AF_max and :relative only ever appear in this file (BuildupModel and
+# postfitglobal!/epitope!, above).
+const STD_PARAM_LABELS = Dict(:k => "Buildup rate",
+                              :STD_AF0 => "STD-AF₀",
+                              :STD_AF => "STD-AF",
+                              :STD_AF_max => "STD-AF_max",
+                              :relative => "epitope")
+const STD_PARAM_UNITS = Dict(:k => " s⁻¹",
+                             :relative => " %")
+
+function paramlabel(::STDExperiment, name::Symbol)
+    return get(STD_PARAM_LABELS, name, get(PARAM_LABELS, name, string(name)))
+end
+function paramunit(::STDExperiment, name::Symbol)
+    return get(STD_PARAM_UNITS, name, get(PARAM_UNITS, name, ""))
+end

@@ -97,3 +97,21 @@ end
 function spectruminfo(::NutationExperiment, vars::NamedTuple)
     return "$(round(1e6 * vars.duration; digits=1)) µs pulse"
 end
+
+# Own display names and units, not the shared PARAM_LABELS/PARAM_UNITS tables -
+# everything about this experiment's presentation lives here. :ν, :pulse90 and
+# :inhomogeneity only ever appear in this file (DampedSinusoidModel and postfit!, above).
+# :R is deliberately *not* overridden here: it's this model's decay rate, not a
+# relaxation rate (see the shared table's own note on why it stays bare by default).
+const NUTATION_PARAM_LABELS = Dict(:ν => "Nutation frequency",
+                                   :pulse90 => "90°",
+                                   :inhomogeneity => "B₁ inhom.")
+const NUTATION_PARAM_UNITS = Dict(:ν => " Hz",
+                                  :pulse90 => " µs")
+
+function paramlabel(::NutationExperiment, name::Symbol)
+    return get(NUTATION_PARAM_LABELS, name, get(PARAM_LABELS, name, string(name)))
+end
+function paramunit(::NutationExperiment, name::Symbol)
+    return get(NUTATION_PARAM_UNITS, name, get(PARAM_UNITS, name, ""))
+end

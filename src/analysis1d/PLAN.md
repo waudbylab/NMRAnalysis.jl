@@ -197,9 +197,10 @@ Phase 3.6 — **restructure onto the GUI2D pattern**  ✓
       `Vector{RegionResult}` for every experiment, which also removes the Observable
       element-type fragility the old `(; series, summary)` shape caused
 - [x] the summary formatter is now generic over those two dictionaries — the six
-      per-experiment `_summary_extra` methods are gone — with one `PARAM_UNITS` /
-      `PARAM_LABELS` table. **This is the first step on the open question below**: the
-      remaining work is to merge it with `gui2d/summary.jl`'s `PARAM_LABELS`
+      per-experiment `_summary_extra` methods are gone. (Superseded by Phase 3.9 below:
+      `PARAM_UNITS`/`PARAM_LABELS` briefly grew into one flat table for every experiment's
+      parameters, which was wrong for the same reason `_summary_extra` was — corrected to
+      one small shared table plus a per-experiment override table each.)
 - [x] STD no longer overrides `analyse`; it contrasts and fits in `postfitglobal!`, the
       way `cest2d` does in `postfit!`, and its four presentation overrides are deleted
 - [x] `ResultVisualisation` trait (`completeresultstate!` / `resultpanel!` /
@@ -295,10 +296,32 @@ Phase 3.8 — **third feedback round: one info panel, real alignment**  ✓
       to stay precisely over the region's own span - more robust for a physical mouse
       wheel's tendency to nudge the cursor slightly as it turns
 - [x] four more fit parameters given display names (`C` "Recovery factor", `D` "Diffusion
-      coefficient", `ν` "Nutation frequency", `k` "Buildup rate") - each used by exactly
-      one model, so safe in the global table unlike `:R`
+      coefficient", `ν` "Nutation frequency", `k` "Buildup rate") - added to the shared
+      `PARAM_LABELS` table at the time; corrected in Phase 3.9 below, since none of the
+      four is actually shared
+
+Phase 3.9 — **fourth feedback round: parameter names belong with their experiment**  ✓
+- [x] every experiment-specific entry moved out of the shared `PARAM_UNITS`/
+      `PARAM_LABELS` tables in `visualisation.jl` and into a `<EXPT>_PARAM_LABELS`/
+      `<EXPT>_PARAM_UNITS` pair in that experiment's own file, with `paramlabel`/
+      `paramunit` overridden there to check it first. Prompted by nutation's "B₁ inhom."
+      label turning up nowhere in `expt-nutation.jl` - the override mechanism built for
+      `:R` (Phase 3.7) was right, but every symbol added after it (TRACT's η/τc,
+      nutation's pulse90/inhomogeneity, diffusion's D/rH/viscosity, STD's whole
+      buildup/epitope vocabulary) went into the shared table instead of using it, the
+      same "everything about an experiment lives with that experiment" violation the
+      whole `expt-*.jl` split exists to prevent. The shared tables now hold only what is
+      genuinely cross-experiment: `:A`'s label (the same "Amplitude" everywhere it's
+      fitted) and `:R`'s unit (a rate is a rate regardless of which experiment fits one -
+      only its *label* differs by experiment, which is why that stays overridden per
+      experiment rather than joining `:A` here)
+- [x] `RecoveryModel` moved from `seriesmodels.jl` (shared-model file) to
+      `expt-relaxation.jl`: it was never actually shared, only `RelaxationExperiment`'s
+      `ir=true` path ever constructs one - the same misplacement as the labels, just for
+      a model instead of a name
 
 Still open after this iteration:
 - **Canonical output format across 1D and 2D** (text vs CSV, units, precision). 1D now has
-  a `results.csv` following 2D's conventions and a single units/labels table, but the two
-  tables have not been merged and the question itself is not settled.
+  a `results.csv` following 2D's conventions and a small shared units/labels table (plus
+  one per experiment for what isn't shared), but the 1D and 2D tables have not been
+  merged and the question itself is not settled.

@@ -2,7 +2,9 @@
 #
 # Models used by two or more experiments live here; a model used by exactly one lives in
 # that experiment's own `expt-*.jl` (StejskalTanner in expt-diffusion.jl, DampedSinusoid
-# in expt-nutation.jl, Buildup and Contrast in expt-std.jl).
+# in expt-nutation.jl, Buildup and Contrast in expt-std.jl, Recovery in
+# expt-relaxation.jl). ExponentialModel is the one genuinely shared: relaxation (T1/T2)
+# and TRACT both fit a plain exponential decay.
 
 """
     SeriesModel
@@ -54,18 +56,6 @@ function ExponentialModel()
     return CurveFitModel((x, p) -> @.(p[1] * exp(-p[2] * x)),
                          ["A", "R"],
                          (x, y) -> [maximum(abs.(y)), 3.0 / maximum(x)];
-                         xlabel="Time / s")
-end
-
-"""
-    RecoveryModel()
-
-Inversion/saturation recovery `A·(1 − C·exp(−R·t))`, parameters `[A, C, R]`.
-"""
-function RecoveryModel()
-    return CurveFitModel((x, p) -> @.(p[1] * (1 - p[2] * exp(-p[3] * x))),
-                         ["A", "C", "R"],
-                         (x, y) -> [maximum(y), 2.0, 3.0 / maximum(x)];
                          xlabel="Time / s")
 end
 

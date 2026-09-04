@@ -146,11 +146,22 @@ function spectruminfo(::TractExperiment, vars::NamedTuple)
     return "$(round(vars.time; digits=3)) s delay ($which)"
 end
 
-# :R genuinely means "relaxation rate" for both TROSY and anti-TROSY decays, so it's
-# safe to override here (unlike the global PARAM_LABELS table, which leaves :R alone
-# because nutation's decay rate shares the same bare symbol without the same meaning).
+# Own display names and units, not the shared PARAM_LABELS/PARAM_UNITS tables -
+# everything about this experiment's presentation lives here. :R genuinely means
+# "relaxation rate" for both TROSY and anti-TROSY decays (unlike the shared table, which
+# leaves :R alone because nutation's decay rate shares the same bare symbol without the
+# same meaning); :ηxy and :τc only ever appear here, computed in `postfitglobal!` above.
+const TRACT_PARAM_LABELS = Dict(:R => "Relaxation rate",
+                                :ηxy => "CCR rate (η)",
+                                :τc => "Correlation time (τc)")
+const TRACT_PARAM_UNITS = Dict(:ηxy => " s⁻¹",
+                               :τc => " ns")
+
 function paramlabel(::TractExperiment, name::Symbol)
-    return name === :R ? "Relaxation rate" : get(PARAM_LABELS, name, string(name))
+    return get(TRACT_PARAM_LABELS, name, get(PARAM_LABELS, name, string(name)))
+end
+function paramunit(::TractExperiment, name::Symbol)
+    return get(TRACT_PARAM_UNITS, name, get(PARAM_UNITS, name, ""))
 end
 
 # Matches the TROSY/anti-TROSY wording `seriesnames` already uses for the plot legend.

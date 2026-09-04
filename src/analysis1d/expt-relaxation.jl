@@ -56,6 +56,20 @@ primaryparam(::RelaxationExperiment) = :R
 # ---- 4. science ---------------------------------------------------------------
 # The fitted rate is the deliverable; nothing further is derived from it.
 
+"""
+    RecoveryModel()
+
+Inversion/saturation recovery `A·(1 − C·exp(−R·t))`, parameters `[A, C, R]`. Used only
+here: TRACT always fits a plain exponential (`ExponentialModel`, shared in
+`seriesmodels.jl` since both experiments use it), never a recovery curve.
+"""
+function RecoveryModel()
+    return CurveFitModel((x, p) -> @.(p[1] * (1 - p[2] * exp(-p[3] * x))),
+                         ["A", "C", "R"],
+                         (x, y) -> [maximum(y), 2.0, 3.0 / maximum(x)];
+                         xlabel="Time / s")
+end
+
 # ---- 5. presentation ----------------------------------------------------------
 
 windowtitle(::RelaxationExperiment) = "Relaxation"
@@ -69,8 +83,14 @@ end
 
 spectruminfo(::RelaxationExperiment, vars::NamedTuple) = "$(round(vars.time; digits=3)) s delay"
 
-# :R genuinely means "relaxation rate" here (T1/T2, or the recovery rate) - see the note
-# on TractExperiment's own override, which shares this model and this reasoning.
+# Own display names, not the shared PARAM_LABELS table - everything about this
+# experiment's presentation lives here, not scattered into a module-wide table. :R
+# genuinely means "relaxation rate" for both T1/T2 and recovery fits (TRACT overrides
+# it too, for the same reason - see its own note); :C only ever appears here, since
+# RecoveryModel, above, is this experiment's alone.
+const RELAXATION_PARAM_LABELS = Dict(:R => "Relaxation rate",
+                                     :C => "Recovery factor")
+
 function paramlabel(::RelaxationExperiment, name::Symbol)
-    return name === :R ? "Relaxation rate" : get(PARAM_LABELS, name, string(name))
+    return get(RELAXATION_PARAM_LABELS, name, get(PARAM_LABELS, name, string(name)))
 end

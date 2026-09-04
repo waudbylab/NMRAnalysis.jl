@@ -172,53 +172,37 @@ fmt(x::Measurement, digits=4) = string(round(Measurements.value(x); sigdigits=di
 fmt(x::Real, digits=4) = string(round(x; sigdigits=digits))
 fmt(::Nothing, digits=4) = "n/a"
 
-# Units and display names for parameters, fitted and derived alike. Derived quantities are
-# *stored* in the unit named here (see `RegionResult`), so one number serves the summary
-# and any tabular export. The 2D side keeps an equivalent table in `gui2d/summary.jl`
-# (`PARAM_LABELS`); merging the two is the first step of the open question in PLAN.md about
-# a canonical output format across 1D and 2D.
-# Keys are unique across every experiment - a symbol means one quantity in one unit
-# everywhere, which is why TRACT's cross-correlated rate is `:ηxy` and diffusion's
-# viscosity is `:viscosity` rather than both being `:η`.
-const PARAM_UNITS = Dict(:R => " s⁻¹",
-                         :ν => " Hz",
-                         :k => " s⁻¹",
-                         :ηxy => " s⁻¹",
-                         :τc => " ns",
-                         :pulse90 => " µs",
-                         :D => " ×10⁻¹⁰ m² s⁻¹",
-                         :rH => " Å",
-                         :viscosity => " mPa s",
-                         :relative => " %")
-
-# `:A` gets a global label - "Amplitude" is accurate for every fit here, whatever
-# experiment it comes from. `:R` does not: relaxation and TRACT genuinely mean a
-# relaxation rate by it, but nutation's damped-sinusoid model uses the same bare symbol
-# for its decay rate, which "Relaxation rate" would mislabel. So `:R` stays out of this
-# global table and is instead overridden per experiment, below, only where it is true.
-const PARAM_LABELS = Dict(:A => "Amplitude",
-                          :C => "Recovery factor",
-                          :D => "Diffusion coefficient",
-                          :ν => "Nutation frequency",
-                          :k => "Buildup rate",
-                          :pulse90 => "90°",
-                          :inhomogeneity => "B₁ inhom.",
-                          :ηxy => "CCR rate (η)",
-                          :τc => "Correlation time (τc)",
-                          :STD_AF0 => "STD-AF₀",
-                          :STD_AF => "STD-AF",
-                          :STD_AF_max => "STD-AF_max",
-                          :relative => "epitope",
-                          :viscosity => "η")
+# Units and display names for the handful of parameters genuinely shared by more than one
+# experiment - not a catch-all table. Everything specific to one experiment (TRACT's
+# :ηxy/:τc, nutation's :pulse90/:inhomogeneity, diffusion's :D/:rH/:viscosity, STD's whole
+# buildup/epitope vocabulary, relaxation's :C, ...) is defined in that experiment's own
+# expt-*.jl, in its own local table, alongside the `postfit!`/model that produces it - see
+# `paramlabel`/`paramunit` below. Putting any of that here instead is exactly the mistake
+# this split exists to prevent: it scatters one experiment's presentation into a file
+# every other experiment also reads. The 2D side keeps an equivalent table in
+# `gui2d/summary.jl` (`PARAM_LABELS`); merging the two is the first step of the open
+# question in PLAN.md about a canonical output format across 1D and 2D.
+#
+# `:A` is here because "Amplitude" is accurate for every fit that produces it (relaxation,
+# TRACT, nutation, diffusion all fit an overall scale factor and mean the same thing by
+# it). `:R`'s *unit* (a rate, in s⁻¹) is equally universal - relaxation, TRACT and
+# nutation's models all produce one - but its *label* is not: relaxation and TRACT mean a
+# relaxation rate, nutation's damped-sinusoid model means a decay rate, and "Relaxation
+# rate" would mislabel the latter. So :R gets a unit here but its label is left to each
+# experiment that needs one (relaxation and TRACT override it; nutation deliberately
+# doesn't, falling back to the bare "R" this table would otherwise give it).
+const PARAM_UNITS = Dict(:R => " s⁻¹")
+const PARAM_LABELS = Dict(:A => "Amplitude")
 
 """
     paramlabel(expt, name) -> String
     paramunit(expt, name) -> String
 
-Display name and unit for parameter `name` (fitted or derived). Experiment-dispatched,
-not a single global table, precisely because a bare symbol can mean different things in
-different experiments (see `PARAM_LABELS`'s note on `:R`) - the default falls back to the
-symbols that genuinely are universal; an experiment overrides only the ones that aren't.
+Display name and unit for parameter `name` (fitted or derived). Experiment-dispatched: the
+default here falls back to the small shared tables above (only the symbols genuinely
+universal across experiments), then to the bare symbol/no unit. Every experiment that
+introduces its own parameters overrides these with its own local table - see e.g.
+`NUTATION_PARAM_LABELS` in `expt-nutation.jl`.
 """
 paramlabel(::Experiment1D, name::Symbol) = get(PARAM_LABELS, name, string(name))
 paramunit(::Experiment1D, name::Symbol) = get(PARAM_UNITS, name, "")
