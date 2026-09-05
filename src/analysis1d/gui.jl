@@ -448,7 +448,7 @@ function setupmouse!(fig, ax, state)
         i = state[:active][]
         (1 ≤ i ≤ length(state[:regions][])) || return Consume(false)
         r = state[:regions][][i]
-        setregionwidth!(state, i, width(r) * (dy > 0 ? 1.1 : 1 / 1.1))
+        setregionwidth!(state, i, clamp(width(r) * (dy > 0 ? 1.1 : 1 / 1.1), 1e-3, 10.0))
         return Consume(true)
     end
 end
@@ -677,7 +677,7 @@ function pickregion(traces::AbstractVector{Trace}; peakppm=nothing, noiseppm=not
     on(events(ax).scroll; priority=2) do (_, dy)
         (dy == 0 || !ispressed(fig, Keyboard.left_shift | Keyboard.right_shift)) &&
             return Consume(false)
-        w[] = max(w[] * (dy > 0 ? 1.1 : 1 / 1.1), 1e-6)
+        w[] = clamp(w[] * (dy > 0 ? 1.1 : 1 / 1.1), 1e-3, 10.0)
         return Consume(true)
     end
 
