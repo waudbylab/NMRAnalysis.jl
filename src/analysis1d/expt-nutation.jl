@@ -17,7 +17,8 @@ function calibration1d(spec; durations=nothing, phase=nothing, regions=nothing,
     spec = loadspec(spec)
     t = something(durations, annotation(spec, :calibration, :duration))
     ph = isnothing(phase) ?
-         (annotation(spec, :calibration, :model) == "cosine_modulated" ? :cosine : :sine) : phase
+         (annotation(spec, :calibration, :model) == "cosine_modulated" ? :cosine : :sine) :
+         phase
     ds = datasetfromspec(spec, [(; duration=Float64(d)) for d in t])
     expt = isnothing(regions) ? NutationExperiment(ds; phase=ph) :
            NutationExperiment(ds; phase=ph, regions)
@@ -79,7 +80,7 @@ end
 function postfit!(r::RegionResult, ::NutationExperiment)
     ν = param(r, :ν)
     setpost!(r, :pulse90, 1e6 / (4ν))
-    setpost!(r, :inhomogeneity, param(r, :R) / (2π * ν))
+    setpost!(r, :inhomogeneity, 100 * param(r, :R) / (2π * ν))
     return nothing
 end
 
@@ -107,7 +108,8 @@ const NUTATION_PARAM_LABELS = Dict(:ν => "Nutation frequency",
                                    :pulse90 => "90°",
                                    :inhomogeneity => "B₁ inhom.")
 const NUTATION_PARAM_UNITS = Dict(:ν => " Hz",
-                                  :pulse90 => " µs")
+                                  :pulse90 => " µs",
+                                  :inhomogeneity => " %")
 
 function paramlabel(::NutationExperiment, name::Symbol)
     return get(NUTATION_PARAM_LABELS, name, get(PARAM_LABELS, name, string(name)))

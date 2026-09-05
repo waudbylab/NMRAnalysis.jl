@@ -61,9 +61,10 @@ function preparestate(expt::Experiment1D)
     # No special-casing for zero regions: `analyse` returns a `Vector{RegionResult}` for
     # every experiment, fitted or not, empty or not, so the Observable's element type -
     # fixed by its first value - is stable whatever the user does.
-    state[:result] = lift(state[:dataset], state[:regions], state[:isfitting]) do ds_,
-                                                                                      regs_,
-                                                                                      fitting
+    state[:result] = lift(state[:dataset], state[:regions], state[:isfitting]
+                          ) do ds_,
+                               regs_,
+                               fitting
         return analyse(expt, ds_, regs_; isfitting=fitting)
     end
 
@@ -115,7 +116,7 @@ function preparestate(expt::Experiment1D)
         r = rs[i]
         heading = rich(rich("Selected region:"; font=:bold), plaintext(" "),
                        plaintext(r.label), "\n")
-        bounds = plaintext("$(round(r.lo; digits=2)) – $(round(r.hi; digits=2)) ppm")
+        bounds = plaintext("$(round(r.lo; digits=2)) to $(round(r.hi; digits=2)) ppm")
         fitting || return rich(heading, bounds)
         width = panelwidth(expt, res, r.label)
         body = rich(resultsheader(expt, res, r.label, width),

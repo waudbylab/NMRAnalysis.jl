@@ -70,7 +70,7 @@ function gui!(expt::Experiment1D)
     # content changes. `valign=:top` keeps its rows packed at the top, so any leftover
     # vertical space collects at the bottom instead of being spread between rows.
     right = fig[1, 2] = GridLayout(; valign=:top)
-    colsize!(fig.layout, 2, Fixed(250))
+    colsize!(fig.layout, 2, Fixed(300))
     # The single outer row defaults to `Auto()`, which - since the axes report no
     # determinable height but the controls column's stack of labels/widgets does - was
     # being sized to the controls column's (shorter) natural height instead of the full
@@ -95,7 +95,8 @@ function gui!(expt::Experiment1D)
     spectitle = lift(i -> "Spectrum: $(spectruminfo(expt, state[:planes].vars[i]))",
                      state[:currentspectrumidx])
     ax = Axis(left[1, 1]; xreversed=true, xlabel="Chemical shift (ppm)", ylabel="Intensity",
-              title=spectitle, yzoomlock=true, ypanlock=true, xrectzoom=true, yrectzoom=false,
+              title=spectitle, yzoomlock=true, ypanlock=true, xrectzoom=true,
+              yrectzoom=false,
               xgridvisible=false, ygridvisible=false)
     gui[:axspec] = ax
     hlines!(ax, [0]; color=:grey)
@@ -181,7 +182,9 @@ function gui!(expt::Experiment1D)
     connect!(state[:currentspectrumidx], sl.value)
     on(_ -> stepslice!(sl, state[:nplanes], -1), btnleft.clicks)
     on(_ -> stepslice!(sl, state[:nplanes], 1), btnright.clicks)
-    slicerow[1, 4] = Label(fig, lift(i -> "$i of $(state[:nplanes])", state[:currentspectrumidx]))
+    slicerow[1, 4] = Label(fig,
+                           lift(i -> "$i of $(state[:nplanes])",
+                                state[:currentspectrumidx]))
 
     r += 1
     right[r, 1] = Label(fig,
@@ -255,7 +258,7 @@ function gui!(expt::Experiment1D)
     r += 1
     resultsrow = r
     right[r, 1] = Label(fig, state[:resultspanel]; tellwidth=false, halign=:left,
-                        valign=:top, justification=:left)
+                        justification=:left)
     # Row height set explicitly from the text itself, rather than left to GridLayout's
     # own "Auto" sizing off the Label's reported bounding box. That reporting comes from
     # Makie's own RichText boundingbox/autosize machinery, and for this panel - reactive,
@@ -332,15 +335,15 @@ function rebuildregionspans!(ax, state)
             i <= length(rs) || return
             r = rs[i]
             lo[] = r.lo
-            hi[] = r.hi
+            return hi[] = r.hi
         end
         of2 = on(state[:active]; update=true) do a
-            color[] = a == i ? ACTIVE_REGION_COLOR : INACTIVE_REGION_COLOR
+            return color[] = a == i ? ACTIVE_REGION_COLOR : INACTIVE_REGION_COLOR
         end
         sp = vspan!(ax, lo, hi; color=color)
         push!(gui[:regionspans], (sp, (of1, of2)))
     end
-    isrebuild && (ax.targetlimits[] = preservedview)
+    return isrebuild && (ax.targetlimits[] = preservedview)
 end
 
 """
