@@ -711,7 +711,10 @@ Derive per-plane ligand (`L0`) and protein (`P0`) concentration vectors from eac
 sample metadata (see above for the inference rule). Returns `(nothing, nothing)` when no plane
 carries any sample concentration metadata. `P0` alone comes back `nothing` if the protein's
 concentration isn't defined on every plane (the hyperbolic ligand ≈ free approximation is then
-used instead of the exact 1:1 equation).
+used instead of the exact 1:1 equation) — as with exchange1d's `_prompt_concentrations!`, a
+molecule missing from only *some* planes' sample metadata is warned about rather than silently
+treated as zero or silently dropped. The resolved per-plane concentrations are printed as a
+table (in the same style as exchange1d's parameter tables) so they can be checked at a glance.
 """
 function titrationconcentrations(nmrdata)
     concs = [sampleconcentrations(nmrdata[i]) for i in eachindex(nmrdata)]
@@ -736,8 +739,42 @@ function titrationconcentrations(nmrdata)
     end
 
     @info "Titration roles from sample metadata: \"$protein\" (observed), \"$ligand\" (titrant)"
+
+    # As in exchange1d's `_prompt_concentrations!`: a plane's sample simply not naming a molecule
+    # legitimately means zero of it (that's exactly the zero-ligand reference plane), but a plane
+    # that otherwise carries sample metadata and still lacks one of the two assigned molecules is
+    # very likely a mismatched or incomplete sample entry, so gets a warning rather than a silent
+    # zero or silent fallback.
+    missingligand = [i for i in eachindex(concs)
+                      if length(concs[i]) > 1 && !haskey(concs[i], ligand)]
+    isempty(missingligand) ||
+        @warn "\"$ligand\" concentration is missing from sample metadata in " *
+              "$(length(missingligand))/$(length(concs)) planes despite other components " *
+              "being defined:\n  " * join((nmrdata[i][:filename] for i in missingligand), "\n  ")
+
+    missingprotein = [i for i in eachindex(concs) if !haskey(concs[i], protein)]
+    if !isempty(missingprotein)
+        if length(missingprotein) < length(concs)
+            @warn "\"$protein\" concentration is missing from sample metadata in " *
+                  "$(length(missingprotein))/$(length(concs)) planes — falling back to the " *
+                  "ligand-only (hyperbolic) approximation for every plane:\n  " *
+                  join((nmrdata[i][:filename] for i in missingprotein), "\n  ")
+        else
+            @info "No \"$protein\" concentration found in sample metadata — using the " *
+                  "ligand-only (hyperbolic) approximation"
+        end
+    end
+
     L0 = [get(c, ligand, 0.0) for c in concs]
-    P0 = all(c -> haskey(c, protein), concs) ? [c[protein] for c in concs] : nothing
+    P0 = isempty(missingprotein) ? [c[protein] for c in concs] : nothing
+
+    formatconc(v) = string(round(v; digits=4))
+    tdata = hcat(string.(1:length(concs)), formatconc.(L0),
+                isnothing(P0) ? fill("—", length(concs)) : formatconc.(P0))
+    pretty_table(tdata; header=["Plane", "[$ligand] (L0)", "[$protein] (P0)"],
+                alignment=[:r, :r, :r], tf=tf_unicode_rounded, crop=:none,
+                header_crayon=Crayon(; bold=true))
+
     return (L0, P0)
 end
 
