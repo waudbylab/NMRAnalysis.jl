@@ -9,6 +9,7 @@ using Measurements
 using NativeFileDialog
 using NMRTools
 using OrderedCollections
+using REPL.TerminalMenus
 using Statistics
 using ..MaybeVectorModule
 
