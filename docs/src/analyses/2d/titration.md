@@ -25,7 +25,10 @@ files = [
 ligand_concs = [0, 8.13, 16.14, 24.01, 31.76, 46.89, 61.56, 75.79, 109.53, 140.89, 200.06]
 protein_concs = [41, 40.67, 40.34, 40.02, 39.7, 39.08, 38.48, 37.89, 36.51, 35.22, 32.8]
 
-# Ligand concentrations only (hyperbolic, ligand ≈ free):
+# Concentrations read automatically from each plane's NMR sample metadata:
+titration2d(files)
+
+# Ligand concentrations given explicitly (hyperbolic, ligand ≈ free):
 titration2d(files, L0=ligand_concs)
 
 # With protein concentrations — exact 1:1 equation, accounts for dilution:
@@ -37,10 +40,12 @@ titration2d(files, L0=ligand_concs, P0=protein_concs)
 ## Arguments
 
 - `inputfilenames`: a single pseudo-3D dataset, or a vector of 2D spectra (one per plane).
-- `L0`: total **ligand** concentration in each plane (one value per plane).
+- `L0`: total **ligand** concentration in each plane (one value per plane). If omitted, it is
+  read from each plane's NMR sample metadata (see [Concentrations from sample metadata](#Concentrations-from-sample-metadata)
+  below); an error is raised if that metadata isn't available either.
 - `P0`: total **protein** concentration in each plane (one value per plane), or omitted. When
-  supplied, the exact 1:1 binding equation is used, which accounts for the protein concentration
-  and any dilution during the titration.
+  supplied (explicitly, or found in sample metadata), the exact 1:1 binding equation is used,
+  which accounts for the protein concentration and any dilution during the titration.
 - `weights`: `(wx, wy)`, the per-dimension weighting used to combine the x and y shift changes
   into the single `|Δδ|` reported in the summary plot (see [Combined CSP](#Combined-CSP)). This
   affects **only** the combined `|Δδ|` summary; the per-dimension panels and the `Kd` fit do not
@@ -49,6 +54,18 @@ titration2d(files, L0=ligand_concs, P0=protein_concs)
 !!! note "Concentration units"
     Use whatever concentration units you like for `L0` and `P0` (µM, mM, …), as long as both are
     in the **same** units. The fitted ``K_\text{d}`` is reported in those same units.
+
+## Concentrations from sample metadata
+
+If `L0` isn't given, `titration2d` looks for the total concentration of each named molecule in
+every plane's NMR sample metadata — the same information [`exchange1d`](../exchange1d.md)
+uses. A plane whose sample defines a single component is taken as the zero-ligand (observed
+molecule) reference point: if exactly two molecules are named across the whole series, that
+plane tells `titration2d` which one is the observed molecule and which is the titrant, and `L0`
+(and `P0`, if every plane's sample gives a protein concentration) are read off directly — no
+explicit `L0`/`P0` keywords needed. If that inference isn't possible — no such single-component
+plane, or more than two named molecules — you are prompted at the terminal to assign the two
+roles. Passing `L0` (or `P0`) explicitly always takes precedence over sample metadata.
 
 ## Tracking peaks
 

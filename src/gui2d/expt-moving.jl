@@ -685,8 +685,64 @@ struct TitrationModel <: FittingModel
     weights::Tuple{Float64,Float64}
 end
 
+# --- sample-derived concentrations ------------------------------------------
+# Titration points are typically each a separate processed dataset with its own NMR sample
+# definition, so the concentrations can usually be read straight from that metadata instead of
+# being typed in by hand — the same `sample(spec, :sample, :components)` metadata that
+# exchange1d's `sampleconcentrations` reads. A plane whose sample defines a single component is
+# taken as the zero-ligand (observed-molecule) reference point: if the series names exactly two
+# molecules overall, that plane identifies which is the observed molecule and which is the
+# titrant. Anything less clear-cut (no such reference plane, or more than two named molecules)
+# is resolved by asking the user; explicit `L0`/`P0` keywords always take precedence.
+
+"""Name => total concentration for the sample components defined on `spec`, or an empty Dict
+when `spec` carries no sample component metadata (e.g. a plane of a pseudo-3D dataset)."""
+function sampleconcentrations(spec::NMRData)
+    components = sample(spec, :sample, :components)
+    isnothing(components) && return Dict{String,Float64}()
+    return Dict(c["name"] => c["concentration_or_amount"] for c in components
+                if haskey(c, "name") && haskey(c, "concentration_or_amount"))
+end
+
 """
-    titration2d(inputfilenames; L0, P0=nothing, weights=(1.0, 0.14))
+    titrationconcentrations(nmrdata) -> (L0, P0)
+
+Derive per-plane ligand (`L0`) and protein (`P0`) concentration vectors from each plane's
+sample metadata (see above for the inference rule). Returns `(nothing, nothing)` when no plane
+carries any sample concentration metadata. `P0` alone comes back `nothing` if the protein's
+concentration isn't defined on every plane (the hyperbolic ligand ≈ free approximation is then
+used instead of the exact 1:1 equation).
+"""
+function titrationconcentrations(nmrdata)
+    concs = [sampleconcentrations(nmrdata[i]) for i in eachindex(nmrdata)]
+    names = unique(String[k for c in concs for k in keys(c)])
+    isempty(names) && return (nothing, nothing)
+
+    singleton = findfirst(c -> length(c) == 1, concs)
+    protein, ligand = if length(names) == 2 && singleton !== nothing
+        only(keys(concs[singleton])), only(setdiff(names, keys(concs[singleton])))
+    else
+        options = [names; "Cancel"]
+        pchoice = request("Sample defines $(join(names, ", ")) — which is the observed molecule?",
+                          RadioMenu(options))
+        (pchoice == -1 || pchoice == length(options)) &&
+            error("Titration cancelled: no molecule roles assigned")
+        remaining = names[1:end .!= pchoice]
+        lchoice = length(remaining) == 1 ? 1 :
+                  request("Which is the titrant?", RadioMenu([remaining; "Cancel"]))
+        (lchoice == -1 || lchoice == length(remaining) + 1) &&
+            error("Titration cancelled: no molecule roles assigned")
+        names[pchoice], remaining[lchoice]
+    end
+
+    @info "Titration roles from sample metadata: \"$protein\" (observed), \"$ligand\" (titrant)"
+    L0 = [get(c, ligand, 0.0) for c in concs]
+    P0 = all(c -> haskey(c, protein), concs) ? [c[protein] for c in concs] : nothing
+    return (L0, P0)
+end
+
+"""
+    titration2d(inputfilenames; L0=nothing, P0=nothing, weights=(1.0, 0.14))
 
 Interactive analysis of a 2D titration series, fitting a global binding isotherm to the
 chemical-shift perturbations. Built on [`peaktrack2d`](@ref): track each residue's peak across
@@ -696,11 +752,13 @@ all residues plus per-residue free/bound shifts in each dimension.
 # Arguments
 - `inputfilenames`: A single path string (pseudo-3D dataset) or a vector of path strings (one
   file per plane) pointing to processed Bruker data directories.
-- `L0`: Total **ligand** concentration in each plane (one per plane).
-- `P0`: Total **protein** concentration in each plane (one per plane), or `nothing`. When given,
-  the exact 1:1 binding equation is used, accounting for protein concentration and dilution;
-  otherwise the hyperbolic (ligand ≈ free) approximation is used. `Kd` is reported in the same
-  concentration units as `L0`/`P0`.
+- `L0`: Total **ligand** concentration in each plane (one per plane). If omitted, it is read
+  from each plane's NMR sample metadata (see [`titrationconcentrations`](@ref)); an error is
+  raised if that metadata isn't available either.
+- `P0`: Total **protein** concentration in each plane (one per plane), or `nothing`. When given
+  (explicitly, or found in sample metadata), the exact 1:1 binding equation is used, accounting
+  for protein concentration and dilution; otherwise the hyperbolic (ligand ≈ free) approximation
+  is used. `Kd` is reported in the same concentration units as `L0`/`P0`.
 - `weights`: `(wx, wy)` weighting of the two dimensions for the combined CSP `|Δδ|`; the default
   assumes ¹H (x) / ¹⁵N (y).
 
@@ -713,17 +771,26 @@ all residues plus per-residue free/bound shifts in each dimension.
 
 # Example
 ```julia
-titration2d(files; L0=ligand_concs)                  # ligand concentrations only
+titration2d(files)                                    # concentrations from sample metadata
+titration2d(files; L0=ligand_concs)                   # ligand concentrations only
 titration2d(files; L0=ligand_concs, P0=protein_concs) # exact 1:1, accounts for dilution
 ```
 """
-function titration2d(inputfilenames; L0, P0=nothing, weights=(1.0, 0.14))
-    isempty(L0) && error("`L0` (ligand concentrations) must not be empty")
+function titration2d(inputfilenames; L0=nothing, P0=nothing, weights=(1.0, 0.14))
+    specdata = preparespecdata(inputfilenames, MovingExperiment)
+
+    if isnothing(L0)
+        L0, autoP0 = titrationconcentrations(specdata.nmrdata)
+        isnothing(L0) &&
+            error("No `L0` given, and no sample concentration metadata found — pass `L0` " *
+                  "(and optionally `P0`) explicitly")
+        isnothing(P0) && (P0 = autoP0)
+    end
 
     ligand = Float64.(collect(L0))
     protein = isnothing(P0) ? nothing : Float64.(collect(P0))
+    isempty(ligand) && error("`L0` (ligand concentrations) must not be empty")
 
-    specdata = preparespecdata(inputfilenames, MovingExperiment)
     length(specdata.z) == length(ligand) ||
         error("got $(length(ligand)) ligand concentrations (L0) for $(length(specdata.z)) planes")
     isnothing(protein) || length(protein) == length(ligand) ||
