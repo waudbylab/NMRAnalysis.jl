@@ -1,6 +1,7 @@
 using NMRAnalysis
 import NMRAnalysis.Exchange1D:
                                NoExchangeModel, TwoStateModel, TwoStateBindingModel,
+                               InducedFitModel,
                                R1Experiment, CESTExperiment, ExchangeProblem,
                                nstates, modelname, nmolecules,
                                exchangematrix, populations, defaultparams,
@@ -77,6 +78,45 @@ end
 
         @test defaultparams(model).logKd ≈ log(100.0)
         @test defaultparams(model).logkoff ≈ log(5000.0)
+    end
+
+    @testset "InducedFitModel" begin
+        model = InducedFitModel(Dict(:A => "protein", :X => "ligand"))
+        @test nstates(model) == 3
+        @test nmolecules(model) == 2
+
+        p0 = defaultparams(model)
+        @test p0.logKd ≈ log(10.0)
+        @test p0.logkoff ≈ log(1000.0)
+        @test p0.logkclose ≈ log(1000.0)
+        @test p0.logkopen ≈ log(10.0)
+
+        A0, X0 = 50.0, 20.0
+        expt = R1Experiment(nothing, 14.1, Dict("protein" => A0, "ligand" => X0),
+                            [0.1], [1.0 ± 0.02], zeros(1), :exponential_decay)
+        params = ComponentArray(; model=p0)
+
+        p = populations(model, params, expt)
+        @test sum(p) ≈ 1.0
+        @test all(p .> 0)
+
+        K = exchangematrix(model, params, expt)
+        @test size(K) == (3, 3)
+        @test K[1, 3] == 0.0 && K[3, 1] == 0.0  # no direct A <-> C exchange
+        @test sum(K; dims=1) ≈ zeros(1, 3) atol = 1e-8  # conservation of magnetisation
+        @test K * p ≈ zeros(3) atol = 1e-8  # populations are the stationary distribution
+
+        # detailed balance across each edge of the (cycle-free) A-B-C chain
+        koff = exp(params.model.logkoff)
+        kclose = exp(params.model.logkclose)
+        kopen = exp(params.model.logkopen)
+        @test K[2, 1] * p[1] ≈ koff * p[2] atol = 1e-8      # kAB*pA = kBA*pB
+        @test kclose * p[2] ≈ kopen * p[3] atol = 1e-8      # kBC*pB = kCB*pC
+
+        # in the absence of ligand, everything is free
+        exptnolig = R1Experiment(nothing, 14.1, Dict("protein" => A0, "ligand" => 0.0),
+                                 [0.1], [1.0 ± 0.02], zeros(1), :exponential_decay)
+        @test populations(model, params, exptnolig) ≈ [1.0, 0.0, 0.0] atol = 1e-8
     end
 
     # Note: most liouvillian tests require a real NMR experiment (spec with :bf metadata)
