@@ -59,7 +59,9 @@ experiment's field, and chemical shifts (delta).
 """
 function default_spin_params(expt::CESTExperiment, nstates)
     fl = field_label(expt)
-    return [:delta => fill(expt.spec[1, :offsetppm], nstates),
+    δs = fill(expt.spec[1, :offsetppm], nstates)
+    δs[2:end] .+= randn(nstates - 1)
+    return [:delta => δs,
             Symbol("R2_", fl) => fill(10.0, nstates),
             Symbol("R1_", fl) => [1.5]]
 end
