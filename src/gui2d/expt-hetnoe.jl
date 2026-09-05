@@ -3,8 +3,9 @@
 
 Start interactive GUI for analysing 2D heteronuclear NOE data.
 
-`reference` and `saturated` can each be a single filename or a list of filenames.
-When lists are provided, results are averaged across all pairs.
+`reference` and `saturated` can each be a single filename or a list of filenames — Bruker
+experiment numbers work too, individually or as a list/range. When lists are provided,
+results are averaged across all pairs.
 
 # Examples
 ```julia
@@ -16,6 +17,9 @@ hetnoe2d(
     ["expno1/pdata/231", "expno2/pdata/231"],  # references
     ["expno1/pdata/232", "expno2/pdata/232"],  # saturated
 )
+
+# Bruker experiment numbers
+hetnoe2d(1, 2)
 ```
 """
 function hetnoe2d(reference::AbstractString, saturated::AbstractString)
@@ -37,6 +41,11 @@ end
 
 function hetnoe2d(planeexptnos::AbstractVector{<:Integer}, saturationlist)
     return hetnoe2d(string.(planeexptnos), saturationlist)
+end
+
+hetnoe2d(reference::Integer, saturated::Integer) = hetnoe2d(string(reference), string(saturated))
+function hetnoe2d(reference::AbstractVector{<:Integer}, saturated::AbstractVector{<:Integer})
+    return hetnoe2d(string.(reference), string.(saturated))
 end
 
 """

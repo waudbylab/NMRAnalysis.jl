@@ -133,16 +133,20 @@ analysis, or as the basis for the position-based physical models (titration, cou
 
 # Arguments
 - `inputfilenames`: A single path string (pseudo-3D dataset) or a vector of path strings
-  (one file per plane) pointing to processed Bruker data directories.
+  (one file per plane) pointing to processed Bruker data directories. Bruker experiment
+  numbers work too, individually or as a list/range (e.g. `1:11`), resolved relative to the
+  working directory.
 
 # Example
 ```julia
 peaktrack2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"])
+peaktrack2d(1:11)
 ```
 
 See also [`titration2d`](@ref) for fitting binding isotherms to a titration series.
 """
 function peaktrack2d(inputfilenames)
+    inputfilenames = asexptpath(inputfilenames)
     specdata = preparespecdata(inputfilenames, MovingExperiment)
     peaks = Observable(Vector{Peak}())
 
@@ -591,13 +595,13 @@ where `sep` is the position difference between the two components in the couplin
 the coupling). `coupling` selects the dimension (`:F1`/`:F2`); it defaults to the
 heteronuclear dimension, and the sign is flipped automatically for ¹⁵N (so J ≈ −93 Hz). List
 the two components in the same order for both conditions; if J comes out with the wrong sign,
-swap the pair.
+swap the pair. Each component can also be given as a Bruker experiment number.
 """
 function rdc2d(; isotropic, aligned, coupling=nothing, scale=1.0)
     length(isotropic) == 2 || error("`isotropic` must be two component spectra, e.g. [A, B]")
     length(aligned) == 2 || error("`aligned` must be two component spectra, e.g. [A, B]")
 
-    files = [isotropic[1], isotropic[2], aligned[1], aligned[2]]
+    files = string.([isotropic[1], isotropic[2], aligned[1], aligned[2]])
     specdata = preparespecdata(files, MovingExperiment)
     length(specdata.z) == 4 ||
         error("expected 4 single-plane spectra (got $(length(specdata.z))); each input must be a 2D spectrum")
@@ -788,7 +792,9 @@ all residues plus per-residue free/bound shifts in each dimension.
 
 # Arguments
 - `inputfilenames`: A single path string (pseudo-3D dataset) or a vector of path strings (one
-  file per plane) pointing to processed Bruker data directories.
+  file per plane) pointing to processed Bruker data directories. Bruker experiment numbers
+  work too, individually or as a list/range (e.g. `1:11`), resolved relative to the working
+  directory.
 - `L0`: Total **ligand** concentration in each plane (one per plane). If omitted, it is read
   from each plane's NMR sample metadata (see [`titrationconcentrations`](@ref)); an error is
   raised if that metadata isn't available either.
@@ -812,10 +818,11 @@ all residues plus per-residue free/bound shifts in each dimension.
 titration2d(files)                                    # concentrations from sample metadata
 titration2d(files; L0=ligand_concs)                   # ligand concentrations only
 titration2d(files; L0=ligand_concs, P0=protein_concs) # exact 1:1, accounts for dilution
+titration2d(1:11)                                     # Bruker experiment numbers
 ```
 """
 function titration2d(inputfilenames; L0=nothing, P0=nothing, weights=(1.0, 0.14))
-    specdata = preparespecdata(inputfilenames, MovingExperiment)
+    specdata = preparespecdata(asexptpath(inputfilenames), MovingExperiment)
 
     if isnothing(L0)
         L0, autoP0 = titrationconcentrations(specdata.nmrdata)

@@ -77,7 +77,8 @@ cross-correlated relaxation rate `η` (s⁻¹) and a coupling term `δ` (< 0). T
 
 # Arguments
 - `buildupexpt`: buildup series (Iₐ) — a single pseudo-3D path string, or a
-  `Vector{String}` of per-delay 2D data directories.
+  `Vector{String}` of per-delay 2D data directories. Bruker experiment numbers work too,
+  individually or as a list/range.
 - `decayexpt`: decay series (I_b), in the same form as `buildupexpt`.
 - `T`: vector of relaxation delays in **seconds**, or a path string to a text file of
   delays (one per line; lines beginning with `#` are ignored). Each series must have one
@@ -99,6 +100,9 @@ methylccr2d("11/pdata/1", "12/pdata/1", "vdlist.txt"; C=1/2)
 ```
 """
 function methylccr2d(buildupexpt, decayexpt, T; C=3 / 4, skipplanes=nothing)
+    buildupexpt = asexptpath(buildupexpt)
+    decayexpt = asexptpath(decayexpt)
+
     # Parse the relaxation delays (vector, file path, or scalar)
     tau = Float64[]
     if T isa AbstractString

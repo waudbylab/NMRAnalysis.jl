@@ -55,13 +55,17 @@ so that ``S^2\tau_c\,(\text{ns}) \approx 0.277\,\eta`` for ``\eta`` in s⁻¹.
 ## Usage
 
 `T` is given in **seconds**. Each series may be a single pseudo-3D dataset (one path
-string) or a vector of per-delay 2D datasets; both must have one plane per delay.
+string) or a vector of per-delay 2D datasets; both must have one plane per delay. Bruker
+experiment numbers work too, individually or as a list/range.
 
 ```julia
 using NMRAnalysis
 
 # buildup and decay each as a pseudo-3D dataset
 methylccr2d("11", "12", [0.001, 0.002, 0.004, 0.006, 0.010])
+
+# same, using Bruker experiment numbers
+methylccr2d(11, 12, [0.001, 0.002, 0.004, 0.006, 0.010])
 
 # double-quantum variant (C = 1/2)
 methylccr2d("11", "12", [0.001, 0.002, 0.004, 0.006, 0.010]; C=1/2)

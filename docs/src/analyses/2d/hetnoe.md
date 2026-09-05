@@ -18,8 +18,9 @@ spectrum:
 ## Usage
 
 Provide paired reference and saturated spectra. `reference` and `saturated` can
-each be a single filename or a list of filenames; when lists are provided, results
-are averaged across all pairs.
+each be a single filename or a list of filenames — Bruker experiment numbers work too,
+individually or as a list/range; when lists are provided, results are averaged across all
+pairs.
 
 ```julia
 using NMRAnalysis
@@ -32,6 +33,9 @@ hetnoe2d(
     ["expno1/pdata/231", "expno2/pdata/231"],  # references
     ["expno1/pdata/232", "expno2/pdata/232"],  # saturated
 )
+
+# Bruker experiment numbers
+hetnoe2d(1, 2)
 ```
 
 ## Output
