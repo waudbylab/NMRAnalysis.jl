@@ -1,6 +1,20 @@
 nearest(A::AbstractArray, t) = findmin(abs.(A .- t))[1]
 findnearest(A::AbstractArray, t) = findmin(abs.(A .- t))[2]
 
+"""
+    asexptpath(x)
+
+Coerce an experiment identifier (or a collection of them) to the path-string form the file
+loaders expect: an integer becomes its Bruker experiment number as a string (e.g. `1` ->
+`"1"`, loaded relative to the working directory, as for the 1D functions' own `exptno`
+arguments), broadcasting elementwise over a collection of them (e.g. `1:11` ->
+`["1", ..., "11"]`); anything else (a string, or an existing collection of strings) passes
+through unchanged.
+"""
+asexptpath(x) = x
+asexptpath(x::Integer) = string(x)
+asexptpath(x::AbstractVector{<:Integer}) = string.(x)
+
 function choptitle(title, maxlength=30)
     if length(title) > maxlength
         title[1:maxlength] * "…"

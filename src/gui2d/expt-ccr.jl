@@ -24,13 +24,18 @@ ccr2d("decay_expt", "buildup_expt", 0.08)    # single decay and buildup experime
 ccr2d(["decay_expt1", "decay_expt2"],        # symmetric reconversion experiments
       ["buildup_expt1", "buildup_expt2"], 0.08)
 ```
+
+Experiments can also be given as Bruker experiment numbers, individually or as a list/range
+(e.g. `1:3`).
 """
-function ccr2d(decay_expts::Vector, buildup_expts::Vector, T)
-    expt = CCRExperiment(decay_expts, buildup_expts, T)
+function ccr2d(decay_expts::AbstractVector, buildup_expts::AbstractVector, T)
+    expt = CCRExperiment(asexptpath(decay_expts), asexptpath(buildup_expts), T)
     return gui!(expt)
 end
 
 ccr2d(decay_expt::String, buildup_expt::String, T) = ccr2d([decay_expt], [buildup_expt], T)
+ccr2d(decay_expt::Integer, buildup_expt::Integer, T) =
+    ccr2d(string(decay_expt), string(buildup_expt), T)
 
 """
     CCRExperiment

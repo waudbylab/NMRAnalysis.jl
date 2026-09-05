@@ -33,6 +33,9 @@ titration2d(files, L0=ligand_concs)
 
 # With protein concentrations — exact 1:1 equation, accounts for dilution:
 titration2d(files, L0=ligand_concs, P0=protein_concs)
+
+# Bruker experiment numbers work too, individually or as a list/range:
+titration2d(1:11)
 ```
 
 ![Screenshot of titration analysis](../../assets/titration2d.png)
@@ -40,6 +43,8 @@ titration2d(files, L0=ligand_concs, P0=protein_concs)
 ## Arguments
 
 - `inputfilenames`: a single pseudo-3D dataset, or a vector of 2D spectra (one per plane).
+  Bruker experiment numbers work too, individually or as a list/range (e.g. `1:11`), resolved
+  relative to the working directory.
 - `L0`: total **ligand** concentration in each plane (one value per plane). If omitted, it is
   read from each plane's NMR sample metadata (see [Concentrations from sample metadata](#Concentrations-from-sample-metadata)
   below); an error is raised if that metadata isn't available either.
