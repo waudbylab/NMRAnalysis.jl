@@ -6,6 +6,87 @@ peak walks along a binding trajectory across the planes, and the fit recovers a 
 dissociation constant ``K_\text{d}`` (shared by all residues) together with the free and bound
 chemical shifts of every residue in each dimension.
 
+When each plane's NMR sample metadata already records its concentrations — the usual case for
+data acquired with sample information filled in — that's all `titration2d` needs. Bruker
+experiment numbers work as the input too, individually or as a list/range, so a whole titration
+series can be as simple as:
+
+```julia
+julia> using NMRAnalysis
+
+julia> titration2d(1:11)
+[ Info: Titration roles from sample metadata: "FIR" (observed), "Nbox" (titrant)
+╭───────┬─────────────┬────────────╮
+│ Plane │ [Nbox] (L0) │ [FIR] (P0) │
+├───────┼─────────────┼────────────┤
+│     1 │         0.0 │       41.0 │
+│     2 │        8.13 │      40.67 │
+│     3 │       16.14 │      40.34 │
+│     4 │       24.01 │      40.02 │
+│     5 │       31.76 │       39.7 │
+│     6 │       46.89 │      39.08 │
+│     7 │       61.56 │      38.48 │
+│     8 │       75.79 │      37.89 │
+│     9 │      109.53 │      36.51 │
+│    10 │      140.89 │      35.22 │
+│    11 │      200.06 │       32.8 │
+╰───────┴─────────────┴────────────╯
+```
+
+`titration2d` has spotted that plane 1's sample defines only "FIR" (so that's the observed
+protein, at zero ligand) and that "Nbox" is the only other molecule named anywhere in the
+series (so that's the titrant), read off `L0` and `P0` accordingly, printed the table above to
+confirm what it found, and opened the GUI — no concentrations typed in by hand. See
+[Concentrations from sample metadata](#Concentrations-from-sample-metadata) below for exactly
+how the roles are inferred, and what happens when they can't be.
+
+![Screenshot of titration analysis](../../assets/titration2d.png)
+
+## Arguments
+
+- `inputfilenames`: a single pseudo-3D dataset, or a vector of 2D spectra (one per plane).
+  Bruker experiment numbers work too, individually or as a list/range (e.g. `1:11`), resolved
+  relative to the working directory.
+- `L0`: total **ligand** concentration in each plane (one value per plane). If omitted, it is
+  read from each plane's NMR sample metadata (see [Concentrations from sample metadata](#Concentrations-from-sample-metadata)
+  below); an error is raised if that metadata isn't available either.
+- `P0`: total **protein** concentration in each plane (one value per plane), or omitted. When
+  supplied (explicitly, or found in sample metadata), the exact 1:1 binding equation is used,
+  which accounts for the protein concentration and any dilution during the titration.
+- `weights`: `(wx, wy)`, the per-dimension weighting used to combine the x and y shift changes
+  into the single `|Δδ|` reported in the summary plot (see [Combined CSP](#Combined-CSP)). This
+  affects **only** the combined `|Δδ|` summary; the per-dimension panels and the `Kd` fit do not
+  use it. The default `(1.0, 0.14)` assumes ¹H on the x (F1) axis and ¹⁵N on the y (F2) axis.
+
+!!! note "Concentration units"
+    Use whatever concentration units you like for `L0` and `P0` (µM, mM, …), as long as both are
+    in the **same** units. The fitted ``K_\text{d}`` is reported in those same units.
+
+## Concentrations from sample metadata
+
+If `L0` isn't given, `titration2d` looks for the total concentration of each named molecule in
+every plane's NMR sample metadata — the same sample information `exchange1d` uses (see the
+"Exchange Fitting" page). A plane whose sample defines a single component is taken as the
+zero-ligand (observed molecule) reference point: if exactly two molecules are named across the
+whole series, that plane tells `titration2d` which one is the observed molecule and which is the
+titrant, and `L0` (and `P0`, if every plane's sample gives a protein concentration) are read off
+directly — no explicit `L0`/`P0` keywords needed. If that inference isn't possible — no such
+single-component plane, or more than two named molecules — you are prompted at the terminal to
+assign the two roles. Passing `L0` (or `P0`) explicitly always takes precedence over sample
+metadata.
+
+A molecule missing from *some but not all* planes' sample metadata (as opposed to genuinely
+absent from the sample, like the ligand at the zero-ligand reference point) is a likely
+mismatched or incomplete sample entry, so it's flagged with a warning rather than silently
+treated as zero or dropped. When concentrations are read from sample metadata this way, the
+per-plane values actually used for the fit are printed as a table before the GUI opens, so they
+can be checked at a glance.
+
+## Supplying concentrations directly
+
+Without sample metadata (or to override it), pass `L0` — and, for the exact 1:1 equation,
+`P0` — explicitly:
+
 ```julia
 using NMRAnalysis
 
@@ -31,24 +112,6 @@ titration2d(files, L0=ligand_concs)
 # With protein concentrations — exact 1:1 equation, accounts for dilution:
 titration2d(files, L0=ligand_concs, P0=protein_concs)
 ```
-
-![Screenshot of titration analysis](../../assets/titration2d.png)
-
-## Arguments
-
-- `inputfilenames`: a single pseudo-3D dataset, or a vector of 2D spectra (one per plane).
-- `L0`: total **ligand** concentration in each plane (one value per plane).
-- `P0`: total **protein** concentration in each plane (one value per plane), or omitted. When
-  supplied, the exact 1:1 binding equation is used, which accounts for the protein concentration
-  and any dilution during the titration.
-- `weights`: `(wx, wy)`, the per-dimension weighting used to combine the x and y shift changes
-  into the single `|Δδ|` reported in the summary plot (see [Combined CSP](#Combined-CSP)). This
-  affects **only** the combined `|Δδ|` summary; the per-dimension panels and the `Kd` fit do not
-  use it. The default `(1.0, 0.14)` assumes ¹H on the x (F1) axis and ¹⁵N on the y (F2) axis.
-
-!!! note "Concentration units"
-    Use whatever concentration units you like for `L0` and `P0` (µM, mM, …), as long as both are
-    in the **same** units. The fitted ``K_\text{d}`` is reported in those same units.
 
 ## Tracking peaks
 

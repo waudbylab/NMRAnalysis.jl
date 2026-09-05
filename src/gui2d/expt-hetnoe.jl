@@ -3,8 +3,9 @@
 
 Start interactive GUI for analysing 2D heteronuclear NOE data.
 
-`reference` and `saturated` can each be a single filename or a list of filenames.
-When lists are provided, results are averaged across all pairs.
+`reference` and `saturated` can each be a single filename or a list of filenames — Bruker
+experiment numbers work too, individually or as a list/range. When lists are provided,
+results are averaged across all pairs.
 
 # Examples
 ```julia
@@ -16,6 +17,9 @@ hetnoe2d(
     ["expno1/pdata/231", "expno2/pdata/231"],  # references
     ["expno1/pdata/232", "expno2/pdata/232"],  # saturated
 )
+
+# Bruker experiment numbers
+hetnoe2d(1, 2)
 ```
 """
 function hetnoe2d(reference::AbstractString, saturated::AbstractString)
@@ -37,6 +41,11 @@ end
 
 function hetnoe2d(planeexptnos::AbstractVector{<:Integer}, saturationlist)
     return hetnoe2d(string.(planeexptnos), saturationlist)
+end
+
+hetnoe2d(reference::Integer, saturated::Integer) = hetnoe2d(string(reference), string(saturated))
+function hetnoe2d(reference::AbstractVector{<:Integer}, saturated::AbstractVector{<:Integer})
+    return hetnoe2d(string.(reference), string.(saturated))
 end
 
 """
@@ -273,7 +282,7 @@ function plot_peak!(panel, peak, expt, ::HetNOEVisualisation)
               ylabel="Relative amplitude",
               xticks=(1:nslices(expt), expt.specdata.zlabels))
 
-    hlines!(ax, [0]; linewidth=0)
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
     hlines!(ax, fit; linewidth=2, color=:red)
     errorbars!(ax, err; whiskerwidth=10)
     return barplot!(ax, x, y)
@@ -286,7 +295,7 @@ function makepeakplot!(gui, state, expt, ::HetNOEVisualisation)
                                  ylabel="Relative amplitude",
                                  xticks=(1:nslices(expt), expt.specdata.zlabels))
 
-    hlines!(ax, [0]; linewidth=0)
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
     hlines!(ax, state[:peak_plot_fit]; linewidth=2, color=:red)
     errorbars!(ax, state[:peak_plot_err]; whiskerwidth=10)
     return barplot!(ax, state[:peak_plot_x], state[:peak_plot_y])

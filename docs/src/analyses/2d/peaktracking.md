@@ -13,6 +13,8 @@ peaktrack2d(["11", "12", "13"])
 ```
 
 - `inputfilenames`: a single pseudo-3D dataset, or a vector of 2D spectra (one per plane).
+  Bruker experiment numbers work too, individually or as a list/range (e.g. `peaktrack2d(1:3)`),
+  resolved relative to the working directory.
 
 Each peak holds an **independent position, linewidth and amplitude in every plane**, and each
 plane is fitted separately. This keeps the fit well-conditioned and decoupled: adjusting one

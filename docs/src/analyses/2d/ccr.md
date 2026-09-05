@@ -42,7 +42,8 @@ ccr2d(
 ```
 
 The third argument `T` is the relaxation time constant in seconds during which the CCR
-rate acts.
+rate acts. Experiments can also be given as Bruker experiment numbers, individually or as a
+list/range (e.g. `ccr2d(1, 2, 0.08)` or `ccr2d(1:2, 3:4, 0.08)`).
 
 ## Output
 

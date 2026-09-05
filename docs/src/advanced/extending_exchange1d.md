@@ -11,7 +11,9 @@ AbstractModel                    AbstractExperiment
 ├── NoExchangeModel              ├── R1Experiment
 ├── TwoStateModel                └── CESTExperiment
 ├── ThreeStateModel
-└── TwoStateBindingModel
+├── TwoStateBindingModel
+├── ThreeStateBindingModel
+└── InducedFitModel
 ```
 
 An `ExchangeProblem` combines a vector of experiments with a model, and the `fit()` function performs joint least-squares optimisation across all experiments.
@@ -27,6 +29,8 @@ src/exchange1d/
 ├── model-twostate.jl      # TwoStateModel implementation
 ├── model-threestate.jl    # ThreeStateModel implementation
 ├── model-twostatebinding.jl # TwoStateBindingModel implementation
+├── model-threestatebinding.jl # ThreeStateBindingModel implementation
+├── model-inducedfit.jl    # InducedFitModel implementation
 ├── experiments.jl         # load_experiment(), field_label(), includes expt-*.jl
 ├── expt-r1.jl             # R1Experiment implementation
 ├── expt-cest.jl           # CESTExperiment implementation

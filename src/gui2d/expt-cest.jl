@@ -323,7 +323,7 @@ function plot_peak!(panel, peak, expt, ::CESTVisualisation)
               xlabel="Saturation frequency (ppm)",
               ylabel="Relative intensity (I/I₀)")
 
-    hlines!(ax, [0.0]; linewidth=0, color=:black) # sneaky way to ensure axis goes to zero
+    hlines!(ax, [0.0]; color=:grey50, linewidth=1)
     hlines!(ax, [1.0]; linewidth=1, color=:gray, linestyle=:dash) # Add reference line at y=1
     hspan!(ax, 1 - ref_err, 1 + ref_err; color=(:gray, 0.2))
     errorbars!(ax, obs_err; whiskerwidth=10)
@@ -338,7 +338,7 @@ function makepeakplot!(gui, state, expt, ::CESTVisualisation)
                                  ylabel="Relative intensity (I/I₀)",
                                  title="CEST Profile")
 
-    hlines!(ax, [0.0]; linewidth=0, color=:black) # sneaky way to ensure axis goes to zero
+    hlines!(ax, [0.0]; color=:grey50, linewidth=1)
     hlines!(ax, [1.0]; linewidth=1, color=:gray, linestyle=:dash)
     hspan!(ax, lift(e -> 1 - e, state[:peak_plot_ref_err]),
            lift(e -> 1 + e, state[:peak_plot_ref_err]);

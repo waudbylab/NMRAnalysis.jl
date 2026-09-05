@@ -19,7 +19,10 @@ makedocs(;
                                      "TRACT" => "analyses/tract.md"],
                 "1D Chemical Exchange" => ["Calibration" => "analyses/calibration.md",
                                            "R1ρ Relaxation Dispersion" => "analyses/r1rho.md",
-                                           "Exchange Fitting (CEST, R1ρ, R1)" => "analyses/exchange1d.md"],
+                                           "Exchange Fitting (CEST, R1ρ, R1)" => [
+                                               "Overview" => "analyses/exchange1d/overview.md",
+                                               "Exchange Models" => "analyses/exchange1d/models.md",
+                                               "Theory and Calculation Methods" => "analyses/exchange1d/theory.md"]],
                 "2D Experiments" => ["Overview" => "analyses/2d/overview.md",
                                      "Relaxation (R₁, R₂)" => "analyses/2d/relaxation.md",
                                      "Heteronuclear NOE" => "analyses/2d/hetnoe.md",

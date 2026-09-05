@@ -282,7 +282,7 @@ function summaryplot(source; param=nothing, ylabel=nothing, title="", size=nothi
                   title=(n > 1 ? ds.name : title),
                   xgridvisible=false, ygridvisible=false)
         _drawdataset!(ax, ds, usebar)
-        hlines!(ax, [0]; linewidth=0)  # invisible: forces zero into the y-range
+        hlines!(ax, [0]; color=:grey50, linewidth=1)
         push!(axes, ax)
     end
     # share the residue axis across stacked scatter panels

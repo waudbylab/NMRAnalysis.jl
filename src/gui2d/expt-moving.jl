@@ -133,16 +133,20 @@ analysis, or as the basis for the position-based physical models (titration, cou
 
 # Arguments
 - `inputfilenames`: A single path string (pseudo-3D dataset) or a vector of path strings
-  (one file per plane) pointing to processed Bruker data directories.
+  (one file per plane) pointing to processed Bruker data directories. Bruker experiment
+  numbers work too, individually or as a list/range (e.g. `1:11`), resolved relative to the
+  working directory.
 
 # Example
 ```julia
 peaktrack2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"])
+peaktrack2d(1:11)
 ```
 
 See also [`titration2d`](@ref) for fitting binding isotherms to a titration series.
 """
 function peaktrack2d(inputfilenames)
+    inputfilenames = asexptpath(inputfilenames)
     specdata = preparespecdata(inputfilenames, MovingExperiment)
     peaks = Observable(Vector{Peak}())
 
@@ -591,13 +595,13 @@ where `sep` is the position difference between the two components in the couplin
 the coupling). `coupling` selects the dimension (`:F1`/`:F2`); it defaults to the
 heteronuclear dimension, and the sign is flipped automatically for ¹⁵N (so J ≈ −93 Hz). List
 the two components in the same order for both conditions; if J comes out with the wrong sign,
-swap the pair.
+swap the pair. Each component can also be given as a Bruker experiment number.
 """
 function rdc2d(; isotropic, aligned, coupling=nothing, scale=1.0)
     length(isotropic) == 2 || error("`isotropic` must be two component spectra, e.g. [A, B]")
     length(aligned) == 2 || error("`aligned` must be two component spectra, e.g. [A, B]")
 
-    files = [isotropic[1], isotropic[2], aligned[1], aligned[2]]
+    files = string.([isotropic[1], isotropic[2], aligned[1], aligned[2]])
     specdata = preparespecdata(files, MovingExperiment)
     length(specdata.z) == 4 ||
         error("expected 4 single-plane spectra (got $(length(specdata.z))); each input must be a 2D spectrum")
@@ -685,8 +689,101 @@ struct TitrationModel <: FittingModel
     weights::Tuple{Float64,Float64}
 end
 
+# --- sample-derived concentrations ------------------------------------------
+# Titration points are typically each a separate processed dataset with its own NMR sample
+# definition, so the concentrations can usually be read straight from that metadata instead of
+# being typed in by hand — the same `sample(spec, :sample, :components)` metadata that
+# exchange1d's `sampleconcentrations` reads. A plane whose sample defines a single component is
+# taken as the zero-ligand (observed-molecule) reference point: if the series names exactly two
+# molecules overall, that plane identifies which is the observed molecule and which is the
+# titrant. Anything less clear-cut (no such reference plane, or more than two named molecules)
+# is resolved by asking the user; explicit `L0`/`P0` keywords always take precedence.
+
+"""Name => total concentration for the sample components defined on `spec`, or an empty Dict
+when `spec` carries no sample component metadata (e.g. a plane of a pseudo-3D dataset)."""
+function sampleconcentrations(spec::NMRData)
+    components = sample(spec, :sample, :components)
+    isnothing(components) && return Dict{String,Float64}()
+    return Dict(c["name"] => c["concentration_or_amount"] for c in components
+                if haskey(c, "name") && haskey(c, "concentration_or_amount"))
+end
+
 """
-    titration2d(inputfilenames; L0, P0=nothing, weights=(1.0, 0.14))
+    titrationconcentrations(nmrdata) -> (L0, P0)
+
+Derive per-plane ligand (`L0`) and protein (`P0`) concentration vectors from each plane's
+sample metadata (see above for the inference rule). Returns `(nothing, nothing)` when no plane
+carries any sample concentration metadata. `P0` alone comes back `nothing` if the protein's
+concentration isn't defined on every plane (the hyperbolic ligand ≈ free approximation is then
+used instead of the exact 1:1 equation) — as with exchange1d's `_prompt_concentrations!`, a
+molecule missing from only *some* planes' sample metadata is warned about rather than silently
+treated as zero or silently dropped. The resolved per-plane concentrations are printed as a
+table (in the same style as exchange1d's parameter tables) so they can be checked at a glance.
+"""
+function titrationconcentrations(nmrdata)
+    concs = [sampleconcentrations(nmrdata[i]) for i in eachindex(nmrdata)]
+    names = unique(String[k for c in concs for k in keys(c)])
+    isempty(names) && return (nothing, nothing)
+
+    singleton = findfirst(c -> length(c) == 1, concs)
+    protein, ligand = if length(names) == 2 && singleton !== nothing
+        only(keys(concs[singleton])), only(setdiff(names, keys(concs[singleton])))
+    else
+        options = [names; "Cancel"]
+        pchoice = request("Sample defines $(join(names, ", ")) — which is the observed molecule?",
+                          RadioMenu(options))
+        (pchoice == -1 || pchoice == length(options)) &&
+            error("Titration cancelled: no molecule roles assigned")
+        remaining = names[1:end .!= pchoice]
+        lchoice = length(remaining) == 1 ? 1 :
+                  request("Which is the titrant?", RadioMenu([remaining; "Cancel"]))
+        (lchoice == -1 || lchoice == length(remaining) + 1) &&
+            error("Titration cancelled: no molecule roles assigned")
+        names[pchoice], remaining[lchoice]
+    end
+
+    @info "Titration roles from sample metadata: \"$protein\" (observed), \"$ligand\" (titrant)"
+
+    # As in exchange1d's `_prompt_concentrations!`: a plane's sample simply not naming a molecule
+    # legitimately means zero of it (that's exactly the zero-ligand reference plane), but a plane
+    # that otherwise carries sample metadata and still lacks one of the two assigned molecules is
+    # very likely a mismatched or incomplete sample entry, so gets a warning rather than a silent
+    # zero or silent fallback.
+    missingligand = [i for i in eachindex(concs)
+                      if length(concs[i]) > 1 && !haskey(concs[i], ligand)]
+    isempty(missingligand) ||
+        @warn "\"$ligand\" concentration is missing from sample metadata in " *
+              "$(length(missingligand))/$(length(concs)) planes despite other components " *
+              "being defined:\n  " * join((nmrdata[i][:filename] for i in missingligand), "\n  ")
+
+    missingprotein = [i for i in eachindex(concs) if !haskey(concs[i], protein)]
+    if !isempty(missingprotein)
+        if length(missingprotein) < length(concs)
+            @warn "\"$protein\" concentration is missing from sample metadata in " *
+                  "$(length(missingprotein))/$(length(concs)) planes — falling back to the " *
+                  "ligand-only (hyperbolic) approximation for every plane:\n  " *
+                  join((nmrdata[i][:filename] for i in missingprotein), "\n  ")
+        else
+            @info "No \"$protein\" concentration found in sample metadata — using the " *
+                  "ligand-only (hyperbolic) approximation"
+        end
+    end
+
+    L0 = [get(c, ligand, 0.0) for c in concs]
+    P0 = isempty(missingprotein) ? [c[protein] for c in concs] : nothing
+
+    formatconc(v) = string(round(v; digits=4))
+    tdata = hcat(string.(1:length(concs)), formatconc.(L0),
+                isnothing(P0) ? fill("—", length(concs)) : formatconc.(P0))
+    pretty_table(tdata; header=["Plane", "[$ligand] (L0)", "[$protein] (P0)"],
+                alignment=[:r, :r, :r], tf=tf_unicode_rounded, crop=:none,
+                header_crayon=Crayon(; bold=true))
+
+    return (L0, P0)
+end
+
+"""
+    titration2d(inputfilenames; L0=nothing, P0=nothing, weights=(1.0, 0.14))
 
 Interactive analysis of a 2D titration series, fitting a global binding isotherm to the
 chemical-shift perturbations. Built on [`peaktrack2d`](@ref): track each residue's peak across
@@ -695,35 +792,50 @@ all residues plus per-residue free/bound shifts in each dimension.
 
 # Arguments
 - `inputfilenames`: A single path string (pseudo-3D dataset) or a vector of path strings (one
-  file per plane) pointing to processed Bruker data directories.
-- `L0`: Total **ligand** concentration in each plane (one per plane).
-- `P0`: Total **protein** concentration in each plane (one per plane), or `nothing`. When given,
-  the exact 1:1 binding equation is used, accounting for protein concentration and dilution;
-  otherwise the hyperbolic (ligand ≈ free) approximation is used. `Kd` is reported in the same
-  concentration units as `L0`/`P0`.
+  file per plane) pointing to processed Bruker data directories. Bruker experiment numbers
+  work too, individually or as a list/range (e.g. `1:11`), resolved relative to the working
+  directory.
+- `L0`: Total **ligand** concentration in each plane (one per plane). If omitted, it is read
+  from each plane's NMR sample metadata (see [`titrationconcentrations`](@ref)); an error is
+  raised if that metadata isn't available either.
+- `P0`: Total **protein** concentration in each plane (one per plane), or `nothing`. When given
+  (explicitly, or found in sample metadata), the exact 1:1 binding equation is used, accounting
+  for protein concentration and dilution; otherwise the hyperbolic (ligand ≈ free) approximation
+  is used. `Kd` is reported in the same concentration units as `L0`/`P0`.
 - `weights`: `(wx, wy)` weighting of the two dimensions for the combined CSP `|Δδ|`; the default
   assumes ¹H (x) / ¹⁵N (y).
 
 # Results
-- The per-residue panel shows ΔδX and ΔδN against ligand concentration (referenced to the
-  fitted `δfree`), with the fitted binding curve overlaid.
+- The per-residue panel shows ΔδX and ΔδY together on a single axis (referenced to the fitted
+  `δfree`), with the fitted binding curves overlaid. ΔδY is divided by the standard scaling
+  factor for its nucleus (10 for ¹⁵N, 4 for ¹³C) so it sits on the same ppm scale as ΔδX.
 - The global `Kd` is reported in the results panel.
 - The summary plot shows ΔδX, ΔδN and the combined `|Δδ|` (saturation CSP = `δbound − δfree`)
   against residue number.
 
 # Example
 ```julia
-titration2d(files; L0=ligand_concs)                  # ligand concentrations only
+titration2d(files)                                    # concentrations from sample metadata
+titration2d(files; L0=ligand_concs)                   # ligand concentrations only
 titration2d(files; L0=ligand_concs, P0=protein_concs) # exact 1:1, accounts for dilution
+titration2d(1:11)                                     # Bruker experiment numbers
 ```
 """
-function titration2d(inputfilenames; L0, P0=nothing, weights=(1.0, 0.14))
-    isempty(L0) && error("`L0` (ligand concentrations) must not be empty")
+function titration2d(inputfilenames; L0=nothing, P0=nothing, weights=(1.0, 0.14))
+    specdata = preparespecdata(asexptpath(inputfilenames), MovingExperiment)
+
+    if isnothing(L0)
+        L0, autoP0 = titrationconcentrations(specdata.nmrdata)
+        isnothing(L0) &&
+            error("No `L0` given, and no sample concentration metadata found — pass `L0` " *
+                  "(and optionally `P0`) explicitly")
+        isnothing(P0) && (P0 = autoP0)
+    end
 
     ligand = Float64.(collect(L0))
     protein = isnothing(P0) ? nothing : Float64.(collect(P0))
+    isempty(ligand) && error("`L0` (ligand concentrations) must not be empty")
 
-    specdata = preparespecdata(inputfilenames, MovingExperiment)
     length(specdata.z) == length(ligand) ||
         error("got $(length(ligand)) ligand concentrations (L0) for $(length(specdata.z)) planes")
     isnothing(protein) || length(protein) == length(ligand) ||
@@ -970,10 +1082,11 @@ function add_moving_overlays!(g, state, expt::MovingPeakExperiment)
     # --- per-peak position trajectories across all planes ---
     # One flat point list with NaN separators between peaks, so a single lines! call draws
     # every trajectory as disconnected segments, plus matching per-vertex dots. Colours mirror
-    # the peak markers: touched/unfitted → red, fitted → blue, selected → lime. Concrete RGBAf
-    # values are used (a Vector{Symbol} colour is not honoured by lines!).
+    # the peak markers: touched/unfitted → red, fitted → pale blue, selected → lime. The fitted
+    # colour is kept light so a busy peak list doesn't turn into a solid-blue tangle. Concrete
+    # RGBAf values are used (a Vector{Symbol} colour is not honoured by lines!).
     statuscolour(j, sel, touched) = j == sel ? RGBAf(0, 1, 0, 1) :
-                                    touched ? RGBAf(1, 0, 0, 1) : RGBAf(0, 0, 1, 1)
+                                    touched ? RGBAf(1, 0, 0, 1) : RGBAf(0.7, 0.8, 1, 1)
     # Single source of truth, recomputed whenever the peaks (positions/fit status) or the
     # selection change; the points and colours derive from it so they stay length-consistent.
     state[:trajectorydata] = lift(expt.peaks, state[:current_peak_idx]) do peaks, sel
@@ -1011,13 +1124,15 @@ function add_moving_overlays!(g, state, expt::MovingPeakExperiment)
                                color=:darkorange)
     translate!(g[:pltaddmarks], 0, 0, 11)
 
-    # --- faint context: every plane's contours, off by default ---
+    # --- faint context: every plane's contours ---
     # Drawn above the (opaque white) mask heatmap so they remain visible; the small positive z
     # keeps them under the peak markers and trajectory. The "Show all" toggle widget is created
-    # in gui! (just left of the Fitting toggle); here we attach its plots and handler.
+    # in gui! (just left of the Fitting toggle, active by default); here we attach its plots and
+    # handler, with the initial visibility matching the toggle's starting state.
     g[:pltotherplanes] = map(1:nslices(expt)) do i
         p = contour!(ax, expt.specdata.x[i], expt.specdata.y[i], expt.specdata.z[i];
-                     levels=g[:contourlevels], color=(:grey60, 0.3), visible=false)
+                     levels=g[:contourlevels], color=(:grey60, 0.3),
+                     visible=g[:toggleother].active[])
         translate!(p, 0, 0, 1)
         return p
     end
@@ -1079,7 +1194,7 @@ function summaryplot(expt::MovingExperiment; weights=(1.0, 0.14), title="", size
         end
         scatterlines!(ax, resnums, Float64.(Δδ); label=_planelabel(expt, i))
     end
-    hlines!(ax, [0]; linewidth=0)  # invisible: forces zero into the y-range
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
     n > 2 && axislegend(ax; position=:lt, framevisible=false)
 
     return fig
@@ -1105,7 +1220,7 @@ function _rdc_summaryplot(expt::MovingExperiment; title="", size=nothing,
     Derr = Float64[p.postparameters[:D].uncertainty[][1] for p in peaks]
     errorbars!(ax, res, D, Derr; whiskerwidth=6, color=:black)
     scatter!(ax, res, D; color=:steelblue)
-    hlines!(ax, [0]; linewidth=0)
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
     return fig
 end
 
@@ -1135,7 +1250,7 @@ function _titration_summaryplot(expt::MovingExperiment; title="", size=nothing,
                   title=(row == 1 ? title : ""), xgridvisible=false, ygridvisible=false)
         vals = Float64[p.postparameters[sym].value[][1] for p in peaks]
         scatterlines!(ax, res, vals; color=:steelblue)
-        hlines!(ax, [0]; linewidth=0)
+        hlines!(ax, [0]; color=:grey50, linewidth=1)
         push!(axes, ax)
     end
     length(axes) > 1 && linkxaxes!(axes...)
@@ -1143,11 +1258,24 @@ function _titration_summaryplot(expt::MovingExperiment; title="", size=nothing,
 end
 
 # --- titration per-peak panel (residue highlight) ---------------------------
-# The selected residue's chemical-shift perturbation against ligand concentration, one panel
-# per dimension (ΔδX and ΔδY), with the fitted binding curve overlaid. Δδ is referenced to the
-# fitted δfree once the global fit has run, and to plane 1 beforehand. Δδ is signed (not |Δδ|).
+# The selected residue's chemical-shift perturbation against ligand concentration, ΔδX and ΔδY
+# overlaid on a single shared axis (ΔδY scaled down by the standard heteronuclear factor so the
+# two are comparable), with the fitted binding curves overlaid. Δδ is referenced to the fitted
+# δfree once the global fit has run, and to plane 1 beforehand. Δδ is signed (not |Δδ|).
 
 struct TitrationVisualisation <: VisualisationStrategy end
+
+# Standard scaling factor for overlaying the heteronuclear Δδ (F2/y) against the ¹H Δδ (F1/x)
+# on a single shared axis: raw ppm shifts run roughly 10-fold larger for ¹⁵N and 4-fold larger
+# for ¹³C than for ¹H, so dividing by these standard factors brings both dimensions onto a
+# comparable ppm scale. Determined from the F2 dimension's nucleus label; falls back to
+# unscaled (1.0) if neither ¹⁵N nor ¹³C is recognised.
+function _yshiftscalefactor(specdata)
+    l = uppercase(string(label(specdata.nmrdata[1], F2Dim)))
+    occursin("N", l) && return 10.0
+    occursin("C", l) && return 4.0
+    return 1.0
+end
 
 # Clamped piecewise-linear interpolation of `ys` (sampled at `xs`) at query point `q`.
 function _lininterp(xs, ys, q)
@@ -1183,6 +1311,8 @@ end
 
 Per-dimension Δδ-vs-concentration points for the highlighted residue: observed points
 (`obsX`/`obsY`) and the fitted binding curve (`fitX`/`fitY`, empty until the global fit runs).
+The Y series (F2 dimension) is divided by the standard heteronuclear scaling factor
+(`_yshiftscalefactor`, 10 for ¹⁵N / 4 for ¹³C) so it can be overlaid on the same axis as X.
 """
 function get_titration_data(peak, expt::MovingExperiment)
     isnothing(peak) && return (Point2f[], Point2f[], Point2f[], Point2f[])
@@ -1190,13 +1320,14 @@ function get_titration_data(peak, expt::MovingExperiment)
     n = nslices(expt)
     xv = peak.parameters[:x].value[]
     yv = peak.parameters[:y].value[]
+    scaleY = _yshiftscalefactor(expt.specdata)
 
     fitted = peak.postfitted[] && haskey(peak.postparameters, :Kd)
     δXfree = fitted ? peak.postparameters[:Xfree].value[][1] : xv[1]
     δYfree = fitted ? peak.postparameters[:Yfree].value[][1] : yv[1]
 
     obsX = [Point2f(Lt[i], xv[i] - δXfree) for i in 1:n]
-    obsY = [Point2f(Lt[i], yv[i] - δYfree) for i in 1:n]
+    obsY = [Point2f(Lt[i], (yv[i] - δYfree) / scaleY) for i in 1:n]
 
     if fitted
         Kd = peak.postparameters[:Kd].value[][1]
@@ -1204,6 +1335,7 @@ function get_titration_data(peak, expt::MovingExperiment)
                                 peak.postparameters[:Xbound].value[][1])
         fitY = _titration_curve(expt.model, Lt, Kd, δYfree,
                                 peak.postparameters[:Ybound].value[][1])
+        fitY = [Point2f(p[1], p[2] / scaleY) for p in fitY]
     else
         fitX = Point2f[]
         fitY = Point2f[]
@@ -1220,26 +1352,29 @@ function completestate!(state, expt::MovingExperiment, ::TitrationVisualisation)
 end
 
 function makepeakplot!(gui, state, expt::MovingExperiment, ::TitrationVisualisation)
-    gui[:axpeakplotX] = axX = Axis(gui[:panelpeakplot][1, 1];
-                                   xlabel="[ligand]", ylabel="ΔδX / ppm")
-    gui[:axpeakplotY] = axY = Axis(gui[:panelpeakplot][1, 2];
-                                   xlabel="[ligand]", ylabel="ΔδY / ppm")
-    hlines!(axX, [0]; linewidth=0)
-    lines!(axX, state[:peak_plot_fitX]; color=:red)
-    scatter!(axX, state[:peak_plot_obsX])
-    hlines!(axY, [0]; linewidth=0)
-    lines!(axY, state[:peak_plot_fitY]; color=:red)
-    return scatter!(axY, state[:peak_plot_obsY])
+    xlab = string(label(expt.specdata.nmrdata[1], F1Dim))
+    ylab = string(label(expt.specdata.nmrdata[1], F2Dim))
+    colX, colY = Makie.wong_colors()[1], Makie.wong_colors()[2]
+    gui[:axpeakplot] = ax = Axis(gui[:panelpeakplot][1, 1]; xlabel="[ligand]",
+                                 ylabel="Δδ (scaled)")
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
+    lines!(ax, state[:peak_plot_fitX]; color=colX)
+    scatter!(ax, state[:peak_plot_obsX]; color=colX, label=xlab)
+    lines!(ax, state[:peak_plot_fitY]; color=colY)
+    scatter!(ax, state[:peak_plot_obsY]; color=colY, label=ylab)
+    return axislegend(ax; position=:lt)
 end
 
 function plot_peak!(panel, peak, expt::MovingExperiment, ::TitrationVisualisation)
     obsX, obsY, fitX, fitY = get_titration_data(peak, expt)
-    axX = Axis(panel[1, 1]; xlabel="[ligand]", ylabel="ΔδX / ppm")
-    axY = Axis(panel[1, 2]; xlabel="[ligand]", ylabel="ΔδY / ppm")
-    hlines!(axX, [0]; linewidth=0)
-    lines!(axX, fitX; color=:red)
-    scatter!(axX, obsX)
-    hlines!(axY, [0]; linewidth=0)
-    lines!(axY, fitY; color=:red)
-    return scatter!(axY, obsY)
+    xlab = string(label(expt.specdata.nmrdata[1], F1Dim))
+    ylab = string(label(expt.specdata.nmrdata[1], F2Dim))
+    colX, colY = Makie.wong_colors()[1], Makie.wong_colors()[2]
+    ax = Axis(panel[1, 1]; xlabel="[ligand]", ylabel="Δδ (scaled)")
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
+    lines!(ax, fitX; color=colX)
+    scatter!(ax, obsX; color=colX, label=xlab)
+    lines!(ax, fitY; color=colY)
+    scatter!(ax, obsY; color=colY, label=ylab)
+    return axislegend(ax; position=:lt)
 end

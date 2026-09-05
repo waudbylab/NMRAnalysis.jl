@@ -33,7 +33,8 @@ dimension, converted to Hz.
 
 ## Arguments
 
-- `isotropic`, `aligned`: each a two-element vector of the component spectra `[A, B]`.
+- `isotropic`, `aligned`: each a two-element vector of the component spectra `[A, B]`; a
+  component can also be given as a Bruker experiment number.
 - `scale`: the fraction of the coupling that the measured separation represents — `1` for
   **IPAP** (separation is the full coupling) or `0.5` for **HSQC/TROSY** (separation is half).
 - `coupling`: the dimension the splitting is measured in (`:F1` or `:F2`). Defaults to the
