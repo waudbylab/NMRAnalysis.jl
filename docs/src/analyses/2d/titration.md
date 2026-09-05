@@ -67,6 +67,13 @@ explicit `L0`/`P0` keywords needed. If that inference isn't possible — no such
 plane, or more than two named molecules — you are prompted at the terminal to assign the two
 roles. Passing `L0` (or `P0`) explicitly always takes precedence over sample metadata.
 
+A molecule missing from *some but not all* planes' sample metadata (as opposed to genuinely
+absent from the sample, like the ligand at the zero-ligand reference point) is a likely
+mismatched or incomplete sample entry, so it's flagged with a warning rather than silently
+treated as zero or dropped. When concentrations are read from sample metadata this way, the
+per-plane values actually used for the fit are printed as a table before the GUI opens, so they
+can be checked at a glance.
+
 ## Tracking peaks
 
 Peaks are added and positioned exactly as in [peak tracking](peaktracking.md):
