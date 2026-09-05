@@ -273,7 +273,7 @@ function plot_peak!(panel, peak, expt, ::HetNOEVisualisation)
               ylabel="Relative amplitude",
               xticks=(1:nslices(expt), expt.specdata.zlabels))
 
-    hlines!(ax, [0]; linewidth=0)
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
     hlines!(ax, fit; linewidth=2, color=:red)
     errorbars!(ax, err; whiskerwidth=10)
     return barplot!(ax, x, y)
@@ -286,7 +286,7 @@ function makepeakplot!(gui, state, expt, ::HetNOEVisualisation)
                                  ylabel="Relative amplitude",
                                  xticks=(1:nslices(expt), expt.specdata.zlabels))
 
-    hlines!(ax, [0]; linewidth=0)
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
     hlines!(ax, state[:peak_plot_fit]; linewidth=2, color=:red)
     errorbars!(ax, state[:peak_plot_err]; whiskerwidth=10)
     return barplot!(ax, state[:peak_plot_x], state[:peak_plot_y])

@@ -327,7 +327,7 @@ function plot_peak!(panel, peak, expt, ::CCRVisualisation)
               ylabel="Relative amplitude",
               xticks=(1:nslices(expt), expt.specdata.zlabels))
 
-    hlines!(ax, [0]; linewidth=0)
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
     hlines!(ax, fit; linewidth=2, color=:red, linestyle=:dash)
     errorbars!(ax, err; whiskerwidth=10)
     return barplot!(ax, x, y; color=colors)
@@ -344,7 +344,7 @@ function makepeakplot!(gui, state, expt, ::CCRVisualisation)
                                  ylabel="Relative amplitude",
                                  xticks=(1:nslices(expt), expt.specdata.zlabels))
 
-    hlines!(ax, [0]; linewidth=0)
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
     hlines!(ax, state[:peak_plot_fit]; linewidth=2, color=:red, linestyle=:dash)
     errorbars!(ax, state[:peak_plot_err]; whiskerwidth=10)
     return barplot!(ax, state[:peak_plot_x], state[:peak_plot_y]; color=colors)

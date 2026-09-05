@@ -1,6 +1,10 @@
 function gui!(expt::Experiment)
     GLMakie.activate!(; title="NMRAnalysis.jl (v$(string(pkgversion(GUI2D))))",
                       focus_on_show=true)
+    # No gridlines anywhere (interactive or exported plots use the same Makie theme); axes
+    # still show a visible zero line where one is drawn explicitly.
+    set_theme!(Theme(Axis=(xgridvisible=false, ygridvisible=false,
+                          xminorgridvisible=false, yminorgridvisible=false)))
 
     state = expt.state[]
 
@@ -30,12 +34,12 @@ function gui!(expt::Experiment)
     # The toggle's plots and handler are wired up later in add_moving_overlays!.
     col = 8
     if !hasfixedpositions(expt)
-        g[:toggleother] = Toggle(g[:paneltop][1, col]; active=false)
-        Label(g[:paneltop][1, col + 1], "Show all")
+        Label(g[:paneltop][1, col], "Show all")
+        g[:toggleother] = Toggle(g[:paneltop][1, col + 1]; active=true)
         col += 2
     end
-    g[:togglefit] = Toggle(g[:paneltop][1, col]; active=true)
-    Label(g[:paneltop][1, col + 1], "Fitting")
+    Label(g[:paneltop][1, col], "Fitting")
+    g[:togglefit] = Toggle(g[:paneltop][1, col + 1]; active=true)
     g[:cmdsummary] = Button(g[:paneltop][1, col + 2]; label="Summary plot")
     g[:cmdquit] = Button(g[:paneltop][1, col + 3]; label="Quit")
 

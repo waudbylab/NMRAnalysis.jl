@@ -332,7 +332,7 @@ function plot_peak!(panel, peak, expt, ::CPMGVisualisation)
               xlabel="νCPMG (Hz)",
               ylabel="R₂,eff (s⁻¹)",)
 
-    hlines!(ax, [0.0]; linewidth=0, color=:black) # sneaky way to ensure axis goes to zero
+    hlines!(ax, [0.0]; color=:grey50, linewidth=1)
     errorbars!(ax, obs_err; whiskerwidth=10)
     scatter!(ax, obs_points)
     return lines!(ax, fit_points; color=:red)
@@ -345,7 +345,7 @@ function makepeakplot!(gui, state, expt, ::CPMGVisualisation)
                                  ylabel="R₂,eff (s⁻¹)",
                                  title="CPMG Profile")
 
-    hlines!(ax, [0.0]; linewidth=0, color=:black) # sneaky way to ensure axis goes to zero
+    hlines!(ax, [0.0]; color=:grey50, linewidth=1)
     errorbars!(ax, state[:peak_plot_err]; whiskerwidth=10)
     scatter!(ax, state[:peak_plot_obs])
     return lines!(ax, state[:peak_plot_fit]; color=:red)

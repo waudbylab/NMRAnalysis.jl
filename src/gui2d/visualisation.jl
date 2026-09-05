@@ -81,10 +81,10 @@ function makepeakplot!(gui, state, expt, ::CrossSectionVisualisation)
                                    xlabel="δY / ppm",
                                    xreversed=true)
 
-    hlines!(axX, [0]; linewidth=0)
+    hlines!(axX, [0]; color=:grey50, linewidth=1)
     scatterlines!(axX, state[:peak_plot_xobs])
     lines!(axX, state[:peak_plot_xfit]; color=:red)
-    hlines!(axY, [0]; linewidth=0)
+    hlines!(axY, [0]; color=:grey50, linewidth=1)
     scatterlines!(axY, state[:peak_plot_yobs])
     lines!(axY, state[:peak_plot_yfit]; color=:red)
 end
@@ -95,10 +95,10 @@ function plot_peak!(panel, peak, expt, ::CrossSectionVisualisation)
     axX = Axis(panel[1, 1], xlabel="δX / ppm", xreversed=true)
     axY = Axis(panel[1, 2], xlabel="δY / ppm", xreversed=true)
     
-    hlines!(axX, [0]; linewidth=0)
+    hlines!(axX, [0]; color=:grey50, linewidth=1)
     scatterlines!(axX, xobs)
     lines!(axX, xfit; color=:red)
-    hlines!(axY, [0]; linewidth=0)
+    hlines!(axY, [0]; color=:grey50, linewidth=1)
     scatterlines!(axY, yobs)
     lines!(axY, yfit; color=:red)
 end
@@ -122,7 +122,7 @@ function plot_peak!(panel, peak, expt, ::ModelFitVisualisation)
               xlabel=get_model_xlabel(expt),
               ylabel=get_model_ylabel(expt))
 
-    hlines!(ax, [0]; linewidth=0)
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
     lines!(ax, fit_points; color=:red)
     errorbars!(ax, obs_errors; whiskerwidth=10)
     scatter!(ax, obs_points)
@@ -149,7 +149,7 @@ function makepeakplot!(gui, state, expt, ::ModelFitVisualisation)
                                  xlabel=get_model_xlabel(expt),
                                  ylabel=get_model_ylabel(expt))
 
-    hlines!(ax, [0]; linewidth=0)
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
     lines!(ax, state[:peak_plot_fit]; color=:red)
     errorbars!(ax, state[:peak_plot_err]; whiskerwidth=10)
     scatter!(ax, state[:peak_plot_obs])

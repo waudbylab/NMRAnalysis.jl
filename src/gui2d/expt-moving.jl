@@ -705,8 +705,9 @@ all residues plus per-residue free/bound shifts in each dimension.
   assumes ¹H (x) / ¹⁵N (y).
 
 # Results
-- The per-residue panel shows ΔδX and ΔδN against ligand concentration (referenced to the
-  fitted `δfree`), with the fitted binding curve overlaid.
+- The per-residue panel shows ΔδX and ΔδY together on a single axis (referenced to the fitted
+  `δfree`), with the fitted binding curves overlaid. ΔδY is divided by the standard scaling
+  factor for its nucleus (10 for ¹⁵N, 4 for ¹³C) so it sits on the same ppm scale as ΔδX.
 - The global `Kd` is reported in the results panel.
 - The summary plot shows ΔδX, ΔδN and the combined `|Δδ|` (saturation CSP = `δbound − δfree`)
   against residue number.
@@ -970,10 +971,11 @@ function add_moving_overlays!(g, state, expt::MovingPeakExperiment)
     # --- per-peak position trajectories across all planes ---
     # One flat point list with NaN separators between peaks, so a single lines! call draws
     # every trajectory as disconnected segments, plus matching per-vertex dots. Colours mirror
-    # the peak markers: touched/unfitted → red, fitted → blue, selected → lime. Concrete RGBAf
-    # values are used (a Vector{Symbol} colour is not honoured by lines!).
+    # the peak markers: touched/unfitted → red, fitted → pale blue, selected → lime. The fitted
+    # colour is kept light so a busy peak list doesn't turn into a solid-blue tangle. Concrete
+    # RGBAf values are used (a Vector{Symbol} colour is not honoured by lines!).
     statuscolour(j, sel, touched) = j == sel ? RGBAf(0, 1, 0, 1) :
-                                    touched ? RGBAf(1, 0, 0, 1) : RGBAf(0, 0, 1, 1)
+                                    touched ? RGBAf(1, 0, 0, 1) : RGBAf(0.7, 0.8, 1, 1)
     # Single source of truth, recomputed whenever the peaks (positions/fit status) or the
     # selection change; the points and colours derive from it so they stay length-consistent.
     state[:trajectorydata] = lift(expt.peaks, state[:current_peak_idx]) do peaks, sel
@@ -1011,13 +1013,15 @@ function add_moving_overlays!(g, state, expt::MovingPeakExperiment)
                                color=:darkorange)
     translate!(g[:pltaddmarks], 0, 0, 11)
 
-    # --- faint context: every plane's contours, off by default ---
+    # --- faint context: every plane's contours ---
     # Drawn above the (opaque white) mask heatmap so they remain visible; the small positive z
     # keeps them under the peak markers and trajectory. The "Show all" toggle widget is created
-    # in gui! (just left of the Fitting toggle); here we attach its plots and handler.
+    # in gui! (just left of the Fitting toggle, active by default); here we attach its plots and
+    # handler, with the initial visibility matching the toggle's starting state.
     g[:pltotherplanes] = map(1:nslices(expt)) do i
         p = contour!(ax, expt.specdata.x[i], expt.specdata.y[i], expt.specdata.z[i];
-                     levels=g[:contourlevels], color=(:grey60, 0.3), visible=false)
+                     levels=g[:contourlevels], color=(:grey60, 0.3),
+                     visible=g[:toggleother].active[])
         translate!(p, 0, 0, 1)
         return p
     end
@@ -1079,7 +1083,7 @@ function summaryplot(expt::MovingExperiment; weights=(1.0, 0.14), title="", size
         end
         scatterlines!(ax, resnums, Float64.(Δδ); label=_planelabel(expt, i))
     end
-    hlines!(ax, [0]; linewidth=0)  # invisible: forces zero into the y-range
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
     n > 2 && axislegend(ax; position=:lt, framevisible=false)
 
     return fig
@@ -1105,7 +1109,7 @@ function _rdc_summaryplot(expt::MovingExperiment; title="", size=nothing,
     Derr = Float64[p.postparameters[:D].uncertainty[][1] for p in peaks]
     errorbars!(ax, res, D, Derr; whiskerwidth=6, color=:black)
     scatter!(ax, res, D; color=:steelblue)
-    hlines!(ax, [0]; linewidth=0)
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
     return fig
 end
 
@@ -1135,7 +1139,7 @@ function _titration_summaryplot(expt::MovingExperiment; title="", size=nothing,
                   title=(row == 1 ? title : ""), xgridvisible=false, ygridvisible=false)
         vals = Float64[p.postparameters[sym].value[][1] for p in peaks]
         scatterlines!(ax, res, vals; color=:steelblue)
-        hlines!(ax, [0]; linewidth=0)
+        hlines!(ax, [0]; color=:grey50, linewidth=1)
         push!(axes, ax)
     end
     length(axes) > 1 && linkxaxes!(axes...)
@@ -1143,11 +1147,24 @@ function _titration_summaryplot(expt::MovingExperiment; title="", size=nothing,
 end
 
 # --- titration per-peak panel (residue highlight) ---------------------------
-# The selected residue's chemical-shift perturbation against ligand concentration, one panel
-# per dimension (ΔδX and ΔδY), with the fitted binding curve overlaid. Δδ is referenced to the
-# fitted δfree once the global fit has run, and to plane 1 beforehand. Δδ is signed (not |Δδ|).
+# The selected residue's chemical-shift perturbation against ligand concentration, ΔδX and ΔδY
+# overlaid on a single shared axis (ΔδY scaled down by the standard heteronuclear factor so the
+# two are comparable), with the fitted binding curves overlaid. Δδ is referenced to the fitted
+# δfree once the global fit has run, and to plane 1 beforehand. Δδ is signed (not |Δδ|).
 
 struct TitrationVisualisation <: VisualisationStrategy end
+
+# Standard scaling factor for overlaying the heteronuclear Δδ (F2/y) against the ¹H Δδ (F1/x)
+# on a single shared axis: raw ppm shifts run roughly 10-fold larger for ¹⁵N and 4-fold larger
+# for ¹³C than for ¹H, so dividing by these standard factors brings both dimensions onto a
+# comparable ppm scale. Determined from the F2 dimension's nucleus label; falls back to
+# unscaled (1.0) if neither ¹⁵N nor ¹³C is recognised.
+function _yshiftscalefactor(specdata)
+    l = uppercase(string(label(specdata.nmrdata[1], F2Dim)))
+    occursin("N", l) && return 10.0
+    occursin("C", l) && return 4.0
+    return 1.0
+end
 
 # Clamped piecewise-linear interpolation of `ys` (sampled at `xs`) at query point `q`.
 function _lininterp(xs, ys, q)
@@ -1183,6 +1200,8 @@ end
 
 Per-dimension Δδ-vs-concentration points for the highlighted residue: observed points
 (`obsX`/`obsY`) and the fitted binding curve (`fitX`/`fitY`, empty until the global fit runs).
+The Y series (F2 dimension) is divided by the standard heteronuclear scaling factor
+(`_yshiftscalefactor`, 10 for ¹⁵N / 4 for ¹³C) so it can be overlaid on the same axis as X.
 """
 function get_titration_data(peak, expt::MovingExperiment)
     isnothing(peak) && return (Point2f[], Point2f[], Point2f[], Point2f[])
@@ -1190,13 +1209,14 @@ function get_titration_data(peak, expt::MovingExperiment)
     n = nslices(expt)
     xv = peak.parameters[:x].value[]
     yv = peak.parameters[:y].value[]
+    scaleY = _yshiftscalefactor(expt.specdata)
 
     fitted = peak.postfitted[] && haskey(peak.postparameters, :Kd)
     δXfree = fitted ? peak.postparameters[:Xfree].value[][1] : xv[1]
     δYfree = fitted ? peak.postparameters[:Yfree].value[][1] : yv[1]
 
     obsX = [Point2f(Lt[i], xv[i] - δXfree) for i in 1:n]
-    obsY = [Point2f(Lt[i], yv[i] - δYfree) for i in 1:n]
+    obsY = [Point2f(Lt[i], (yv[i] - δYfree) / scaleY) for i in 1:n]
 
     if fitted
         Kd = peak.postparameters[:Kd].value[][1]
@@ -1204,6 +1224,7 @@ function get_titration_data(peak, expt::MovingExperiment)
                                 peak.postparameters[:Xbound].value[][1])
         fitY = _titration_curve(expt.model, Lt, Kd, δYfree,
                                 peak.postparameters[:Ybound].value[][1])
+        fitY = [Point2f(p[1], p[2] / scaleY) for p in fitY]
     else
         fitX = Point2f[]
         fitY = Point2f[]
@@ -1220,26 +1241,29 @@ function completestate!(state, expt::MovingExperiment, ::TitrationVisualisation)
 end
 
 function makepeakplot!(gui, state, expt::MovingExperiment, ::TitrationVisualisation)
-    gui[:axpeakplotX] = axX = Axis(gui[:panelpeakplot][1, 1];
-                                   xlabel="[ligand]", ylabel="ΔδX / ppm")
-    gui[:axpeakplotY] = axY = Axis(gui[:panelpeakplot][1, 2];
-                                   xlabel="[ligand]", ylabel="ΔδY / ppm")
-    hlines!(axX, [0]; linewidth=0)
-    lines!(axX, state[:peak_plot_fitX]; color=:red)
-    scatter!(axX, state[:peak_plot_obsX])
-    hlines!(axY, [0]; linewidth=0)
-    lines!(axY, state[:peak_plot_fitY]; color=:red)
-    return scatter!(axY, state[:peak_plot_obsY])
+    xlab = string(label(expt.specdata.nmrdata[1], F1Dim))
+    ylab = string(label(expt.specdata.nmrdata[1], F2Dim))
+    colX, colY = Makie.wong_colors()[1], Makie.wong_colors()[2]
+    gui[:axpeakplot] = ax = Axis(gui[:panelpeakplot][1, 1]; xlabel="[ligand]",
+                                 ylabel="Δδ (scaled)")
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
+    lines!(ax, state[:peak_plot_fitX]; color=colX)
+    scatter!(ax, state[:peak_plot_obsX]; color=colX, label=xlab)
+    lines!(ax, state[:peak_plot_fitY]; color=colY)
+    scatter!(ax, state[:peak_plot_obsY]; color=colY, label=ylab)
+    return axislegend(ax; position=:lt)
 end
 
 function plot_peak!(panel, peak, expt::MovingExperiment, ::TitrationVisualisation)
     obsX, obsY, fitX, fitY = get_titration_data(peak, expt)
-    axX = Axis(panel[1, 1]; xlabel="[ligand]", ylabel="ΔδX / ppm")
-    axY = Axis(panel[1, 2]; xlabel="[ligand]", ylabel="ΔδY / ppm")
-    hlines!(axX, [0]; linewidth=0)
-    lines!(axX, fitX; color=:red)
-    scatter!(axX, obsX)
-    hlines!(axY, [0]; linewidth=0)
-    lines!(axY, fitY; color=:red)
-    return scatter!(axY, obsY)
+    xlab = string(label(expt.specdata.nmrdata[1], F1Dim))
+    ylab = string(label(expt.specdata.nmrdata[1], F2Dim))
+    colX, colY = Makie.wong_colors()[1], Makie.wong_colors()[2]
+    ax = Axis(panel[1, 1]; xlabel="[ligand]", ylabel="Δδ (scaled)")
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
+    lines!(ax, fitX; color=colX)
+    scatter!(ax, obsX; color=colX, label=xlab)
+    lines!(ax, fitY; color=colY)
+    scatter!(ax, obsY; color=colY, label=ylab)
+    return axislegend(ax; position=:lt)
 end
