@@ -123,22 +123,11 @@ Field-dependent parameters are tagged with the magnetic field strength (e.g. `R2
 
 Chemical shifts (`delta`) and transverse relaxation rates (`R2`) are vectors with one value per state. Longitudinal relaxation (`R1`) is shared across states (length 1).
 
-## Return Value
-
-The `exchange1d()` function returns a `FitResult` with the following fields:
-
-| Field | Type | Description |
-|---|---|---|
-| `params` | `ComponentArray{Measurement}` | Fitted parameters with uncertainties |
-| `params_value` | `ComponentArray{Float64}` | Fitted parameter values (no uncertainties) |
-| `params0` | `ComponentArray{Float64}` | Initial parameters used for the fit |
-| `chi2` | `Float64` | Chi-squared statistic |
-| `reduced_chi2` | `Float64` | Reduced chi-squared (``\chi^2 / \text{dof}``) |
-| `cov` | `Matrix{Float64}` | Parameter covariance matrix |
-| `nobs` | `Int` | Number of data points |
-| `nparams` | `Int` | Number of fitted parameters |
-| `dof` | `Int` | Degrees of freedom |
-| `prob` | `ExchangeProblem` | Reference to the fitted problem |
+!!! note "Scripting against the fit"
+    `exchange1d()` also returns a `FitResult` object, for scripted analyses that need
+    programmatic access to the fitted parameters, uncertainties, and fit statistics rather
+    than (or in addition to) the saved files above. See the `FitResult` entry in the
+    [Exchange1D API reference](../../api/exchange1d.md) for its fields.
 
 ## Automatic dispatch
 
