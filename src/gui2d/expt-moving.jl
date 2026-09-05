@@ -1245,13 +1245,14 @@ function makepeakplot!(gui, state, expt::MovingExperiment, ::TitrationVisualisat
     factor = _yshiftscalefactor(expt.specdata)
     xlab = string(label(expt.specdata.nmrdata[1], F1Dim))
     ylab = string(label(expt.specdata.nmrdata[1], F2Dim))
+    colX, colY = Makie.wong_colors()[1], Makie.wong_colors()[2]
     gui[:axpeakplot] = ax = Axis(gui[:panelpeakplot][1, 1]; xlabel="[ligand]",
                                  ylabel=_titrationylabel(factor, ylab))
     hlines!(ax, [0]; linewidth=0)
-    lines!(ax, state[:peak_plot_fitX]; color=:red)
-    scatter!(ax, state[:peak_plot_obsX]; color=:steelblue, label=xlab)
-    lines!(ax, state[:peak_plot_fitY]; color=:red, linestyle=:dash)
-    scatter!(ax, state[:peak_plot_obsY]; color=:darkorange, label=ylab)
+    lines!(ax, state[:peak_plot_fitX]; color=colX)
+    scatter!(ax, state[:peak_plot_obsX]; color=colX, label=xlab)
+    lines!(ax, state[:peak_plot_fitY]; color=colY)
+    scatter!(ax, state[:peak_plot_obsY]; color=colY, label=ylab)
     return axislegend(ax)
 end
 
@@ -1260,11 +1261,12 @@ function plot_peak!(panel, peak, expt::MovingExperiment, ::TitrationVisualisatio
     factor = _yshiftscalefactor(expt.specdata)
     xlab = string(label(expt.specdata.nmrdata[1], F1Dim))
     ylab = string(label(expt.specdata.nmrdata[1], F2Dim))
+    colX, colY = Makie.wong_colors()[1], Makie.wong_colors()[2]
     ax = Axis(panel[1, 1]; xlabel="[ligand]", ylabel=_titrationylabel(factor, ylab))
     hlines!(ax, [0]; linewidth=0)
-    lines!(ax, fitX; color=:red)
-    scatter!(ax, obsX; color=:steelblue, label=xlab)
-    lines!(ax, fitY; color=:red, linestyle=:dash)
-    scatter!(ax, obsY; color=:darkorange, label=ylab)
+    lines!(ax, fitX; color=colX)
+    scatter!(ax, obsX; color=colX, label=xlab)
+    lines!(ax, fitY; color=colY)
+    scatter!(ax, obsY; color=colY, label=ylab)
     return axislegend(ax)
 end
