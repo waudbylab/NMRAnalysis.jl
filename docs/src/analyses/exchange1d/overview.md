@@ -2,8 +2,10 @@
 
 The Exchange1D module in NMRAnalysis.jl provides tools for analysing chemical exchange processes using 1D NMR experiments. It performs joint fitting of CEST (Chemical Exchange Saturation Transfer), on- and off-resonance R1ρ relaxation dispersion, and R1 relaxation data using Bloch-McConnell equations to extract exchange kinetics, populations, and chemical shift differences.
 
+This page covers how to launch an analysis and what to expect from the interactive workflow. For the exchange models themselves — what each one represents physically and which parameters it exposes — see [Exchange Models](models.md). For the underlying Bloch-McConnell and simulation equations, see [Theory and Calculation Methods](theory.md).
+
 !!! note "Relationship to `r1rho()`"
-    This is a different tool from the standalone [`r1rho()`](r1rho.md) GUI. `r1rho()` fits
+    This is a different tool from the standalone [`r1rho()`](../r1rho.md) GUI. `r1rho()` fits
     on-resonance R1ρ dispersion data alone, with its own dedicated interactive interface.
     `exchange1d()` instead performs joint Bloch-McConnell fitting across any combination of
     CEST, R1, and on-/off-resonance R1ρ experiments against a shared exchange model, through
@@ -22,7 +24,7 @@ using NMRAnalysis
 analyse(["data/101", "data/102", "data/103"])
 ```
 
-See [Automatic Analysis](analyse.md) for details on how dispatch works.
+See [Automatic Analysis](../analyse.md) for details on how dispatch works.
 
 ### Direct launch with a directory
 
@@ -65,27 +67,14 @@ can be included in the joint fit but do not by themselves trigger it. Calling `e
 directly accepts any combination of the four experiment types above; R1 experiments are
 always optional and help constrain the longitudinal relaxation rate during fitting.
 
-## Available Models
-
-Four exchange models are available, selected interactively at the start of the analysis:
-
-| Model | States | Parameters | Use case |
-|---|---|---|---|
-| **No exchange** | 1 | — | Null model (no exchange) |
-| **Two-state exchange** | 2 | `kex`, `pB` | Intramolecular exchange between two conformations |
-| **Three-state exchange** | 3 | `koffB`, `pB`, `koffC`, `pC` | Linear three-state exchange (A ⇌ B, A ⇌ C) |
-| **Two-state binding** | 2 | `Kd`, `koff` | Bimolecular binding; requires sample concentrations |
-
-!!! tip
-    The two-state binding model uses the quadratic binding equation to calculate populations from the dissociation constant (`Kd`) and total concentrations of the observed molecule and titrant. These concentrations are read from the sample metadata in the NMR annotations.
-
 ## Analysis Workflow
 
 The interactive text-based workflow proceeds through the following steps:
 
 ### 1. Model selection
 
-A menu is presented listing all available exchange models. Select the model appropriate for your system.
+A menu is presented listing all available exchange models. Select the model appropriate for
+your system — see [Exchange Models](models.md) for what each one represents and when to use it.
 
 ### 2. Experiment loading
 
@@ -126,7 +115,7 @@ Parameters are organised into three sections using a `ComponentArray`:
 
 | Section | Contents | Example keys |
 |---|---|---|
-| **model** | Exchange kinetics and populations | `kex`, `pB`, `Kd`, `koff` |
+| **model** | Exchange kinetics and populations (see [Exchange Models](models.md)) | `logkex`, `dGB`, `logKd`, `logkoff` |
 | **spin** | Chemical shifts and field-dependent relaxation rates | `delta`, `R2_14p1T`, `R1_14p1T` |
 | **nuisance** | Per-experiment amplitude and correction factors | `R1_14p1T_I0`, `R1_14p1T_inv_factor` |
 
@@ -153,61 +142,4 @@ The `exchange1d()` function returns a `FitResult` with the following fields:
 
 ## Automatic dispatch
 
-When exchange analysis is available (at least one CEST or off-resonance R1ρ experiment is present), it appears in the `analyse()` menu as "Exchange analysis (CEST / R1rho)". See [Automatic Analysis](analyse.md) for how dispatch works in general, and [Analysis Rules](../advanced/analysis_rules.md) for how to register custom analysis routines.
-
-## Theoretical Background
-
-### Bloch-McConnell Equations
-
-Exchange analysis uses the Bloch-McConnell formalism, which extends the Bloch equations to multiple exchanging states. For ``N`` states, the magnetisation vector ``\mathbf{M}`` evolves as:
-
-```math
-\frac{d\mathbf{M}}{dt} = \mathbf{L} \, \mathbf{M}
-```
-
-where ``\mathbf{L}`` is the ``3N \times 3N`` Liouvillian superoperator incorporating:
-- Chemical shift evolution (``\Omega_i`` for each state)
-- Relaxation (``R_1``, ``R_{2,i}`` for each state)
-- RF fields (spin-lock or saturation)
-- Chemical exchange (kinetic rate matrix ``\mathbf{K}``)
-
-### CEST Simulation
-
-For CEST experiments, the Liouvillian is augmented with an inhomogeneous term to account for relaxation back to equilibrium. The predicted CEST profile is computed by propagating the initial equilibrium magnetisation through the saturation period:
-
-```math
-\mathbf{M}(T_\text{sat}) = \exp(\mathbf{L}_\text{inhom} \cdot T_\text{sat}) \, \mathbf{M}_0
-```
-
-The observed intensity is the sum of ``M_z`` components across all states.
-
-### R1ρ Simulation
-
-For on- and off-resonance R1ρ experiments, the effective relaxation rate at each spin-lock
-condition is obtained directly from the Liouvillian ``\mathbf{L}`` (evaluated at that
-experiment's spin-lock offset and field strength), via the inverse-trace relation
-
-```math
-R_{1\rho} = -\frac{1}{\mathrm{tr}(\mathbf{L}^{-1})},
-```
-
-sometimes referred to as the Koss method. On-resonance experiments vary the spin-lock field
-strength at zero offset; off-resonance experiments hold the spin-lock field fixed and vary
-the offset.
-
-### R1 Simulation
-
-R1 experiments are fitted independently of the exchange model (R1 decay is not sensitive to chemical exchange under typical conditions). Depending on the experiment type:
-
-- **Exponential decay**: ``I(t) = I_0 \exp(-R_1 t)``
-- **Inversion recovery**: ``I(t) = I_0 (1 - f \exp(-R_1 t))`` where ``f`` is the inversion factor
-
-### Exchange Matrix
-
-The kinetic exchange matrix ``\mathbf{K}`` encodes the rates of interconversion between states. Each element ``K_{ij}`` is the rate from state ``j`` to state ``i``, and column sums are zero (conservation of total magnetisation).
-
-For the two-state model:
-
-```math
-\mathbf{K} = \begin{pmatrix} -k_\text{ex} p_B & k_\text{ex} p_A \\ k_\text{ex} p_B & -k_\text{ex} p_A \end{pmatrix}
-```
+When exchange analysis is available (at least one CEST or off-resonance R1ρ experiment is present), it appears in the `analyse()` menu as "Exchange analysis (CEST / R1rho)". See [Automatic Analysis](../analyse.md) for how dispatch works in general, and [Analysis Rules](../../advanced/analysis_rules.md) for how to register custom analysis routines.
