@@ -1,0 +1,146 @@
+"""
+    Trace(δ, y)
+
+A single 1D spectrum: a chemical-shift axis `δ` (ppm) and intensities `y`.
+
+Deliberately holds plain vectors and has no dependency on NMRData, Makie, or any GUI
+state — the analysis layer operates on `Trace`s so the science stays independent of the
+GUI. The adapters in `nmrdata.jl` convert NMRData into `Trace`s.
+"""
+struct Trace
+    δ::Vector{Float64}
+    y::Vector{Float64}
+    function Trace(δ, y)
+        length(δ) == length(y) ||
+            throw(ArgumentError("δ and y must have equal length ($(length(δ)) vs $(length(y)))"))
+        return new(collect(float.(δ)), collect(float.(y)))
+    end
+end
+
+Base.length(t::Trace) = length(t.y)
+
+"""
+    Region(label, lo, hi)
+    Region(label, δ)
+
+A named chemical-shift interval (ppm) used for integration. `lo`/`hi` are stored sorted,
+so the order in which the bounds are supplied does not matter. A zero-width region
+(`lo == hi`, or the single-shift constructor) selects the nearest point — i.e. a peak
+height.
+"""
+struct Region
+    label::String
+    lo::Float64
+    hi::Float64
+    Region(label, a, b) = new(String(label), min(float(a), float(b)), max(float(a), float(b)))
+end
+
+Region(label, δ::Real) = Region(label, δ, δ)
+
+"""
+    defaultregionwidth(δ) -> Float64
+
+A sensible default region width: 2% of the full chemical-shift range spanned by `δ`,
+matching the noise marker's drag-handle width. Used for the initial default integration
+region, `A`-key tap-to-add, and `pickregion`'s default `ppmwidth`.
+"""
+defaultregionwidth(δ::AbstractVector) = 0.02 * (maximum(δ) - minimum(δ))
+
+width(r::Region) = r.hi - r.lo
+
+"""
+    centre(region) -> Float64
+
+Midpoint of a region (ppm). Regions are stored by their bounds, but centre-and-width is
+the natural handle for interaction - dragging moves the centre, the width box resizes
+about it - so both views are available and there is only ever one representation.
+"""
+centre(r::Region) = (r.lo + r.hi) / 2
+
+"""
+    recentre(region, c) -> Region
+
+The same region, same width and label, moved to be centred on `c`.
+"""
+recentre(r::Region, c) = Region(r.label, c - width(r) / 2, c + width(r) / 2)
+
+"""
+    setwidth(region, w) -> Region
+
+The same region, same label and centre, with width `w`.
+"""
+setwidth(r::Region, w) = Region(r.label, centre(r) - w / 2, centre(r) + w / 2)
+
+"""
+    Planes(traces, vars)
+
+Long-format collection of 1D spectra: one `Trace` per row, with `vars[i]` a `NamedTuple`
+giving the values of the arrayed acquisition variables for that spectrum
+(e.g. `(; time = 0.1, which = :trosy)`). All rows must share the same set of variable
+names.
+"""
+struct Planes
+    traces::Vector{Trace}
+    vars::Vector{<:NamedTuple}
+    function Planes(traces, vars)
+        length(traces) == length(vars) ||
+            throw(ArgumentError("traces and vars must have equal length ($(length(traces)) vs $(length(vars)))"))
+        isempty(vars) || allequal(keys.(vars)) ||
+            throw(ArgumentError("all planes must share the same variable names"))
+        return new(collect(Trace, traces), collect(vars))
+    end
+end
+
+nplanes(p::Planes) = length(p.traces)
+
+"""
+    column(planes, name) -> Vector
+
+Return the values of variable `name` across all planes.
+"""
+column(p::Planes, name::Symbol) = [v[name] for v in p.vars]
+
+"""
+    hasvar(planes, name) -> Bool
+
+Whether the planes carry an arrayed variable called `name`.
+"""
+hasvar(p::Planes, name::Symbol) = !isempty(p.vars) && haskey(first(p.vars), name)
+
+"""
+    Dataset1D(planes, noisecenter, [label])
+
+The planes plus the universal noise position (ppm), and a `label` describing where the
+data came from (a filename, say) - a plain `String`, so results files can say what they
+were computed from without NMRData re-entering the analysis core. The noise *region* used to estimate
+uncertainty always has the same width as whichever signal region is being reduced (see
+[`reduceregion`](@ref)) — matching widths is what makes the noise-region integral a
+direct estimate of the signal-region integral's noise — so only the noise centre is
+stored here; noise handling is otherwise shared across all experiments rather than
+re-implemented per analysis.
+"""
+struct Dataset1D
+    planes::Planes
+    noisecenter::Float64
+    label::String
+end
+
+Dataset1D(planes, noisecenter) = Dataset1D(planes, Float64(noisecenter), "")
+
+nplanes(d::Dataset1D) = nplanes(d.planes)
+
+"""
+    groupseries(planes, cols) -> Vector{Pair{NamedTuple,Vector{Int}}}
+
+Group plane indices by the values of the variables named in `cols` (a tuple of
+`Symbol`s), preserving order of first appearance. With `cols = ()` every plane falls in
+a single group keyed by the empty `NamedTuple`. This is the generic form of R1ρ's
+`onresseries`: a "series" is the set of planes sharing all grouping variables, i.e.
+differing only in the fit-axis.
+"""
+function groupseries(planes::Planes, cols::Tuple)
+    keyfor(i) = NamedTuple{cols}(Tuple(planes.vars[i][c] for c in cols))
+    keys = [keyfor(i) for i in 1:nplanes(planes)]
+    uniquekeys = unique(keys)
+    return [k => findall(==(k), keys) for k in uniquekeys]
+end

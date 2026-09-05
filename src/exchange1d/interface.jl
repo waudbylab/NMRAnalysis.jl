@@ -278,21 +278,11 @@ function _prompt_integration!(prob::ExchangeProblem)
     default_peak = round(spec[1, :offsetppm]; digits=2)
 
     detail("Spectral range: $ppm_min to $ppm_max ppm")
+    detail("Select the integration and noise regions in the window, then press Accept.")
 
-    peakppm = _prompt_value("Peak position in ppm", default_peak) do v
-        return ppm_min ≤ v ≤ ppm_max ||
-               error("Peak position $v ppm is outside spectral range ($ppm_min to $ppm_max)")
-    end
-
-    ppmwidth = _prompt_value("Integration width in ppm", 0.1) do v
-        return v > 0 || error("Width must be positive")
-    end
-
-    noiseppm = _prompt_value("Noise position in ppm", nothing) do v
-        lo, hi = v - ppmwidth / 2, v + ppmwidth / 2
-        return ppm_min ≤ lo && hi ≤ ppm_max ||
-               error("Noise region $lo..$hi ppm is outside spectral range ($ppm_min to $ppm_max)")
-    end
+    # One region serves every experiment in the problem, so overlay them all in the picker.
+    peakppm, noiseppm, ppmwidth = pickregion([e.spec for e in prob.experiments];
+                                             peakppm=default_peak)
 
     detail("Integrating: peak=$peakppm ppm, noise=$noiseppm ppm, width=$ppmwidth ppm")
     return integrate!(prob, peakppm, noiseppm, ppmwidth)

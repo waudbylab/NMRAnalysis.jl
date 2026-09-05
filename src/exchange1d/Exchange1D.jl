@@ -24,8 +24,9 @@ using Statistics
 # Import from parent module
 import ..NMRAnalysis  # module itself, for pkgversion(NMRAnalysis)
 using ..NMRAnalysis: analyse, register_analysis!, MultiFileRule
-using ..NMRAnalysis: get1dregionandnoise, relaxation1d
 using ..NMRAnalysis: select_expts
+# Interactive region selection for `integrate!` (replaces the former readline prompts).
+using ..Analysis1D: pickregion
 
 # Include submodules in dependency order
 include("fitting-with-errors.jl")

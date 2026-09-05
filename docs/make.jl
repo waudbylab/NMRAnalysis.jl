@@ -41,6 +41,7 @@ makedocs(;
                 "Tutorials" => ["¹⁹F R1ρ Acquisition & Analysis" => "tutorials/r1rho.md"],
                 "Ecosystem" => "ecosystem.md",
                 "Advanced" => ["Analysis Rules" => "advanced/analysis_rules.md",
+                               "Creating New 1D Analyses" => "advanced/creating_1d_analyses.md",
                                "Creating New 2D Analyses" => "advanced/creating_2d_analyses.md",
                                "Extending Exchange1D" => "advanced/extending_exchange1d.md",
                                "API" => ["NMRAnalysis" => "api.md",
