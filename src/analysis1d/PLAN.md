@@ -21,17 +21,18 @@ optional global post-fit:
 
 1. **Reduction** — region × planes → named quantity series. v1: `Integrate` (a height
    is just a zero-width region; nutation needs no special case). Future: NMF for kinetics.
-2. **Series model** — quantity vs evolution parameter → derived parameters. Two shapes:
-   - **curve-fit** (continuous axis): exponential, recovery, damped sinusoid, …
-   - **contrast** (categorical slices): STD = (I_ref − I_sat)/I_ref, waterLOGSY sign.
-     (1D analogue of the existing `hetnoe2d` reference/saturated experiment.)
+2. **Series model** — quantity vs evolution parameter → derived parameters: v1 is
+   curve-fit only (exponential, recovery, damped sinusoid, …), continuous fit-axis. A
+   *contrast* shape (categorical slices, e.g. a reference-vs-saturated fraction — the 1D
+   analogue of the existing `hetnoe2d` reference/saturated experiment) was prototyped for
+   STD and removed with it (see "Removed" below); revisit if a future experiment needs it.
 3. **Visualisation strategy** — usually derived from the series model; overridable.
 
 Plus:
 
 - **Post-fit** (`postfit!` / `postfitglobal!`) — derive further quantities from a fit and
-  record them on the result (TRACT τc from ΔR₂; STD epitope normalisation), the same hooks
-  GUI2D uses. `postfitglobal!` is the one to use when the derivation spans several series.
+  record them on the result (TRACT τc from ΔR₂), the same hooks GUI2D uses.
+  `postfitglobal!` is the one to use when the derivation spans several series.
 - **Noise region and the region list are universal** and live in the shared base.
 
 ## Data model
@@ -86,26 +87,31 @@ full correspondence table.
 | TRACT | 1 | `time, which` | `time` | `which` | Integrate | Exponential ×2 | τc(ΔR₂) inline |
 | nutation | 1 | `duration` | `duration` | – | Integrate | DampedSinusoid | 90° pulse |
 | diffusion | 1 | `gradient` | `gradient` | – | Integrate | Stejskal–Tanner | D, rH |
-| STD | N named | `sat, tsat` | `tsat` | `sat` | Integrate | Contrast (+ buildup) | epitope |
 | kinetics | N named | `time, run` | `time` | `run` | Integrate | NoFitting (v1) | – |
 
 Entry points take the names of the routines they replace (`relaxation1d`, `tract`,
-`calibration1d`, `diffusion1d`, plus `std1d`, `kinetics1d`). Each opens the GUI; passing
+`calibration1d`, `diffusion1d`, plus `kinetics1d`). Each opens the GUI; passing
 `integration = (; peakppm, noiseppm, ppmwidth)` skips it and analyses that region
 directly, so a chosen region can be replayed from a script. The triple is deliberately
 the same one `Exchange1D` stores as `prob.integration`.
 
-### STD details
+## Removed: STD
 
-STD is the richest case and is designed for:
-- minimal: reference + one saturation, single `tsat` → STD% per region.
-- multiple saturation frequencies (`sat ∈ {reference, methyl, aromatic, …}`) → STD% per
-  (region, sat), each non-reference category contrasted against the reference at matching `tsat`.
-- buildup: multiple `tsat` → fit STD-AF(tsat) = STD-AF_max·(1 − exp(−k·tsat)) per
-  (region, sat); report the **initial slope** STD-AF₀ = STD-AF_max·k (removes T1 bias).
-- epitope: normalise STD% across regions to the strongest → relative %.
-
-Leave alone (10%): CORCEMA-ST relaxation-matrix epitope quantification.
+An STD experiment (`std1d`) was built and shipped in earlier phases of this iteration,
+then removed: its entry point, `std1d(spec, sat, tsat; …)`, assumed the entire experiment
+— every saturation frequency crossed with every saturation time — already existed as
+planes within *one* loaded file, with the caller supplying flat `sat`/`tsat` vectors
+matching that file's flattened plane order. Real STD acquisition is normally the other
+shape: a separate pseudo-2D dataset **per saturation time**, each one internally arraying
+saturation frequency (usually on/off-resonance, sometimes a handful more) via an fq-list —
+structurally the same as TRACT's `tract(trosy, antitrosy)`, which takes two separate files
+and combines them itself, not one experiment's worth of `std1d`. Getting this right needs
+proper design (how many files, what's arrayed within each, whether saturation time is ever
+itself arrayed in one file) before reintroducing it, rather than patching the existing
+entry point's assumptions. The analysis-side pipeline it used — reduce → group by
+saturation frequency → contrast against a reference → fit a buildup curve → normalise into
+an epitope map, via `postfitglobal!` (see Phase 3.6/3.7 below) — is still a reasonable
+target shape for whatever `std1d` becomes; it is the *loading* step that needs rethinking.
 
 ## Implementation status
 

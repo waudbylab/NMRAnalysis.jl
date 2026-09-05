@@ -100,7 +100,8 @@ Only what differs from the defaults:
 | `visualisationtype(e)` | `SeriesVisualisation()` | how results are drawn |
 
 A *series* is the set of planes sharing all grouping variables, differing only in the
-fit-axis. TRACT groups by `:which` (TROSY vs anti-TROSY), STD by `:sat`.
+fit-axis. TRACT groups by `:which` (TROSY vs anti-TROSY); kinetics groups by `:run` when
+more than one is present.
 
 ### 4. Science
 
@@ -118,9 +119,11 @@ end
 ```
 
 `postfit!` is also where an experiment does its own fitting when the series must be
-transformed first — STD contrasts each saturation series against the reference before
-fitting the buildup curve, exactly as `cest2d` normalises against its reference plane. Use
-`postfitglobal!` when the transformation needs another series, as STD's and TRACT's do.
+transformed first, rather than fitting the raw reduction directly — `cest2d` does this in
+GUI2D, normalising against its reference plane before fitting. Use `postfitglobal!` when
+the transformation needs another series entirely, as TRACT's τc does (it combines the
+TROSY and anti-TROSY series, so it cannot be computed from either series' own `postfit!`
+alone).
 
 Store each derived quantity **in the unit `PARAM_UNITS` names for it** (a 90° pulse in µs,
 τc in ns), so one stored number serves both the summary and `results.csv`. Keys are unique

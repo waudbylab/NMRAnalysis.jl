@@ -5,7 +5,7 @@ Abstract supertype for 1D analyses. A concrete experiment is a thin composition 
 supplies a dataset, a list of regions, a reduction, a series model, and the
 fit-axis / grouping designation. The generic [`analyse`](@ref) pipeline does the rest;
 experiments derive further quantities in [`postfit!`](@ref) / [`postfitglobal!`](@ref),
-and may override `analyse` entirely for non-curve-fit shapes (e.g. STD contrast).
+and may override `analyse` entirely for non-curve-fit shapes.
 
 # Adding an experiment
 
@@ -244,5 +244,4 @@ include("expt-relaxation.jl")
 include("expt-tract.jl")
 include("expt-nutation.jl")
 include("expt-diffusion.jl")
-include("expt-std.jl")
 include("expt-kinetics.jl")

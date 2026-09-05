@@ -2,7 +2,7 @@
 # GUI2D GUIs (GLMakie figure, draggable shaded regions, spectrum slider, live `lift`
 # refit, keyboard add/rename/delete matching the 2D peak-picking interface). A second
 # (exchange) window is deliberately out of scope here — none of relaxation / TRACT /
-# nutation / diffusion / STD / kinetics needs it.
+# nutation / diffusion / kinetics needs it.
 
 # A tap vs. a drag when adding a region with 'A' - shorter moves than this (ppm) are
 # treated as a single click, giving the default-width region.

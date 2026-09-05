@@ -2,9 +2,8 @@
 #
 # Models used by two or more experiments live here; a model used by exactly one lives in
 # that experiment's own `expt-*.jl` (StejskalTanner in expt-diffusion.jl, DampedSinusoid
-# in expt-nutation.jl, Buildup and Contrast in expt-std.jl, Recovery in
-# expt-relaxation.jl). ExponentialModel is the one genuinely shared: relaxation (T1/T2)
-# and TRACT both fit a plain exponential decay.
+# in expt-nutation.jl, Recovery in expt-relaxation.jl). ExponentialModel is the one
+# genuinely shared: relaxation (T1/T2) and TRACT both fit a plain exponential decay.
 
 """
     SeriesModel
@@ -13,8 +12,8 @@ Abstract supertype for the rule mapping a quantity series to derived parameters.
 
 - [`CurveFitModel`](@ref): a continuous fit-axis, fitted by nonlinear least squares.
 - [`NoFitting`](@ref): carry the reduced quantities through unfitted, for an experiment
-  whose deliverable is the series itself (kinetics), or one that fits in `postfit!`
-  because it must transform the series first (STD).
+  whose deliverable is the series itself (kinetics), or one that needs to transform the
+  series before fitting it in `postfit!` rather than fitting the raw reduction directly.
 """
 abstract type SeriesModel end
 

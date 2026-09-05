@@ -2,7 +2,7 @@
     Analysis1D
 
 Unified framework for lightweight 1D NMR analyses (relaxation, TRACT, nutation
-calibration, STD, kinetics, …). See `PLAN.md` in this directory for the design.
+calibration, kinetics, …). See `PLAN.md` in this directory for the design.
 
 The analysis core operates on plain `Trace`/`Planes`/`Dataset1D` values and has no GUI
 or NMRData dependency in its computational path (the agreed "keep the science pure"
@@ -59,15 +59,15 @@ export ExponentialModel, RecoveryModel, DampedSinusoidModel, StejskalTannerModel
 # experiments
 export Experiment1D, analyse, analyse1d, run1d, Integration
 export RelaxationExperiment, TractExperiment, NutationExperiment, KineticsExperiment
-export DiffusionExperiment, STDExperiment
+export DiffusionExperiment
 export RegionResult, param
 
 # interactive GUI
 export gui!, pickregion
 
 # top-level entry points (each opens the GUI, or analyses directly given an
-# `integration` triple). `std1d` rather than `std` also avoids colliding with Statistics.
-export relaxation1d, tract, calibration1d, diffusion1d, std1d, kinetics1d
+# `integration` triple).
+export relaxation1d, tract, calibration1d, diffusion1d, kinetics1d
 
 """
 Register the interactive 1D analyses with the analysis-dispatch registry, so `analyse`
@@ -75,7 +75,7 @@ routes annotated experiments here. These replace the registrations previously ma
 readline-based routines.
 
 Only the analyses that can run from a filename alone are registered: TRACT needs a
-TROSY/anti-TROSY pair, diffusion needs the gradient list, and STD/kinetics need named
+TROSY/anti-TROSY pair, diffusion needs the gradient list, and kinetics needs named
 regions, so those are invoked directly rather than dispatched.
 """
 function __init__()

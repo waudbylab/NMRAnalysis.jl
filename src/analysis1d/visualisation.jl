@@ -10,8 +10,8 @@
 
 One coloured curve in the result panel: observed `points` (`Vector{Point2f}`), `errors`
 (`Vector{NTuple{3,Float64}}` of `(x, y, σ)`), a `fitline` (`Vector{Point2f}`, empty if
-unfitted), and a `label` (e.g. the TRACT `which`, or the STD saturation frequency; empty
-for an ungrouped single series).
+unfitted), and a `label` (e.g. the TRACT `which`, or kinetics' `run`; empty for an
+ungrouped single series).
 """
 struct ResultSeries
     points::Vector{Point2f}
@@ -51,9 +51,8 @@ resultxfactor(::Experiment1D) = 1.0
     resultplotdata(expt, result, activelabel) -> Vector{ResultSeries}
 
 Plot primitives for the active region, one `ResultSeries` per group (e.g. TRACT's
-TROSY/anti-TROSY pair, or STD's saturation frequencies) so each can be drawn in a
-distinct, matching colour. The generic method covers the curve-fit / NoFitting
-experiments; STD overrides it.
+TROSY/anti-TROSY pair, or kinetics' runs) so each can be drawn in a distinct, matching
+colour. Covers every curve-fit / `NoFitting` experiment generically.
 """
 function resultplotdata(e::Experiment1D, result, activelabel::AbstractString)
     series = filter(s -> s.region == activelabel, result)
@@ -89,7 +88,7 @@ Fixed group names (in `seriescolor` order) for the result panel's legend, when t
 experiment's groups are few and consistently named (e.g. TRACT's TROSY/anti-TROSY
 pair) - `axislegend` is used instead of labelling each curve directly. `nothing` (the
 default) keeps the inline curve labels, which suit experiments whose group count/names
-vary per dataset (e.g. STD's saturation frequencies).
+vary per dataset (e.g. kinetics' runs, when several are present).
 """
 seriesnames(::Experiment1D) = nothing
 
@@ -174,14 +173,14 @@ fmt(::Nothing, digits=4) = "n/a"
 
 # Units and display names for the handful of parameters genuinely shared by more than one
 # experiment - not a catch-all table. Everything specific to one experiment (TRACT's
-# :ηxy/:τc, nutation's :pulse90/:inhomogeneity, diffusion's :D/:rH/:viscosity, STD's whole
-# buildup/epitope vocabulary, relaxation's :C, ...) is defined in that experiment's own
-# expt-*.jl, in its own local table, alongside the `postfit!`/model that produces it - see
-# `paramlabel`/`paramunit` below. Putting any of that here instead is exactly the mistake
-# this split exists to prevent: it scatters one experiment's presentation into a file
-# every other experiment also reads. The 2D side keeps an equivalent table in
-# `gui2d/summary.jl` (`PARAM_LABELS`); merging the two is the first step of the open
-# question in PLAN.md about a canonical output format across 1D and 2D.
+# :ηxy/:τc, nutation's :pulse90/:inhomogeneity, diffusion's :D/:rH/:viscosity, relaxation's
+# :C, ...) is defined in that experiment's own expt-*.jl, in its own local table, alongside
+# the `postfit!`/model that produces it - see `paramlabel`/`paramunit` below. Putting any
+# of that here instead is exactly the mistake this split exists to prevent: it scatters
+# one experiment's presentation into a file every other experiment also reads. The 2D
+# side keeps an equivalent table in `gui2d/summary.jl` (`PARAM_LABELS`); merging the two
+# is the first step of the open question in PLAN.md about a canonical output format
+# across 1D and 2D.
 #
 # `:A` is here because "Amplitude" is accurate for every fit that produces it (relaxation,
 # TRACT, nutation, diffusion all fit an overall scale factor and mean the same thing by
@@ -210,7 +209,7 @@ paramunit(::Experiment1D, name::Symbol) = get(PARAM_UNITS, name, "")
 """
     groupheader(expt, group) -> String
 
-Display name for a grouping key (TRACT's `(which=:trosy,)`, STD's `(sat=:methyl,)`), used
+Display name for a grouping key (TRACT's `(which=:trosy,)`, kinetics' `(run=2,)`), used
 as the bold header introducing that group's block in the results panel. Defaults to
 [`groupname`](@ref)'s raw rendering of the values; TRACT overrides it to the same
 TROSY/anti-TROSY wording its plot legend already uses (`seriesnames`).
@@ -472,9 +471,9 @@ function resultpanel!(gui, state, expt::Experiment1D, ::SeriesVisualisation)
     errorbars!(ax, state[:flaterrors]; whiskerwidth=8, color=state[:flaterrorcolors])
     scatter!(ax, state[:flatpoints]; color=state[:flatpointcolors])
     lines!(ax, state[:flatfit]; color=state[:flatfitcolors])
-    # Most experiments label each curve directly (group counts/names vary, e.g. STD's
-    # saturation frequencies); experiments with a fixed, small set of named groups (e.g.
-    # TRACT's TROSY/anti-TROSY) get a proper axislegend instead via `seriesnames`.
+    # Most experiments label each curve directly (group counts/names vary, e.g.
+    # kinetics' runs); experiments with a fixed, small set of named groups (e.g. TRACT's
+    # TROSY/anti-TROSY) get a proper axislegend instead via `seriesnames`.
     legendnames = seriesnames(expt)
     if isnothing(legendnames)
         text!(ax, state[:seriestextpos]; text=state[:seriestexttxt],

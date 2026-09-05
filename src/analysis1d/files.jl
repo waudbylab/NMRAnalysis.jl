@@ -1,6 +1,6 @@
 # Results file and region round-trip, mirroring `gui2d/files.jl`: `results.csv` is both the
 # machine-readable output and the format a saved region list is restored from, so a
-# multi-region STD or kinetics session is reproducible rather than only screenshot-able.
+# multi-region kinetics session is reproducible rather than only screenshot-able.
 #
 # Layout (as in 2D): `#` comment lines carrying the experiment metadata, then a header row,
 # then one row per (region × group). Regions travel as ordinary `region`/`lo`/`hi` columns,

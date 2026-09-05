@@ -55,9 +55,8 @@ using .Exchange1D
 # registry-based `analyse` above); use `analyse1d`.
 @reexport using .Analysis1D: Region, Dataset1D, analyse1d, gui!, pickregion
 @reexport using .Analysis1D: RelaxationExperiment, TractExperiment, NutationExperiment
-@reexport using .Analysis1D: KineticsExperiment, DiffusionExperiment, STDExperiment
-@reexport using .Analysis1D: relaxation1d, tract, calibration1d, diffusion1d, std1d,
-                             kinetics1d
+@reexport using .Analysis1D: KineticsExperiment, DiffusionExperiment
+@reexport using .Analysis1D: relaxation1d, tract, calibration1d, diffusion1d, kinetics1d
 
 @info """
 NMRAnalysis.jl (v$(pkgversion(NMRAnalysis)))
@@ -81,7 +80,6 @@ Pass `integration=(; peakppm, noiseppm, ppmwidth)` to skip the GUI and analyse d
 - tract(trosy_filename, antitrosy_filename)
 - calibration1d(filename)
 - diffusion1d(filename, gradients)
-- std1d(filename, sat, tsat; regions)
 - kinetics1d(filename, times; regions)
 - r1rho([directory_path]; minvSL=250, maxvSL=1e6, scalefactor=:automatic)
 - exchange1d([filenames]) - CEST / R1ρ chemical exchange analysis
