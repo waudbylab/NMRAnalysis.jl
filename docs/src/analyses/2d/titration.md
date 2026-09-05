@@ -6,37 +6,39 @@ peak walks along a binding trajectory across the planes, and the fit recovers a 
 dissociation constant ``K_\text{d}`` (shared by all residues) together with the free and bound
 chemical shifts of every residue in each dimension.
 
+When each plane's NMR sample metadata already records its concentrations — the usual case for
+data acquired with sample information filled in — that's all `titration2d` needs. Bruker
+experiment numbers work as the input too, individually or as a list/range, so a whole titration
+series can be as simple as:
+
 ```julia
-using NMRAnalysis
+julia> using NMRAnalysis
 
-files = [
-    "/Users/chris/git/titan/examples/FBPNbox/1"
-    "/Users/chris/git/titan/examples/FBPNbox/2"
-    "/Users/chris/git/titan/examples/FBPNbox/3"
-    "/Users/chris/git/titan/examples/FBPNbox/4"
-    "/Users/chris/git/titan/examples/FBPNbox/5"
-    "/Users/chris/git/titan/examples/FBPNbox/6"
-    "/Users/chris/git/titan/examples/FBPNbox/7"
-    "/Users/chris/git/titan/examples/FBPNbox/8"
-    "/Users/chris/git/titan/examples/FBPNbox/9"
-    "/Users/chris/git/titan/examples/FBPNbox/10"
-    "/Users/chris/git/titan/examples/FBPNbox/11"
-]
-ligand_concs = [0, 8.13, 16.14, 24.01, 31.76, 46.89, 61.56, 75.79, 109.53, 140.89, 200.06]
-protein_concs = [41, 40.67, 40.34, 40.02, 39.7, 39.08, 38.48, 37.89, 36.51, 35.22, 32.8]
-
-# Concentrations read automatically from each plane's NMR sample metadata:
-titration2d(files)
-
-# Ligand concentrations given explicitly (hyperbolic, ligand ≈ free):
-titration2d(files, L0=ligand_concs)
-
-# With protein concentrations — exact 1:1 equation, accounts for dilution:
-titration2d(files, L0=ligand_concs, P0=protein_concs)
-
-# Bruker experiment numbers work too, individually or as a list/range:
-titration2d(1:11)
+julia> titration2d(1:11)
+[ Info: Titration roles from sample metadata: "FIR" (observed), "Nbox" (titrant)
+╭───────┬─────────────┬────────────╮
+│ Plane │ [Nbox] (L0) │ [FIR] (P0) │
+├───────┼─────────────┼────────────┤
+│     1 │         0.0 │       41.0 │
+│     2 │        8.13 │      40.67 │
+│     3 │       16.14 │      40.34 │
+│     4 │       24.01 │      40.02 │
+│     5 │       31.76 │       39.7 │
+│     6 │       46.89 │      39.08 │
+│     7 │       61.56 │      38.48 │
+│     8 │       75.79 │      37.89 │
+│     9 │      109.53 │      36.51 │
+│    10 │      140.89 │      35.22 │
+│    11 │      200.06 │       32.8 │
+╰───────┴─────────────┴────────────╯
 ```
+
+`titration2d` has spotted that plane 1's sample defines only "FIR" (so that's the observed
+protein, at zero ligand) and that "Nbox" is the only other molecule named anywhere in the
+series (so that's the titrant), read off `L0` and `P0` accordingly, printed the table above to
+confirm what it found, and opened the GUI — no concentrations typed in by hand. See
+[Concentrations from sample metadata](#Concentrations-from-sample-metadata) below for exactly
+how the roles are inferred, and what happens when they can't be.
 
 ![Screenshot of titration analysis](../../assets/titration2d.png)
 
@@ -79,6 +81,37 @@ mismatched or incomplete sample entry, so it's flagged with a warning rather tha
 treated as zero or dropped. When concentrations are read from sample metadata this way, the
 per-plane values actually used for the fit are printed as a table before the GUI opens, so they
 can be checked at a glance.
+
+## Supplying concentrations directly
+
+Without sample metadata (or to override it), pass `L0` — and, for the exact 1:1 equation,
+`P0` — explicitly:
+
+```julia
+using NMRAnalysis
+
+files = [
+    "/Users/chris/git/titan/examples/FBPNbox/1"
+    "/Users/chris/git/titan/examples/FBPNbox/2"
+    "/Users/chris/git/titan/examples/FBPNbox/3"
+    "/Users/chris/git/titan/examples/FBPNbox/4"
+    "/Users/chris/git/titan/examples/FBPNbox/5"
+    "/Users/chris/git/titan/examples/FBPNbox/6"
+    "/Users/chris/git/titan/examples/FBPNbox/7"
+    "/Users/chris/git/titan/examples/FBPNbox/8"
+    "/Users/chris/git/titan/examples/FBPNbox/9"
+    "/Users/chris/git/titan/examples/FBPNbox/10"
+    "/Users/chris/git/titan/examples/FBPNbox/11"
+]
+ligand_concs = [0, 8.13, 16.14, 24.01, 31.76, 46.89, 61.56, 75.79, 109.53, 140.89, 200.06]
+protein_concs = [41, 40.67, 40.34, 40.02, 39.7, 39.08, 38.48, 37.89, 36.51, 35.22, 32.8]
+
+# Ligand concentrations only (hyperbolic, ligand ≈ free):
+titration2d(files, L0=ligand_concs)
+
+# With protein concentrations — exact 1:1 equation, accounts for dilution:
+titration2d(files, L0=ligand_concs, P0=protein_concs)
+```
 
 ## Tracking peaks
 
