@@ -42,7 +42,7 @@ experiment type from the raw data itself.
 | A 1D nutation calibration experiment | [Calibration](calibration.md) |
 | A 1D R1 or R2 relaxation experiment | [Relaxation](relaxation.md) |
 | One or more on-resonance R1ρ experiments | [R1ρ Relaxation Dispersion](r1rho.md) |
-| CEST and/or off-resonance R1ρ experiments, together with any accompanying R1 or on-resonance R1ρ files | [Exchange Fitting](exchange1d.md) |
+| CEST and/or off-resonance R1ρ experiments, together with any accompanying R1 or on-resonance R1ρ files | [Exchange Fitting](exchange1d/overview.md) |
 
 Diffusion and TRACT don't currently register with `analyse()` — call
 [`diffusion1d()`](diffusion.md) or [`tract()`](tract.md) directly.
