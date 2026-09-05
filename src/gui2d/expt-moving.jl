@@ -1013,13 +1013,15 @@ function add_moving_overlays!(g, state, expt::MovingPeakExperiment)
                                color=:darkorange)
     translate!(g[:pltaddmarks], 0, 0, 11)
 
-    # --- faint context: every plane's contours, off by default ---
+    # --- faint context: every plane's contours ---
     # Drawn above the (opaque white) mask heatmap so they remain visible; the small positive z
     # keeps them under the peak markers and trajectory. The "Show all" toggle widget is created
-    # in gui! (just left of the Fitting toggle); here we attach its plots and handler.
+    # in gui! (just left of the Fitting toggle, active by default); here we attach its plots and
+    # handler, with the initial visibility matching the toggle's starting state.
     g[:pltotherplanes] = map(1:nslices(expt)) do i
         p = contour!(ax, expt.specdata.x[i], expt.specdata.y[i], expt.specdata.z[i];
-                     levels=g[:contourlevels], color=(:grey60, 0.3), visible=false)
+                     levels=g[:contourlevels], color=(:grey60, 0.3),
+                     visible=g[:toggleother].active[])
         translate!(p, 0, 0, 1)
         return p
     end
@@ -1081,7 +1083,7 @@ function summaryplot(expt::MovingExperiment; weights=(1.0, 0.14), title="", size
         end
         scatterlines!(ax, resnums, Float64.(Δδ); label=_planelabel(expt, i))
     end
-    hlines!(ax, [0]; linewidth=0)  # invisible: forces zero into the y-range
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
     n > 2 && axislegend(ax; position=:lt, framevisible=false)
 
     return fig
@@ -1107,7 +1109,7 @@ function _rdc_summaryplot(expt::MovingExperiment; title="", size=nothing,
     Derr = Float64[p.postparameters[:D].uncertainty[][1] for p in peaks]
     errorbars!(ax, res, D, Derr; whiskerwidth=6, color=:black)
     scatter!(ax, res, D; color=:steelblue)
-    hlines!(ax, [0]; linewidth=0)
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
     return fig
 end
 
@@ -1137,7 +1139,7 @@ function _titration_summaryplot(expt::MovingExperiment; title="", size=nothing,
                   title=(row == 1 ? title : ""), xgridvisible=false, ygridvisible=false)
         vals = Float64[p.postparameters[sym].value[][1] for p in peaks]
         scatterlines!(ax, res, vals; color=:steelblue)
-        hlines!(ax, [0]; linewidth=0)
+        hlines!(ax, [0]; color=:grey50, linewidth=1)
         push!(axes, ax)
     end
     length(axes) > 1 && linkxaxes!(axes...)
@@ -1163,9 +1165,6 @@ function _yshiftscalefactor(specdata)
     occursin("C", l) && return 4.0
     return 1.0
 end
-
-_titrationylabel(factor, dimlabel) = factor == 1.0 ? "Δδ / ppm" :
-                                     "Δδ / ppm  ($dimlabel ÷ $(round(Int, factor)))"
 
 # Clamped piecewise-linear interpolation of `ys` (sampled at `xs`) at query point `q`.
 function _lininterp(xs, ys, q)
@@ -1242,31 +1241,29 @@ function completestate!(state, expt::MovingExperiment, ::TitrationVisualisation)
 end
 
 function makepeakplot!(gui, state, expt::MovingExperiment, ::TitrationVisualisation)
-    factor = _yshiftscalefactor(expt.specdata)
     xlab = string(label(expt.specdata.nmrdata[1], F1Dim))
     ylab = string(label(expt.specdata.nmrdata[1], F2Dim))
     colX, colY = Makie.wong_colors()[1], Makie.wong_colors()[2]
     gui[:axpeakplot] = ax = Axis(gui[:panelpeakplot][1, 1]; xlabel="[ligand]",
-                                 ylabel=_titrationylabel(factor, ylab))
-    hlines!(ax, [0]; linewidth=0)
+                                 ylabel="Δδ (scaled)")
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
     lines!(ax, state[:peak_plot_fitX]; color=colX)
     scatter!(ax, state[:peak_plot_obsX]; color=colX, label=xlab)
     lines!(ax, state[:peak_plot_fitY]; color=colY)
     scatter!(ax, state[:peak_plot_obsY]; color=colY, label=ylab)
-    return axislegend(ax)
+    return axislegend(ax; position=:lt)
 end
 
 function plot_peak!(panel, peak, expt::MovingExperiment, ::TitrationVisualisation)
     obsX, obsY, fitX, fitY = get_titration_data(peak, expt)
-    factor = _yshiftscalefactor(expt.specdata)
     xlab = string(label(expt.specdata.nmrdata[1], F1Dim))
     ylab = string(label(expt.specdata.nmrdata[1], F2Dim))
     colX, colY = Makie.wong_colors()[1], Makie.wong_colors()[2]
-    ax = Axis(panel[1, 1]; xlabel="[ligand]", ylabel=_titrationylabel(factor, ylab))
-    hlines!(ax, [0]; linewidth=0)
+    ax = Axis(panel[1, 1]; xlabel="[ligand]", ylabel="Δδ (scaled)")
+    hlines!(ax, [0]; color=:grey50, linewidth=1)
     lines!(ax, fitX; color=colX)
     scatter!(ax, obsX; color=colX, label=xlab)
     lines!(ax, fitY; color=colY)
     scatter!(ax, obsY; color=colY, label=ylab)
-    return axislegend(ax)
+    return axislegend(ax; position=:lt)
 end

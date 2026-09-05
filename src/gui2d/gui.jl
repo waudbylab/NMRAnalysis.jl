@@ -1,6 +1,10 @@
 function gui!(expt::Experiment)
     GLMakie.activate!(; title="NMRAnalysis.jl (v$(string(pkgversion(GUI2D))))",
                       focus_on_show=true)
+    # No gridlines anywhere (interactive or exported plots use the same Makie theme); axes
+    # still show a visible zero line where one is drawn explicitly.
+    set_theme!(Theme(Axis=(xgridvisible=false, ygridvisible=false,
+                          xminorgridvisible=false, yminorgridvisible=false)))
 
     state = expt.state[]
 
@@ -31,7 +35,7 @@ function gui!(expt::Experiment)
     col = 8
     if !hasfixedpositions(expt)
         Label(g[:paneltop][1, col], "Show all")
-        g[:toggleother] = Toggle(g[:paneltop][1, col + 1]; active=false)
+        g[:toggleother] = Toggle(g[:paneltop][1, col + 1]; active=true)
         col += 2
     end
     Label(g[:paneltop][1, col], "Fitting")
