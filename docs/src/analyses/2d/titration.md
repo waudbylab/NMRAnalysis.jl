@@ -58,14 +58,15 @@ titration2d(files, L0=ligand_concs, P0=protein_concs)
 ## Concentrations from sample metadata
 
 If `L0` isn't given, `titration2d` looks for the total concentration of each named molecule in
-every plane's NMR sample metadata — the same information [`exchange1d`](../exchange1d.md)
-uses. A plane whose sample defines a single component is taken as the zero-ligand (observed
-molecule) reference point: if exactly two molecules are named across the whole series, that
-plane tells `titration2d` which one is the observed molecule and which is the titrant, and `L0`
-(and `P0`, if every plane's sample gives a protein concentration) are read off directly — no
-explicit `L0`/`P0` keywords needed. If that inference isn't possible — no such single-component
-plane, or more than two named molecules — you are prompted at the terminal to assign the two
-roles. Passing `L0` (or `P0`) explicitly always takes precedence over sample metadata.
+every plane's NMR sample metadata — the same sample information `exchange1d` uses (see the
+"Exchange Fitting" page). A plane whose sample defines a single component is taken as the
+zero-ligand (observed molecule) reference point: if exactly two molecules are named across the
+whole series, that plane tells `titration2d` which one is the observed molecule and which is the
+titrant, and `L0` (and `P0`, if every plane's sample gives a protein concentration) are read off
+directly — no explicit `L0`/`P0` keywords needed. If that inference isn't possible — no such
+single-component plane, or more than two named molecules — you are prompted at the terminal to
+assign the two roles. Passing `L0` (or `P0`) explicitly always takes precedence over sample
+metadata.
 
 A molecule missing from *some but not all* planes' sample metadata (as opposed to genuinely
 absent from the sample, like the ligand at the zero-ligand reference point) is a likely
