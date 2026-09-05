@@ -1,6 +1,6 @@
 name = "NMRAnalysis"
 uuid = "e8f11e50-668f-4bdf-b40b-95f76662da30"
-version = "0.4.2"
+version = "0.4.3"
 authors = ["Chris Waudby", "Sophia Hazlett"]
 
 [deps]
