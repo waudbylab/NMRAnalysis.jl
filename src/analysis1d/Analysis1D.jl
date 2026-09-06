@@ -21,6 +21,7 @@ using LsqFit
 using Measurements
 using NMRTools
 using OrderedCollections
+using REPL.TerminalMenus
 using Statistics
 
 using ..NMRAnalysis: register_analysis!, viscosity
@@ -30,6 +31,7 @@ include("types.jl")
 include("reductions.jl")
 include("seriesmodels.jl")
 include("nmrdata.jl")
+include("prompts.jl")   # parameter resolution: argument, then annotation/acqus, then ask
 include("experiments.jl")   # interface + pipeline; includes one expt-*.jl per experiment
 include("files.jl")
 

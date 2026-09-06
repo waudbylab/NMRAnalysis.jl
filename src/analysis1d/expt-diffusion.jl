@@ -5,27 +5,73 @@
 # ---- 1. entry point -----------------------------------------------------------
 
 """
-    diffusion1d(spec, gradients; coherence=SQ(H1), δ=nothing, Δ=nothing, σ=nothing,
-                Gmax=0.55, regions=nothing, integration=nothing)
+    diffusion1d()
+    diffusion1d(spec, gradients=nothing; coherence=SQ(H1), δ=nothing, Δ=nothing,
+                σ=nothing, Gmax=nothing, regions=nothing, integration=nothing,
+                prompt=isinteractive())
 
-Analyse a diffusion experiment, fitting the Stejskal–Tanner equation to extract the
+Analyse a diffusion experiment, fitting the Stejskal-Tanner equation to extract the
 diffusion coefficient (and the hydrodynamic radius where the solvent and temperature are
-known).
+known), then open the analysis window.
 
-`gradients` is the vector of relative gradient strengths (0–1), one per plane. The
-gradient pulse length `δ` (`2·p30`), diffusion delay `Δ` (`d20`) and shape factor `σ`
-(from `gpnam6`) default to the values in the acquisition parameters.
+Called interactively, the acquisition parameters are read from the experiment and offered
+for confirmation before the window opens, exactly as they must be: Bruker records the
+gradient pulse length `δ` (`2·p30`), the diffusion delay `Δ` (`d20`) and the gradient
+shape (`gpnam6`), but *not* the gradient ramp itself, so the initial and final gradient
+strengths have to be supplied. Anything passed as an argument is taken as given and not
+asked about.
+
+# Arguments
+- `gradients`: relative gradient strengths (0 to 1), one per spectrum. Supply these for
+  any ramp other than a linear one, which is what the prompt constructs.
+- `coherence`: the coherence whose gyromagnetic ratio applies (default `SQ(H1)`).
+- `δ`: gradient pulse length, in seconds.
+- `Δ`: diffusion delay, in seconds.
+- `σ`: gradient shape factor (0.9 for the smoothed-square `SMSQ` shapes, 0.6366 for
+  `SINE`).
+- `Gmax`: maximum gradient strength, in T m⁻¹ (0.55 on a typical Bruker system).
+- `regions`: integration regions to start from, instead of one on the tallest peak.
+- `integration`: a `(; peakppm, noiseppm, ppmwidth)` triple, which skips the window and
+  analyses that region directly.
+- `prompt`: whether to ask for anything that could not be determined. Defaults to `false`
+  outside an interactive session, where a missing value raises an error instead.
+
+# Examples
+```julia
+diffusion1d("106")                                    # asks for the gradient ramp
+diffusion1d("106", 0.05:0.05:0.95)                    # ramp given explicitly
+diffusion1d("106", g; δ=4e-3, Δ=0.1, σ=0.9, Gmax=0.55)  # nothing left to ask
+```
 """
-function diffusion1d(spec, gradients; coherence=SQ(H1), δ=nothing, Δ=nothing, σ=nothing,
-                     Gmax=0.55, regions=nothing, integration=nothing)
+function diffusion1d(spec, gradients=nothing; coherence=SQ(H1), δ=nothing, Δ=nothing,
+                     σ=nothing, Gmax=nothing, regions=nothing, integration=nothing,
+                     prompt::Bool=isinteractive())
     spec = loadspec(spec)
     γ = gyromagneticratio(coherence)
-    δ = isnothing(δ) ? acqus(spec, :p, 30) * 2.0 : δ
-    Δ = isnothing(Δ) ? acqus(spec, :d, 20) : Δ
-    σ = isnothing(σ) ? shapefactor(acqus(spec, :gpnam, 6)) : σ
+    n = nplanesfromspec(spec)
 
-    temp = acqus(spec, :te)
-    solvent = solventname(acqus(spec, :solvent))
+    # Each parameter in turn: taken as given if supplied, otherwise read from the
+    # acquisition parameters and offered for confirmation (the gradient list excepted -
+    # Bruker does not record it, so there is nothing to confirm).
+    prompt && println("Parsing experiment parameters...")
+    p30 = acqusvalue(spec, :p, 30)
+    δ = @something(δ,
+                   1e-6 * ask("Gradient pulse length δ",
+                              isnothing(p30) ? nothing : 2e6 * p30;
+                              unit="µs", note=" (2*p30)", prompt))
+    Δ = @something(Δ, ask("Diffusion delay Δ", acqusvalue(spec, :d, 20); unit="s",
+                          note=" (d20)", prompt))
+    gpnam = acqusvalue(spec, :gpnam, 6)
+    σ = @something(σ, ask("Gradient shape factor σ", shapefactor(gpnam);
+                          note=isnothing(gpnam) ? "" : " (gpnam6 = $gpnam)", prompt))
+    Gmax = @something(Gmax, ask("Maximum gradient strength Gmax", 0.55; unit="T m⁻¹",
+                                note=" (typical for Bruker systems)", prompt))
+    gradients = @something(gradients, gradientramp(n; prompt))
+    length(gradients) == n ||
+        throw(ArgumentError("got $(length(gradients)) gradient strengths for $n spectra"))
+
+    temp = acqusvalue(spec, :te)
+    solvent = solventname(acqusvalue(spec, :solvent))
 
     ds = datasetfromspec(spec, [(; gradient=Float64(g)) for g in gradients])
     kw = (; γ, δ, Δ, σ, Gmax, temp, solvent)
@@ -34,14 +80,40 @@ function diffusion1d(spec, gradients; coherence=SQ(H1), δ=nothing, Δ=nothing, 
     return run1d(expt; integration)
 end
 
-"""Gradient shape factor from the Bruker shape name (as in the legacy routine)."""
+diffusion1d(; kwargs...) = diffusion1d(askpath("diffusion experiment"); kwargs...)
+
+"""
+    gradientramp(n; prompt=true) -> Vector{Float64}
+
+Ask for the gradient ramp, which Bruker does not store: the initial and final gradient
+strengths (%) of a linear ramp over `n` spectra, matching TopSpin's `dosy` dialogue. Its
+quadratic and exponential ramps are not generated here; pass those gradient strengths to
+[`diffusion1d`](@ref) directly.
+"""
+function gradientramp(n::Integer; prompt::Bool=true)
+    prompt ||
+        throw(ArgumentError("the gradient ramp is not stored in the Bruker acquisition " *
+                            "parameters - please pass `gradients` (relative strengths " *
+                            "from 0 to 1, one per spectrum)"))
+    println("The gradient ramp is not stored by Bruker, so it has to be entered here.")
+    println("A linear ramp over $n spectra is assumed; for any other shape, " *
+            "pass `gradients` instead.")
+    g1 = ask("initial gradient strength"; unit="%", prompt)
+    g2 = ask("final gradient strength"; unit="%", prompt)
+    return collect(LinRange(0.01g1, 0.01g2, n))
+end
+
+"""Gradient shape factor from the Bruker shape name (as in the legacy routine), falling
+back to 1.0 where the shape is unrecognised or was not recorded at all."""
 function shapefactor(gpnam)
-    length(gpnam) ≥ 4 || return 1.0
+    (isnothing(gpnam) || length(gpnam) < 4) && return 1.0
     gpnam[1:4] == "SMSQ" && return 0.9
     gpnam[1:4] == "SINE" && return 0.6366
     return 1.0
 end
 
+"""The solvent as `viscosity` names it, or `nothing` for one it does not know (which
+leaves the diffusion coefficient reported but not the hydrodynamic radius)."""
 solventname(s) = s == "D2O" ? :d2o : (s == "H2O+D2O" ? :h2o : nothing)
 
 # ---- 2. type ------------------------------------------------------------------

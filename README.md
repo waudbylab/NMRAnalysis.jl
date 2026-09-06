@@ -83,21 +83,31 @@ Tutorials are available in the online documentation, including example data:
    ?r1rho        # Shows help for R1ρ analysis
    ```
 
-Some examples of analysing **1D experiments**:
+Some examples of analysing **1D experiments**. Each asks for whatever it cannot read from
+the data, then opens a window in which you position the integration region over your
+signal and watch the fit follow:
 
 ```julia
 using NMRAnalysis
 
-# Diffusion analysis - analyzes DOSY experiments
-diffusion1d("106")  # Analyze experiment in folder "106"
+# Relaxation analysis (T1, T2, inversion recovery)
+relaxation1d("11")                        # delays from the vdlist or annotations
+relaxation1d("11"; tau=[0.01, 0.05, 0.1]) # or given explicitly
 
-# TRACT analysis - for rotational correlation times
-tract()           # Prompt to select experiment folders
+# Diffusion analysis of DOSY experiments
+diffusion1d("106")                        # analyse experiment in folder "106"
+
+# TRACT analysis, for rotational correlation times
+tract("12", "13")                         # TROSY and anti-TROSY experiments
+tract()                                   # prompts for both folders
+
+# Pulse calibration from a nutation experiment
+calibration1d("1")
 
 # R1ρ relaxation dispersion
-r1rho()                                   # Show file selection dialog
-r1rho(["11", "12"])                       # Analyze experiments 11 and 12
-r1rho(["11", "12"], minvSL=500)           # Filter low spin-lock strengths
+r1rho()                                   # show file selection dialog
+r1rho(["11", "12"])                       # analyse experiments 11 and 12
+r1rho(["11", "12"], minvSL=500)           # filter low spin-lock strengths
 ```
 
 **2D experiments** can be analysed with the interactive graphical interface:

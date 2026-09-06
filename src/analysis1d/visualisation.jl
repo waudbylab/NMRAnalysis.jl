@@ -141,6 +141,13 @@ and what relaxation, TRACT, nutation, diffusion and kinetics all use.
 """
 struct SeriesVisualisation <: ResultVisualisation end
 
+"""
+    visualisationtype(expt) -> ResultVisualisation
+
+The strategy drawing `expt`'s results. Defaults to [`SeriesVisualisation`](@ref), which
+suits every curve-fit experiment; override it in an `expt-*.jl` only where that shape
+genuinely will not do.
+"""
 visualisationtype(::Experiment1D) = SeriesVisualisation()
 
 # Trait forwarding: callers use the three-argument forms and never name a strategy.

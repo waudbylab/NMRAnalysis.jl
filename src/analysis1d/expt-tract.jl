@@ -5,16 +5,35 @@
 # ---- 1. entry point -----------------------------------------------------------
 
 """
-    tract(trosy, antitrosy; tau=nothing, regions=nothing, integration=nothing)
+    tract()
+    tract(trosy, antitrosy; tau=nothing, regions=nothing, integration=nothing,
+          prompt=isinteractive())
 
-Analyse a TRACT pair, deriving τc from the TROSY / anti-TROSY relaxation-rate difference.
-The two spectra are combined into one dataset tagged by `which ∈ {:trosy, :anti}`, sharing
-a single integration region.
+Analyse a TRACT pair, deriving τc from the TROSY / anti-TROSY relaxation-rate difference,
+then open the analysis window. The two spectra are combined into one dataset tagged by
+`which ∈ {:trosy, :anti}`, sharing a single integration region.
+
+Called with no arguments, you are asked for the two experiment folders. Relaxation delays
+are taken from `tau` if given, else from each spectrum's own `vdlist`, and otherwise you
+are asked for them.
+
+# Arguments
+- `tau`: relaxation delays, in seconds, one per spectrum, used for both experiments.
+- `regions`: integration regions to start from, instead of the 7.5-9.5 ppm amide window.
+- `integration`: a `(; peakppm, noiseppm, ppmwidth)` triple, which skips the window and
+  analyses that region directly.
+- `prompt`: whether to ask for anything that could not be determined. Defaults to `false`
+  outside an interactive session, where a missing value raises an error instead.
 """
-function tract(trosy, antitrosy; tau=nothing, regions=nothing, integration=nothing)
+function tract(trosy, antitrosy; tau=nothing, regions=nothing, integration=nothing,
+               prompt::Bool=isinteractive())
     trosy, antitrosy = loadspec(trosy), loadspec(antitrosy)
-    ttau = isnothing(tau) ? acqus(trosy, :vdlist) : tau
-    atau = isnothing(tau) ? acqus(antitrosy, :vdlist) : tau
+    ttau = @something(tau, acqusvalue(trosy, :vdlist),
+                      askvector("TROSY relaxation delays", nplanesfromspec(trosy);
+                                unit="s", prompt))
+    atau = @something(tau, acqusvalue(antitrosy, :vdlist),
+                      askvector("anti-TROSY relaxation delays",
+                                nplanesfromspec(antitrosy); unit="s", prompt))
 
     traces = vcat(tracesfromspec(trosy), tracesfromspec(antitrosy))
     vars = vcat([(; time=Float64(t), which=:trosy) for t in ttau],
@@ -29,6 +48,13 @@ function tract(trosy, antitrosy; tau=nothing, regions=nothing, integration=nothi
     expt = isnothing(regions) ? TractExperiment(ds; ωN, f) :
            TractExperiment(ds; ωN, f, regions)
     return run1d(expt; integration)
+end
+
+function tract(; kwargs...)
+    println("Current directory: $(pwd())")
+    trosy = askpath("TROSY experiment")
+    antitrosy = askpath("anti-TROSY experiment")
+    return tract(trosy, antitrosy; kwargs...)
 end
 
 # ---- 2. type ------------------------------------------------------------------

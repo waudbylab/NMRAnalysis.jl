@@ -30,14 +30,24 @@ NMRAnalysis.jl is a Julia package for analysis of NMR experiments, specifically 
 - **Exchange1D module**: `src/exchange1d/` - 1D chemical exchange analysis (CEST, R1ρ on/off-resonance)
   via Bloch-McConnell simulation
 - **MaybeVectorModule**: `src/maybevector/` - shared parameter-vector type used across GUI2D and Exchange1D
-- **1D analysis functions**: Individual files for diffusion, TRACT, calibration, viscosity analysis
+- **Analysis1D module**: `src/analysis1d/` - the interactive 1D analyses (relaxation, diffusion,
+  TRACT, nutation calibration, kinetics), sharing one analysis window and one results pipeline.
+  See `src/analysis1d/PLAN.md` for the design and
+  `docs/src/advanced/creating_1d_analyses.md` for how to add one
+- **viscosity**: `src/viscosity.jl` - solvent viscosity from temperature, used by diffusion
 
 ### Core Components
 
 #### 1D Experiment Analysis
-- `diffusion1d()` - Diffusion coefficient analysis
-- `relaxation1d()` - R1/R2 relaxation analysis
-- `tract()` - TRACT (Temperature-Ramped Analysis of Conformational Transitions)
+All the Analysis1D routines resolve their parameters the same way: an explicit argument
+first, then a pulse-sequence annotation, then a Bruker acquisition parameter, then a
+question asked before the analysis window opens. No analysis depends on annotations.
+- `relaxation1d()` - R1/R2 relaxation and inversion recovery
+- `diffusion1d()` - Diffusion coefficient and hydrodynamic radius
+- `tract()` - TRACT (TROSY for Rotational Correlation Times), giving τc from a
+  TROSY/anti-TROSY pair
+- `calibration1d()` - Pulse-length calibration from a nutation experiment
+- `kinetics1d()` - Intensity of named regions against time
 - `r1rho()` - R1ρ relaxation dispersion analysis
 - `exchange1d()` - Chemical exchange analysis (CEST / R1ρ) via Bloch-McConnell simulation
 - `viscosity` - Viscosity calculations
@@ -73,6 +83,10 @@ All 2D functions are provided by the GUI2D module:
 ### Module Organization
 - `GUI2D/` contains ~25 files organizing different aspects of 2D analysis
 - `R1rho/` contains ~10 files for R1ρ-specific analysis
+- `analysis1d/` contains the shared 1D core (`types.jl`, `reductions.jl`, `seriesmodels.jl`),
+  the NMRData adapters (`nmrdata.jl`), the parameter prompts (`prompts.jl`), one
+  `expt-<name>.jl` per experiment, and the interactive window (`visualisation.jl`,
+  `state.jl`, `gui.jl`)
 - `exchange1d/` contains the Bloch-McConnell simulation core, exchange models
   (no-exchange, two-state, two/three-state binding), and the CEST/R1ρ experiment
   types and fitting interface

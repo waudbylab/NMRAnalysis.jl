@@ -5,24 +5,62 @@
 # ---- 1. entry point -----------------------------------------------------------
 
 """
-    calibration1d(spec; durations=nothing, phase=nothing, regions=nothing, integration=nothing)
+    calibration1d(spec; durations=nothing, phase=nothing, regions=nothing,
+                  integration=nothing, prompt=isinteractive())
 
 Analyse a 1D nutation calibration, reporting the nutation frequency, 90° pulse length and
-B₁ inhomogeneity. Pulse durations come from `durations`, else the `calibration.duration`
-annotation. The modulation defaults to the `calibration.model` annotation
-(`"cosine_modulated"` selects a cosine); pass `phase=:sine`/`:cosine` to override.
+B₁ inhomogeneity, then open the analysis window.
+
+Pulse durations are taken from `durations` if given, else from the `calibration.duration`
+annotation, and otherwise you are asked for them; the modulation likewise from `phase`,
+else the `calibration.model` annotation, else a question. Neither annotation is required.
+
+# Arguments
+- `durations`: pulse durations, in seconds, one per spectrum.
+- `phase`: `:sine` (starting from equilibrium) or `:cosine` (from transverse
+  magnetisation).
+- `regions`: integration regions to start from, instead of one on the tallest peak.
+- `integration`: a `(; peakppm, noiseppm, ppmwidth)` triple, which skips the window and
+  analyses that region directly.
+- `prompt`: whether to ask for anything that could not be determined. Defaults to `false`
+  outside an interactive session, where a missing value raises an error instead.
 """
 function calibration1d(spec; durations=nothing, phase=nothing, regions=nothing,
-                       integration=nothing)
+                       integration=nothing, prompt::Bool=isinteractive())
     spec = loadspec(spec)
-    t = something(durations, annotation(spec, :calibration, :duration))
-    ph = isnothing(phase) ?
-         (annotation(spec, :calibration, :model) == "cosine_modulated" ? :cosine : :sine) :
-         phase
+    t = @something(durations,
+                   annotation(spec, :calibration, :duration),
+                   askdurations(nplanesfromspec(spec); prompt))
+    phase = @something(phase,
+                       nutationphase(annotation(spec, :calibration, :model)),
+                       asknutationphase(; prompt))
     ds = datasetfromspec(spec, [(; duration=Float64(d)) for d in t])
-    expt = isnothing(regions) ? NutationExperiment(ds; phase=ph) :
-           NutationExperiment(ds; phase=ph, regions)
+    expt = isnothing(regions) ? NutationExperiment(ds; phase) :
+           NutationExperiment(ds; phase, regions)
     return run1d(expt; integration)
+end
+
+"""Pulse durations, asked for in µs (as they are set on the spectrometer) but returned in
+the seconds the analysis works in."""
+askdurations(n::Integer; prompt::Bool=true) = 1e-6 .* askvector("pulse durations", n;
+                                                                unit="µs", prompt)
+
+"""
+    nutationphase(annotation) -> Symbol or nothing
+
+The modulation named by a `calibration.model` annotation, or `nothing` where there is no
+annotation to read - so the entry point can fall through to asking.
+"""
+nutationphase(::Nothing) = nothing
+nutationphase(s) = string(s) == "cosine_modulated" ? :cosine : :sine
+
+"""Offer the choice of modulation. Without prompting, a sine modulation is assumed."""
+function asknutationphase(; prompt::Bool=true)
+    choice = askchoice("How is the signal modulated by the nutation pulse?",
+                       ["Sine:   I(t) = A sin(2πνt) exp(-Rt), from equilibrium",
+                        "Cosine: I(t) = A cos(2πνt) exp(-Rt), from transverse magnetisation"];
+                       prompt)
+    return choice == 2 ? :cosine : :sine
 end
 
 # ---- 2. type ------------------------------------------------------------------

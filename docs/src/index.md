@@ -3,9 +3,8 @@
 NMRAnalysis.jl is a Julia package for analysing biomolecular NMR relaxation, diffusion,
 exchange, and dynamics experiments. It is aimed at NMR spectroscopists, not necessarily
 experienced Julia programmers: each experiment type is handled by a single function that
-takes you from processed spectra to a fitted result, either from the command line for
-routine 1D experiments, or through an interactive graphical interface for 2D and
-pseudo-3D series, where peaks are picked with the mouse and fits update as you work.
+takes you from processed spectra to a fitted result through an interactive graphical
+interface, where regions or peaks are picked with the mouse and fits update as you work.
 
 This documentation assumes that you have Julia installed, that you have processed
 Bruker-format spectra ready to analyse, and that you have some familiarity with the NMR
@@ -21,11 +20,13 @@ that doesn't apply yet, start with the [Quick Start](quickstart.md) guide.
 
 ## 1D Experiments
 
-Routine 1D experiments, including diffusion, relaxation, TRACT, and chemical exchange
-(an interactive R1ρ dispersion GUI, or a joint CEST/R1ρ/R1 Bloch-McConnell fit), are each
-handled by a single function called from the Julia REPL. See
-[1D Experiments](analyses/diffusion.md) for the full set, or follow the
-[Quick Start](quickstart.md) for a first example.
+Routine 1D experiments, including relaxation, diffusion, TRACT, pulse calibration and
+kinetics, are each handled by a single function called from the Julia REPL. Each asks for
+whatever it cannot read from the data, then opens a window in which you position the
+integration region over your signal and watch the fit follow. Chemical exchange has its
+own routines: an interactive R1ρ dispersion GUI, and a joint CEST/R1ρ/R1
+Bloch-McConnell fit. See [1D Experiments](analyses/1d/overview.md) for the full set, or
+follow the [Quick Start](quickstart.md) for a first example.
 
 ## 2D Experiments
 

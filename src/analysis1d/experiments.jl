@@ -86,9 +86,16 @@ end
 """
     param(result, name) -> value
 
-Fitted value of parameter `name` (a `Symbol` or a `String`) from a `RegionResult`.
+Value of parameter `name` (a `Symbol` or a `String`) from a `RegionResult`: the fit's own
+parameters first, then the quantities derived from them by [`postfit!`](@ref) /
+[`postfitglobal!`](@ref). One accessor for both, so `param(r, :R)` and `param(r, :τc)`
+read alike and a caller need not know which stage produced a quantity.
 """
-param(r::RegionResult, name::Symbol) = r.parameters[name]
+function param(r::RegionResult, name::Symbol)
+    haskey(r.parameters, name) && return r.parameters[name]
+    haskey(r.postparameters, name) && return r.postparameters[name]
+    throw(KeyError(name))
+end
 param(r::RegionResult, name::AbstractString) = param(r, Symbol(name))
 
 """
@@ -209,13 +216,18 @@ const Integration = NamedTuple{(:peakppm, :noiseppm, :ppmwidth)}
 regionsfrom(i) = [Region("signal", i.peakppm - i.ppmwidth / 2, i.peakppm + i.ppmwidth / 2)]
 
 """
-    run1d(expt; integration=nothing)
+    run1d(expt; integration=nothing) -> Vector{RegionResult}
 
-Launch the GUI for `expt`, or - when an `integration` triple is supplied - skip the GUI
-and return the analysis for that region directly.
+Launch the GUI for `expt` and return the results standing when its window is closed, or -
+when an `integration` triple is supplied - skip the GUI and return the analysis for that
+region directly.
+
+Both paths return the same thing, so what a routine gives back does not depend on how it
+was called. [`gui!`](@ref) itself returns the whole GUI state, of which this is one entry;
+call it directly where the rest of that state is wanted.
 """
 function run1d(expt::Experiment1D; integration=nothing)
-    isnothing(integration) && return gui!(expt)
+    isnothing(integration) && return gui!(expt)[:result][]
     d = dataset(expt)
     ds = Dataset1D(d.planes, Float64(integration.noiseppm), d.label)
     return analyse(expt, ds, regionsfrom(integration))

@@ -25,7 +25,7 @@ NMRAnalysis.jl provides the function `setupR1rhopowers()` for calculating spin-l
 
 #### Option A: Using a Calibration Experiment (Recommended)
 
-The simplest approach is to provide a path to a nutation calibration experiment. See the [Calibration documentation](../analyses/calibration.md) for details on acquiring nutation calibration experiments. The pulse parameters will then be extracted automatically:
+The simplest approach is to provide a path to a nutation calibration experiment. See the [Calibration documentation](../analyses/1d/calibration.md) for details on acquiring nutation calibration experiments. The pulse parameters will then be extracted automatically:
 
 ```julia
 setupR1rhopowers("examples/calibration/1")

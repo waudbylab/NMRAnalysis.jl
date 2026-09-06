@@ -16,6 +16,33 @@ function annotation(spec, keys...)
 end
 
 """
+    acqusvalue(spec, keys...) -> value or nothing
+
+Acquisition-parameter lookup returning `nothing` rather than throwing when the parameter
+is absent (or present but empty). The counterpart of [`annotation`](@ref) for the
+parameters Bruker records itself, and the second step of the precedence chain each entry
+point follows - see `prompts.jl`.
+"""
+function acqusvalue(spec, keys...)
+    value = try
+        acqus(spec, keys...)
+    catch
+        nothing
+    end
+    (isnothing(value) || ismissing(value)) && return nothing
+    return (value isa AbstractVector && isempty(value)) ? nothing : value
+end
+
+"""
+    nplanesfromspec(spec) -> Int
+
+Number of 1D traces `spec` will contribute, i.e. the product of every axis but the
+chemical shift - the number of values an arrayed variable must supply. Counted the same
+way [`tracesfromspec`](@ref) flattens them.
+"""
+nplanesfromspec(spec) = length(data(spec)) ÷ length(data(spec, F1Dim))
+
+"""
     tracesfromspec(spec) -> Vector{Trace}
 
 Extract one `Trace` per plane from an N-dimensional NMRData whose first axis is the

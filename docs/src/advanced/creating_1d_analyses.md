@@ -44,25 +44,58 @@ five and is the best worked example.
 
 ### 1. Entry point
 
-The exported user-facing function. It loads the spectra, reads whatever it needs from the
-acquisition parameters, builds the experiment, and hands off to `run1d`:
+The exported user-facing function. It resolves whatever the analysis needs to know, builds
+the experiment, and hands off to `run1d`:
 
 ```julia
-function myanalysis1d(spec; regions=nothing, integration=nothing)
+function myanalysis1d(spec; tau=nothing, regions=nothing, integration=nothing,
+                      prompt::Bool=isinteractive())
     spec = loadspec(spec)
-    times = something(annotation(spec, :myanalysis, :duration), acqus(spec, :vdlist))
+    times = @something(tau,
+                       annotation(spec, :myanalysis, :duration),
+                       acqusvalue(spec, :vdlist),
+                       askvector("delays", nplanesfromspec(spec); unit="s", prompt))
     ds = datasetfromspec(spec, [(; time=Float64(t)) for t in times])
     expt = isnothing(regions) ? MyExperiment(ds) : MyExperiment(ds; regions)
     return run1d(expt; integration)
 end
 ```
 
-`run1d` opens the GUI, or — when an `integration = (; peakppm, noiseppm, ppmwidth)` triple
-is supplied — skips it and analyses that region directly, so a chosen region can be
-replayed from a script.
+`run1d` opens the GUI and returns the results standing when its window closes, or — when
+an `integration = (; peakppm, noiseppm, ppmwidth)` triple is supplied — skips it and
+analyses that region directly, so a chosen region can be replayed from a script. Either
+way it returns a `Vector{RegionResult}`.
 
 Any physics needed to interpret the acquisition parameters belongs here, in this file,
 beside the science that uses it — not in a shared loader.
+
+#### Resolving a parameter
+
+Every entry point resolves each parameter through the same chain, and `@something` is what
+expresses it, because it short-circuits: a question is only ever asked for a value that
+genuinely could not be found.
+
+| Order | Source | Helper |
+|---|---|---|
+| 1 | An argument the caller passed | the keyword itself |
+| 2 | A pulse-sequence annotation | `annotation(spec, …)`, `nothing` when absent |
+| 3 | A Bruker acquisition parameter | `acqusvalue(spec, …)`, `nothing` when absent |
+| 4 | A question, before the window opens | `ask`, `askchoice`, `askvector`, `askpath` |
+
+The rule this encodes is that **no analysis may depend on an annotation to run**. An
+annotation saves the user from being asked; it is never the only way in. That matters
+because annotations exist only in pulse sequences written for them, and most of the data
+these routines will see was recorded on somebody else's sequence.
+
+The prompting helpers live in `prompts.jl` and know nothing about NMR: which parameters an
+experiment needs, and what they mean, stays in that experiment's own file. Each takes a
+`prompt` flag which defaults to `isinteractive()`, so a script, a test or a Documenter
+build never blocks on stdin: with `prompt=false` a question becomes either its stated
+default or an `ArgumentError` naming the argument to pass instead.
+
+Prompt only for what an experiment genuinely cannot determine. `diffusion1d` is the one
+routine that also offers what it *did* find for confirmation, because its parameters are
+both easy to get wrong and silent when they are.
 
 ### 2. Type
 
@@ -105,8 +138,10 @@ more than one is present.
 
 ### 4. Science
 
-Any model used by only this experiment is defined here; models shared by two or more
-(`ExponentialModel`, `RecoveryModel`) live in `seriesmodels.jl`.
+Any model used by only this experiment is defined here (`RecoveryModel` in
+`expt-relaxation.jl`, `StejskalTannerModel` in `expt-diffusion.jl`); a model shared by two
+or more lives in `seriesmodels.jl`, which currently means `ExponentialModel` alone, fitted
+by both relaxation and TRACT.
 
 Derived quantities are computed in `postfit!` (one series) or `postfitglobal!` (several)
 and recorded with `setpost!`:
@@ -125,10 +160,10 @@ the transformation needs another series entirely, as TRACT's τc does (it combin
 TROSY and anti-TROSY series, so it cannot be computed from either series' own `postfit!`
 alone).
 
-Store each derived quantity **in the unit `PARAM_UNITS` names for it** (a 90° pulse in µs,
-τc in ns), so one stored number serves both the summary and `results.csv`. Keys are unique
-across all experiments — a symbol means one quantity in one unit everywhere — which is why
-TRACT's cross-correlated rate is `:ηxy` and diffusion's viscosity is `:viscosity`.
+Store each derived quantity **in the unit its label names** (a 90° pulse in µs, τc in ns),
+so one stored number serves both the summary and `results.csv`. Keys are unique across all
+experiments — a symbol means one quantity in one unit everywhere — which is why TRACT's
+cross-correlated rate is `:ηxy` and diffusion's viscosity is `:viscosity`.
 
 ### 5. Presentation
 
@@ -140,6 +175,13 @@ spectruminfo(::MyExperiment, vars::NamedTuple) = "$(round(vars.time; digits=3)) 
 
 Optionally `resultxfactor` (display scaling for the x-axis) and `seriesnames` (a fixed
 legend, where the groups are few and consistently named).
+
+Display names and units for this experiment's parameters belong here too, in a
+`<EXPT>_PARAM_LABELS` / `<EXPT>_PARAM_UNITS` pair with `paramlabel` / `paramunit`
+overridden to check it first. The shared `PARAM_LABELS` / `PARAM_UNITS` tables in
+`visualisation.jl` hold only what is genuinely true of every experiment: `:A` is
+"Amplitude" wherever it is fitted, and a rate is in s⁻¹ whoever fitted it. A symbol that
+appears in one experiment's file belongs in that file.
 
 ## Results
 
@@ -179,7 +221,8 @@ needs to be presented two different ways.
 2. `include` it at the foot of `experiments.jl`.
 3. Export the entry point and the experiment type in `Analysis1D.jl`, and re-export the
    entry point from `src/NMRAnalysis.jl`.
-4. Add any new parameter symbols to `PARAM_UNITS` / `PARAM_LABELS` in `visualisation.jl`.
+4. Give any new parameter symbols display names and units in your own file's
+   `<EXPT>_PARAM_LABELS` / `<EXPT>_PARAM_UNITS`, not in the shared tables.
 5. If it can run from a filename alone, register it in `Analysis1D.__init__` so `analyse`
    dispatches to it.
 

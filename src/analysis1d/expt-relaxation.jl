@@ -6,34 +6,77 @@
 # ---- 1. entry point -----------------------------------------------------------
 
 """
-    relaxation1d(spec; ir=nothing, tau=nothing, regions=nothing, integration=nothing)
+    relaxation1d(spec; tau=nothing, model=nothing, regions=nothing, integration=nothing,
+                 prompt=isinteractive())
 
 Analyse a 1D relaxation experiment (T1/T2, or inversion recovery) from a pseudo-2D `spec`
-(a path or an `NMRData`).
+(a path or an `NMRData`), then open the analysis window.
 
-Relaxation delays come from `tau`, else the `relaxation.duration` annotation, else the
-`vdlist`. The model defaults to the `relaxation.model` annotation
-(`"inversion_recovery"` selects a recovery fit); pass `ir=true`/`false` to override.
+Relaxation delays are taken from `tau` if given, else from the `relaxation.duration`
+annotation, else from the `vdlist`; if none of those is available you are asked for them.
+The model is taken from `model` if given, else from the `relaxation.model` annotation, and
+otherwise you are asked to choose one. Neither annotation is required.
+
+# Arguments
+- `tau`: relaxation delays, in seconds, one per spectrum.
+- `model`: `:exponential` for a decay `A exp(-Rt)`, `:recovery` for an
+  inversion/saturation recovery `A [1 - C exp(-Rt)]`, or any [`SeriesModel`](@ref).
+- `regions`: integration regions to start from, instead of one on the tallest peak.
+- `integration`: a `(; peakppm, noiseppm, ppmwidth)` triple, which skips the window and
+  analyses that region directly.
+- `prompt`: whether to ask for anything that could not be determined. Defaults to `false`
+  outside an interactive session, where a missing value raises an error instead.
+
+# Examples
+```julia
+relaxation1d("11")                                   # annotations or vdlist, or asks
+relaxation1d("11"; tau=[0.01, 0.05, 0.1, 0.5])       # delays given explicitly
+relaxation1d("11"; model=:recovery)                  # inversion recovery
+```
 """
-function relaxation1d(spec; ir=nothing, tau=nothing, regions=nothing, integration=nothing)
+function relaxation1d(spec; tau=nothing, model=nothing, regions=nothing,
+                      integration=nothing, prompt::Bool=isinteractive())
     spec = loadspec(spec)
-    times = something(tau, annotation(spec, :relaxation, :duration), acqus(spec, :vdlist))
-    isrecovery = isnothing(ir) ?
-                 (annotation(spec, :relaxation, :model) == "inversion_recovery") : ir
+    times = @something(tau,
+                       annotation(spec, :relaxation, :duration),
+                       acqusvalue(spec, :vdlist),
+                       askvector("relaxation delays", nplanesfromspec(spec); unit="s",
+                                 prompt))
+    model = @something(model,
+                       relaxationmodel(annotation(spec, :relaxation, :model)),
+                       askrelaxationmodel(; prompt))
     ds = datasetfromspec(spec, [(; time=Float64(t)) for t in times])
-    expt = isnothing(regions) ? RelaxationExperiment(ds; ir=isrecovery) :
-           RelaxationExperiment(ds; ir=isrecovery, regions)
+    expt = isnothing(regions) ? RelaxationExperiment(ds; model) :
+           RelaxationExperiment(ds; model, regions)
     return run1d(expt; integration)
+end
+
+"""
+    relaxationmodel(annotation) -> Symbol or nothing
+
+The model named by a `relaxation.model` annotation, or `nothing` where there is no
+annotation to read - so the entry point can fall through to asking.
+"""
+relaxationmodel(::Nothing) = nothing
+relaxationmodel(s) = string(s) == "inversion_recovery" ? :recovery : :exponential
+
+"""Offer the choice of relaxation model. Without prompting, a plain decay is assumed."""
+function askrelaxationmodel(; prompt::Bool=true)
+    choice = askchoice("Which relaxation model should be fitted?",
+                       ["Exponential decay:  I(t) = A exp(-Rt)",
+                        "Inversion recovery: I(t) = A [1 - C exp(-Rt)]"]; prompt)
+    return choice == 2 ? :recovery : :exponential
 end
 
 # ---- 2. type ------------------------------------------------------------------
 
 """
-    RelaxationExperiment(dataset; ir=false)
+    RelaxationExperiment(dataset; model=:exponential, regions=…)
 
-Fit integrated intensity vs relaxation delay (`vars.time`) to a single exponential, or
-to a recovery curve when `ir = true`. A single integration region (override via
-`regions`).
+Fit integrated intensity vs relaxation delay (`vars.time`) to a single exponential
+(`model = :exponential`) or to a recovery curve (`model = :recovery`); any
+[`SeriesModel`](@ref) may also be passed directly. A single integration region (override
+via `regions`).
 """
 struct RelaxationExperiment <: Experiment1D
     dataset::Dataset1D
@@ -42,9 +85,23 @@ struct RelaxationExperiment <: Experiment1D
 end
 
 function RelaxationExperiment(dataset::Dataset1D; regions=[defaultregion(dataset)],
-                              ir::Bool=false)
+                              model=:exponential)
     return RelaxationExperiment(dataset, collect(Region, regions),
-                                ir ? RecoveryModel() : ExponentialModel())
+                                relaxationseriesmodel(model))
+end
+
+"""
+    relaxationseriesmodel(model) -> SeriesModel
+
+The curve fitted for a named relaxation model. A `SeriesModel` passes straight through, so
+an unusual decay can be supplied directly without a name having to be invented for it.
+"""
+relaxationseriesmodel(model::SeriesModel) = model
+function relaxationseriesmodel(model::Symbol)
+    model === :exponential && return ExponentialModel()
+    model === :recovery && return RecoveryModel()
+    throw(ArgumentError("unknown relaxation model :$model " *
+                        "(expected :exponential or :recovery)"))
 end
 
 # ---- 3. interface -------------------------------------------------------------

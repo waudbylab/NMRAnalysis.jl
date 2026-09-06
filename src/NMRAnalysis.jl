@@ -57,6 +57,9 @@ using .Exchange1D
 @reexport using .Analysis1D: RelaxationExperiment, TractExperiment, NutationExperiment
 @reexport using .Analysis1D: KineticsExperiment, DiffusionExperiment
 @reexport using .Analysis1D: relaxation1d, tract, calibration1d, diffusion1d, kinetics1d
+# results, and the series models a caller can choose between
+@reexport using .Analysis1D: RegionResult, param
+@reexport using .Analysis1D: SeriesModel, CurveFitModel, NoFitting, ExponentialModel
 
 @info """
 NMRAnalysis.jl (v$(pkgversion(NMRAnalysis)))
@@ -73,14 +76,15 @@ NMRAnalysis.jl (v$(pkgversion(NMRAnalysis)))
 
 # 1D Experiment Analysis Routines (interactive)
 
-Each opens a window to pick the integration and noise regions, then fits live.
+Each asks for any experiment parameters it can't read from the data, then opens a window
+to pick the integration and noise regions and fits live.
 Pass `integration=(; peakppm, noiseppm, ppmwidth)` to skip the GUI and analyse directly.
 
 - relaxation1d(filename)
 - tract(trosy_filename, antitrosy_filename)
 - calibration1d(filename)
-- diffusion1d(filename, gradients)
-- kinetics1d(filename, times; regions)
+- diffusion1d(filename)
+- kinetics1d(filename, times)
 - r1rho([directory_path]; minvSL=250, maxvSL=1e6, scalefactor=:automatic)
 - exchange1d([filenames]) - CEST / R1ρ chemical exchange analysis
 

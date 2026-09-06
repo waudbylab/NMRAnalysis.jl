@@ -326,7 +326,52 @@ Phase 3.9 — **fourth feedback round: parameter names belong with their experim
       `ir=true` path ever constructs one - the same misplacement as the labels, just for
       a model instead of a name
 
+Phase 3.10 — **parameters must not depend on annotations**  ✓
+- [x] one resolution chain for every entry point, in `prompts.jl` + `@something`: an
+      explicit argument, then a pulse-sequence annotation, then a Bruker acquisition
+      parameter, then a question asked before the window opens. The rule it encodes is that
+      **no analysis may depend on an annotation to run** — an annotation saves the user
+      from being asked, it is never the only way in. `relaxation1d` and `calibration1d`
+      previously threw outright without one (`something(...)` over a missing annotation),
+      which is exactly the failure this removes
+- [x] `prompts.jl`: `ask` (confirm-or-replace, or required), `askchoice` (a `RadioMenu`),
+      `askvector` (numbers, or the name of a file holding one per line, as Bruker writes a
+      `vdlist`), `askpath`. None of them knows any NMR: which parameters an experiment
+      needs stays in that experiment's own file. Each takes a `prompt` flag defaulting to
+      `isinteractive()`, so a script or a test never blocks on stdin — with `prompt=false`
+      a question becomes its stated default, or an `ArgumentError` naming the argument to
+      pass instead
+- [x] `acqusvalue` / `nplanesfromspec` join `annotation` in `nmrdata.jl` as the
+      `nothing`-returning adapters that chain needs
+- [x] `diffusion1d` prompts as the legacy routine did: δ (`2·p30`), Δ (`d20`), σ
+      (`gpnam6`) and Gmax offered for confirmation, then the gradient ramp asked for
+      outright, since Bruker does not record it. `gradients` is now optional rather than a
+      required positional, and `diffusion1d()` asks for the experiment folder. Only linear
+      ramps are generated from the answers (as in the legacy routine, which threw for the
+      other two); any other shape is passed as `gradients`
+- [x] `relaxation1d`'s `ir::Bool` keyword replaced by `model=:exponential`/`:recovery`,
+      which also accepts a `SeriesModel` directly; the model is offered as a menu when no
+      annotation names one. `calibration1d` gains the same treatment for its `phase`, and
+      `tract` gains `tract()` (asking for the two folders) and a delay fallback
+- [x] `run1d` now returns a `Vector{RegionResult}` from **both** paths — it used to return
+      the GUI state `Dict` from the interactive one, so what a routine gave back depended
+      on how it was called and the documented result type was only true of the scripted
+      path. `gui!` still returns the whole state for anyone who wants the rest of it
+- [x] `param(r, name)` reads `postparameters` as a fallback, so `param(r, :τc)` and
+      `param(r, :R)` read alike; `param`, `RegionResult` and the series models are now
+      re-exported from `NMRAnalysis`, without which none of the documented ways of reading
+      a result actually worked from a plain `using NMRAnalysis`
+- [x] docs rewritten onto the new interface: `docs/src/analyses/1d/` (a shared overview
+      page mirroring `2d/overview.md`, plus one page per experiment including kinetics,
+      which had none) and `docs/src/api/analysis1d.md`, which renders these docstrings for
+      the first time
+
 Still open after this iteration:
+- **Series-valued results are not written to `results.csv`.** A `NoFitting` experiment
+  (kinetics) fits no parameters, so its row carries the region bounds and nothing else:
+  the intensity-vs-time trace, which is the whole deliverable, reaches the caller only
+  through `RegionResult.x`/`.y`. Needs the output-format decision below before it can be
+  fixed properly (a long-format second file? extra columns per plane?).
 - **Canonical output format across 1D and 2D** (text vs CSV, units, precision). 1D now has
   a `results.csv` following 2D's conventions and a small shared units/labels table (plus
   one per experiment for what isn't shared), but the 1D and 2D tables have not been

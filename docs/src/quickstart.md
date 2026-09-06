@@ -31,11 +31,24 @@ cd("/path/to/your/nmr/data")
 
 Get help on any function with `?`:
 ```julia
+?relaxation1d
 ?relaxation2d
 ?r1rho
 ```
 
 ## Examples
+
+### 1D Relaxation (R₁ / R₂)
+
+```julia
+relaxation1d("11")                          # delays from the vdlist or annotations
+relaxation1d("11"; tau=[0.01, 0.05, 0.1])   # or given explicitly
+```
+
+You are asked about anything that cannot be read from the experiment, and a window then
+opens in which you position the integration region and watch the fit. The same pattern
+applies to `diffusion1d`, `tract`, `calibration1d` and `kinetics1d`. See
+[1D Experiments](analyses/1d/overview.md).
 
 ### ¹⁹F R1ρ Relaxation Dispersion
 
@@ -61,7 +74,7 @@ An interactive graphical window opens for peak picking and fitting. See
 
 ## Next Steps
 
-- **[1D Experiments](analyses/diffusion.md)** — detailed guides for each 1D experiment type
+- **[1D Experiments](analyses/1d/overview.md)** - the shared analysis window, and a guide for each 1D experiment type
 - **[2D Experiments](analyses/2d/overview.md)** — interactive GUI reference and per-experiment guides
 - **[Tutorials](tutorials/r1rho.md)** — step-by-step worked examples
 
