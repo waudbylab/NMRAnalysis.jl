@@ -1103,8 +1103,11 @@ end
 Add the moving-peak overlays to the contour panel:
 - a faint polyline tracing each peak's fitted position across all planes (the trajectory),
   so the walk is visible at a glance;
-- a toggleable "Context" overlay drawing every plane's contours faintly behind the current
-  one, for orienting peaks that move a long way.
+- a toggleable "Context" overlay drawing every other plane's contours faintly behind the
+  current one, for orienting peaks that move a long way. Each plane gets its own colour
+  from a fixed rainbow sequence (plane 1 red, plane 2 orange, …) so the direction of travel
+  is visible at a glance; the current plane is excluded since it is already drawn, in full
+  colour, by the main contour plot.
 """
 function add_moving_overlays!(g, state, expt::MovingPeakExperiment)
     ax = g[:axcontour]
@@ -1154,22 +1157,23 @@ function add_moving_overlays!(g, state, expt::MovingPeakExperiment)
                                color=:darkorange)
     translate!(g[:pltaddmarks], 0, 0, 11)
 
-    # --- faint context: every plane's contours ---
+    # --- faint context: every other plane's contours, in a rainbow sequence ---
     # Drawn above the (opaque white) mask heatmap so they remain visible; the small positive z
     # keeps them under the peak markers and trajectory. The "Show all" toggle widget is created
     # in gui! (just left of the Fitting toggle, active by default); here we attach its plots and
-    # handler, with the initial visibility matching the toggle's starting state.
+    # handler. `:rainbow` runs violet→red with increasing index, so it is reversed to give plane
+    # 1 red, matching the "first spectrum red, last violet" convention requested for this view.
+    planecolours = reverse(cgrad(:rainbow, max(nslices(expt), 2); categorical=true))
     g[:pltotherplanes] = map(1:nslices(expt)) do i
+        c = planecolours[i]
+        colour = RGBAf(c.r, c.g, c.b, 0.225)
+        visible = lift(g[:toggleother].active, state[:current_slice]) do active, current
+            return active && i != current
+        end
         p = contour!(ax, expt.specdata.x[i], expt.specdata.y[i], expt.specdata.z[i];
-                     levels=g[:contourlevels], color=(:grey60, 0.3),
-                     visible=g[:toggleother].active[])
+                     levels=g[:contourlevels], color=colour, visible=visible)
         translate!(p, 0, 0, 1)
         return p
-    end
-    on(g[:toggleother].active) do active
-        for p in g[:pltotherplanes]
-            p.visible[] = active
-        end
     end
 
     return nothing
