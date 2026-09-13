@@ -1120,7 +1120,8 @@ function add_moving_overlays!(g, state, expt::MovingPeakExperiment)
     # peak list doesn't turn into a solid tangle. Concrete RGBAf values are used (a Vector{Symbol}
     # colour is not honoured by lines!).
     statuscolour(j, sel, touched) = j == sel ? RGBAf(0, 1, 0, 1) :
-                                    touched ? RGBAf(1, 0, 0, 0.45) : RGBAf(0.7, 0.8, 1, 0.45)
+                                    touched ? RGBAf(1, 0, 0, 0.45) :
+                                    RGBAf(0.7, 0.8, 1, 0.45)
     # Single source of truth, recomputed whenever the peaks (positions/fit status) or the
     # selection change; the points and colours derive from it so they stay length-consistent.
     state[:trajectorydata] = lift(expt.peaks, state[:current_peak_idx]) do peaks, sel
