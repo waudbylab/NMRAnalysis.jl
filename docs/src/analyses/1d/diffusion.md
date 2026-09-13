@@ -4,6 +4,8 @@
 the translational diffusion coefficient and, where the solvent and temperature are known,
 the hydrodynamic radius.
 
+![Screenshot of 1D diffusion analysis](../../assets/diffusion1d.png)
+
 ## Running the analysis
 
 ```julia
@@ -33,14 +35,8 @@ The [analysis window](overview.md#Using-the-analysis-window) then opens. Put the
 over the signal you want to measure, put the noise marker somewhere empty, check the fit,
 and press **Save**.
 
-<!-- TODO screenshot (3): docs/src/assets/diffusion1d-window.png
-     diffusion1d on a protein diffusion experiment: the amide region integrated, the
-     Stejskal-Tanner decay fitted below, and D and rH in the results panel. Replaces the
-     old diffusion-regions.png and diffusion-fit.png, which show the retired
-     terminal-driven routine. -->
-
-!!! note "The gradient ramp is yours to remember"
-    Bruker does not record the gradient list, so the initial and final gradient strengths
+!!! note "Remember your gradient list!"
+    Bruker does not always record the gradient list, so the initial and final gradient strengths
     have to come from you. They are what you typed into TopSpin's `dosy` dialogue, and
     keeping a note of them with the data is worth the trouble. Only linear ramps are
     generated from the answers; for a quadratic or exponential ramp, pass the gradient

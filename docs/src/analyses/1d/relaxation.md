@@ -16,10 +16,7 @@ That reads experiment 11, works out the delays and the model (see below), and op
 [analysis window](overview.md#Using-the-analysis-window). Put the region over your signal,
 put the noise marker somewhere empty, check the fit, and press **Save**.
 
-<!-- TODO screenshot (2): docs/src/assets/relaxation1d-window.png
-     relaxation1d on a ¹⁹F R₁ inversion recovery: the region over the peak, the recovery
-     curve fitted below, and the results panel showing the rate. Replaces the old
-     R2-fit.png / IR-fit.png, which show the Plots.jl output of the retired routine. -->
+![Screenshot of 1D relaxation analysis](../../assets/relaxation1d.png)
 
 ## Delays and model
 

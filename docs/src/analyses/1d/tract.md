@@ -6,6 +6,9 @@ components of the ¹⁵N-¹H doublet. It needs two experiments, recorded as a pa
 a global tumbling time in a few minutes of measurement rather than a full relaxation
 analysis.
 
+![Screenshot of TRACT analysis](../../assets/tract.png)
+
+
 ## Running the analysis
 
 ```julia
@@ -24,11 +27,6 @@ your spectrum calls for it, put the noise marker somewhere empty, and press **Sa
 
 The TROSY and anti-TROSY decays are plotted in separate colours, and the results panel
 gives the two rates, the cross-correlated relaxation rate η, and τc.
-
-<!-- TODO screenshot (4): docs/src/assets/tract1d-window.png
-     tract on a TROSY/anti-TROSY pair: the amide envelope region, both decays fitted in
-     their own colours below, and the panel showing the two rates with η and τc under a
-     "TRACT results" heading. Replaces tract-regions.png and tract-fit.png. -->
 
 ## Relaxation delays
 

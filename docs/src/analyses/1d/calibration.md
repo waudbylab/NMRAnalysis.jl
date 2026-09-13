@@ -4,6 +4,8 @@
 increasing pulse duration, from which the B₁ field strength and the 90° pulse length
 follow. This is how spin-lock powers are calibrated before an R1ρ experiment.
 
+![Screenshot of nutation fitting for pulse calibration](../../assets/nutation.png)
+
 ## Running the analysis
 
 ```julia
@@ -15,11 +17,6 @@ results = calibration1d("1")
 The [analysis window](overview.md#Using-the-analysis-window) opens with a region on the
 tallest peak. Check that it sits over the signal you are calibrating on, put the noise
 marker somewhere empty, and press **Save**.
-
-<!-- TODO screenshot (5): docs/src/assets/calibration1d-window.png
-     calibration1d on the ¹⁹F nutation example in examples/calibration/1: the region over
-     the fluorine signal, the damped sinusoid fitted below, and the panel showing ν, the
-     90° pulse length and the B₁ inhomogeneity. Replaces calibration_19f_nutation.png. -->
 
 ## Durations and modulation
 
