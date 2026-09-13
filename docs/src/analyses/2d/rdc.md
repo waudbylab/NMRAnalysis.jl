@@ -16,6 +16,8 @@ rdc2d(isotropic = ["expt/1", "expt/2"],
       aligned   = ["expt/11", "expt/12"])
 ```
 
+![Screenshot of RDC fitting](../../assets/rdc2d.png)
+
 The four spectra become the planes of a peak-tracking experiment. Add a peak for each residue
 (`A`, marking its position in each plane), and the per-residue analysis reports:
 
@@ -27,8 +29,6 @@ D = (J + D) - J
 
 where ``\mathrm{sep}`` is the position difference between the two components in the coupling
 dimension, converted to Hz.
-
-![Screenshot of RDC fitting](../../assets/screenshot-rdc2d.png)
 
 
 ## Arguments
