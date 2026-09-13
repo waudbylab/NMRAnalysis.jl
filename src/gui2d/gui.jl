@@ -35,14 +35,14 @@ function gui!(expt::Experiment)
     # The toggle's plots and handler are wired up later in add_moving_overlays!.
     col = 8
     if !hasfixedpositions(expt)
-        Label(g[:paneltop][1, col], "Show all")
+        Label(g[:paneltop][1, col], "(S)how all")
         g[:toggleother] = Toggle(g[:paneltop][1, col + 1]; active=true)
         col += 2
     end
     Label(g[:paneltop][1, col], "Fitting")
     g[:togglefit] = Toggle(g[:paneltop][1, col + 1]; active=true)
     g[:cmdsummary] = Button(g[:paneltop][1, col + 2]; label="Summary plot")
-    g[:cmdquit] = Button(g[:paneltop][1, col + 3]; label="Quit")
+    g[:cmdquit] = Button(g[:paneltop][1, col + 3]; label="(Q)uit")
 
     # create contour plot
     g[:basecontour] = Observable(10.0)
@@ -164,6 +164,8 @@ function addhanders!(g, state, expt::Experiment)
             RGBAf(0.6, 0.98, 0.6, 1.0)      # :palegreen
         elseif mode == :adding
             RGBAf(1.0, 0.95, 0.7, 1.0)      # light yellow
+        elseif mode == :saving
+            RGBAf(0.8, 0.8, 0.8, 1.0)       # :grey80, busy signal while writing results
         else
             RGBAf(1.0, 1.0, 1.0, 1.0)       # :white
         end
@@ -243,10 +245,7 @@ function addhanders!(g, state, expt::Experiment)
 
     # quit
     on(g[:cmdquit].clicks) do _
-        @async begin
-            sleep(0.05)
-            GLMakie.closeall()
-        end
+        return quit!()
     end
 
     # delete peak
@@ -339,6 +338,14 @@ function renamepeak!(expt, state, initiator)
     state[:oldlabel][] = state[:current_peak][].label[]
     state[:current_peak][].label[] = "‸"
     return notify(expt.peaks)
+end
+
+"Close the GUI window, deferred so the click/keypress event finishes first."
+function quit!()
+    return @async begin
+        sleep(0.05)
+        GLMakie.closeall()
+    end
 end
 
 bicolours(c1, c2) = [fill(c1, 11); fill(c2, 11)]

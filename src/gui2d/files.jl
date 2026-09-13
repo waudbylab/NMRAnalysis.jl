@@ -23,7 +23,7 @@ function saveresults!(expt)
 
     @info "Saving results to $folder"
     @async begin
-        expt.state[][:mode][] = :fitting
+        expt.state[][:mode][] = :saving
         sleep(0.1) # allow time for mode change to be processed
     end
     @async begin # do saving in a separate task

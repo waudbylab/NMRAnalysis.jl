@@ -30,10 +30,11 @@ in the contour plot to work with it.
 | Lower contour base level | `↓` or **contour ↓** button |
 | Reset axis zoom | **reset zoom** button |
 | Show or hide the fitted lineshape overlay | **Fitting** toggle |
+| Show or hide other spectra (moving-peak experiments, e.g. titrations, RDCs) | `S` or **(S)how all** toggle |
 | Open a summary plot of the current results | **Summary plot** button (enabled once peaks are present) |
 | Load a previously saved peak list | **Load peak list** button |
 | Save all results to a folder | **Save to folder** button |
-| Close the GUI window | **Quit** button |
+| Close the GUI window | `Q` or **(Q)uit** button |
 
 Peak lineshapes are fitted in real time as you add or move peaks. The right panel shows
 cross-sections (or a model fit plot, for relaxation-type experiments) for the currently
@@ -46,9 +47,10 @@ The window background changes colour to indicate the current interaction mode:
 | Background | Mode |
 |------------|------|
 | White | Normal |
-| Salmon / orange | Fitting in progress (save operation) |
+| Salmon / orange | Fitting in progress |
 | Light blue | Renaming a peak |
 | Pale green | Moving a peak |
+| Grey | Saving results to folder |
 
 Peak markers are colour-coded:
 
