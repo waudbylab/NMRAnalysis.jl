@@ -39,36 +39,34 @@ end
 """
     resultxfactor(expt) -> Float64
 
-Multiplier applied to the result panel's x-values (and its axis label, via
-`resultlabels`) for display - `1.0` (unscaled) for every experiment except those with a
-time-valued x-axis (relaxation delays, TRACT delays, nutation pulse durations), which
-switch to whichever of s/ms/µs suits their actual scale (see `timescale`). Curve-fitting
-itself always uses the raw, unscaled values; this only affects what's plotted/exported.
+Multiplier applied to the result panel's x-values for display, `1.0` except where a
+time-valued axis reads better in ms or µs (see [`timescale`](@ref)). Fitting always uses
+the raw values.
 """
 resultxfactor(::Experiment1D) = 1.0
 
 """
     resultplotdata(expt, result, activelabel) -> Vector{ResultSeries}
 
-Plot primitives for the active region, one `ResultSeries` per group (e.g. TRACT's
-TROSY/anti-TROSY pair, or kinetics' runs) so each can be drawn in a distinct, matching
-colour. Covers every curve-fit / `NoFitting` experiment generically.
+Plot primitives for the active region, one `ResultSeries` per series, so each is drawn in
+its own colour.
 """
 function resultplotdata(e::Experiment1D, result, activelabel::AbstractString)
-    series = filter(s -> s.region == activelabel, result)
+    i = findfirst(r -> r.region == activelabel, result)
+    isnothing(i) && return ResultSeries[]
     factor = resultxfactor(e)
-    return map(series) do s
+    return map(result[i].series) do s
         points = Point2f.(factor .* s.x, Measurements.value.(s.y))
-        errors = [(factor * s.x[k], Measurements.value(s.y[k]), Measurements.uncertainty(s.y[k]))
+        errors = [(factor * s.x[k], Measurements.value(s.y[k]),
+                   Measurements.uncertainty(s.y[k]))
                   for k in eachindex(s.x)]
-        fitline = if !(s.model isa NoFitting) && !isempty(s.parameters)
+        fitline = if !(s.model isa NoFitting) && !isempty(s.coefficients)
             xs = collect(range(min(0.0, minimum(s.x)), 1.05 * maximum(s.x), 100))
-            ps = Measurements.value.(collect(values(s.parameters)))
-            Point2f.(factor .* xs, s.model.func(xs, ps))
+            Point2f.(factor .* xs, s.model.func(xs, Measurements.value.(s.coefficients)))
         else
             Point2f[]
         end
-        ResultSeries(points, errors, fitline, groupname(s.group))
+        return ResultSeries(points, errors, fitline, groupname(s.group))
     end
 end
 
@@ -76,6 +74,23 @@ end
 function groupname(group::NamedTuple)
     isempty(group) && return ""
     return join((string(v) for v in values(group)), ", ")
+end
+
+"""
+    show(io, result::RegionResult)
+
+One line per region: its label followed by every parameter reported for it, so that
+closing an analysis window prints a short table rather than pages of measured points.
+
+Units are absent, being the one thing a `RegionResult` cannot know: `paramunit` is
+dispatched on the experiment. The results panel, `summary.txt` and the CSVs carry them.
+"""
+function Base.show(io::IO, r::RegionResult)
+    print(io, r.region)
+    print(io, isconverged(r) ? ": " : " (not converged): ")
+    isempty(r.parameters) &&
+        return print(io, "$(sum(length(s.x) for s in r.series; init=0)) points, unfitted")
+    return print(io, join(("$name = $value" for (name, value) in r.parameters), ", "))
 end
 
 "axis labels for the result panel"
@@ -114,20 +129,19 @@ end
 """
     ResultVisualisation
 
-How an experiment's results are drawn in the fit panel. A hierarchy deliberately
-*orthogonal* to `Experiment1D`, joined by [`visualisationtype`](@ref), exactly as GUI2D's
-`VisualisationStrategy` is orthogonal to its `Experiment` - so that a presentation can be
-shared by unrelated experiments, or swapped without touching the science.
+How an experiment's results are drawn in the fit panel. A hierarchy orthogonal to
+`Experiment1D`, joined by [`visualisationtype`](@ref), as GUI2D's `VisualisationStrategy`
+is to its `Experiment`, so a presentation can be shared or swapped without touching the
+science.
 
-A strategy implements three methods, the same trio GUI2D uses:
+A strategy implements three methods:
 
 - `completeresultstate!(state, expt, ::V)` — build the Observables the panel reads
 - `resultpanel!(gui, state, expt, ::V)`    — the live GUI panel
 - `plotresult!(ax, expt, result, label, i0, ::V)` — the static CairoMakie export
 
 The live and export paths share one data getter (here `resultplotdata`) so that what is
-saved is what was on screen. A strategy's getter may return whatever shape suits it: it is
-only ever consumed by the three methods paired with it.
+saved is what was on screen.
 
 [`SeriesVisualisation`](@ref) covers every curve-fit experiment and is the default.
 """
@@ -141,14 +155,23 @@ and what relaxation, TRACT, nutation, diffusion and kinetics all use.
 """
 struct SeriesVisualisation <: ResultVisualisation end
 
+"""
+    visualisationtype(expt) -> ResultVisualisation
+
+The strategy drawing `expt`'s results. Defaults to [`SeriesVisualisation`](@ref), which
+suits every curve-fit experiment; override it in an `expt-*.jl` only where that shape
+genuinely will not do.
+"""
 visualisationtype(::Experiment1D) = SeriesVisualisation()
 
 # Trait forwarding: callers use the three-argument forms and never name a strategy.
 function completeresultstate!(state, expt::Experiment1D)
     return completeresultstate!(state, expt, visualisationtype(expt))
 end
-resultpanel!(gui, state, expt::Experiment1D) = resultpanel!(gui, state, expt,
-                                                            visualisationtype(expt))
+function resultpanel!(gui, state, expt::Experiment1D)
+    return resultpanel!(gui, state, expt,
+                        visualisationtype(expt))
+end
 function plotresult!(ax, expt::Experiment1D, result, label, i0=0)
     return plotresult!(ax, expt, result, label, i0, visualisationtype(expt))
 end
@@ -165,87 +188,107 @@ seriescolor(i) = PALETTE[mod1(i, length(PALETTE))]
 # ---- summary text -------------------------------------------------------------
 
 """Compact, consistently-rounded rendering of a `Measurement` (or plain number)."""
-fmt(x::Measurement, digits=4) = string(round(Measurements.value(x); sigdigits=digits),
-                                       " ± ",
-                                       round(Measurements.uncertainty(x); sigdigits=2))
+function fmt(x::Measurement, digits=4)
+    return string(round(Measurements.value(x); sigdigits=digits),
+                  " ± ",
+                  round(Measurements.uncertainty(x); sigdigits=2))
+end
 fmt(x::Real, digits=4) = string(round(x; sigdigits=digits))
 fmt(::Nothing, digits=4) = "n/a"
 
-# Units and display names for the handful of parameters genuinely shared by more than one
-# experiment - not a catch-all table. Everything specific to one experiment (TRACT's
-# :ηxy/:τc, nutation's :pulse90/:inhomogeneity, diffusion's :D/:rH/:viscosity, relaxation's
-# :C, ...) is defined in that experiment's own expt-*.jl, in its own local table, alongside
-# the `postfit!`/model that produces it - see `paramlabel`/`paramunit` below. Putting any
-# of that here instead is exactly the mistake this split exists to prevent: it scatters
-# one experiment's presentation into a file every other experiment also reads. The 2D
-# side keeps an equivalent table in `gui2d/summary.jl` (`PARAM_LABELS`); merging the two
-# is the first step of the open question in PLAN.md about a canonical output format
-# across 1D and 2D.
+# Only the parameters genuinely shared by more than one experiment. Anything specific to
+# one lives in its own expt-*.jl, beside the `postfit!` that produces it.
 #
-# `:A` is here because "Amplitude" is accurate for every fit that produces it (relaxation,
-# TRACT, nutation, diffusion all fit an overall scale factor and mean the same thing by
-# it). `:R`'s *unit* (a rate, in s⁻¹) is equally universal - relaxation, TRACT and
-# nutation's models all produce one - but its *label* is not: relaxation and TRACT mean a
-# relaxation rate, nutation's damped-sinusoid model means a decay rate, and "Relaxation
-# rate" would mislabel the latter. So :R gets a unit here but its label is left to each
-# experiment that needs one (relaxation and TRACT override it; nutation deliberately
-# doesn't, falling back to the bare "R" this table would otherwise give it).
-const PARAM_UNITS = Dict(:R => " s⁻¹")
+# `:R` has a unit here but no label: every model producing a rate means s⁻¹ by it, but
+# relaxation and TRACT mean a relaxation rate where nutation's damped sinusoid means a
+# decay rate, so "Relaxation rate" would mislabel the latter.
+const PARAM_UNITS = Dict(:R => "s-1")
 const PARAM_LABELS = Dict(:A => "Amplitude")
 
 """
     paramlabel(expt, name) -> String
-    paramunit(expt, name) -> String
 
-Display name and unit for parameter `name` (fitted or derived). Experiment-dispatched: the
-default here falls back to the small shared tables above (only the symbols genuinely
-universal across experiments), then to the bare symbol/no unit. Every experiment that
-introduces its own parameters overrides these with its own local table - see e.g.
+Display name for parameter `name` (fitted or derived). Experiment-dispatched: the default
+falls back to the small shared table above, then to the bare symbol. An experiment that
+introduces its own parameters overrides this with its own local table - see e.g.
 `NUTATION_PARAM_LABELS` in `expt-nutation.jl`.
 """
 paramlabel(::Experiment1D, name::Symbol) = get(PARAM_LABELS, name, string(name))
+
+"""
+    paramunit(expt, name) -> String
+
+Unit for parameter `name`, dispatched and overridden as [`paramlabel`](@ref) is.
+
+Units are held in **ASCII** (`"s-1"`, `"us"`, `"1e-10 m2/s"`), because that is the form the
+CSV column headers carry and a file header must survive being opened on any machine - see
+`docs/src/advanced/conventions.md`. [`prettyunit`](@ref) turns one into the typeset form
+for the GUI panel and `summary.txt`, so there is one table rather than two that can drift.
+"""
 paramunit(::Experiment1D, name::Symbol) = get(PARAM_UNITS, name, "")
 
 """
-    groupheader(expt, group) -> String
+    displaylabel(expt, name) -> String
 
-Display name for a grouping key (TRACT's `(which=:trosy,)`, kinetics' `(run=2,)`), used
-as the bold header introducing that group's block in the results panel. Defaults to
-[`groupname`](@ref)'s raw rendering of the values; TRACT overrides it to the same
-TROSY/anti-TROSY wording its plot legend already uses (`seriesnames`).
+[`paramlabel`](@ref) for a parameter as stored on a region, which for a fitted one carries
+the series it came from: `:R_trosy` shows as "Relaxation rate (trosy)". The quantity comes
+from [`baseparam`](@ref), so an experiment's label table needs only bare names.
 """
-groupheader(::Experiment1D, group::NamedTuple) = groupname(group)
-
-"""
-    derivedheader(expt, r) -> String
-
-Display name for the bold header introducing `r`'s derived-quantity block. Defaults to
-[`groupheader`](@ref) when `r` is grouped, or "Derived" when it isn't - but a derived
-quantity does not always belong to the group it happens to be recorded on (TRACT's η/τc
-describe the *pair*, not specifically the TROSY series they are stored on for lack of a
-region-level home - see `postfitglobal!` in `expt-tract.jl`), so this is a distinct hook
-an experiment can override rather than reusing `groupheader` unconditionally.
-"""
-function derivedheader(e::Experiment1D, r::RegionResult)
-    return isempty(r.group) ? "Derived" : groupheader(e, r.group)
+function displaylabel(e::Experiment1D, name::Symbol)
+    base = baseparam(name)
+    base === name && return paramlabel(e, name)
+    return "$(paramlabel(e, base)) ($(string(name)[(length(string(base)) + 2):end]))"
 end
+
+"""
+    prettyunit(unit) -> String
+
+The typeset form of an ASCII unit, for display only: `"s-1"` → `" s⁻¹"`, `"us"` → `" µs"`.
+Includes the leading space so it appends to a formatted value, and returns `""` for a
+dimensionless quantity. Anything not in the table is shown as written (`"Hz"`, `"ns"`).
+"""
+function prettyunit(unit::AbstractString)
+    isempty(unit) && return ""
+    return " " * get(PRETTY_UNITS, unit, unit)
+end
+
+const PRETTY_UNITS = Dict("s-1" => "s⁻¹",
+                          "us" => "µs",
+                          "A" => "Å",
+                          "m2/s" => "m² s⁻¹",
+                          "1e-10 m2/s" => "×10⁻¹⁰ m² s⁻¹")
+
+"Display unit for a parameter stored on a region: its quantity's unit, typeset."
+prettyparamunit(e::Experiment1D, name::Symbol) = prettyunit(paramunit(e, baseparam(name)))
+
+"""
+    coordinateunit(expt, name) -> String
+
+ASCII unit for a coordinate, the fit axis or a grouping variable, as it appears in a column
+header. Kept apart from [`paramunit`](@ref) because the two name spaces are independent:
+nothing stops an experiment arraying a variable named like a fitted parameter. Categorical
+coordinates (`:which`, `:run`) and relative ones (`:gradient`) have no unit.
+"""
+coordinateunit(::Experiment1D, name::Symbol) = get(COORDINATE_UNITS, name, "")
+
+const COORDINATE_UNITS = Dict(:time => "s", :duration => "s")
 
 """
     paramblock(io, expt, params, width=nothing)
 
 Write every entry of a parameter dictionary as `name value unit`, in insertion order, the
-names padded to `width` (computed from `params` alone when omitted) so the values line
-up. Callers building a whole panel from several dictionaries - several fitted-parameter
-blocks, several derived blocks - pass a `width` computed once across all of them
-([`panelwidth`](@ref)), so every block's values land in the same column; a lone caller
-(`summary.txt`) leaves it to align to its own single block.
+names padded to `width` (computed from `params` alone when omitted) so the values line up.
+The GUI panel passes a `width` computed across every region ([`panelwidth`](@ref)) so the
+column does not jump as regions are selected; `summary.txt` leaves it to align to its own
+block.
 """
 function paramblock(io::IO, expt::Experiment1D, params, width=nothing)
     isempty(params) && return nothing
     w = something(width,
-                  maximum(length(paramlabel(expt, name)) for name in keys(params)) + 2)
+                  maximum(length(displaylabel(expt, name)) for name in keys(params)) + 2)
     for (name, value) in params
-        println(io, "$(rpad(paramlabel(expt, name), w))$(fmt(value))$(paramunit(expt, name))")
+        println(io,
+                "$(rpad(displaylabel(expt, name), w))$(fmt(value))$(prettyparamunit(expt, name))")
     end
     return nothing
 end
@@ -267,58 +310,39 @@ end
 """
     panelwidth(expt, result, activelabel) -> Int
 
-The label-column width shared by every block in the results panel: the longest display
-label among every fitted parameter and derived quantity shown for `activelabel`, plus a
-gap, or `nothing` if there is nothing to show yet (leaving each block to size itself the
-one time that matters least - before there is anything to align). Computed once so
-"Amplitude" in the TROSY block and "Correlation time (τc)" in TRACT's results share one
-column rather than each block aligning only to its own labels.
+The label-column width for the results panel: the longest display label among the
+parameters shown for `activelabel`, plus a gap, or `nothing` when there is nothing to show
+yet. Computed across the whole panel so "Amplitude (trosy)" and "Correlation time (τc)"
+share one column.
 """
 function panelwidth(expt::Experiment1D, result, activelabel::AbstractString)
     len = 0
     for r in result
         r.region == activelabel || continue
         for k in keys(r.parameters)
-            len = max(len, length(paramlabel(expt, k)))
-        end
-        r.postfitted || continue
-        for k in keys(r.postparameters)
-            len = max(len, length(paramlabel(expt, k)))
+            len = max(len, length(displaylabel(expt, k)))
         end
     end
     return len == 0 ? nothing : len + 2
 end
 
 """
-    boldheader(text) -> RichText
-
-A group/section heading in the results panel: bold, colon-suffixed, on its own line. The
-one piece of visual hierarchy the panel uses - everything else in it is plain, aligned
-parameter text.
-"""
-boldheader(text::AbstractString) = rich(rich(text * ":"; font=:bold), "\n")
-
-"""
     plaintext(text) -> RichText
 
-Wrap `text` in an explicit `font=:regular` span. `RichText`'s font is not scoped to each
-sibling - a plain `String` child simply inherits whatever font the previous sibling left
-active - so without this, the parameter block immediately after a `boldheader` would
-render bold too, the bold state leaking straight past the header it belongs to.
+Wrap `text` in an explicit `font=:regular` span. A `RichText` font is not scoped to each
+sibling: a plain `String` child inherits whatever font the previous sibling left active, so
+without this a parameter block following a bold heading renders bold too.
 """
 plaintext(text::AbstractString) = rich(text; font=:regular)
 
 """
     BLANK_RICHTEXT
 
-Placeholder for "nothing to show". A genuinely empty `RichText` - `rich()`, zero children -
-renders zero glyphs, and Makie's `GlyphCollection` cannot build itself from a zero-length
-glyph vector (it can't infer the vector's `rotations` field as `Vector{Quaternionf}` from
-an empty comprehension, and errors instead of rendering blank). A single space has exactly
-one glyph, so it sidesteps that without being visible - not a cosmetic choice, without it
-`secondarytext` crashes outright for every experiment that derives nothing (relaxation,
-kinetics: `postfit!`'s default never marks a result `postfitted`, so its span list is
-always empty), and `resultsheader` for a `NoFitting` series.
+Placeholder for "nothing to show". An empty `RichText` renders zero glyphs, and Makie's
+`GlyphCollection` cannot build itself from a zero-length glyph vector: it cannot infer
+`rotations` as `Vector{Quaternionf}` from an empty comprehension, and errors rather than
+rendering blank. A single space has one glyph and is invisible. Without it, `resultstext`
+crashes for every region of a `NoFitting` experiment and any region not yet fitted.
 """
 const BLANK_RICHTEXT = rich(" ")
 
@@ -331,49 +355,21 @@ docstring for why that substitution is load-bearing, not decorative.
 richtext(spans) = isempty(spans) ? BLANK_RICHTEXT : rich(spans...)
 
 """
-    resultsheader(expt, result, activelabel, width=nothing) -> RichText
+    resultstext(expt, result, activelabel, width=nothing) -> RichText
 
-The active region's raw fitted parameters (e.g. amplitude, rate) - the "primary" half of
-[`summarytext`](@ref), split out so the GUI can show it and the derived
-[`secondarytext`](@ref) (e.g. TRACT's τc) as visually separate blocks. Doesn't repeat the
-region name, group headers only ([`groupheader`](@ref), e.g. TRACT's "TROSY"/"Anti-TROSY"),
-since the region itself is already named elsewhere in the panel. A group header is bold,
-matching [`secondarytext`](@ref)'s.
+Every parameter reported for the active region, as one block - the fitted ones under the
+names their series gave them, then whatever the experiment derived from them. Doesn't
+repeat the region name, which is already shown elsewhere in the panel.
 
-`width` aligns every block's values to the same column - see [`panelwidth`](@ref); omitted,
-each block aligns only to its own labels.
+`width` aligns the values to a fixed column - see [`panelwidth`](@ref); omitted, the block
+aligns only to its own labels.
 """
-function resultsheader(e::Experiment1D, result, activelabel::AbstractString, width=nothing)
+function resultstext(e::Experiment1D, result, activelabel::AbstractString, width=nothing)
     spans = Any[]
     for r in result
         r.region == activelabel || continue
         block = paramtext(e, r.parameters, width)
         isempty(block) && continue
-        isempty(r.group) || push!(spans, boldheader(groupheader(e, r.group)))
-        push!(spans, plaintext(block), "\n")
-    end
-    return richtext(spans)
-end
-
-"""
-    secondarytext(expt, result, activelabel, width=nothing) -> RichText
-
-The active region's derived quantities alone (TRACT's τc and η, nutation's 90° pulse,
-diffusion's D and rH) - empty when the experiment derives none, or when the active region
-isn't ready yet (e.g. only one of a TRACT pair fitted so far). Like `resultsheader`, it
-just reads `RegionResult.postparameters`, whatever wrote them - but its header
-([`derivedheader`](@ref)) is not simply `resultsheader`'s, since a derived quantity does
-not always belong to the group it happens to be recorded on.
-
-`width` as in `resultsheader`.
-"""
-function secondarytext(e::Experiment1D, result, activelabel::AbstractString, width=nothing)
-    spans = Any[]
-    for r in result
-        (r.region == activelabel && r.postfitted) || continue
-        block = paramtext(e, r.postparameters, width)
-        isempty(block) && continue
-        push!(spans, boldheader(derivedheader(e, r)))
         push!(spans, plaintext(block), "\n")
     end
     return richtext(spans)
@@ -394,11 +390,9 @@ function summarytext(e::Experiment1D, result, activelabel::AbstractString)
     io = IOBuffer()
     for r in result
         r.region == activelabel || continue
-        header = isempty(r.group) ? r.region : "$(r.region) ($(groupheader(e, r.group)))"
-        println(io, header)
-        println(io, "-"^length(header))
+        println(io, r.region)
+        println(io, "-"^length(r.region))
         paramblock(io, e, r.parameters)
-        r.postfitted && paramblock(io, e, r.postparameters)
         println(io)
     end
     return String(take!(io))
@@ -418,7 +412,7 @@ function completeresultstate!(state, expt::Experiment1D, ::SeriesVisualisation)
         return resultplotdata(expt, res, lbl)
     end
     state[:flatpoints] = lift(sd -> reduce(vcat, (s.points for s in sd); init=Point2f[]),
-                               state[:seriesdata])
+                              state[:seriesdata])
     state[:flatpointcolors] = lift(state[:seriesdata]) do sd
         return reduce(vcat,
                       (fill(seriescolor(i), length(s.points)) for (i, s) in enumerate(sd));

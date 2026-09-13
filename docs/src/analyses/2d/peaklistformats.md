@@ -39,9 +39,55 @@ I13   7.65   119.3
 Fields may be separated by spaces, tabs, or commas. Lines beginning with `#`
 are ignored. No header is required.
 
-You can also load a previously saved `results.csv` (see below) to resume work or
-to seed a new analysis from existing positions — the reader takes the `label`,
-`x` and `y` columns and ignores the rest.
+You can also load a previously saved `peaklist.csv` (see below) to resume work or
+to seed a new analysis from existing positions. Where peaks were tracked plane by
+plane, the whole trajectory comes back; a list with one position per peak seeds
+every plane with it.
+
+If you point the loader at a `results.csv` instead, it looks for the `peaklist.csv`
+beside it, falling back to `series.csv`. Fitted positions are an output of one
+particular fit, not a peak list, so the peak list is the file to reach for.
+
+## Sparky peak lists
+
+A Sparky peak list can be loaded directly:
+
+```
+      Assignment         w1         w2
+       G10N-G10H    121.000      8.400
+       T11N-T11H    118.200      9.120
+```
+
+The assignment becomes the peak label unchanged, so `G10N-G10H` and a plain `G10`
+both work and the residue number and atom are derived from either.
+
+Sparky names its dimensions in the spectrum's own order, which conventionally puts
+the indirect dimension (`w1`) first — the opposite way round from this program,
+whose `x` is the direct dimension. Rather than trusting that convention, the loader
+checks where the shifts actually fall on each axis and reads the columns whichever
+way round puts the peaks on the spectrum, reporting when it has to transpose a
+list. A list whose two dimensions cover similar ranges, as in a NOESY, falls back
+to Sparky's convention.
+
+Sparky format carries one position per peak and nothing else: no trajectory, no
+fitting radii, no uncertainties. It is therefore an import format only; saving
+writes `peaklist.csv`.
+
+## Input: `peaklist.csv`
+
+Clicking **Save to folder** writes the peaks you picked, separately from what the
+fit produced:
+
+```
+label,plane,x (ppm),y (ppm),xradius (ppm),yradius (ppm)
+G10,,8.400,121.000,0.03,0.3
+T11,,9.120,118.200,0.03,0.3
+```
+
+A blank `plane` means one position for every plane. Where a peak was tracked plane
+by plane — in a titration, a peak-tracking run, or an RDC series — it gets one row
+per plane instead, with the plane number filled in, so hand-tracking survives a
+save and reload.
 
 !!! note "Only label, x and y are read"
     When a file is loaded, **only the label and the two chemical shifts are
@@ -50,24 +96,32 @@ to seed a new analysis from existing positions — the reader takes the `label`,
     re-derived from the label). You never have to reproduce those columns to
     re-use a file as input.
 
-## Output: `results.csv`
+## Output: `results.csv` and `series.csv`
 
-Clicking **Save to folder** writes a single file, `results.csv`, with one row
-per peak. Experiment metadata is written as `#`-comment lines, followed by an
-ordinary header row and the data:
+The rest of the folder is the [standard set of files](../../advanced/conventions.md).
+The two you will read most are `results.csv`, with one row per peak, and
+`series.csv`, with one row per peak per plane. Both carry the experiment metadata
+as `#`-comment lines above an ordinary header row:
 
 ```
+# NMRAnalysis.jl 0.4.3
 # Analysis type: Heteronuclear NOE
-# Filename: /path/to/data
 # Number of peaks: 3
-label,resnum,resname,atom,x,x_err,y,y_err,R2x,R2x_err,R2y,R2y_err,amp[1],amp[1]_err,amp[2],amp[2]_err,hetnoe,hetnoe_err
-G10,10,G,,8.40,0.01,121.0,0.05,30.1,1.2,15.2,0.8,4.5e5,2e3,3.6e5,2e3,0.78,0.04
+# X radius / ppm: 0.03
+label,resnum,resname,atom,x (ppm),x_err (ppm),y (ppm),y_err (ppm),R2x (s-1),R2x_err (s-1),R2y (s-1),R2y_err (s-1),hetnoe,hetnoe_err
+G10,10,G,,8.40,0.01,121.0,0.05,30.1,1.2,15.2,0.8,0.78,0.04
 ```
 
-Because the header is a real (uncommented) row, the file opens directly in a
-spreadsheet and is read by, e.g., `pandas.read_csv("results.csv", comment="#")`.
+```
+source,label,saturated,amp,amp_err
+/path/to/reference,G10,false,4.5e5,2e3
+/path/to/saturated,G10,true,3.6e5,2e3
+```
 
-The columns are:
+Because the header is a real (uncommented) row, both open directly in a
+spreadsheet and are read by, e.g., `pandas.read_csv("results.csv", comment="#")`.
+
+The columns of `results.csv` are:
 
 | Column | Meaning |
 |--------|---------|
@@ -75,23 +129,26 @@ The columns are:
 | `resnum` | Residue number derived from the label (negative for unassigned peaks) |
 | `resname` | One-letter residue code derived from the label |
 | `atom` | Atom name derived from the label (blank for backbone amides) |
-| `x`, `y` | Fitted chemical shifts (ppm), each with an `_err` uncertainty |
-| `R2x`, `R2y` | Fitted linewidths in the direct/indirect dimensions (s⁻¹) |
-| `amp[i]` | Fitted amplitude in spectrum/plane *i* |
 | derived | Experiment-specific results (e.g. `hetnoe`, `R20`, `PRE`, `eta`, `R`) |
 
-**Per-plane quantities are indexed in square brackets** (`amp[1]`, `amp[2]`, …).
-A single-spectrum analysis has just `amp[1]`. The same `name[i]` convention would
-extend to positions (`x[i]`) if a future analysis allowed peak positions to vary
-between planes.
+Positions and linewidths are not here. They vary plane by plane, so they are in
+`series.csv` for every experiment, moving or not, and a peak that does not move
+simply repeats its position down the rows. `results.csv` carries the identity and
+derived columns alone, which is the table to plot against residue number.
+
+`series.csv` names the plane's own coordinate rather than indexing columns: a
+relaxation series has a `time (s)` column, a titration a `concentration` column,
+a CEST experiment `offset (ppm)` together with the constant `B1 (Hz)` and
+`Tsat (s)`. Each peak's rows are also copied to `peaks/LABEL.csv`, beside that
+peak's plot.
 
 Each value column is immediately followed by its uncertainty (`value`,
-`value_err`). The derived experiment parameters appear last, with the primary
-result first. Existing files are backed up with an `.old` extension before being
-overwritten.
+`value_err`), and both carry the same unit. The derived parameters appear last,
+with the primary result first. An existing output folder is moved aside to
+`<name>_previous` before saving.
 
-`results.csv` is both the results table (for plotting and downstream analysis,
-e.g. with [`summaryplot`](summary.md)) and a valid input file (for
+Together the two files are both the results table (for plotting and downstream
+analysis, e.g. with [`summaryplot`](summary.md)) and a valid input file (for
 reloading peak positions).
 
 ## Plotting summaries

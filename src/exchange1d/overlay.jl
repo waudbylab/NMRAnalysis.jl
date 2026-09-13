@@ -48,7 +48,7 @@ trends across a series are easy to compare directly (issue #39):
 - CEST experiments sharing a saturation time, one curve per saturation
   power
 
-These are kept separate from `combineplots(plot(result))` — the per-experiment
+These are kept separate from `combineplots(result)` — the per-experiment
 grid — rather than folded into it, so that grid doesn't grow denser (and
 illegible) as overlays are added; save or display them as their own figure(s)
 instead. Returns an empty vector if there is nothing to usefully overlay
@@ -106,16 +106,15 @@ function overlayr1rhooffres(experiments, params_value)
     delta = params_value.spin.delta
     sorted = sort(experiments; by=expt -> expt.νSL)
 
-    p1 = plot(; frame=:box, xlabel="Spin-lock offset / ppm", ylabel="R₁ρ / s⁻¹",
-              title="Off-resonance R₁ρ (combined)", grid=nothing, xflip=true,
-              legend=:topright)
-    p2 = plot(; frame=:box, xlabel="Spin-lock offset / ppm", ylabel="Residual / σ",
-              grid=nothing, xflip=true, legend=nothing)
+    f = Figure(; size=(700, 500))
+    gl = f[1, 1] = GridLayout()
+    ax1, ax2 = resultpanels!(gl; xlabel="Spin-lock offset / ppm", ylabel="R₁ρ / s⁻¹",
+                             title="Off-resonance R₁ρ (combined)", xreversed=true)
 
-    hspan!(p2, [-2, 2]; color=:grey, alpha=0.3, lw=0, la=0, primary=false)
-    hspan!(p2, [-1, 1]; color=:grey, alpha=0.5, lw=0, la=0, primary=false)
-
-    hline!(p2, [0]; color=:black, lw=0.5, primary=false)
+    vlines!(ax1, delta; color=:black, linestyle=:dash)
+    vlines!(ax2, delta; color=:black, linestyle=:dash)
+    residualbands!(ax2; color=:grey)
+    hlines!(ax1, [0.0]; color=:black, linewidth=0.5)
 
     maxwres = 0.0
     curves = map(enumerate(sorted)) do (i, expt)
@@ -130,21 +129,18 @@ function overlayr1rhooffres(experiments, params_value)
     end
 
     for c in curves
-        scatter!(p1, c.x, c.yobs; ms=3, markercolor=overlaymarkercolor(c.i),
-                 markerstrokecolor=:black, label=c.label)
-        scatter!(p2, c.x, c.wres; ms=3, color=c.i, label=nothing)
+        measured!(ax1, c.x, c.yobs; color=overlaymarkercolor(c.i), strokecolor=:black,
+                  label=c.label)
+        scatter!(ax2, c.x, c.wres; color=palettecolor(c.i), markersize=6)
     end
     for c in curves
-        plot!(p1, c.x[c.sortidx], c.ypred[c.sortidx]; lw=1.5, color=c.i, label=nothing)
+        lines!(ax1, c.x[c.sortidx], c.ypred[c.sortidx]; color=palettecolor(c.i),
+               linewidth=1.5)
     end
+    axislegend(ax1; position=:rt)
 
-    hline!(p1, [0.0]; color=:black, lw=0.5, primary=false, z_order=:back)
-    vline!(p1, delta; ls=:dash, color=:black, label=nothing, z_order=:back)
-    vline!(p2, delta; ls=:dash, color=:black, label=nothing, z_order=:back)
-
-    ylims!(p2, -maxwres * 1.2, maxwres * 1.2)
-
-    return plot(p1, p2; layout=grid(2, 1; heights=[0.75, 0.25]), link=:x)
+    ylims!(ax2, -maxwres * 1.2, maxwres * 1.2)
+    return f
 end
 
 """
@@ -157,7 +153,7 @@ a colour; residual bands are shaded grey rather than green, as in
 `overlayr1rhooffres`. The fitted chemical shift(s) (`params_value.spin.delta`)
 are marked with dashed vertical lines, as on the individual per-experiment
 plot; observed/predicted intensities are normalised by the fitted `I0` (see
-`CESTExperiment`'s `plot_result`) so the baseline sits at 1.0.
+`CESTExperiment`'s `plotresult!`) so the baseline sits at 1.0.
 
 The legend is drawn inset (`:bottomright`, where the CEST dip is not) rather
 than outside the axes, for the same alignment reason as
@@ -177,14 +173,15 @@ function overlaycest(experiments, varyby::Symbol, params_value)
         "CEST ($(Int(round(fixed.saturation_time * 1000; digits=0))) ms, combined)"
     end
 
-    p1 = plot(; frame=:box, ylabel="Normalised intensity", title=title, grid=nothing,
-              xflip=true, legend=:bottomright)
-    p2 = plot(; frame=:box, xlabel="Saturation frequency (ppm)", ylabel="Residual / σ",
-              grid=nothing, xflip=true, legend=nothing)
+    f = Figure(; size=(700, 500))
+    gl = f[1, 1] = GridLayout()
+    ax1, ax2 = resultpanels!(gl; xlabel="Saturation frequency (ppm)",
+                             ylabel="Normalised intensity", title=title, xreversed=true)
 
-    hspan!(p2, [-2, 2]; color=:grey, alpha=0.3, lw=0, la=0, primary=false)
-    hspan!(p2, [-1, 1]; color=:grey, alpha=0.5, lw=0, la=0, primary=false)
-    hline!(p2, [0]; color=:black, lw=0.5, primary=false)
+    vlines!(ax1, delta; color=:black, linestyle=:dash)
+    vlines!(ax2, delta; color=:black, linestyle=:dash)
+    residualbands!(ax2; color=:grey)
+    hlines!(ax1, [0.0]; color=:black, linewidth=0.5)
 
     maxwres = 0.0
     curves = map(enumerate(sorted)) do (i, expt)
@@ -202,20 +199,17 @@ function overlaycest(experiments, varyby::Symbol, params_value)
     end
 
     for c in curves
-        scatter!(p1, c.x[c.sortidx], c.yobs[c.sortidx]; ms=3,
-                 markercolor=overlaymarkercolor(c.i), markerstrokecolor=:black,
-                 label=c.label)
-        scatter!(p2, c.x[c.sortidx], c.wres[c.sortidx]; ms=3, color=c.i, label=nothing)
+        measured!(ax1, c.x[c.sortidx], c.yobs[c.sortidx];
+                  color=overlaymarkercolor(c.i), strokecolor=:black, label=c.label)
+        scatter!(ax2, c.x[c.sortidx], c.wres[c.sortidx]; color=palettecolor(c.i),
+                 markersize=6)
     end
     for c in curves
-        plot!(p1, c.x[c.sortidx], c.ypred[c.sortidx]; lw=1.5, color=c.i, label=nothing)
+        lines!(ax1, c.x[c.sortidx], c.ypred[c.sortidx]; color=palettecolor(c.i),
+               linewidth=1.5)
     end
+    axislegend(ax1; position=:rb)
 
-    hline!(p1, [0.0]; color=:black, lw=0.5, primary=false, z_order=:back)
-    vline!(p1, delta; ls=:dash, color=:black, label=nothing, z_order=:back)
-    vline!(p2, delta; ls=:dash, color=:black, label=nothing, z_order=:back)
-
-    ylims!(p2, -maxwres * 1.2, maxwres * 1.2)
-
-    return plot(p1, p2; layout=grid(2, 1; heights=[0.75, 0.25]), link=:x)
+    ylims!(ax2, -maxwres * 1.2, maxwres * 1.2)
+    return f
 end

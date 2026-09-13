@@ -46,10 +46,10 @@ function moleculeconcentration(model, expt::AbstractExperiment, role::Symbol)
     sc = sampleconcentrations(expt)
     haskey(sc, name) && return sc[name]
     haskey(model.concentrations, name) && return model.concentrations[name]
-    throw(ArgumentError("No concentration found for molecule \"$name\" (:$role) in " *
-                        "experiment $(short_expt_path(expt)) — its sample metadata does " *
-                        "not include \"$name\", and no fallback concentration was entered. " *
-                        "Check that this experiment is matched to the correct sample."))
+    return throw(ArgumentError("No concentration found for molecule \"$name\" (:$role) in " *
+                               "experiment $(short_expt_path(expt)) — its sample metadata does " *
+                               "not include \"$name\", and no fallback concentration was entered. " *
+                               "Check that this experiment is matched to the correct sample."))
 end
 
 """

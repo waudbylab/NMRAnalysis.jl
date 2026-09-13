@@ -3,8 +3,9 @@ struct TwoStateBindingModel <: AbstractModel
     concentrations::Dict{String,Float64}
 end
 TwoStateBindingModel() = TwoStateBindingModel(Dict{Symbol,String}(), Dict{String,Float64}())
-TwoStateBindingModel(moleculemap::Dict{Symbol,String}) =
-    TwoStateBindingModel(moleculemap, Dict{String,Float64}())
+function TwoStateBindingModel(moleculemap::Dict{Symbol,String})
+    return TwoStateBindingModel(moleculemap, Dict{String,Float64}())
+end
 
 modelname(::TwoStateBindingModel) = "2-state binding (Kd, koff)"
 modelorder(::TwoStateBindingModel) = 4
@@ -12,7 +13,9 @@ nstates(::TwoStateBindingModel) = 2
 states(::TwoStateBindingModel) = ["free", "bound"]
 nmolecules(::TwoStateBindingModel) = 2
 molecules(::TwoStateBindingModel) = Dict(:A => "observed", :X => "titrant")
-defaultparams(::TwoStateBindingModel) = ComponentArray(; logKd=log(100.0), logkoff=log(5000.0))
+function defaultparams(::TwoStateBindingModel)
+    return ComponentArray(; logKd=log(100.0), logkoff=log(5000.0))
+end
 
 """
     exchangematrix(model::TwoStateBindingModel, params, expt) -> Matrix{Float64}

@@ -10,8 +10,8 @@ end
     include("exchange1d_test.jl")
 end
 
-@safetestset "diffusion test" begin
-    include("diffusion_test.jl")
+@safetestset "Analysis1D" begin
+    include("analysis1d_test.jl")
 end
 
 @safetestset "Residue Label Parser Tests" begin

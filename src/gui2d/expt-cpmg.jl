@@ -330,7 +330,7 @@ function plot_peak!(panel, peak, expt, ::CPMGVisualisation)
 
     ax = Axis(panel[1, 1];
               xlabel="νCPMG (Hz)",
-              ylabel="R₂,eff (s⁻¹)",)
+              ylabel="R₂,eff (s⁻¹)")
 
     hlines!(ax, [0.0]; color=:grey50, linewidth=1)
     errorbars!(ax, obs_err; whiskerwidth=10)

@@ -34,8 +34,9 @@ function ccr2d(decay_expts::AbstractVector, buildup_expts::AbstractVector, T)
 end
 
 ccr2d(decay_expt::String, buildup_expt::String, T) = ccr2d([decay_expt], [buildup_expt], T)
-ccr2d(decay_expt::Integer, buildup_expt::Integer, T) =
-    ccr2d(string(decay_expt), string(buildup_expt), T)
+function ccr2d(decay_expt::Integer, buildup_expt::Integer, T)
+    return ccr2d(string(decay_expt), string(buildup_expt), T)
+end
 
 """
     CCRExperiment

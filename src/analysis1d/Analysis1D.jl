@@ -21,15 +21,20 @@ using LsqFit
 using Measurements
 using NMRTools
 using OrderedCollections
+using REPL.TerminalMenus
 using Statistics
 
 using ..NMRAnalysis: register_analysis!, viscosity
+# shared output rules - see src/output.jl and docs/src/advanced/conventions.md
+using ..NMRAnalysis: csvcolumn, csvcolumns, csvvalue, safename, sanitizelabel, backupfile,
+                     backupfolder, writetable
 
 # pure analysis core (no Makie dependency in these files)
 include("types.jl")
-include("reductions.jl")
+include("integration.jl")
 include("seriesmodels.jl")
 include("nmrdata.jl")
+include("prompts.jl")   # parameter resolution: argument, then annotation/acqus, then ask
 include("experiments.jl")   # interface + pipeline; includes one expt-*.jl per experiment
 include("files.jl")
 
@@ -51,8 +56,8 @@ analyse1d(e) = analyse(e)
 export Trace, Planes, Region, Dataset1D
 export column, hasvar, nplanes, groupseries
 
-# reductions & models
-export Reduction, Integrate, integrate, integrals
+# measurement & models
+export integrate
 export SeriesModel, CurveFitModel, NoFitting
 export ExponentialModel, RecoveryModel, DampedSinusoidModel, StejskalTannerModel
 
@@ -60,7 +65,7 @@ export ExponentialModel, RecoveryModel, DampedSinusoidModel, StejskalTannerModel
 export Experiment1D, analyse, analyse1d, run1d, Integration
 export RelaxationExperiment, TractExperiment, NutationExperiment, KineticsExperiment
 export DiffusionExperiment
-export RegionResult, param
+export RegionResult, SeriesResult, param
 
 # interactive GUI
 export gui!, pickregion

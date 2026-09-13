@@ -72,8 +72,8 @@ function exchange1d(filenames::Vector{String})
         result = fit(prob, p0; fixed=fixed)
         display(result)
 
-        plots = plot(result)
-        display(combineplots(plots))
+        GLMakie.activate!()
+        display(combineplots(result))
 
         action = _prompt_after_fit()
         if action == :save
@@ -655,40 +655,6 @@ _format_value(v) = string(v)
 # Step 6: Plotting + post-fit prompt
 # ═══════════════════════════════════════════════════════════════════════════
 
-"""
-    combineplots(plots) -> Plot
-
-Create a combined figure from individual experiment plots, with scaled font sizes
-and figure dimensions so that the result is legible even with many experiments.
-"""
-function combineplots(plots)
-    n = length(plots)
-    ncols = min(n, 4)
-    nrows = ceil(Int, n / ncols)
-
-    # scale figure: each experiment column ~350px wide, each row pair ~280px tall
-    w = max(1200, ncols * 350)
-    h = max(800, nrows * 280)
-
-    plt = plot(plots...; size=(w, h))
-
-    for sp in plt.subplots
-        sp[:titlefontsize] = 8
-
-        # font sizes must be set on each axis object directly
-        for axis in (:xaxis, :yaxis)
-            sp[axis].plotattributes[:guidefontsize] = 7
-            sp[axis].plotattributes[:tickfontsize] = 6
-        end
-
-        for series in sp.series_list
-            series[:markerstrokewidth] = 0.25
-        end
-    end
-
-    return plt
-end
-
 """Prompt user after fit: save, adjust parameters, or quit."""
 function _prompt_after_fit()
     menu = RadioMenu(["Save results", "Adjust parameters and refit", "Quit without saving"])
@@ -713,40 +679,37 @@ function _save_results(result::FitResult)
 
     outputfolder = input
     prepare_outputfolder(outputfolder)
+    mkpath(joinpath(outputfolder, "experiments"))
     saved = String[]
 
-    # save per-experiment plots, combined into one grid figure
-    plots = plot(result)
-    plt = combineplots(plots)
-    savefig(plt, joinpath(outputfolder, "exchange1d_fit.pdf"))
-    push!(saved, "exchange1d_fit.pdf")
+    # every experiment on one grid
+    save(joinpath(outputfolder, "fit.pdf"), combineplots(result); backend=CairoMakie)
+    push!(saved, "fit.pdf")
 
-    for (i, p) in enumerate(plots)
-        savefig(p, joinpath(outputfolder, "exchange1d_expt_$i.pdf"))
-        push!(saved, "exchange1d_expt_$i.pdf")
+    # one plot per experiment, sharing its basename with that experiment's CSV so the data
+    # behind a plot sits beside it
+    for (expt, p) in zip(result.prob.experiments, plotresults(result))
+        name = safename(short_expt_path(expt))
+        save(joinpath(outputfolder, "experiments", "$name.pdf"), p; backend=CairoMakie)
+        push!(saved, joinpath("experiments", "$name.pdf"))
     end
 
-    # save overlays of similar experiments as individual files only — not
-    # combined into a grid of their own (see combineplots)
+    # Overlays of comparable experiments span several of them, so - like a cluster plot in
+    # the 2D interface - they have no single experiment's data to sit beside and stay at
+    # the top level under a prefixed name.
     overlays = overlayplots(result)
     for (i, p) in enumerate(overlays)
-        savefig(p, joinpath(outputfolder, "exchange1d_overlay_$i.pdf"))
-        push!(saved, "exchange1d_overlay_$i.pdf")
+        save(joinpath(outputfolder, "overlay_$i.pdf"), p; backend=CairoMakie)
+        push!(saved, "overlay_$i.pdf")
     end
 
-    # save parameters as text
-    paramfile = joinpath(outputfolder, "exchange1d_params.txt")
-    open(paramfile, "w") do io
-        return show(io, MIME("text/plain"), result)
+    writesummary(joinpath(outputfolder, "summary.txt"), result)
+    push!(saved, "summary.txt")
+    writeresults!(result, outputfolder)
+    append!(saved, ["results.csv", "series.csv", "global.csv"])
+    for expt in result.prob.experiments
+        push!(saved, joinpath("experiments", "$(safename(short_expt_path(expt))).csv"))
     end
-    push!(saved, "exchange1d_params.txt")
-
-    # save data filenames, experiment parameters, and sample information
-    infofile = joinpath(outputfolder, "exchange1d_experiments.txt")
-    open(infofile, "w") do io
-        return writeexperimentsummary(io, result.prob)
-    end
-    push!(saved, "exchange1d_experiments.txt")
 
     println()
     sectionheader("Saved to $outputfolder:")

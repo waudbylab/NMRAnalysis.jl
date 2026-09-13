@@ -2,9 +2,12 @@ struct ThreeStateBindingModel <: AbstractModel
     moleculemap::Dict{Symbol,String}
     concentrations::Dict{String,Float64}
 end
-ThreeStateBindingModel() = ThreeStateBindingModel(Dict{Symbol,String}(), Dict{String,Float64}())
-ThreeStateBindingModel(moleculemap::Dict{Symbol,String}) =
-    ThreeStateBindingModel(moleculemap, Dict{String,Float64}())
+function ThreeStateBindingModel()
+    return ThreeStateBindingModel(Dict{Symbol,String}(), Dict{String,Float64}())
+end
+function ThreeStateBindingModel(moleculemap::Dict{Symbol,String})
+    return ThreeStateBindingModel(moleculemap, Dict{String,Float64}())
+end
 
 modelname(::ThreeStateBindingModel) = "3-state binding (Kd1, koff1, Kd2, koff2)"
 modelorder(::ThreeStateBindingModel) = 5

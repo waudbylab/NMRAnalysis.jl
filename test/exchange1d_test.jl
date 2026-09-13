@@ -8,7 +8,11 @@ import NMRAnalysis.Exchange1D:
                                default_spin_params, default_nuisance_params,
                                field_label, liouvillian, liouvillian_inhom,
                                AbstractExperiment,
-                               simulate!, residuals, fit
+                               simulate!, residuals, fit,
+                               R1rhoOnResExperiment, R1rhoOffResExperiment,
+                               seriescoordinates, observable, coordinateunit,
+                               parameterunit, experimenttype, resultstable, seriestable,
+                               problemcomments, short_expt_path, _ParamItem
 using ComponentArrays
 using Measurements
 using Test
@@ -24,6 +28,110 @@ Base.getindex(s::StubSpec, ::Int, ::Symbol) = s.bf
 struct StubExperiment <: AbstractExperiment
     field_teslas::Float64
     spec::StubSpec
+end
+
+# Enough of an NMRData for `experimentdirectory`, which is all the output tables need of
+# one: `spec[:filename]`.
+struct FakeSpec
+    filename::String
+end
+Base.getindex(s::FakeSpec, ::Symbol) = s.filename
+
+"""A CEST experiment with plausible contents and no spectrum behind it."""
+function fakecest(path="/data/set/101/pdata/1"; nu1=50.0, tsat=0.4)
+    δsat = [-2.0, 0.0, 2.0]
+    return CESTExperiment(FakeSpec(path), 14.1, Dict{String,Float64}(), δsat, nu1, tsat,
+                          [1.0 ± 0.02, 0.6 ± 0.02, 0.95 ± 0.02], [0.99, 0.62, 0.94])
+end
+
+"""An on-resonance R1rho experiment, whose observable is a rate rather than an intensity,
+and whose spin-lock field varies point by point."""
+function fakeonres(path="/data/set/102/pdata/1")
+    return R1rhoOnResExperiment(FakeSpec(path), 14.1, Dict{String,Float64}(),
+                                [12.0 ± 0.5, 9.0 ± 0.4], [12.2, 8.9],
+                                [100.0, 500.0], [0.0, 0.04])
+end
+
+"""An off-resonance R1rho experiment, whose spin-lock field is a single constant - the same
+coordinate that varies point by point on resonance."""
+function fakeoffres(path="/data/set/103/pdata/1")
+    return R1rhoOffResExperiment(FakeSpec(path), 14.1, Dict{String,Float64}(),
+                                 [20.0 ± 0.8, 15.0 ± 0.6], [19.8, 15.2],
+                                 [-1.0, 1.0], 250.0, [0.0, 0.04])
+end
+
+@testset "Exchange1D output" begin
+    @testset "Per-experiment hooks" begin
+        cest = fakecest()
+        @test short_expt_path(cest) == joinpath("set", "101")
+        @test experimenttype(cest) == "CEST"
+        @test observable(cest) == (:I, "")
+
+        coords = Dict(seriescoordinates(cest))
+        @test coords[:offset] == [-2.0, 0.0, 2.0]   # one per data point
+        @test coords[:nu1] == 50.0                  # constant across the experiment
+        @test coordinateunit(:offset) == "ppm"
+        @test coordinateunit(:nu1) == "Hz"
+
+        # an R1rho experiment observes a rate, so it must not be labelled as an intensity
+        @test observable(fakeonres()) == (:R1rho, "s-1")
+        @test experimenttype(fakeonres()) == "On-resonance R1ρ"
+    end
+
+    @testset "Parameter units" begin
+        unitof(label, section) = parameterunit(_ParamItem(label, 1, 0.0, section))
+        @test unitof("spin.delta[1]", "spin") == "ppm"
+        @test unitof("spin.R2_14p1T[2]", "spin") == "s-1"
+        @test unitof("spin.R1_14p1T[1]", "spin") == "s-1"
+        @test unitof("model.kex", "model") == "s-1"
+        @test unitof("model.logkoff", "model") == "s-1"        # log storage is invisible
+        @test unitof("nuisance.CEST_14p1T_I0", "nuisance") == ""
+        # Kd comes out in whatever units the sample metadata uses, so none is claimed
+        @test unitof("model.logKd", "model") == ""
+    end
+
+    @testset "Output tables" begin
+        prob = ExchangeProblem([fakecest(), fakeonres(), fakeoffres()], NoExchangeModel(),
+                               (peakppm=8.2, noiseppm=-1.0, ppmwidth=0.5))
+
+        header, rows = resultstable(prob)
+        @test header[1:4] == ["label", "type", "field (T)", "points"]
+        @test length(rows) == 3
+        @test rows[1][1] == joinpath("set", "101")
+        @test rows[1][2] == "CEST"
+        @test rows[1][4] == "3"
+
+        # nu_SL is a constant off-resonance but a whole list on-resonance, so the column
+        # exists and the on-resonance row must decline to fill it rather than stringify a
+        # vector into the middle of a CSV
+        nuslcol = findfirst(==("nu_SL (Hz)"), header)
+        @test !isnothing(nuslcol)
+        @test rows[2][nuslcol] == "NA"
+        @test rows[3][nuslcol] == "250.0"
+
+        sheader, srows = seriestable(prob)
+        @test sheader[1:2] == ["source", "label"]
+        # two observables, so a column triple each and no row labelled with the other
+        @test "I" in sheader && "R1rho (s-1)" in sheader
+        @test "I_err" in sheader && "R1rho_err (s-1)" in sheader
+        @test "I_fit" in sheader && "R1rho_fit (s-1)" in sheader
+        @test length(srows) == 7                 # 3 CEST points plus 2 and 2 R1rho points
+        icol = findfirst(==("I"), sheader)
+        rcol = findfirst(==("R1rho (s-1)"), sheader)
+        @test srows[1][icol] != "NA" && srows[1][rcol] == "NA"
+        @test srows[end][icol] == "NA" && srows[end][rcol] != "NA"
+        # every coordinate is filled in where it applies and NA where it does not
+        offcol = findfirst(==("offset (ppm)"), sheader)
+        @test srows[1][offcol] == "-2.0"         # CEST saturation offset
+        @test srows[4][offcol] == "NA"           # on-resonance: no offset
+        # no cell may contain a comma, or the row would not parse
+        @test all(!occursin(",", cell) for row in srows for cell in row)
+
+        comments = problemcomments(prob)
+        @test any(occursin("NMRAnalysis.jl", c) for c in comments)
+        @test any(occursin("Integration: peak 8.2 ppm", c) for c in comments)
+        @test count(c -> startswith(c, "Source:"), comments) == 3
+    end
 end
 
 @testset "Exchange1D" begin
@@ -54,7 +162,7 @@ end
         pB = 0.05
         dGB = log((1 - pB) / pB)  # ΔG reconstructing pB = 0.05
         params = ComponentArray(;
-                                model=ComponentArray(; logkex=log(1000.0), dGB=dGB),)
+                                model=ComponentArray(; logkex=log(1000.0), dGB=dGB))
         K = exchangematrix(model, params, Dict{String,Float64}())
         @test size(K) == (2, 2)
 
@@ -175,9 +283,9 @@ end
         model = NoExchangeModel()
         params = ComponentArray(; model=ComponentArray(),
                                 spin=ComponentArray(; R2_14p1T=[15.0],
-                                                    R1_14p1T=[2.0],),
+                                                    R1_14p1T=[2.0]),
                                 nuisance=ComponentArray(;
-                                                        R1_14p1T_I0=1.0,),)
+                                                        R1_14p1T_I0=1.0))
 
         simulate!(expt, model, params)
 
@@ -197,9 +305,9 @@ end
         model = NoExchangeModel()
         params = ComponentArray(; model=ComponentArray(),
                                 spin=ComponentArray(; R2_14p1T=[15.0],
-                                                    R1_14p1T=[2.0],),
+                                                    R1_14p1T=[2.0]),
                                 nuisance=ComponentArray(; R1_14p1T_I0=1.0,
-                                                        R1_14p1T_inv_factor=2.0,),)
+                                                        R1_14p1T_inv_factor=2.0))
 
         simulate!(expt, model, params)
 
@@ -302,9 +410,9 @@ end
 
         params = ComponentArray(; model=ComponentArray(),
                                 spin=ComponentArray(; R2_14p1T=[15.0],
-                                                    R1_14p1T=[R1_true],),
+                                                    R1_14p1T=[R1_true]),
                                 nuisance=ComponentArray(;
-                                                        R1_14p1T_I0=I0_true,),)
+                                                        R1_14p1T_I0=I0_true))
 
         # simulate should fill predicted_intensities
         simulate!(prob, params)

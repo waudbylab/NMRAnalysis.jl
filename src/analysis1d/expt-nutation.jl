@@ -5,24 +5,66 @@
 # ---- 1. entry point -----------------------------------------------------------
 
 """
-    calibration1d(spec; durations=nothing, phase=nothing, regions=nothing, integration=nothing)
+    calibration1d(spec; durations=nothing, phase=nothing, regions=nothing,
+                  integration=nothing, prompt=isinteractive())
 
 Analyse a 1D nutation calibration, reporting the nutation frequency, 90° pulse length and
-B₁ inhomogeneity. Pulse durations come from `durations`, else the `calibration.duration`
-annotation. The modulation defaults to the `calibration.model` annotation
-(`"cosine_modulated"` selects a cosine); pass `phase=:sine`/`:cosine` to override.
+B₁ inhomogeneity, then open the analysis window.
+
+Pulse durations are taken from `durations` if given, else from the `calibration.duration`
+annotation, and otherwise you are asked for them; the modulation likewise from `phase`,
+else the `calibration.model` annotation, else a question. Neither annotation is required.
+
+# Arguments
+- `durations`: pulse durations, in seconds, one per spectrum.
+- `phase`: `:sine` (starting from equilibrium) or `:cosine` (from transverse
+  magnetisation).
+- `regions`: integration regions to start from, instead of one on the tallest peak.
+- `integration`: a `(; peakppm, noiseppm, ppmwidth)` triple, which skips the window and
+  analyses that region directly.
+- `prompt`: whether to ask for anything that could not be determined. Defaults to `false`
+  outside an interactive session, where a missing value raises an error instead.
 """
 function calibration1d(spec; durations=nothing, phase=nothing, regions=nothing,
-                       integration=nothing)
+                       integration=nothing, prompt::Bool=isinteractive())
+    given = spec                       # the argument as written, for the reproduce line
     spec = loadspec(spec)
-    t = something(durations, annotation(spec, :calibration, :duration))
-    ph = isnothing(phase) ?
-         (annotation(spec, :calibration, :model) == "cosine_modulated" ? :cosine : :sine) :
-         phase
+    t = @something(durations,
+                   annotation(spec, :calibration, :duration),
+                   askdurations(nplanesfromspec(spec); prompt))
+    phase = @something(phase,
+                       nutationphase(annotation(spec, :calibration, :model)),
+                       asknutationphase(; prompt))
     ds = datasetfromspec(spec, [(; duration=Float64(d)) for d in t])
-    expt = isnothing(regions) ? NutationExperiment(ds; phase=ph) :
-           NutationExperiment(ds; phase=ph, regions)
-    return run1d(expt; integration)
+    expt = isnothing(regions) ? NutationExperiment(ds; phase) :
+           NutationExperiment(ds; phase, regions)
+    return run1d(expt; integration,
+                 call=analysiscall("calibration1d", given; durations=t, phase))
+end
+
+"""Pulse durations, asked for in µs (as they are set on the spectrometer) but returned in
+the seconds the analysis works in."""
+function askdurations(n::Integer; prompt::Bool=true)
+    return 1e-6 .* askvector("pulse durations", n;
+                             unit="µs", prompt)
+end
+
+"""
+    nutationphase(annotation) -> Symbol or nothing
+
+The modulation named by a `calibration.model` annotation, or `nothing` where there is no
+annotation to read - so the entry point can fall through to asking.
+"""
+nutationphase(::Nothing) = nothing
+nutationphase(s) = string(s) == "cosine_modulated" ? :cosine : :sine
+
+"""Offer the choice of modulation. Without prompting, a sine modulation is assumed."""
+function asknutationphase(; prompt::Bool=true)
+    choice = askchoice("How is the signal modulated by the nutation pulse?",
+                       ["Sine:   I(t) = A sin(2πνt) exp(-Rt), from equilibrium",
+                        "Cosine: I(t) = A cos(2πνt) exp(-Rt), from transverse magnetisation"];
+                       prompt)
+    return choice == 2 ? :cosine : :sine
 end
 
 # ---- 2. type ------------------------------------------------------------------
@@ -70,7 +112,7 @@ function DampedSinusoidModel(; phase::Symbol=:sine)
         return [A, ν, 1.0 / maximum(x)]
     end
     return CurveFitModel((x, p) -> @.(p[1] * trig(2π * p[2] * x) * exp(-p[3] * x)),
-                         ["A", "ν", "R"],
+                         ["A", "nu", "R"],
                          est;
                          xlabel="Pulse duration / s")
 end
@@ -78,7 +120,7 @@ end
 # Stored in the units `PARAM_UNITS` names for them: a 90° pulse reads naturally in µs,
 # never in seconds.
 function postfit!(r::RegionResult, ::NutationExperiment)
-    ν = param(r, :ν)
+    ν = param(r, :nu)
     setpost!(r, :pulse90, 1e6 / (4ν))
     setpost!(r, :inhomogeneity, 100 * param(r, :R) / (2π * ν))
     return nothing
@@ -100,16 +142,17 @@ function spectruminfo(::NutationExperiment, vars::NamedTuple)
 end
 
 # Own display names and units, not the shared PARAM_LABELS/PARAM_UNITS tables -
-# everything about this experiment's presentation lives here. :ν, :pulse90 and
+# everything about this experiment's presentation lives here. :nu, :pulse90 and
 # :inhomogeneity only ever appear in this file (DampedSinusoidModel and postfit!, above).
-# :R is deliberately *not* overridden here: it's this model's decay rate, not a
-# relaxation rate (see the shared table's own note on why it stays bare by default).
-const NUTATION_PARAM_LABELS = Dict(:ν => "Nutation frequency",
+# The key is ASCII (:nu, not :ν) because it becomes a CSV column header; the typeset name
+# is in the label. :R is not overridden: this model's is a decay rate, not a relaxation
+# rate.
+const NUTATION_PARAM_LABELS = Dict(:nu => "Nutation frequency",
                                    :pulse90 => "90°",
                                    :inhomogeneity => "B₁ inhom.")
-const NUTATION_PARAM_UNITS = Dict(:ν => " Hz",
-                                  :pulse90 => " µs",
-                                  :inhomogeneity => " %")
+const NUTATION_PARAM_UNITS = Dict(:nu => "Hz",
+                                  :pulse90 => "us",
+                                  :inhomogeneity => "%")
 
 function paramlabel(::NutationExperiment, name::Symbol)
     return get(NUTATION_PARAM_LABELS, name, get(PARAM_LABELS, name, string(name)))

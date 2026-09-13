@@ -14,15 +14,18 @@ makedocs(;
          pages=["Home" => "index.md",
                 "Quick Start" => "quickstart.md",
                 "Automatic Analysis" => "analyses/analyse.md",
-                "1D Experiments" => ["Diffusion" => "analyses/diffusion.md",
-                                     "Relaxation" => "analyses/relaxation.md",
-                                     "TRACT" => "analyses/tract.md"],
-                "1D Chemical Exchange" => ["Calibration" => "analyses/calibration.md",
-                                           "R1ρ Relaxation Dispersion" => "analyses/r1rho.md",
-                                           "Exchange Fitting (CEST, R1ρ, R1)" => [
-                                               "Overview" => "analyses/exchange1d/overview.md",
-                                               "Exchange Models" => "analyses/exchange1d/models.md",
-                                               "Theory and Calculation Methods" => "analyses/exchange1d/theory.md"]],
+                "1D Experiments" => ["Overview" => "analyses/1d/overview.md",
+                                     "Relaxation (R₁, R₂)" => "analyses/1d/relaxation.md",
+                                     "Diffusion" => "analyses/1d/diffusion.md",
+                                     "TRACT" => "analyses/1d/tract.md",
+                                     "Pulse Calibration" => "analyses/1d/calibration.md",
+                                     "Kinetics" => "analyses/1d/kinetics.md"],
+                "1D Chemical Exchange" =>
+                    ["R1ρ Relaxation Dispersion" => "analyses/r1rho.md",
+                     "Exchange Fitting (CEST, R1ρ, R1)" =>
+                         ["Overview" => "analyses/exchange1d/overview.md",
+                          "Exchange Models" => "analyses/exchange1d/models.md",
+                          "Theory and Calculation Methods" => "analyses/exchange1d/theory.md"]],
                 "2D Experiments" => ["Overview" => "analyses/2d/overview.md",
                                      "Relaxation (R₁, R₂)" => "analyses/2d/relaxation.md",
                                      "Heteronuclear NOE" => "analyses/2d/hetnoe.md",
@@ -33,18 +36,22 @@ makedocs(;
                                      "Methyl CCR (S²τc)" => "analyses/2d/methylccr.md",
                                      "Under Development" => ["CEST" => "analyses/2d/cest.md",
                                                              "CPMG Dispersion" => "analyses/2d/cpmg.md"],
-                                     "Reference" => ["Peak List Formats" => "analyses/2d/peaklistformats.md",
-                                                     "Summary Plots" => "analyses/2d/summary.md",
-                                                     "Simple Fitting" => "analyses/2d/fit.md",
-                                                     "Peak Tracking" => "analyses/2d/peaktracking.md",
-                                                     "Custom Models" => "analyses/2d/modelfit.md"]],
+                                     "Reference" =>
+                                         ["Peak List Formats" => "analyses/2d/peaklistformats.md",
+                                          "Summary Plots" => "analyses/2d/summary.md",
+                                          "Simple Fitting" => "analyses/2d/fit.md",
+                                          "Peak Tracking" => "analyses/2d/peaktracking.md",
+                                          "Custom Models" => "analyses/2d/modelfit.md"]],
                 "Tutorials" => ["¹⁹F R1ρ Acquisition & Analysis" => "tutorials/r1rho.md"],
                 "Ecosystem" => "ecosystem.md",
-                "Advanced" => ["Analysis Rules" => "advanced/analysis_rules.md",
+                "Advanced" => ["How an Analysis Works" => "advanced/pipeline.md",
+                               "Output and Interface Conventions" => "advanced/conventions.md",
+                               "Analysis Rules" => "advanced/analysis_rules.md",
                                "Creating New 1D Analyses" => "advanced/creating_1d_analyses.md",
                                "Creating New 2D Analyses" => "advanced/creating_2d_analyses.md",
                                "Extending Exchange1D" => "advanced/extending_exchange1d.md",
                                "API" => ["NMRAnalysis" => "api.md",
+                                         "Analysis1D" => "api/analysis1d.md",
                                          "GUI2D" => "api/gui2d.md",
                                          "R1ρ" => "api/r1rho.md",
                                          "Exchange1D" => "api/exchange1d.md",
@@ -52,8 +59,11 @@ makedocs(;
                                "Index" => "indexes.md"]],
          sitename="NMRAnalysis.jl",
          authors="Chris Waudby",
-         warnonly=[:missing_docs],)
+         warnonly=[:missing_docs])
 
 deploydocs(;
            repo="github.com/waudbylab/NMRAnalysis.jl.git",
-           devbranch="main",)
+           devbranch="main",
+           # Build a browsable preview for every pull request, at
+           # https://waudbylab.github.io/NMRAnalysis.jl/previews/PR<number>/
+           push_preview=true)

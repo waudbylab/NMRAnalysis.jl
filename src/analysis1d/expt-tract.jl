@@ -5,16 +5,37 @@
 # ---- 1. entry point -----------------------------------------------------------
 
 """
-    tract(trosy, antitrosy; tau=nothing, regions=nothing, integration=nothing)
+    tract()
+    tract(trosy, antitrosy; tau=nothing, regions=nothing, integration=nothing,
+          prompt=isinteractive())
 
-Analyse a TRACT pair, deriving τc from the TROSY / anti-TROSY relaxation-rate difference.
-The two spectra are combined into one dataset tagged by `which ∈ {:trosy, :anti}`, sharing
-a single integration region.
+Analyse a TRACT pair, deriving τc from the TROSY / anti-TROSY relaxation-rate difference,
+then open the analysis window. The two spectra are combined into one dataset tagged by
+`which ∈ {:trosy, :anti}`, sharing a single integration region.
+
+Called with no arguments, you are asked for the two experiment folders. Relaxation delays
+are taken from `tau` if given, else from each spectrum's own `vdlist`, and otherwise you
+are asked for them.
+
+# Arguments
+- `tau`: relaxation delays, in seconds, one per spectrum, used for both experiments.
+- `regions`: integration regions to start from, instead of the 7.5-9.5 ppm amide window.
+- `integration`: a `(; peakppm, noiseppm, ppmwidth)` triple, which skips the window and
+  analyses that region directly.
+- `prompt`: whether to ask for anything that could not be determined. Defaults to `false`
+  outside an interactive session, where a missing value raises an error instead.
 """
-function tract(trosy, antitrosy; tau=nothing, regions=nothing, integration=nothing)
+function tract(trosy, antitrosy; tau=nothing, regions=nothing, integration=nothing,
+               prompt::Bool=isinteractive())
+    # the arguments as written, for the reproduce line
+    giventrosy, givenanti = trosy, antitrosy
     trosy, antitrosy = loadspec(trosy), loadspec(antitrosy)
-    ttau = isnothing(tau) ? acqus(trosy, :vdlist) : tau
-    atau = isnothing(tau) ? acqus(antitrosy, :vdlist) : tau
+    ttau = @something(tau, acqusvalue(trosy, :vdlist),
+                      askvector("TROSY relaxation delays", nplanesfromspec(trosy);
+                                unit="s", prompt))
+    atau = @something(tau, acqusvalue(antitrosy, :vdlist),
+                      askvector("anti-TROSY relaxation delays",
+                                nplanesfromspec(antitrosy); unit="s", prompt))
 
     traces = vcat(tracesfromspec(trosy), tracesfromspec(antitrosy))
     vars = vcat([(; time=Float64(t), which=:trosy) for t in ttau],
@@ -24,11 +45,26 @@ function tract(trosy, antitrosy; tau=nothing, regions=nothing, integration=nothi
     ωN = 2π * acqus(trosy, :bf3)
     f = tractf(; B0)
 
+    # Per-plane sources, so `series.csv` names the spectrum each row came from rather
+    # than naming the TROSY one for both.
+    src = vcat(fill(speclabel(trosy), length(ttau)),
+               fill(speclabel(antitrosy), length(atau)))
     ds = Dataset1D(Planes(traces, vars), defaultnoisecentre(trosy),
-                   speclabel(trosy))
+                   speclabel(trosy), src)
     expt = isnothing(regions) ? TractExperiment(ds; ωN, f) :
            TractExperiment(ds; ωN, f, regions)
-    return run1d(expt; integration)
+    # `tau` applies to both experiments, so it is only worth recording when the two lists
+    # agree; where they differ, each spectrum's own vdlist is what reproduces the analysis.
+    return run1d(expt; integration,
+                 call=analysiscall("tract", giventrosy, givenanti;
+                                   tau=(ttau == atau ? ttau : nothing)))
+end
+
+function tract(; kwargs...)
+    println("Current directory: $(pwd())")
+    trosy = askpath("TROSY experiment")
+    antitrosy = askpath("anti-TROSY experiment")
+    return tract(trosy, antitrosy; kwargs...)
 end
 
 # ---- 2. type ------------------------------------------------------------------
@@ -66,32 +102,20 @@ defaultamideregion(; label="amide") = Region(label, 7.5, 9.5)
 seriesmodel(::TractExperiment) = ExponentialModel()
 fitaxis(::TractExperiment) = :time
 groupcols(::TractExperiment) = (:which,)
-primaryparam(::TractExperiment) = :τc
+primaryparam(::TractExperiment) = :tauc
 
 # ---- 4. science ---------------------------------------------------------------
 
 "¹H gyromagnetic ratio / rad s⁻¹ T⁻¹."
 const GAMMA_H = 2.6752218744e8
 
-function postfitglobal!(results::AbstractVector{RegionResult}, e::TractExperiment)
-    # Iterate the region labels actually present in `results`, not `regions(e)` (the
-    # experiment's own, fixed-at-construction region list) - the GUI's live `regs`
-    # argument to `analyse` can include regions added interactively after construction,
-    # and those still need a τc summary.
-    for label in unique(r.region for r in results)
-        rs = filter(r -> r.region == label, results)
-        trosy = findfirst(r -> r.group.which == :trosy, rs)
-        anti = findfirst(r -> r.group.which == :anti, rs)
-        (isnothing(trosy) || isnothing(anti)) && continue
-        ηxy = (param(rs[anti], :R) - param(rs[trosy], :R)) / 2
-        τc = tracttauc(e.f, e.ωN, ηxy)
-        # η and τc belong to the region, not to either series of the pair, so they are
-        # recorded once - on the TROSY member by convention. Recording them on both would
-        # print them twice in the results panel, which shows every series of the active
-        # region, and duplicate them down the results file.
-        setpost!(rs[trosy], :ηxy, ηxy)
-        setpost!(rs[trosy], :τc, τc)
-    end
+# The two decay rates reach the region as :R_trosy and :R_anti (see `seriesname`), which
+# is what lets η and τc sit beside them on the one row the region reports.
+function postfit!(r::RegionResult, e::TractExperiment)
+    haskey(r.parameters, :R_trosy) && haskey(r.parameters, :R_anti) || return nothing
+    ηxy = (param(r, :R_anti) - param(r, :R_trosy)) / 2
+    setpost!(r, :etaxy, ηxy)
+    setpost!(r, :tauc, tracttauc(e.f, e.ωN, ηxy))
     return nothing
 end
 
@@ -117,8 +141,17 @@ end
     tracttauc(f, ωN, ηxy) -> Float64
 
 Rotational correlation time τc (ns) from the cross-correlated cross-relaxation rate
-`ηxy`, by the analytic inversion of `ηxy = f·(4/5·τc + 3/5·τc/(1+(ωN·τc)²))` used in the
-existing `tract` routine.
+`ηxy`, by the analytic inversion of
+
+    ηxy = f · [4·J(0) + 3·J(ωN)],   J(ω) = (2/5)·τc / (1 + ω²τc²)
+
+i.e. `ηxy = f·(8/5·τc + 6/5·τc/(1+(ωN·τc)²))`, as in the routine this replaces.
+
+The `(2/5)` spectral-density convention is the easy thing to lose here: an earlier version
+of this docstring quoted the relation as `4/5·τc + 3/5·τc/(1+(ωN·τc)²)`, a factor of two
+out from what the inversion below actually solves (the code was right, the docstring was
+not). `test/analysis1d_test.jl` now round-trips this against the forward relation above, so
+the two cannot drift apart again silently.
 """
 function tracttauc(f, ωN, ηxy)
     x = sqrt(21952 * f^6 * ωN^6 - 3025 * f^4 * ηxy^2 * ωN^8 + 625 * f^2 * ηxy^4 * ωN^10)
@@ -146,16 +179,14 @@ function spectruminfo(::TractExperiment, vars::NamedTuple)
     return "$(round(vars.time; digits=3)) s delay ($which)"
 end
 
-# Own display names and units, not the shared PARAM_LABELS/PARAM_UNITS tables -
-# everything about this experiment's presentation lives here. :R genuinely means
-# "relaxation rate" for both TROSY and anti-TROSY decays (unlike the shared table, which
-# leaves :R alone because nutation's decay rate shares the same bare symbol without the
-# same meaning); :ηxy and :τc only ever appear here, computed in `postfitglobal!` above.
+# :R means a relaxation rate for both TROSY and anti-TROSY decays; :etaxy and :tauc appear
+# only here. The keys are ASCII even though the quantities are written η and τc, a key
+# becoming a CSV column header; the typeset form is in the label.
 const TRACT_PARAM_LABELS = Dict(:R => "Relaxation rate",
-                                :ηxy => "CCR rate (η)",
-                                :τc => "Correlation time (τc)")
-const TRACT_PARAM_UNITS = Dict(:ηxy => " s⁻¹",
-                               :τc => " ns")
+                                :etaxy => "CCR rate (η)",
+                                :tauc => "Correlation time (τc)")
+const TRACT_PARAM_UNITS = Dict(:etaxy => "s-1",
+                               :tauc => "ns")
 
 function paramlabel(::TractExperiment, name::Symbol)
     return get(TRACT_PARAM_LABELS, name, get(PARAM_LABELS, name, string(name)))
@@ -163,13 +194,3 @@ end
 function paramunit(::TractExperiment, name::Symbol)
     return get(TRACT_PARAM_UNITS, name, get(PARAM_UNITS, name, ""))
 end
-
-# Matches the TROSY/anti-TROSY wording `seriesnames` already uses for the plot legend.
-function groupheader(::TractExperiment, group::NamedTuple)
-    return group.which == :trosy ? "TROSY" : "Anti-TROSY"
-end
-
-# η and τc describe the TROSY/anti-TROSY *pair*, not specifically the TROSY series they
-# are recorded on (postfitglobal! has to pick one member to hold them - see there) - so
-# the header names the analysis, not the group.
-derivedheader(::TractExperiment, ::RegionResult) = "TRACT results"

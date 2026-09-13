@@ -3,8 +3,9 @@ struct InducedFitModel <: AbstractModel
     concentrations::Dict{String,Float64}
 end
 InducedFitModel() = InducedFitModel(Dict{Symbol,String}(), Dict{String,Float64}())
-InducedFitModel(moleculemap::Dict{Symbol,String}) =
-    InducedFitModel(moleculemap, Dict{String,Float64}())
+function InducedFitModel(moleculemap::Dict{Symbol,String})
+    return InducedFitModel(moleculemap, Dict{String,Float64}())
+end
 
 modelname(::InducedFitModel) = "Induced fit binding (Kd, koff, kclose, kopen)"
 modelorder(::InducedFitModel) = 6

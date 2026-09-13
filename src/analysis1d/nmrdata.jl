@@ -16,19 +16,41 @@ function annotation(spec, keys...)
 end
 
 """
+    acqusvalue(spec, keys...) -> value or nothing
+
+Acquisition-parameter lookup returning `nothing` rather than throwing when the parameter
+is absent, or present but empty. The counterpart of [`annotation`](@ref).
+"""
+function acqusvalue(spec, keys...)
+    value = try
+        acqus(spec, keys...)
+    catch
+        nothing
+    end
+    (isnothing(value) || ismissing(value)) && return nothing
+    return (value isa AbstractVector && isempty(value)) ? nothing : value
+end
+
+"""
+    nplanesfromspec(spec) -> Int
+
+Number of 1D traces `spec` will contribute: the product of every axis but the chemical
+shift, counted the same way [`tracesfromspec`](@ref) flattens them.
+"""
+nplanesfromspec(spec) = length(data(spec)) ÷ length(data(spec, F1Dim))
+
+"""
     tracesfromspec(spec) -> Vector{Trace}
 
 Extract one `Trace` per plane from an N-dimensional NMRData whose first axis is the
-chemical shift (`F1Dim`) — a pseudo-2D (shift × planes), or a pseudo-3D/-nD such as an
-`Exchange1D` off-resonance R1ρ spectrum (shift × spinlock × delay, say). The non-shift
-axes are flattened (in the array's natural, column-major order) into one list of planes;
-`Planes`/`Dataset1D` only ever need "one 1D trace per plane" regardless of how many
-arrayed dimensions produced it.
+chemical shift (`F1Dim`): a pseudo-2D, or a pseudo-3D such as an off-resonance R1ρ
+spectrum (shift × spinlock × delay). The non-shift axes are flattened in column-major
+order into one list of planes.
 
-Intensities are divided by the spectrum's estimated RMS noise level (`spec[:noise]`,
-computed once by NMRTools when the spectrum is loaded) here, at the point traces are
-built - not live, per-analysis, from a user-positioned noise region - so every
-downstream `Trace` is already expressed in signal-to-noise units.
+Intensities are divided by the spectrum's RMS noise level (`spec[:noise]`, computed once
+by NMRTools on load), so every downstream `Trace` is in signal-to-noise units. This is
+distinct from the noise *region* a user positions, which estimates the uncertainty on an
+integral (see [`integrate`](@ref)).
 """
 function tracesfromspec(spec)
     δ = collect(data(spec, F1Dim))
@@ -61,7 +83,7 @@ Build a `Dataset1D` from a pseudo-2D `spec` and a vector of per-plane variable
 `NamedTuple`s (`length(vars) == number of planes`).
 """
 function datasetfromspec(spec, vars::AbstractVector{<:NamedTuple};
-                           noisecenter::Real=defaultnoisecentre(spec))
+                         noisecenter::Real=defaultnoisecentre(spec))
     return Dataset1D(Planes(tracesfromspec(spec), collect(vars)), Float64(noisecenter),
                      speclabel(spec))
 end

@@ -47,6 +47,11 @@ paramlabel(param) = get(PARAM_LABELS, Symbol(param), string(param))
 
 _resultsfile(path) = isdir(path) ? joinpath(path, "results.csv") : path
 
+# Positions, linewidths and amplitudes are per plane and live in series.csv, so a saved
+# folder is read from both files. Only the first plane is taken: `summaryplot` draws one
+# value per peak, matching what a live experiment shows for its first slice.
+_seriesfile(path) = joinpath(isdir(path) ? path : dirname(path), "series.csv")
+
 function _sourcename(path::AbstractString)
     b = basename(isdir(path) ? path : dirname(path))
     return isempty(b) ? string(path) : b
@@ -106,13 +111,18 @@ residue number and atom are re-derived from each row's label.
 function summary_dataset(path::AbstractString, param::Symbol;
                          name="", include_unassigned=false)
     file = _resultsfile(path)
-    header, rows = _readtable(file)
+    header, rows = isfile(file) ? _readtable(file) : (String[], Vector{String}[])
 
-    # Arrayed parameters are written per plane as e.g. amp[1], amp[2]; if the
-    # bare name (`amp`) is requested, default to the first index (`amp[1]`),
-    # matching how a live experiment plots the first slice.
+    # Older files wrote arrayed parameters per plane as amp[1], amp[2]; the bare name then
+    # means the first index, matching how a live experiment plots its first slice.
     pcol = findfirst(==(string(param)), header)
     isnothing(pcol) && (pcol = findfirst(==("$(param)[1]"), header))
+    if isnothing(pcol) && isfile(_seriesfile(path))
+        file = _seriesfile(path)
+        header, rows = _readtable(file)
+        rows = _firstplane(header, rows)
+        pcol = findfirst(==(string(param)), header)
+    end
     isnothing(pcol) &&
         error("Parameter \"$param\" not found in $file. Available: $(available_params(path))")
     pname = header[pcol]
@@ -148,7 +158,9 @@ function _readtable(file)
         (isempty(s) || startswith(s, '#')) && continue
         fields = String.(splitfields(s))
         if isempty(header)
-            header = fields
+            # Column headers carry their unit (`R (s-1)`); parameters are located by name,
+            # so the unit is stripped here once rather than at every lookup.
+            header = String.(stripunit.(fields))
         else
             push!(rows, fields)
         end
@@ -173,20 +185,47 @@ end
 const _IDENTITY_COLS = ("label", "resnum", "resname", "atom")
 
 function available_params(path::AbstractString)
-    header, _ = _readtable(_resultsfile(path))
-    return [Symbol(h) for h in header if !endswith(h, "_err") && !(h in _IDENTITY_COLS)]
+    names = String[]
+    for file in (_resultsfile(path), _seriesfile(path))
+        isfile(file) || continue
+        header, _ = _readtable(file)
+        append!(names, header)
+    end
+    skip = (_IDENTITY_COLS..., "source", "plane")
+    return unique(Symbol(h)
+                  for h in names
+                  if !endswith(h, "_err") && !endswith(h, "_fit") && !(h in skip))
+end
+
+"Rows of a `series.csv` belonging to each peak's first plane, in file order."
+function _firstplane(header, rows)
+    lcol = something(findfirst(==("label"), header), 1)
+    seen = Set{String}()
+    keep = Vector{String}[]
+    for row in rows
+        length(row) < lcol && continue
+        row[lcol] in seen && continue
+        push!(seen, row[lcol])
+        push!(keep, row)
+    end
+    return keep
 end
 
 _defaultparam(expt::FixedPeakExperiment) = primaryparam(expt)
 
 function _defaultparam(path::AbstractString)
-    header, _ = _readtable(_resultsfile(path))
-    fixed = ("label", "resnum", "resname", "atom", "x", "y", "R2x", "R2y")
-    for h in header
-        (endswith(h, "_err") || h in fixed || startswith(h, "amp[")) && continue
-        return Symbol(h)
+    if isfile(_resultsfile(path))
+        header, _ = _readtable(_resultsfile(path))
+        for h in header
+            (endswith(h, "_err") || h in _IDENTITY_COLS || startswith(h, "amp[")) &&
+                continue
+            return Symbol(h)
+        end
     end
-    return Symbol("amp[1]")
+    # An experiment that derives nothing per peak (fit2d, peaktrack2d) writes no
+    # results.csv at all. Fall back to the amplitude, which is what it measured.
+    :amp in available_params(path) && return :amp
+    return error("$path has no parameter to plot")
 end
 
 _onedataset(s::FixedPeakExperiment, param; kw...) = summary_dataset(s, param; kw...)
@@ -206,7 +245,8 @@ function _paramper(sources, param)
     elseif param isa AbstractVector
         length(param) == length(sources) ||
             error("Got $(length(param)) parameters for $(length(sources)) sources")
-        return [p === nothing ? _defaultparam(s) : Symbol(p) for (s, p) in zip(sources, param)]
+        return [p === nothing ? _defaultparam(s) : Symbol(p)
+                for (s, p) in zip(sources, param)]
     else
         error("`param` must be a Symbol, a vector of Symbols, or nothing")
     end

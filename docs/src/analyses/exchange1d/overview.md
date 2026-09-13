@@ -104,10 +104,37 @@ You can then choose to:
 
 ### 6. Saving results
 
-If you choose to save, you are prompted for an output folder. The following files are written:
-- `exchange1d_fit.pdf` — Combined plot of all experiments
-- `exchange1d_expt_N.pdf` — Individual experiment plots
-- `exchange1d_params.txt` — Fitted parameters with uncertainties
+If you choose to save, you are prompted for an output folder, which is written in the
+[standard layout](../../advanced/conventions.md):
+
+```
+out/
+  summary.txt         the parameter tables, the fit statistics, and where every experiment came from
+  results.csv         one row per experiment: its type, field, number of points and settings
+  series.csv          the measurements, one row per experiment per data point
+  global.csv          every fitted parameter, with its starting value, uncertainty and unit
+  fit.pdf             all experiments on one grid
+  overlay_*.pdf       overlays of comparable experiments
+  experiments/
+    <experiment>.pdf  one plot per experiment
+    <experiment>.csv  the data behind it, under the same name
+```
+
+A joint fit has no per-experiment results: every parameter is shared, whether across the
+whole problem (the exchange parameters), across one field (the chemical shifts and
+relaxation rates), or across one experiment type at one field (the nuisance parameters). So
+`global.csv` is where the results of the fit are, and `results.csv` is an index of what went
+into it.
+
+Experiments observing different quantities get a column pair each in `series.csv`: a CEST or
+R1 experiment contributes `I`, and an R1ρ experiment contributes `R1rho (s-1)`, since what it
+observes is a relaxation rate already fitted from its own decay. A row carries `NA` in the
+columns that do not apply to it.
+
+!!! note "Concentration units"
+    Concentrations come from the sample metadata, and any dissociation constant fitted from
+    them is in whatever units that metadata uses. `global.csv` therefore leaves the unit of
+    `Kd` blank rather than guessing at one.
 
 ## Parameter Structure
 

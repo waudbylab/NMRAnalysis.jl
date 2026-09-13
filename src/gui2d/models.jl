@@ -21,43 +21,38 @@ function estimate_parameters(x::AbstractVector, y::AbstractVector, ::RecoveryMod
     A = maximum(y)
     C = 1.0
     R = 3.0 / maximum(x)
-    Dict("A" => A, "C" => C, "R" => R)
+    return Dict("A" => A, "C" => C, "R" => R)
 end
 
 function estimate_parameters(x::AbstractVector, y::AbstractVector, ::ExponentialModel)
     A = maximum(abs.(y))
     R = 3.0 / maximum(x)  # Different heuristic for T1
-    Dict("A" => A, "R" => R)
+    return Dict("A" => A, "R" => R)
 end
 
 function estimate_parameters(x::AbstractVector, y::AbstractVector, model::CustomModel)
-    model.initial_values
+    return model.initial_values
 end
 
 function ExponentialModel()
-    ExponentialModel(
-        (x, p) -> (@. p[1] * exp(-p[2] * x)),
-        ["A", "R"],
-        "Time / s"
-    )
+    return ExponentialModel((x, p) -> (@. p[1] * exp(-p[2] * x)),
+                            ["A", "R"],
+                            "Time / s")
 end
 
 function RecoveryModel()
-    RecoveryModel(
-        (x, p) -> (@. p[1] * (1 - p[2] * exp(-p[3] * x))),
-        ["A", "C", "R"],
-        "Time / s"
-    )
+    return RecoveryModel((x, p) -> (@. p[1] * (1 - p[2] * exp(-p[3] * x))),
+                         ["A", "C", "R"],
+                         "Time / s")
 end
 
-function CustomModel(modelfunction::String, params::Vector{Pair{String,Float64}}, xlabel="x")
+function CustomModel(modelfunction::String, params::Vector{Pair{String,Float64}},
+                     xlabel="x")
     param_names = first.(params)
-    CustomModel(
-        modeltofunction(modelfunction, param_names),
-        param_names,
-        xlabel,
-        Dict(params)
-    )
+    return CustomModel(modeltofunction(modelfunction, param_names),
+                       param_names,
+                       xlabel,
+                       Dict(params))
 end
 
 function modeltofunction(expr, param_names)
@@ -77,11 +72,11 @@ function modeltofunction(expr, param_names)
     parsed_expr = Meta.parse(expr)
     expr_with_params = replace_walker(parsed_expr)
     func_expr = :($(Expr(:tuple, :x, :p)) -> @. $expr_with_params)
-    eval(func_expr)
+    return eval(func_expr)
 end
 
 function postfit!(peak::Peak, expt::IntensityExperiment, ::NoFitting)
-    peak.postfitted[] = true
+    return peak.postfitted[] = true
 end
 
 # Generic parametric model fitting
@@ -108,7 +103,7 @@ function postfit!(peak::Peak, expt::IntensityExperiment, model::ParametricModel)
     end
 
     @debug "Fitted parameters: $(peak.postparameters)"
-    peak.postfitted[] = true
+    return peak.postfitted[] = true
 end
 
 # Helper: plane indices to skip (empty for experiments that don't support skipplanes)
@@ -127,16 +122,26 @@ function get_model_data(peak, expt::Experiment, ::NoFitting)
     err = peak.parameters[:amp].uncertainty[]
     skip = _skipset(expt)
 
-    active  = [i for i in eachindex(x) if i ∉ skip]
+    active = [i for i in eachindex(x) if i ∉ skip]
     skipped = [i for i in eachindex(x) if i ∈ skip]
 
-    obs_points    = Point2f.(x[active], y[active])
-    obs_errors    = [(x[i], y[i], err[i]) for i in active]
-    skip_points   = Point2f.(x[skipped], y[skipped])
-    skip_errors   = [(x[i], y[i], err[i]) for i in skipped]
+    obs_points = Point2f.(x[active], y[active])
+    obs_errors = [(x[i], y[i], err[i]) for i in active]
+    skip_points = Point2f.(x[skipped], y[skipped])
+    skip_errors = [(x[i], y[i], err[i]) for i in skipped]
 
     return (obs_points, obs_errors, Point2f[], skip_points, skip_errors)
 end
+
+# The fitted curve at the measured coordinates, for `series.csv`'s amp_fit column. Only a
+# model fitted through the amplitudes themselves has one; the default in output.jl answers
+# NaN for the rest.
+function fittedamplitudes(peak, expt::Experiment, model::ParametricModel)
+    peak.postfitted[] || return fill(NaN, nslices(expt))
+    p = [peak.postparameters[Symbol(name)].value[][1] for name in model.param_names]
+    return collect(Float64, model.func(expt.x, p))
+end
+fittedamplitudes(peak, expt::Experiment, ::FittingModel) = fill(NaN, nslices(expt))
 
 # Generic parametric model visualization
 function get_model_data(peak, expt::Experiment, model::ParametricModel)
@@ -148,11 +153,11 @@ function get_model_data(peak, expt::Experiment, model::ParametricModel)
     err = peak.parameters[:amp].uncertainty[]
     skip = _skipset(expt)
 
-    active  = [i for i in eachindex(x) if i ∉ skip]
+    active = [i for i in eachindex(x) if i ∉ skip]
     skipped = [i for i in eachindex(x) if i ∈ skip]
 
-    obs_points  = Point2f.(x[active], y[active])
-    obs_errors  = [(x[i], y[i], err[i]) for i in active]
+    obs_points = Point2f.(x[active], y[active])
+    obs_errors = [(x[i], y[i], err[i]) for i in active]
     skip_points = Point2f.(x[skipped], y[skipped])
     skip_errors = [(x[i], y[i], err[i]) for i in skipped]
 
@@ -169,23 +174,21 @@ function get_model_data(peak, expt::Experiment, model::ParametricModel)
 end
 
 function model_parameter_text(peak::Peak, ::NoFitting)
-    ["Amplitude: $(peak.parameters[:amp].value[][1] ± peak.parameters[:amp].uncertainty[][1])"]
+    return ["Amplitude: $(peak.parameters[:amp].value[][1] ± peak.parameters[:amp].uncertainty[][1])"]
 end
 
 function model_parameter_text(peak::Peak, model::ParametricModel)
     map(model.param_names) do name
         param = peak.postparameters[Symbol(name)]
-        "$name: $(param.value[][1] ± param.uncertainty[][1])"
+        return "$name: $(param.value[][1] ± param.uncertainty[][1])"
     end
 end
 
 function model_info_text(::NoFitting, x::AbstractVector)
-    ["Number of spectra: $(length(x))"]
+    return ["Number of spectra: $(length(x))"]
 end
 
 function model_info_text(model::ParametricModel, x::AbstractVector)
-    [
-        "Number of points: $(length(x))",
-        "$(model.xlabel) range: $(minimum(x)) - $(maximum(x))"
-    ]
+    return ["Number of points: $(length(x))",
+            "$(model.xlabel) range: $(minimum(x)) - $(maximum(x))"]
 end

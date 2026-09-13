@@ -35,17 +35,22 @@ Because matching depends on annotations carried by the pulse sequence, `analyse(
 recognises experiment types whose sequences include them — it isn't inferring the
 experiment type from the raw data itself.
 
+Dispatch is a convenience, not a requirement: every routine can be called directly, and
+none of them needs annotations to run. Where an annotation is missing, the routine asks
+for what it needs instead. See
+[Where the parameters come from](1d/overview.md#Where-the-parameters-come-from).
+
 ## What it currently detects
 
 | Input | Runs |
 |---|---|
-| A 1D nutation calibration experiment | [Calibration](calibration.md) |
-| A 1D R1 or R2 relaxation experiment | [Relaxation](relaxation.md) |
+| A 1D nutation calibration experiment | [Pulse Calibration](1d/calibration.md) |
+| A 1D R1 or R2 relaxation experiment | [Relaxation](1d/relaxation.md) |
 | One or more on-resonance R1ρ experiments | [R1ρ Relaxation Dispersion](r1rho.md) |
 | CEST and/or off-resonance R1ρ experiments, together with any accompanying R1 or on-resonance R1ρ files | [Exchange Fitting](exchange1d/overview.md) |
 
 Diffusion and TRACT don't currently register with `analyse()` — call
-[`diffusion1d()`](diffusion.md) or [`tract()`](tract.md) directly.
+[`diffusion1d()`](1d/diffusion.md) or [`tract()`](1d/tract.md) directly.
 
 ## Extending it
 

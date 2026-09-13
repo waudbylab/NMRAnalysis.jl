@@ -39,7 +39,7 @@ function preparestate(expt::Experiment1D)
     state[:active] = Observable(isempty(state[:regions][]) ? 0 : 1)
 
     # noise marker: a single position, no independent width (matches whichever region is
-    # being reduced - see reduceregion).
+    # being reduced - see integrate).
     state[:noisec] = Observable(ds.noisecenter)
 
     state[:currentspectrumidx] = Observable(1)
@@ -53,7 +53,8 @@ function preparestate(expt::Experiment1D)
     state[:oldlabel] = Observable("")
 
     # current Region objects + dataset (noise position applied)
-    state[:dataset] = lift(nc -> Dataset1D(planes, nc, ds.label), state[:noisec])
+    state[:dataset] = lift(nc -> Dataset1D(planes, nc, ds.label, ds.sources),
+                           state[:noisec])
 
     # live analysis - the Fitting toggle genuinely disables curve-fitting here (see
     # `analyse`/`seriesresults`' `isfitting`), not just the plot/text display of it.
@@ -61,7 +62,7 @@ function preparestate(expt::Experiment1D)
     # No special-casing for zero regions: `analyse` returns a `Vector{RegionResult}` for
     # every experiment, fitted or not, empty or not, so the Observable's element type -
     # fixed by its first value - is stable whatever the user does.
-    state[:result] = lift(state[:dataset], state[:regions], state[:isfitting]
+    state[:result] = lift(state[:dataset], state[:regions], state[:isfitting],
                           ) do ds_,
                                regs_,
                                fitting
@@ -85,31 +86,15 @@ function preparestate(expt::Experiment1D)
     # here: what the panel needs depends on how it draws (see `ResultVisualisation`).
     completeresultstate!(state, expt)
 
-    # The whole right-hand info panel - which region is active and its bounds, the fit's
-    # own parameters, and the quantities derived from them - as one RichText, built fresh
-    # whenever the region list, the active region, the fit, or the Fitting toggle changes.
+    # The whole right-hand info panel as one RichText, rebuilt whenever the region list,
+    # the active region, the fit or the Fitting toggle changes.
     #
-    # One Label rather than several stacked ones (as this used to be, and as GUI2D's own
-    # info panel still is): each Label in a GridLayout column auto-sizes its row from its
-    # own reported height, and that reporting does not track a RichText's actual rendered
-    # height reliably as its content changes, so a later row could start before an earlier
-    # one had actually finished, overlapping it - which is exactly what happened here. One
-    # Label sidesteps the whole question: everything below the heading is just more
-    # content appended to the same growing block, with no second, independently-positioned
-    # row for an earlier misjudged height to collide with.
+    # One Label rather than several stacked ones: each Label in a GridLayout column
+    # auto-sizes its row from its own reported height, which does not track a RichText's
+    # rendered height reliably as the content changes, so stacked Labels overlap.
     #
-    # `resultsheader`/`secondarytext` still exist as separate functions - the
-    # fitted-vs-derived split they read (`RegionResult.parameters`/`.postparameters`) is
-    # the real division of labour, used independently by `summarytext`/`resultstable`;
-    # only the panel's *presentation* is merged here. `panelwidth` aligns every block's
-    # values to one shared column, computed once across the whole panel rather than once
-    # per block, so "Amplitude" in a TROSY block and "Correlation time (τc)" in TRACT's
-    # results line up together rather than each block aligning only to its own labels.
-    #
-    # Always RichText, for the same Observable-element-type reason `RegionResult` exists:
-    # every branch below returns one, including "no region selected" and the
-    # Fitting-toggle-off case, so the Observable's inferred type never has to change to
-    # accommodate a later branch.
+    # Every branch returns a RichText, including the empty ones, so the Observable's
+    # inferred element type never has to change.
     state[:resultspanel] = lift(state[:result], state[:regions], state[:active],
                                 state[:isfitting]) do res, rs, i, fitting
         (1 ≤ i ≤ length(rs)) || return plaintext("No region selected")
@@ -119,8 +104,7 @@ function preparestate(expt::Experiment1D)
         bounds = plaintext("$(round(r.lo; digits=2)) to $(round(r.hi; digits=2)) ppm")
         fitting || return rich(heading, bounds)
         width = panelwidth(expt, res, r.label)
-        body = rich(resultsheader(expt, res, r.label, width),
-                    secondarytext(expt, res, r.label, width))
+        body = resultstext(expt, res, r.label, width)
         return rich(heading, bounds, "\n\n", body)
     end
 
@@ -174,11 +158,22 @@ function setregionwidth!(state, i, w)
     return state[:regions][] = rs
 end
 
+"""
+Strip commas (region labels are written unescaped into CSV cells) and rename the reserved
+noise marker (see [`NOISE_LABEL`](@ref)) to `noise_`, so a signal region can never be
+mistaken for it.
+"""
+function sanitizeregionlabel(label)
+    label = sanitizelabel(label)
+    lowercase(label) == NOISE_LABEL && (label *= "_")
+    return label
+end
+
 function setactivelabel!(state, label)
     i = state[:active][]
     (1 ≤ i ≤ length(state[:regions][])) || return
     rs = copy(state[:regions][])
-    rs[i] = Region(label, rs[i].lo, rs[i].hi)
+    rs[i] = Region(sanitizeregionlabel(label), rs[i].lo, rs[i].hi)
     return state[:regions][] = rs
 end
 

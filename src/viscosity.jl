@@ -12,7 +12,7 @@ The calculation is based on the formula proposed by Cho et al in the paper "J Ph
 """
 function viscosity(solvent, T)
     @info "Viscosity: calculation based on Cho et al, J Phys Chem B (1999) 103 1991-1994"
-	if solvent==:h2o
+    if solvent==:h2o
         A = 802.25336
         a = 3.4741e-3
         b = -1.7413e-5
@@ -31,6 +31,6 @@ function viscosity(solvent, T)
     end
 
     DT = T - T0
-	
+
     return A * (DT + a*DT^2 + b*DT^3 + c*DT^4)^(-γ)
 end

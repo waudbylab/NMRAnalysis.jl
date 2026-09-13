@@ -5,7 +5,7 @@
 # Hand-made lists may instead be a bare, header-less `label x y` per line.
 
 function loadpeaks!(expt)
-    file = pick_file(; filterlist="csv;peaks;txt;old")
+    file = pick_file(; filterlist="csv;list;peaks;txt;bak")
     file == "" && return
 
     @info "Loading peak file $file"
@@ -19,8 +19,7 @@ function loadpeaks!(expt)
 end
 
 function saveresults!(expt)
-    folder = pick_folder()
-    folder == "" && return
+    folder = joinpath(pwd(), expt.state[][:outputdir][])
 
     @info "Saving results to $folder"
     @async begin
@@ -30,16 +29,12 @@ function saveresults!(expt)
     @async begin # do saving in a separate task
         sleep(0.2) # allow time for mode change to be processed
         try
-            # save all peak positions, linewidths, amplitudes and derived
-            # parameters to a single results file
+            # An existing folder is moved aside to <name>_previous rather than written
+            # into, so a peak deleted since the last save leaves nothing behind - which is
+            # what the stale-PDF sweep here used to be for.
+            backupfolder(folder)
             writeresults!(expt, folder)
-
-            # remove stale per-peak, per-cluster and summary PDFs
-            for file in readdir(folder)
-                if occursin(r"^(peak_|cluster_).*\.pdf$", file) || file == "summary.pdf"
-                    rm(joinpath(folder, file))
-                end
-            end
+            writesummary(joinpath(folder, "summary.txt"), expt)
             save_peak_plots!(expt, folder)
             save_cluster_plots!(expt, folder)
             save_summary_plot!(expt, folder)
@@ -64,6 +59,32 @@ whitespace on each field is stripped.
 function splitfields(line)
     fields = occursin(',', line) ? split(line, ',') : split(line)
     return strip.(fields)
+end
+
+"""
+    stripunit(name) -> String
+
+A column name with its parenthesised unit removed: `"x (ppm)"` → `"x"`. Column headers
+carry units (see `docs/src/advanced/conventions.md`), so anything locating a column by name
+strips them first.
+"""
+stripunit(name) = strip(replace(String(name), r"\s*\(.*\)\s*$" => ""))
+
+"""
+    headercolumns(filepath) -> Dict{String,Int} or nothing
+
+The column positions of `filepath`'s header row, lowercased and with units stripped, or
+`nothing` where the first non-comment line is data rather than a header (a hand-made
+`label x y` list).
+"""
+function headercolumns(filepath::AbstractString)
+    for line in eachline(filepath)
+        sline = strip(line)
+        (isempty(sline) || startswith(sline, '#')) && continue
+        names = lowercase.(stripunit.(splitfields(sline)))
+        return "label" in names ? Dict(n => i for (i, n) in enumerate(names)) : nothing
+    end
+    return nothing
 end
 
 """
@@ -114,6 +135,25 @@ comments. A malformed line is skipped with a warning rather than aborting the
 load — any labelling convention is tolerated.
 """
 function readpeaklist!(expt, filepath::AbstractString)
+    issparkylist(filepath) && return readsparkylist!(expt, filepath)
+
+    columns = headercolumns(filepath)
+    if !isnothing(columns)
+        # A peak list written by this program carries a `plane` column, which is what
+        # distinguishes one position per peak from a whole hand-tracked trajectory.
+        haskey(columns, "plane") && return readtrackedpeaks!(expt, filepath, columns)
+        # results.csv carries no positions: they are input, not output, and the fitted
+        # ones are per plane. So look for the peak list beside it, then the series data.
+        if !haskey(columns, "x") && !haskey(columns, "x[1]")
+            for name in ("peaklist.csv", "series.csv")
+                beside = joinpath(dirname(filepath), name)
+                isfile(beside) && return readpeaklist!(expt, beside)
+            end
+            throw(ArgumentError("$filepath has no peak positions, and there is no " *
+                                "peaklist.csv or series.csv beside it"))
+        end
+    end
+
     peak_count = 0
     colmap = nothing  # name => index, or nothing until established
 
@@ -130,7 +170,7 @@ function readpeaklist!(expt, filepath::AbstractString)
 
             # Establish the column layout from the first non-comment line
             if isnothing(colmap)
-                lower = lowercase.(fields)
+                lower = lowercase.(stripunit.(fields))
                 if "label" in lower
                     colmap = Dict(name => i for (i, name) in enumerate(lower))
                     continue  # header line, not data
@@ -176,111 +216,90 @@ function readpeaklist!(expt, filepath::AbstractString)
 end
 
 """
-    writeresults!(expt, folder) -> String
+    readtrackedpeaks!(expt, filepath, columns) -> Int
 
-Write all peak results to a single `results.csv` in `folder`. Each row is one
-peak with identity (`label`, `resnum`, `resname`, `atom`), positions (`x`, `y`),
-linewidths (`R2x`, `R2y`), per-plane amplitudes (`amp[1]`, `amp[2]`, …) and any
-derived parameters, each value immediately followed by its `_err` uncertainty
-column. Experiment metadata is written as `#`-comment lines above an ordinary
-(uncommented) header row, so the file opens directly in spreadsheets and via
-`pandas.read_csv(comment="#")`.
+Restore peaks from a file holding one row per peak per plane - `peaklist.csv`, or a
+`series.csv` read as a fallback. Each peak is added at its first row's position and the
+whole trajectory is then set on it, so hand-tracking survives a save and reload.
+
+A `peaklist.csv` row whose `plane` is blank means one position for every plane, so such a
+peak is added with a single position rather than a trajectory; that is also what a
+hand-made list or an imported Sparky list produces.
 """
-function writeresults!(expt, folder)
-    filepath = joinpath(folder, "results.csv")
-    backup_file(filepath)
+function readtrackedpeaks!(expt, filepath::AbstractString, columns=headercolumns(filepath))
+    (isnothing(columns) || !haskey(columns, "x") || !haskey(columns, "y")) &&
+        throw(ArgumentError("$filepath has no label/x/y columns"))
 
-    header, rows = resultstable(expt)
-    open(filepath, "w") do f
-        for line in split(experimentinfo(expt), '\n')
-            isempty(strip(line)) && continue
-            println(f, "# ", line)
+    labels = String[]
+    planes = Dict{String,Vector{Union{Nothing,Int}}}()
+    positions = Dict{String,Vector{NTuple{4,Union{Nothing,Float64}}}}()
+    for line in eachline(filepath)
+        sline = strip(line)
+        isempty(sline) && continue
+        if startswith(sline, '#')
+            parse_radius_comment!(expt, sline)
+            continue
         end
-        # Record the fitting radii so they are restored on load (parsed by readpeaklist!).
-        println(f, "# X radius / ppm: ", round(expt.xradius[]; digits=4))
-        println(f, "# Y radius / ppm: ", round(expt.yradius[]; digits=4))
-        println(f, join(header, ","))
-        for row in rows
-            println(f, join(row, ","))
-        end
+        fields = splitfields(sline)
+        lowercase(stripunit(fields[columns["label"]])) == "label" && continue  # header
+        label = String(fields[columns["label"]])
+        cell(name) = haskey(columns, name) && columns[name] ≤ length(fields) ?
+                     tryparse(Float64, fields[columns[name]]) : nothing
+        label in labels || push!(labels, label)
+        push!(get!(positions, label, NTuple{4,Union{Nothing,Float64}}[]),
+              (cell("x"), cell("y"), cell("r2x"), cell("r2y")))
+        push!(get!(planes, label, Union{Nothing,Int}[]),
+              haskey(columns, "plane") && columns["plane"] ≤ length(fields) ?
+              tryparse(Int, fields[columns["plane"]]) : nothing)
     end
-    return filepath
+
+    # A row's plane is the plane it belongs to, not the position it happens to occupy in
+    # the file: a list sorted by label or edited by hand can carry them out of order.
+    for label in labels
+        p = planes[label]
+        all(!isnothing, p) && length(unique(p)) == length(p) || continue
+        positions[label] = positions[label][sortperm(Int.(p))]
+    end
+
+    count = 0
+    n = nslices(expt)
+    for label in labels
+        points = positions[label]
+        xs = [p[1] for p in points]
+        ys = [p[2] for p in points]
+        (isempty(xs) || any(isnothing, xs) || any(isnothing, ys)) && continue
+        addpeak!(expt, Point2f(xs[1], ys[1]), label)
+        peak = expt.peaks[][end]
+        # One row means one position for every plane, which `addpeak!` has already set.
+        # A full trajectory is only restored when it matches this experiment's plane count;
+        # a list carried over from a series of a different length seeds the first position
+        # instead of silently mis-assigning the rest.
+        if length(points) == n > 1
+            setperplane!(peak, :x, Float64.(xs))
+            setperplane!(peak, :y, Float64.(ys))
+            r2x = [p[3] for p in points]
+            r2y = [p[4] for p in points]
+            if !any(isnothing, r2x) && !any(isnothing, r2y)
+                setperplane!(peak, :R2x, Float64.(r2x))
+                setperplane!(peak, :R2y, Float64.(r2y))
+            end
+        elseif length(points) > 1
+            @warn "$label has $(length(points)) positions but this experiment has $n " *
+                  "planes - using the first"
+        end
+        count += 1
+    end
+    @debug "Added $count peaks from $filepath"
+    return count
 end
 
 "Sort peaks by residue number (positive ascending first, then unassigned)."
 function sortedpeaks(expt)
-    return sort(collect(expt.peaks[]); by=peak -> begin
+    return sort(collect(expt.peaks[]);
+                by=peak -> begin
                     r = extract_residue_number(peak.label[])
                     (r ≤ 0, abs(r))
                 end)
-end
-
-"""
-    resultstable(expt) -> (header, rows)
-
-Build the column-name `header` and the `rows` (each a vector of strings) for the
-results file. Derived (post-fit) parameters are appended with the experiment's
-primary parameter first (see `primaryparam`).
-"""
-function resultstable(expt)
-    n = nslices(expt)
-    peaks = sortedpeaks(expt)
-
-    # derived parameter keys, primary result first
-    derivedkeys = Symbol[]
-    if !isempty(peaks)
-        allkeys = collect(keys(first(peaks).postparameters))
-        prim = primaryparam(expt)
-        derivedkeys = prim in allkeys ? [prim; filter(!=(prim), allkeys)] : allkeys
-    end
-
-    # For moving-peak experiments, positions and linewidths vary per plane, so they are
-    # written per-plane (x[1], x[2], ...) like amplitudes; fixed-peak experiments keep a
-    # single column each.
-    moving = !hasfixedpositions(expt)
-    posparams = (:x, :y, :R2x, :R2y)
-
-    header = ["label", "resnum", "resname", "atom"]
-    for p in posparams
-        if moving
-            for i in 1:n
-                append!(header, ["$(p)[$i]", "$(p)[$i]_err"])
-            end
-        else
-            append!(header, [string(p), "$(p)_err"])
-        end
-    end
-    for i in 1:n
-        append!(header, ["amp[$i]", "amp[$i]_err"])
-    end
-    for k in derivedkeys
-        append!(header, [string(k), "$(k)_err"])
-    end
-
-    rows = Vector{String}[]
-    for peak in peaks
-        lbl = parse_label(peak.label[])
-        row = [peak.label[], string(lbl.resnum),
-               lbl.onelettercode == '?' ? "" : string(lbl.onelettercode),
-               lbl.atom]
-        for p in posparams
-            slices = moving ? (1:n) : (1:1)
-            for i in slices
-                push!(row, format_param(peak, p, i, :value))
-                push!(row, format_param(peak, p, i, :uncertainty))
-            end
-        end
-        for i in 1:n
-            push!(row, format_param(peak, :amp, i, :value))
-            push!(row, format_param(peak, :amp, i, :uncertainty))
-        end
-        for k in derivedkeys
-            push!(row, format_post(peak, k, :value))
-            push!(row, format_post(peak, k, :uncertainty))
-        end
-        push!(rows, row)
-    end
-    return header, rows
 end
 
 "Format a post-fit parameter value/uncertainty, returning \"NA\" if absent."
@@ -420,4 +439,89 @@ function save_summary_plot!(expt, folder)
     finally
         GLMakie.activate!()
     end
+end
+# ---- Sparky peak lists --------------------------------------------------------
+# Sparky writes a whitespace-delimited list with an `Assignment w1 w2` header and, often,
+# further columns (data height, volume, notes) that are ignored here. It carries one
+# position per peak and nothing else: no trajectory, no fitting radii, no uncertainties.
+# That is why it is an import format rather than the peak list this program writes - see
+# `peaklisttable` in output.jl.
+
+"""
+    issparkylist(filepath) -> Bool
+
+Whether `filepath` looks like a Sparky peak list: a whitespace-delimited file whose first
+non-comment line names an `Assignment` column.
+"""
+function issparkylist(filepath::AbstractString)
+    for line in eachline(filepath)
+        sline = strip(line)
+        (isempty(sline) || startswith(sline, '#')) && continue
+        occursin(',', sline) && return false
+        return lowercase(first(split(sline))) == "assignment"
+    end
+    return false
+end
+
+"""
+    readsparkylist!(expt, filepath) -> Int
+
+Import a Sparky peak list, adding its peaks to `expt`.
+
+Sparky names its dimensions `w1`, `w2` in the spectrum's own order, which for a ¹⁵N-HSQC
+conventionally puts the indirect dimension first - the opposite way round from this
+program, whose `x` is the direct dimension. Reading the columns in order would therefore
+transpose every peak, so which column goes to which axis is decided by
+[`sparkyaxisorder`](@ref) from where the shifts actually fall, and only falls back to the
+convention when that cannot tell.
+
+The assignment string becomes the peak label unchanged: Sparky's `G10N-G10H` and a plain
+`G10` both survive a round trip, and `parse_label` already derives the residue number and
+atom from whatever form it is given.
+"""
+function readsparkylist!(expt, filepath::AbstractString)
+    entries = Tuple{String,Float64,Float64}[]
+    for line in eachline(filepath)
+        sline = strip(line)
+        (isempty(sline) || startswith(sline, '#')) && continue
+        fields = split(sline)
+        length(fields) < 3 && continue
+        lowercase(fields[1]) == "assignment" && continue        # header
+        w1 = tryparse(Float64, fields[2])
+        w2 = tryparse(Float64, fields[3])
+        (isnothing(w1) || isnothing(w2)) && continue
+        push!(entries, (String(fields[1]), w1, w2))
+    end
+    isempty(entries) && throw(ArgumentError("$filepath contains no Sparky peaks"))
+
+    swapped = sparkyaxisorder(expt, entries)
+    for (label, w1, w2) in entries
+        x, y = swapped ? (w1, w2) : (w2, w1)
+        addpeak!(expt, Point2f(x, y), label)
+    end
+    @debug "Added $(length(entries)) peaks from Sparky list $filepath"
+    return length(entries)
+end
+
+"""
+    sparkyaxisorder(expt, entries) -> Bool
+
+Whether a Sparky list's `w1` belongs on this experiment's `x` (direct) axis rather than its
+`y` axis - `true` for a list written the opposite way round from the usual convention.
+
+Decided by counting how many peaks land inside both axes' actual chemical-shift ranges each
+way round, because that is the thing that is really being asked and it needs no metadata
+beyond the spectrum itself. A tie (including the degenerate case of two dimensions covering
+similar ranges, as in a NOESY) keeps Sparky's convention of `w1` on the indirect axis.
+"""
+function sparkyaxisorder(expt, entries)
+    spec = expt.specdata.nmrdata[1]
+    xrange = extrema(data(spec, F1Dim))
+    yrange = extrema(data(spec, F2Dim))
+    inside(v, range) = range[1] ≤ v ≤ range[2]
+    conventional = count(e -> inside(e[3], xrange) && inside(e[2], yrange), entries)
+    swapped = count(e -> inside(e[2], xrange) && inside(e[3], yrange), entries)
+    swapped > conventional &&
+        @info "Sparky list appears transposed (w1 on the direct axis) - reading it that way"
+    return swapped > conventional
 end

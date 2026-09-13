@@ -1,4 +1,4 @@
-function Parameter(label, initialvalue; minvalue=-Inf, maxvalue=Inf, uncertainty=Inf)
+function Parameter(label, initialvalue; minvalue=(-Inf), maxvalue=Inf, uncertainty=Inf)
     if !isa(initialvalue, MaybeVector)
         initialvalue = MaybeVector(initialvalue)
     end

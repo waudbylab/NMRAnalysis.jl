@@ -166,7 +166,9 @@ function relaxation2d(inputfilenames, relaxationtimes; skipplanes=nothing)
     return gui!(expt)
 end
 
-relaxation2d(exptno::Integer, relaxationtimes) = relaxation2d(string(exptno), relaxationtimes)
+function relaxation2d(exptno::Integer, relaxationtimes)
+    return relaxation2d(string(exptno), relaxationtimes)
+end
 function relaxation2d(exptnos::AbstractVector{<:Integer}, relaxationtimes)
     return relaxation2d(string.(exptnos), relaxationtimes)
 end
@@ -453,6 +455,8 @@ end
 function get_model_data(peak, expt::IntensityExperiment)
     return get_model_data(peak, expt, expt.model)
 end
+
+fittedamplitudes(peak, expt::IntensityExperiment) = fittedamplitudes(peak, expt, expt.model)
 
 function peakinfotext(expt::IntensityExperiment, idx)
     if idx == 0

@@ -1,7 +1,8 @@
 """Compact one-line display for FitResult."""
 function Base.show(io::IO, result::FitResult)
     name = modelname(result.prob.model)
-    return print(io, "FitResult($name, χ² = $(round(result.chi2; digits=2)), dof = $(result.dof))")
+    return print(io,
+                 "FitResult($name, χ² = $(round(result.chi2; digits=2)), dof = $(result.dof))")
 end
 
 """Pretty multi-line display for FitResult with parameter tables and fit statistics."""
@@ -31,7 +32,8 @@ function Base.show(io::IO, ::MIME"text/plain", result::FitResult)
         printstyled(io, "  $title\n"; bold=true, color=:cyan)
 
         labels = [_pretty_label(item, state_labels, fields) for item in sec_items]
-        initial = [_format_value(_displayvalue(item, result.params0)) for item in sec_items0]
+        initial = [_format_value(_displayvalue(item, result.params0))
+                   for item in sec_items0]
         fitted = [_format_value(_displayvalue(item, result.params)) *
                   (item.flat_index in result.fixed ? " (fixed)" : "")
                   for item in sec_items]
@@ -42,7 +44,7 @@ function Base.show(io::IO, ::MIME"text/plain", result::FitResult)
                      alignment=[:l, :r, :r],
                      tf=tf_unicode_rounded,
                      crop=:none,
-                     header_crayon=Crayon(; bold=true),)
+                     header_crayon=Crayon(; bold=true))
     end
 
     # fit statistics
@@ -58,9 +60,6 @@ function Base.show(io::IO, ::MIME"text/plain", result::FitResult)
                  alignment=[:l, :r],
                  tf=tf_unicode_rounded,
                  crop=:none,
-                 header_crayon=Crayon(; bold=true),)
+                 header_crayon=Crayon(; bold=true))
     return println(io)
 end
-
-"""Plot all experiments in a FitResult, returning a vector of per-experiment plots."""
-Plots.plot(result::FitResult) = plot_result(result.prob, result)

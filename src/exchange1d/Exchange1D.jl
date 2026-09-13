@@ -10,13 +10,14 @@ Supports R1ρ relaxation dispersion and CEST experiments with:
 """
 module Exchange1D
 
+using CairoMakie
 using ComponentArrays
+using GLMakie
 using InteractiveUtils: subtypes
 using LinearAlgebra
 using LsqFit
 using Measurements
 using NMRTools
-using Plots
 using PrettyTables
 using REPL.TerminalMenus
 using Statistics
@@ -25,6 +26,9 @@ using Statistics
 import ..NMRAnalysis  # module itself, for pkgversion(NMRAnalysis)
 using ..NMRAnalysis: analyse, register_analysis!, MultiFileRule
 using ..NMRAnalysis: select_expts
+# shared output rules - see src/output.jl and docs/src/advanced/conventions.md
+using ..NMRAnalysis: csvcolumn, csvvalue, safename, backupfile, backupfolder,
+                     writetable
 # Interactive region selection for `integrate!` (replaces the former readline prompts).
 using ..Analysis1D: pickregion
 
@@ -37,9 +41,11 @@ include("experiments.jl")
 include("liouvillian.jl")
 include("params.jl")
 include("problem.jl")
+include("plots.jl")
 include("overlay.jl")
 include("interface.jl")
 include("results.jl")
+include("files.jl")
 
 export exchange1d
 
@@ -49,11 +55,11 @@ function __init__()
                              oneD = filter(e -> "1d" in e.types, expts)
                              cest = filter(e -> "cest" in e.types, oneD)
                              r1cal = filter(e -> "relaxation" in e.types &&
-                                                "R1" in e.features, oneD)
+                                                 "R1" in e.features, oneD)
                              onres = filter(e -> "r1rho" in e.types &&
-                                                "on_resonance" in e.features, oneD)
+                                                 "on_resonance" in e.features, oneD)
                              offres = filter(e -> "r1rho" in e.types &&
-                                                "off_resonance" in e.features, oneD)
+                                                  "off_resonance" in e.features, oneD)
                              combined = vcat(cest, r1cal, onres, offres)
                              (length(cest) > 0 || length(offres) > 0) ? combined : nothing
                          end,

@@ -140,16 +140,3 @@ function fit(prob::ExchangeProblem, params0::ComponentArray; fixed::Set{Int}=Set
                      chi2, chi2 / dof, covar,
                      n_obs, n_params, dof, copy(fixed), prob)
 end
-
-"""
-    plot_result(prob::ExchangeProblem, fit_result)
-
-Plot all experiments in the problem using the fitted parameters from `fit_result`
-(as returned by `fit`). Returns a vector of plots, one per experiment.
-"""
-function plot_result(prob::ExchangeProblem, fit_result, kwargs...)
-    params = fit_result.params_value
-    simulate!(prob, params)  # update predicted_intensities for all experiments
-    plots = [plot_result(expt, fit_result; kwargs...) for expt in prob.experiments]
-    return plots
-end

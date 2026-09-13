@@ -13,6 +13,28 @@ const ADD_TAP_THRESHOLD = 0.005
 # own auto-sizing. Generous for the theme's default 14pt font rather than exact.
 const PANEL_LINE_HEIGHT = 20
 
+validatetextbox(s, validator::Function) = validator(s)
+validatetextbox(s, ::Type{T}) where {T} = !isnothing(tryparse(T, s))
+function validatetextbox(s, validator::Regex)
+    return (m=match(validator, s); !isnothing(m) && m.match == s)
+end
+
+"""
+    commitondefocus!(tb::Textbox)
+
+Commit `tb`'s displayed text to `stored_string` when it loses focus. Makie's `Textbox`
+only commits on Enter; clicking away otherwise leaves the typed text on screen without
+ever applying it to `stored_string` (and hence to whatever listens on it).
+"""
+function commitondefocus!(tb)
+    on(tb.focused) do focused
+        focused && return
+        s = tb.displayed_string[]
+        return validatetextbox(s, tb.validator[]) && (tb.stored_string[] = s)
+    end
+    return tb
+end
+
 """Scale the spectrum axis's y-view by `factor` - `factor=2` makes peaks look twice as
 tall (divides both bounds by 2, i.e. halves the range), `factor=0.5` half as tall
 (doubles the range). Scales `ymin`/`ymax` directly rather than re-centring on the
@@ -35,9 +57,11 @@ function stepslice!(sl, nplanes, delta)
 end
 
 """
-    gui!(expt::Experiment1D)
+    gui!(expt::Experiment1D; call=nothing)
 
-Launch the interactive analysis window for `expt`. The left column overlays all spectral
+Launch the interactive analysis window for `expt`. `call` is the [`AnalysisCall`](@ref) the
+entry point recorded, which `summary.txt` prints as a line repeating the analysis; it is
+`nothing` when `gui!` is driven directly rather than through an entry point. The left column overlays all spectral
 planes with draggable integration region(s) and a noise marker; the result panel below
 shows the live fit for the active region. The active region is whichever the mouse is over
 (or was last clicked), named in the right-hand column. Returns the GUI state when the
@@ -52,11 +76,12 @@ window closes.
 - Up/Down arrows: scale the spectrum's y-axis (×2 / ÷2).
 - Shift+scroll: resize the active region, about its own centre.
 """
-function gui!(expt::Experiment1D)
+function gui!(expt::Experiment1D; call=nothing)
     # the analysis type is already shown as a large bold label inside the window, so the
     # OS titlebar just carries the application identity rather than repeating it
     GLMakie.activate!(; focus_on_show=true, title="NMRAnalysis.jl")
     state = preparestate(expt)
+    state[:call] = call
     state[:gui] = Dict{Symbol,Any}()
     gui = state[:gui]
     cols = Makie.wong_colors()
@@ -210,14 +235,19 @@ function gui!(expt::Experiment1D)
     end
 
     r += 1
+    right[r, 1] = Label(fig, "Working directory:\n$(pwd())"; word_wrap=true,
+                        tellwidth=false,
+                        halign=:left)
+
+    r += 1
     outputrow = right[r, 1] = GridLayout()
-    # empty (not pre-filled with "out") so the placeholder text is visible - `state[:outputdir]`
-    # already defaults to "out" independently (see `preparestate`), so leaving this
-    # untouched still saves there
-    tout = outputrow[1, 1] = Textbox(fig; width=90, placeholder="out")
+    tout = gui[:outputtextbox] = outputrow[1, 1] = Textbox(fig; width=90,
+                                                           stored_string=state[:outputdir][])
+    # An empty box means the default rather than the working directory itself.
     on(tout.stored_string) do s
-        return state[:outputdir][] = s
+        return state[:outputdir][] = isempty(strip(s)) ? "out" : strip(s)
     end
+    commitondefocus!(tout)
     btnsave = outputrow[1, 2] = Button(fig; label="Save")
     on(btnsave.clicks) do _
         return saveresults(state)
@@ -226,7 +256,11 @@ function gui!(expt::Experiment1D)
     # session can be picked up again rather than re-picked by hand.
     btnload = outputrow[1, 3] = Button(fig; label="Load")
     on(btnload.clicks) do _
-        path = joinpath(pwd(), state[:outputdir][], "results.csv")
+        folder = joinpath(pwd(), state[:outputdir][])
+        # `regionlist.csv` is the region list proper; `results.csv` is read as a fallback
+        # for folders saved before the two were separated.
+        path = joinpath(folder, "regionlist.csv")
+        isfile(path) || (path = joinpath(folder, "results.csv"))
         try
             n = readregions!(state, path)
             @info "Restored $n region(s) from $path"
@@ -459,6 +493,7 @@ Left/Right to step through spectra, Up/Down to scale the spectrum's y-axis, matc
 function setupkeyboard!(fig, ax, state)
     defaultwidth = defaultregionwidth(first(state[:planes].traces).δ)
     on(events(fig).keyboardbutton; priority=2) do ev
+        state[:gui][:outputtextbox].focused[] && return Consume(false)
         mode = state[:mode][]
         if mode == :normal && ev.action == Keyboard.press
             if ev.key == Keyboard.a
@@ -519,6 +554,7 @@ function setupkeyboard!(fig, ax, state)
         return Consume(false)
     end
     on(events(fig).unicode_input) do character
+        state[:gui][:outputtextbox].focused[] && return Consume(false)
         if state[:mode][] == :renamingstart
             # the keypress that opened rename mode (the 'r' shortcut) also emits its own
             # character here a moment later - swallow it rather than prepending it
@@ -545,6 +581,7 @@ function ppmbox!(fig, parent, row, col, obs; digits=3, boxwidth=90)
                                     validator=Float64, width=boxwidth)
     on(str -> obs[] = parse(Float64, str), tb.stored_string)
     on(v -> tb.displayed_string[] = string(round(v; digits)), obs)
+    commitondefocus!(tb)
     return tb
 end
 
@@ -596,7 +633,7 @@ function pickregion(traces::AbstractVector{Trace}; peakppm=nothing, noiseppm=not
     vlines!(ax, nz; color=:orchid, linewidth=2, label="Noise")
     # The noise band shows the window actually used to estimate the noise, which always
     # matches the integration width (that equality is what makes it a direct estimate of
-    # the signal region's noise - see `reduceregion`). Floored at the default region width
+    # the signal region's noise - see `integrate`). Floored at the default region width
     # so a narrow integration still leaves something grabbable, exactly as in `gui!`.
     basedefaultwidth = defaultregionwidth(t1.δ)
     noisehandlehw = lift(ww -> max(basedefaultwidth, ww) / 2, w)
@@ -694,15 +731,22 @@ function pickregion(specs::AbstractVector; kwargs...)
 end
 
 """Save the results, covering every region (not just the active one shown live in the GUI
-panels), to the output folder: `results.csv` (machine-readable, and the file a region list
-is restored from - see `readregions!`), `summary.txt`, an overlay of every region in
-`fit.pdf`, and one `fit_<region>.pdf` per region on its own."""
+panels), to the output folder, in the layout described in
+`docs/src/advanced/conventions.md`: `summary.txt` to read, `results.csv` and `series.csv`
+to compute with (`results.csv` is also the file a region list is restored from
+- see `readregions!`), an overlay of every region in `fit.pdf`, and a `regions/` folder
+holding each region's own plot and the data behind it under the same basename."""
 function saveresults(state)
-    dir = joinpath(pwd(), state[:outputdir][])
-    isdir(dir) || mkpath(dir)
+    # The whole folder is moved aside rather than individual files backed up, so that a
+    # region deleted since the last save doesn't leave its plot and data behind looking
+    # like part of the current result.
+    dir = backupfolder(joinpath(pwd(), state[:outputdir][]))
+    regionsdir = mkpath(joinpath(dir, "regions"))
     expt = state[:expt]
+    ds = state[:dataset][]
     result = state[:result][]
-    labels = [r.label for r in state[:regions][]]
+    regs = state[:regions][]
+    labels = [r.label for r in regs]
     xl, yl = resultlabels(expt)
 
     # no gridlines (matching the live GUI panels), but keep a visible zero line
@@ -720,29 +764,19 @@ function saveresults(state)
     i > 1 && axislegend(ax; position=:rt)
     save(joinpath(dir, "fit.pdf"), fig; backend=CairoMakie)
 
-    # one plot per region
+    # one plot per region, sharing its basename with that region's CSV so the data behind
+    # a plot is beside it
     for label in labels
         fig1 = Figure()
         ax1 = newfitaxis(fig1)
         hlines!(ax1, [0]; color=:grey)
         n1 = plotresult!(ax1, expt, result, label, 0)
         n1 > 1 && axislegend(ax1; position=:rt)
-        save(joinpath(dir, "fit_$label.pdf"), fig1; backend=CairoMakie)
+        save(joinpath(regionsdir, "$(safename(label)).pdf"), fig1; backend=CairoMakie)
     end
 
-    open(joinpath(dir, "summary.txt"), "w") do f
-        println(f, "Integration regions (ppm):")
-        for r in state[:regions][]
-            println(f,
-                    "  $(r.label): $(round(r.lo; digits=4)) to $(round(r.hi; digits=4))")
-        end
-        println(f, "Noise position (ppm): $(round(state[:noisec][]; digits=4))")
-        println(f)
-        for label in labels
-            print(f, summarytext(expt, result, label))
-        end
-    end
-    writeresults!(expt, state, dir)
+    writesummary(joinpath(dir, "summary.txt"), expt, ds, result, regs, state[:call])
+    writeresults!(expt, ds, result, regs, dir)
     @info "Saved results to $dir"
     return dir
 end

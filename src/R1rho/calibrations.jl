@@ -80,7 +80,7 @@ function setupR1rhopowers(calibration_experiment_file="")
                                      5000, 6000, 7000, 8000, 9000, 10000, 11000, 12000,
                                      13000, 14000, 15000]
         target_spinlock_strengths = filter(x -> x >= min_spinlock_strength &&
-                                               x <= max_spinlock_strength,
+                                                x <= max_spinlock_strength,
                                            target_spinlock_strengths)
         println("Using spin-lock strengths (in Hz):")
         println(target_spinlock_strengths)

@@ -13,25 +13,24 @@ abstract type FittingModel end
 struct NoFitting <: FittingModel end
 abstract type ParametricModel <: FittingModel end
 
-
 struct SpecData
-    nmrdata
-    x
-    y
-    z
-    σ
-    zlabels
-    zfit
-    mask
+    nmrdata::Any
+    x::Any
+    y::Any
+    z::Any
+    σ::Any
+    zlabels::Any
+    zfit::Any
+    mask::Any
 end
 
 struct Parameter
-    label
-    value
-    uncertainty
-    initialvalue
-    minvalue
-    maxvalue
+    label::Any
+    value::Any
+    uncertainty::Any
+    initialvalue::Any
+    minvalue::Any
+    maxvalue::Any
 end
 
 struct Peak
@@ -47,4 +46,4 @@ end
 abstract type VisualisationStrategy end
 
 struct CrossSectionVisualisation <: VisualisationStrategy end
-struct ModelFitVisualisation <: VisualisationStrategy end 
+struct ModelFitVisualisation <: VisualisationStrategy end

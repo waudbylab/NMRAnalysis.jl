@@ -1,0 +1,28 @@
+# Fails when the tree is not what JuliaFormatter would produce, and prints the diff so the
+# failure says what to change. Run `using JuliaFormatter; format(".")` to fix.
+name: Format
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v2
+      - name: Install JuliaFormatter
+        run: julia -e 'using Pkg; Pkg.add("JuliaFormatter")'
+      # The style ("yas") comes from .JuliaFormatter.toml, so both this and a local run
+      # read the same configuration.
+      - name: Check formatting
+        run: julia -e 'using JuliaFormatter; exit(format(".") ? 0 : 1)'
+      - name: Show what would change
+        if: failure()
+        run: git --no-pager diff

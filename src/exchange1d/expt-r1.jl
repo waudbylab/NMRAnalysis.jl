@@ -127,71 +127,50 @@ function experimentinfo(expt::R1Experiment)
     return ["Type" => "R1 relaxation",
             "Field" => _format_field(expt.field_teslas),
             "Fitting model" => string(expt.fitting_model),
-            "Delays" => "$(length(expt.delays)) points, " *
-                        "$(round(minimum(expt.delays); digits=3)) to " *
-                        "$(round(maximum(expt.delays); digits=3)) s"]
+            "Delays" =>
+                "$(length(expt.delays)) points, " *
+                "$(round(minimum(expt.delays); digits=3)) to " *
+                "$(round(maximum(expt.delays); digits=3)) s"]
 end
 
 """
-    plot_result(expt::R1Experiment, params; kwargs...)
+    plotresult!(gl, expt::R1Experiment, fitresult; axiskw=(;))
 
-Plot an R1 experiment with observed data (error bars), fitted curve, and residuals.
-
-Upper panel: normalised intensities vs delay time with fit overlay.
-Lower panel: weighted residuals (observed - predicted) / σ.
+Draw an R1 experiment into `gl`: intensities against delay with the fitted curve above,
+weighted residuals below.
 """
-function plot_result(expt::R1Experiment, fit_result; kwargs...)
-    params = fit_result.params
-    param_values = fit_result.params_value
+function plotresult!(gl, expt::R1Experiment, fitresult; axiskw=(;))
+    param_values = fitresult.params_value
     tau = expt.delays
     yobs = expt.observed_intensities
     ypred = expt.predicted_intensities
 
-    # fitted rate for title
     fl = field_label(expt)
-    R1 = params.spin[Symbol("R1_", fl)][1]
     R1_value = param_values.spin[Symbol("R1_", fl)][1]
 
     # smooth fitted curve
     x = LinRange(0, maximum(tau) * 1.1, 100)
     tag = Symbol("R1_", fl)
     I0 = param_values.nuisance[Symbol(tag, "_I0")]
-    if expt.fitting_model == :inversion_recovery
+    yfit = if expt.fitting_model == :inversion_recovery
         inv_factor = param_values.nuisance[Symbol(tag, "_inv_factor")]
-        yfit = I0 .* (1 .- inv_factor .* exp.(-x .* R1_value))
+        I0 .* (1 .- inv_factor .* exp.(-x .* R1_value))
     else
-        yfit = I0 .* exp.(-x .* R1_value)
+        I0 .* exp.(-x .* R1_value)
     end
 
-    # weighted residuals
     wres = (Measurements.value.(yobs) .- ypred) ./ Measurements.uncertainty.(yobs)
     wrange = maximum(abs, wres) * 1.2
-    # upper panel: data + fit
-    p1 = scatter(tau, yobs; ms=3, legend=nothing,
-                 label="observed",
-                 frame=:box,
-                 #  xlabel="Relaxation time / s",
-                 ylabel="Intensity",
-                 title="R1 relaxation",
-                 grid=nothing,
-                 kwargs...)
-    plot!(p1, x, yfit;
-          label="fit", lw=1.5)
-    hline!(p1, [0]; color=:black, lw=0.5, primary=false)
 
-    # lower panel: residuals
-    p2 = plot(; legend=nothing,
-              frame=:box,
-              xlabel="Relaxation time / s",
-              ylabel="Residual / σ",
-              grid=nothing,
-              markersize=4)
-    hspan!(p2, [-2, 2]; color=:limegreen, alpha=0.3, lw=0, la=0, primary=false)
-    hspan!(p2, [-1, 1]; color=:limegreen, alpha=0.5, lw=0, la=0, primary=false)
-    hline!(p2, [0]; color=:black, lw=0.5, primary=false)
-    scatter!(p2, tau, wres; ms=3)
-    ylims!(p2, -wrange, wrange)
+    ax1, ax2 = resultpanels!(gl; xlabel="Relaxation time / s", ylabel="Intensity",
+                             title="R1 relaxation", axiskw=axiskw)
 
-    plt = plot(p1, p2; layout=grid(2, 1; heights=[0.75, 0.25]), link=:x)
-    return plt
+    hlines!(ax1, [0]; color=:black, linewidth=0.5)
+    measured!(ax1, tau, yobs; color=palettecolor(1))
+    lines!(ax1, x, yfit; color=palettecolor(2), linewidth=1.5)
+
+    residualbands!(ax2)
+    scatter!(ax2, tau, wres; color=palettecolor(1), markersize=6)
+    ylims!(ax2, -wrange, wrange)
+    return ax1, ax2
 end

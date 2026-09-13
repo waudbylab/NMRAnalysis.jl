@@ -4,7 +4,7 @@ function LsqFit.curve_fit(model,
                           ydata::AbstractArray{Measurement{T}} where {T},
                           p0::AbstractArray;
                           inplace=false,
-                          kwargs...,)
+                          kwargs...)
     y = Measurements.value.(ydata)
     ye = Measurements.uncertainty.(ydata)
     wt = ye .^ -2

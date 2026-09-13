@@ -126,36 +126,26 @@ function experimentinfo(expt::R1rhoOffResExperiment)
                 "$(round(maximum(expt.offsets_ppm); digits=3)) ppm"]
 end
 
-function plot_result(expt::R1rhoOffResExperiment, fit_result; kwargs...)
+function plotresult!(gl, expt::R1rhoOffResExperiment, fitresult; axiskw=(;))
     yobs = expt.observed_intensities
     ypred = expt.predicted_intensities
     x = expt.offsets_ppm
     sortidx = sortperm(x)
-
-    params = fit_result.params
-    params_value = fit_result.params_value
-
-    p1 = plot(; xlabel="Spin-lock offset / ppm",
-              ylabel="R₁ρ / s⁻¹",
-              title="Off-resonance R₁ρ ($(Int(round(expt.νSL, digits=0))) Hz)",
-              frame=:box, legend=nothing, grid=nothing, kwargs..., xflip=true)
-    scatter!(p1, expt.offsets_ppm, yobs; ms=3, c=1)
-    plot!(p1, expt.offsets_ppm[sortidx], ypred[sortidx]; lw=1.5, c=2)
-    hline!(p1, [0.0]; color=:black, lw=0.5, primary=false, z_order=:back)
-    vline!(p1, params_value.spin.delta; ls=:dash, label="peak positions", c=3,
-           primary=false, z_order=:back)
-
+    params_value = fitresult.params_value
     wres = (Measurements.value.(yobs) .- ypred) ./ Measurements.uncertainty.(yobs)
-    p2 = plot(; xlabel="Spin-lock offset / ppm",
-              ylabel="Residual / σ",
-              frame=:box, legend=nothing, kwargs..., xflip=true)
-    hspan!(p2, [-2, 2]; color=:limegreen, alpha=0.3, lw=0, la=0, primary=false)
-    hspan!(p2, [-1, 1]; color=:limegreen, alpha=0.5, lw=0, la=0, primary=false)
-    hline!(p2, [0]; color=:black, lw=0.5, grid=nothing, primary=false)
-    scatter!(p2, expt.offsets_ppm, wres; ms=3, c=1)
-    vline!(p2, params_value.spin.delta; ls=:dash, label="peak positions", c=3,
-           primary=false, z_order=:back)
-    ylims!(p2, -maximum(abs, wres) * 1.2, maximum(abs, wres) * 1.2)
 
-    return plot(p1, p2; layout=grid(2, 1; heights=[0.75, 0.25]))
+    title = "Off-resonance R₁ρ ($(Int(round(expt.νSL; digits=0))) Hz)"
+    ax1, ax2 = resultpanels!(gl; xlabel="Spin-lock offset / ppm", ylabel="R₁ρ / s⁻¹",
+                             title=title, xreversed=true, axiskw=axiskw)
+
+    vlines!(ax1, params_value.spin.delta; color=palettecolor(3), linestyle=:dash)
+    hlines!(ax1, [0.0]; color=:black, linewidth=0.5)
+    measured!(ax1, x, yobs; color=palettecolor(1))
+    lines!(ax1, x[sortidx], ypred[sortidx]; color=palettecolor(2), linewidth=1.5)
+
+    residualbands!(ax2)
+    vlines!(ax2, params_value.spin.delta; color=palettecolor(3), linestyle=:dash)
+    scatter!(ax2, x, wres; color=palettecolor(1), markersize=6)
+    ylims!(ax2, -maximum(abs, wres) * 1.2, maximum(abs, wres) * 1.2)
+    return ax1, ax2
 end

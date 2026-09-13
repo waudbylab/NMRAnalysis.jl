@@ -140,8 +140,8 @@ Save publication-quality plots for all peaks to a specified folder.
 
 ### Utility Functions
 - `bounds(mask)`: Calculate bounds from a mask
-- `peak_plot_data(peak, expt)`: Extract plotting data for a single peak
-- `plot_peak!(ax, peak, expt)`: Plot a single peak's data
+- `get_model_data(peak, expt)`: The observed and fitted series for a single peak
+- `plot_peak!(panel, peak, expt)`: Plot a single peak's data
 
 ## Implemented Experiment Types
 

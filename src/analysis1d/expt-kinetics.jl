@@ -15,6 +15,7 @@ interest interactively in the GUI (press `A`) rather than specifying them up fro
 """
 function kinetics1d(spec, times::AbstractVector; run=nothing, regions=nothing,
                     model::SeriesModel=NoFitting(), integration=nothing)
+    given = spec                       # the argument as written, for the reproduce line
     spec = loadspec(spec)
     vars = if isnothing(run)
         [(; time=Float64(times[i])) for i in eachindex(times)]
@@ -24,7 +25,7 @@ function kinetics1d(spec, times::AbstractVector; run=nothing, regions=nothing,
     ds = datasetfromspec(spec, vars)
     expt = isnothing(regions) ? KineticsExperiment(ds; model) :
            KineticsExperiment(ds; regions, model)
-    return run1d(expt; integration)
+    return run1d(expt; integration, call=analysiscall("kinetics1d", given, times; run))
 end
 
 # ---- 2. type ------------------------------------------------------------------

@@ -1,6 +1,7 @@
 function process_keyboardbutton(expt, state, event)
     @debug "keyboard event: $event"
     g = state[:gui][]
+    g[:toutput].focused[] && return Consume(false)
     if state[:mode][] == :normal && event.action == Keyboard.press
         if ispressed(g[:fig], Keyboard.a)
             pos = mouseposition(g[:axcontour])
@@ -65,13 +66,15 @@ function process_keyboardbutton(expt, state, event)
         return Consume(false)
     elseif state[:mode][] == :renaming || state[:mode][] == :renamingstart
         if event.action == Keyboard.press && event.key == Keyboard.enter
-            state[:current_peak][].label[] = strip(state[:current_peak][].label[][1:(end - 1)])
+            label = strip(state[:current_peak][].label[][1:(end - 1)])
+            state[:current_peak][].label[] = sanitizelabel(label)
             state[:mode][] = :normal
             notify(expt.peaks)
             return Consume()
         elseif event.action == Keyboard.press && event.key == Keyboard.backspace
             if length(state[:current_peak][].label[]) > 1
-                state[:current_peak][].label[] = state[:current_peak][].label[][1:(end - 2)] * "‸"
+                state[:current_peak][].label[] = state[:current_peak][].label[][1:(end - 2)] *
+                                                 "‸"
                 notify(expt.peaks)
                 return Consume()
             end
@@ -99,6 +102,7 @@ end
 
 function process_unicode_input(expt, state, character)
     @debug "Processing unicode input: $character"
+    state[:gui][][:toutput].focused[] && return Consume(false)
     if state[:mode][] == :renamingstart
         state[:mode][] = :renaming
         if character == 'r'
@@ -107,6 +111,8 @@ function process_unicode_input(expt, state, character)
         end
     end
     if state[:mode][] == :renaming
+        # peak labels are written unescaped into CSV cells, so a comma would corrupt the row
+        character == ',' && return Consume()
         state[:current_peak][].label[] = state[:current_peak][].label[][1:(end - 1)] *
                                          character * "‸"
         notify(expt.peaks)

@@ -23,7 +23,7 @@ function defaultparams(prob::ExchangeProblem)
                           model=defaultparams(prob.model),
                           spin=ComponentArray(; spin_pairs...),
                           nuisance=isempty(nuisance_pairs) ? ComponentArray() :
-                                   ComponentArray(; nuisance_pairs...),)
+                                   ComponentArray(; nuisance_pairs...))
 end
 
 """Collect pairs from all experiments, keeping the first occurrence of each key."""

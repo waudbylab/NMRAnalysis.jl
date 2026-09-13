@@ -71,8 +71,9 @@ cantrack(expt::MovingExperiment) = !(expt.model isa RDCModel)
 # learned displacement pattern. Generic moving peaks always walk; RDC only walks until a peak
 # has been fitted, after which new peaks copy the established offsets (addpeak! seeds from
 # average_displacements) so the user need not re-mark every plane.
-needsguidedadd(expt::MovingExperiment) =
-    !(expt.model isa RDCModel) || !any(p -> p.postfitted[], expt.peaks[])
+function needsguidedadd(expt::MovingExperiment)
+    return !(expt.model isa RDCModel) || !any(p -> p.postfitted[], expt.peaks[])
+end
 
 # Moving-peak spectra are normalised per plane by each plane's OWN noise level, so contour
 # levels and signal-to-noise are consistent even when the planes are different experiment
@@ -571,10 +572,11 @@ struct RDCModel <: FittingModel
     couplingdim::Type
     scale::Float64
     gammasign::Float64
+    components::Tuple{String,String}
 end
 
 """
-    rdc2d(; isotropic, aligned, coupling=nothing, scale=1)
+    rdc2d(; isotropic, aligned, components=("a","b"), coupling=nothing, scale=1)
 
 Interactive measurement of one-bond couplings and residual dipolar couplings from paired
 2D spectra. Supply the two doublet-component spectra (already combined, e.g. IPAP α/β, or
@@ -592,13 +594,15 @@ across the planes (T) or add and adjust by hand (A); the per-residue postfit the
 
 where `sep` is the position difference between the two components in the coupling dimension
 (converted to Hz). `scale` is 1 for IPAP and 0.5 for HSQC/TROSY (the separation is then half
-the coupling). `coupling` selects the dimension (`:F1`/`:F2`); it defaults to the
+the coupling). `components` names the two, for the `component` column of `series.csv`, e.g.
+`("TROSY", "anti-TROSY")`. `coupling` selects the dimension (`:F1`/`:F2`); it defaults to the
 heteronuclear dimension, and the sign is flipped automatically for ¹⁵N (so J ≈ −93 Hz). List
 the two components in the same order for both conditions; if J comes out with the wrong sign,
 swap the pair. Each component can also be given as a Bruker experiment number.
 """
-function rdc2d(; isotropic, aligned, coupling=nothing, scale=1.0)
-    length(isotropic) == 2 || error("`isotropic` must be two component spectra, e.g. [A, B]")
+function rdc2d(; isotropic, aligned, components=("a", "b"), coupling=nothing, scale=1.0)
+    length(isotropic) == 2 ||
+        error("`isotropic` must be two component spectra, e.g. [A, B]")
     length(aligned) == 2 || error("`aligned` must be two component spectra, e.g. [A, B]")
 
     files = string.([isotropic[1], isotropic[2], aligned[1], aligned[2]])
@@ -606,9 +610,11 @@ function rdc2d(; isotropic, aligned, coupling=nothing, scale=1.0)
     length(specdata.z) == 4 ||
         error("expected 4 single-plane spectra (got $(length(specdata.z))); each input must be a 2D spectrum")
 
+    length(components) == 2 || error("`components` must name the two doublet components")
     couplingdim = _resolve_coupling_dim(specdata, coupling)
     model = RDCModel((1, 2), (3, 4), couplingdim, Float64(scale),
-                     _gamma_sign(specdata, couplingdim))
+                     _gamma_sign(specdata, couplingdim),
+                     (String(components[1]), String(components[2])))
 
     peaks = Observable(Vector{Peak}())
     expt = MovingExperiment(specdata, peaks, model, nothing, CrossSectionVisualisation())
@@ -627,6 +633,22 @@ end
 # Sign factor for the coupling: negative for ¹⁵N (negative gyromagnetic ratio), else positive.
 function _gamma_sign(specdata, dim)
     return occursin("N", uppercase(string(label(specdata.nmrdata[1], dim)))) ? -1.0 : 1.0
+end
+
+# Four planes, two conditions × two doublet components, so `series.csv` needs both keys:
+# the plane index alone would not say which spectrum a row came from.
+function seriescoordinates(e::MovingExperiment, m::RDCModel)
+    n = nslices(e)
+    isaligned = fill(false, n)
+    component = fill("", n)
+    for (j, i) in enumerate(m.isotropic)
+        component[i] = m.components[j]
+    end
+    for (j, i) in enumerate(m.aligned)
+        isaligned[i] = true
+        component[i] = m.components[j]
+    end
+    return Pair{Symbol,Any}[:aligned => isaligned, :component => component]
 end
 
 function setup_post_parameters!(peak::Peak, ::RDCModel)
@@ -704,7 +726,8 @@ when `spec` carries no sample component metadata (e.g. a plane of a pseudo-3D da
 function sampleconcentrations(spec::NMRData)
     components = sample(spec, :sample, :components)
     isnothing(components) && return Dict{String,Float64}()
-    return Dict(c["name"] => c["concentration_or_amount"] for c in components
+    return Dict(c["name"] => c["concentration_or_amount"]
+                for c in components
                 if haskey(c, "name") && haskey(c, "concentration_or_amount"))
 end
 
@@ -749,12 +772,14 @@ function titrationconcentrations(nmrdata)
     # that otherwise carries sample metadata and still lacks one of the two assigned molecules is
     # very likely a mismatched or incomplete sample entry, so gets a warning rather than a silent
     # zero or silent fallback.
-    missingligand = [i for i in eachindex(concs)
-                      if length(concs[i]) > 1 && !haskey(concs[i], ligand)]
+    missingligand = [i
+                     for i in eachindex(concs)
+                     if length(concs[i]) > 1 && !haskey(concs[i], ligand)]
     isempty(missingligand) ||
         @warn "\"$ligand\" concentration is missing from sample metadata in " *
               "$(length(missingligand))/$(length(concs)) planes despite other components " *
-              "being defined:\n  " * join((nmrdata[i][:filename] for i in missingligand), "\n  ")
+              "being defined:\n  " *
+              join((nmrdata[i][:filename] for i in missingligand), "\n  ")
 
     missingprotein = [i for i in eachindex(concs) if !haskey(concs[i], protein)]
     if !isempty(missingprotein)
@@ -774,10 +799,10 @@ function titrationconcentrations(nmrdata)
 
     formatconc(v) = string(round(v; digits=4))
     tdata = hcat(string.(1:length(concs)), formatconc.(L0),
-                isnothing(P0) ? fill("—", length(concs)) : formatconc.(P0))
+                 isnothing(P0) ? fill("—", length(concs)) : formatconc.(P0))
     pretty_table(tdata; header=["Plane", "[$ligand] (L0)", "[$protein] (P0)"],
-                alignment=[:r, :r, :r], tf=tf_unicode_rounded, crop=:none,
-                header_crayon=Crayon(; bold=true))
+                 alignment=[:r, :r, :r], tf=tf_unicode_rounded, crop=:none,
+                 header_crayon=Crayon(; bold=true))
 
     return (L0, P0)
 end
@@ -859,8 +884,9 @@ function _fraction(Kd, Pt, L)
 end
 
 # Bound fraction in plane `i` of a titration experiment.
-boundfraction(model::TitrationModel, Lt, i, Kd) =
-    _fraction(Kd, isnothing(model.protein) ? nothing : model.protein[i], Lt[i])
+function boundfraction(model::TitrationModel, Lt, i, Kd)
+    return _fraction(Kd, isnothing(model.protein) ? nothing : model.protein[i], Lt[i])
+end
 
 # Weighted linear regression of `y` on `f`: returns (a, b) with model y ≈ a + b·f. `w` are
 # per-point weights. Used both inside the Kd search (variable projection) and to read off the
@@ -914,6 +940,9 @@ end
 # residual built from all residues and dimensions, then read off the linear parameters.
 postfitglobal!(expt::MovingExperiment) = postfitglobal!(expt, expt.model)
 postfitglobal!(::MovingExperiment, ::FittingModel) = nothing
+
+# Kd is fitted once across every peak, then copied onto each of them - see below.
+globalparams(::TitrationModel) = [:Kd]
 
 function postfitglobal!(expt::MovingExperiment, model::TitrationModel)
     peaks = [p for p in expt.peaks[] if p.postfitted[]]
@@ -986,8 +1015,9 @@ function _initial_kd(Lt)
     return isempty(nz) ? 1.0 : median(nz)
 end
 
-primaryparam(expt::MovingExperiment) =
-    expt.model isa RDCModel ? :D : expt.model isa TitrationModel ? :CSP : :amp
+function primaryparam(expt::MovingExperiment)
+    return expt.model isa RDCModel ? :D : expt.model isa TitrationModel ? :CSP : :amp
+end
 
 function addpeakhint(expt::MovingPeakExperiment)
     s = "Press (A) to add a peak, marking its position in each plane"
@@ -1073,8 +1103,11 @@ end
 Add the moving-peak overlays to the contour panel:
 - a faint polyline tracing each peak's fitted position across all planes (the trajectory),
   so the walk is visible at a glance;
-- a toggleable "Context" overlay drawing every plane's contours faintly behind the current
-  one, for orienting peaks that move a long way.
+- a toggleable "Context" overlay drawing every other plane's contours faintly behind the
+  current one, for orienting peaks that move a long way. Each plane gets its own colour
+  from a fixed rainbow sequence (plane 1 red, plane 2 orange, …) so the direction of travel
+  is visible at a glance; the current plane is excluded since it is already drawn, in full
+  colour, by the main contour plot.
 """
 function add_moving_overlays!(g, state, expt::MovingPeakExperiment)
     ax = g[:axcontour]
@@ -1124,22 +1157,23 @@ function add_moving_overlays!(g, state, expt::MovingPeakExperiment)
                                color=:darkorange)
     translate!(g[:pltaddmarks], 0, 0, 11)
 
-    # --- faint context: every plane's contours ---
+    # --- faint context: every other plane's contours, in a rainbow sequence ---
     # Drawn above the (opaque white) mask heatmap so they remain visible; the small positive z
     # keeps them under the peak markers and trajectory. The "Show all" toggle widget is created
     # in gui! (just left of the Fitting toggle, active by default); here we attach its plots and
-    # handler, with the initial visibility matching the toggle's starting state.
+    # handler. `:rainbow` runs violet→red with increasing index, so it is reversed to give plane
+    # 1 red, matching the "first spectrum red, last violet" convention requested for this view.
+    planecolours = reverse(cgrad(:rainbow, max(nslices(expt), 2); categorical=true))
     g[:pltotherplanes] = map(1:nslices(expt)) do i
+        c = planecolours[i]
+        colour = RGBAf(c.r, c.g, c.b, 0.225)
+        visible = lift(g[:toggleother].active, state[:current_slice]) do active, current
+            return active && i != current
+        end
         p = contour!(ax, expt.specdata.x[i], expt.specdata.y[i], expt.specdata.z[i];
-                     levels=g[:contourlevels], color=(:grey60, 0.3),
-                     visible=g[:toggleother].active[])
+                     levels=g[:contourlevels], color=colour, visible=visible)
         translate!(p, 0, 0, 1)
         return p
-    end
-    on(g[:toggleother].active) do active
-        for p in g[:pltotherplanes]
-            p.visible[] = active
-        end
     end
 
     return nothing
@@ -1302,7 +1336,8 @@ function _titration_curve(model::TitrationModel, Lt, Kd, δfree, δbound; npts=1
         o = sortperm(Lt)
         [_lininterp(Lt[o], model.protein[o], g) for g in grid]
     end
-    return [Point2f(g, _fraction(Kd, isnothing(Pg) ? nothing : Pg[k], g) * (δbound - δfree))
+    return [Point2f(g,
+                    _fraction(Kd, isnothing(Pg) ? nothing : Pg[k], g) * (δbound - δfree))
             for (k, g) in enumerate(grid)]
 end
 
@@ -1344,7 +1379,8 @@ function get_titration_data(peak, expt::MovingExperiment)
 end
 
 function completestate!(state, expt::MovingExperiment, ::TitrationVisualisation)
-    state[:peak_plot_data] = lift(peak -> get_titration_data(peak, expt), state[:current_peak])
+    state[:peak_plot_data] = lift(peak -> get_titration_data(peak, expt),
+                                  state[:current_peak])
     state[:peak_plot_obsX] = lift(d -> d[1], state[:peak_plot_data])
     state[:peak_plot_obsY] = lift(d -> d[2], state[:peak_plot_data])
     state[:peak_plot_fitX] = lift(d -> d[3], state[:peak_plot_data])

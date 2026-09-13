@@ -1,6 +1,28 @@
 nearest(A::AbstractArray, t) = findmin(abs.(A .- t))[1]
 findnearest(A::AbstractArray, t) = findmin(abs.(A .- t))[2]
 
+validatetextbox(s, validator::Function) = validator(s)
+validatetextbox(s, ::Type{T}) where {T} = !isnothing(tryparse(T, s))
+function validatetextbox(s, validator::Regex)
+    return (m=match(validator, s); !isnothing(m) && m.match == s)
+end
+
+"""
+    commitondefocus!(tb::Textbox)
+
+Commit `tb`'s displayed text to `stored_string` when it loses focus. Makie's `Textbox`
+only commits on Enter; clicking away otherwise leaves the typed text on screen without
+ever applying it to `stored_string` (and hence to whatever listens on it).
+"""
+function commitondefocus!(tb)
+    on(tb.focused) do focused
+        focused && return
+        s = tb.displayed_string[]
+        return validatetextbox(s, tb.validator[]) && (tb.stored_string[] = s)
+    end
+    return tb
+end
+
 """
     asexptpath(x)
 
@@ -115,8 +137,10 @@ function parse_label(label)::ResidueLabel
     return ResidueLabel(resnum, code, atom)
 end
 
-first_letter_or_unknown(label) = (p = findfirst(isletter, label);
-                                  isnothing(p) ? '?' : label[p])
+function first_letter_or_unknown(label)
+    return (p=findfirst(isletter, label);
+            isnothing(p) ? '?' : label[p])
+end
 
 """
     extract_residue_number(label)::Int

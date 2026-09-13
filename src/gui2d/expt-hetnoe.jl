@@ -43,8 +43,11 @@ function hetnoe2d(planeexptnos::AbstractVector{<:Integer}, saturationlist)
     return hetnoe2d(string.(planeexptnos), saturationlist)
 end
 
-hetnoe2d(reference::Integer, saturated::Integer) = hetnoe2d(string(reference), string(saturated))
-function hetnoe2d(reference::AbstractVector{<:Integer}, saturated::AbstractVector{<:Integer})
+function hetnoe2d(reference::Integer, saturated::Integer)
+    return hetnoe2d(string(reference), string(saturated))
+end
+function hetnoe2d(reference::AbstractVector{<:Integer},
+                  saturated::AbstractVector{<:Integer})
     return hetnoe2d(string.(reference), string.(saturated))
 end
 

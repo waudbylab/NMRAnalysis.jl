@@ -3,33 +3,34 @@ visualisationtype(::Experiment) = CrossSectionVisualisation()
 
 # Plotting functions dispatch on the visualization trait
 function plot_peak!(panel, peak, expt::Experiment)
-    plot_peak!(panel, peak, expt, visualisationtype(expt))
+    return plot_peak!(panel, peak, expt, visualisationtype(expt))
 end
 
 function makepeakplot!(gui, state, expt::Experiment)
-    makepeakplot!(gui, state, expt, visualisationtype(expt))
+    return makepeakplot!(gui, state, expt, visualisationtype(expt))
 end
 
 function completestate!(state, expt::Experiment)
-    completestate!(state, expt, visualisationtype(expt))
+    return completestate!(state, expt, visualisationtype(expt))
 end
 
 function get_model_data(peak, expt::Experiment)
-    error("get_model_data not implemented for $(typeof(expt))")
+    return error("get_model_data not implemented for $(typeof(expt))")
 end
 
-function save_peak_plots!(expt::E, folder::AbstractString) where E <: Experiment
+# One plot per peak, in `peaks/` and sharing its basename with that peak's CSV so the data
+# behind a plot sits beside it (see docs/src/advanced/conventions.md). The label is
+# sanitised because a peak can be renamed to anything at all, including a path separator.
+function save_peak_plots!(expt::E, folder::AbstractString) where {E<:Experiment}
     CairoMakie.activate!()
-    
+    peakfolder = mkpath(joinpath(folder, "peaks"))
     for peak in expt.peaks[]
         fig = Figure()
         plot_peak!(fig, peak, expt)  # Uses the trait-based plot_peak! we defined
-        save(joinpath(folder, "peak_$(peak.label[]).pdf"), fig)
+        save(joinpath(peakfolder, "$(safename(peak.label[])).pdf"), fig)
     end
-    
-    GLMakie.activate!()
+    return GLMakie.activate!()
 end
-
 
 ## Cross-section visualisation
 
@@ -43,7 +44,8 @@ function get_cross_section_data(peak, expt::Experiment)
         return (Point2f[], Point2f[], Point2f[], Point2f[])
     end
 
-    xobs, yobs, xfit, yfit = Vector{Point2f}[], Vector{Point2f}[], Vector{Point2f}[], Vector{Point2f}[]
+    xobs, yobs, xfit, yfit = Vector{Point2f}[], Vector{Point2f}[], Vector{Point2f}[],
+                             Vector{Point2f}[]
 
     for i in 1:nslices(expt)
         x = expt.specdata.x[i]
@@ -65,7 +67,7 @@ function get_cross_section_data(peak, expt::Experiment)
         push!(xfit, Point2f.(x[ix], s .* expt.specdata.zfit[][i][ix, iy0]))
         push!(yfit, Point2f.(y[iy], s .* expt.specdata.zfit[][i][ix0, iy]))
     end
-    
+
     return (flatten_with_nan_separator(xobs),
             flatten_with_nan_separator(yobs),
             flatten_with_nan_separator(xfit),
@@ -86,39 +88,41 @@ function makepeakplot!(gui, state, expt, ::CrossSectionVisualisation)
     lines!(axX, state[:peak_plot_xfit]; color=:red)
     hlines!(axY, [0]; color=:grey50, linewidth=1)
     scatterlines!(axY, state[:peak_plot_yobs])
-    lines!(axY, state[:peak_plot_yfit]; color=:red)
+    return lines!(axY, state[:peak_plot_yfit]; color=:red)
 end
 
 function plot_peak!(panel, peak, expt, ::CrossSectionVisualisation)
     xobs, yobs, xfit, yfit = get_cross_section_data(peak, expt)
-    
-    axX = Axis(panel[1, 1], xlabel="δX / ppm", xreversed=true)
-    axY = Axis(panel[1, 2], xlabel="δY / ppm", xreversed=true)
-    
+
+    axX = Axis(panel[1, 1]; xlabel="δX / ppm", xreversed=true)
+    axY = Axis(panel[1, 2]; xlabel="δY / ppm", xreversed=true)
+
     hlines!(axX, [0]; color=:grey50, linewidth=1)
     scatterlines!(axX, xobs)
     lines!(axX, xfit; color=:red)
     hlines!(axY, [0]; color=:grey50, linewidth=1)
     scatterlines!(axY, yobs)
-    lines!(axY, yfit; color=:red)
+    return lines!(axY, yfit; color=:red)
 end
 
-function completestate!(state, expt, ::CrossSectionVisualisation)\
+function completestate!(state, expt, ::CrossSectionVisualisation)
+    \
     @debug "completing state for cross section visualisation"
-    state[:peak_plot_data] = lift(peak -> get_cross_section_data(peak, expt), state[:current_peak])
+    state[:peak_plot_data] = lift(peak -> get_cross_section_data(peak, expt),
+                                  state[:current_peak])
     state[:peak_plot_xobs] = lift(d -> d[1], state[:peak_plot_data])
     state[:peak_plot_yobs] = lift(d -> d[2], state[:peak_plot_data])
     state[:peak_plot_xfit] = lift(d -> d[3], state[:peak_plot_data])
-    state[:peak_plot_yfit] = lift(d -> d[4], state[:peak_plot_data])
+    return state[:peak_plot_yfit] = lift(d -> d[4], state[:peak_plot_data])
 end
-
 
 ## Model fit visualisation
 
 function plot_peak!(panel, peak, expt, ::ModelFitVisualisation)
-    obs_points, obs_errors, fit_points, skip_points, skip_errors = get_model_data(peak, expt)
+    obs_points, obs_errors, fit_points, skip_points, skip_errors = get_model_data(peak,
+                                                                                  expt)
 
-    ax = Axis(panel[1, 1],
+    ax = Axis(panel[1, 1];
               xlabel=get_model_xlabel(expt),
               ylabel=get_model_ylabel(expt))
 
@@ -136,11 +140,11 @@ end
 function completestate!(state, expt, ::ModelFitVisualisation)
     @debug "completing state for model fit visualisation"
     state[:peak_plot_data] = lift(peak -> get_model_data(peak, expt), state[:current_peak])
-    state[:peak_plot_obs]         = lift(d -> d[1], state[:peak_plot_data])
-    state[:peak_plot_err]         = lift(d -> d[2], state[:peak_plot_data])
-    state[:peak_plot_fit]         = lift(d -> d[3], state[:peak_plot_data])
-    state[:peak_plot_skip_obs]    = lift(d -> d[4], state[:peak_plot_data])
-    state[:peak_plot_skip_err]    = lift(d -> d[5], state[:peak_plot_data])
+    state[:peak_plot_obs] = lift(d -> d[1], state[:peak_plot_data])
+    state[:peak_plot_err] = lift(d -> d[2], state[:peak_plot_data])
+    state[:peak_plot_fit] = lift(d -> d[3], state[:peak_plot_data])
+    state[:peak_plot_skip_obs] = lift(d -> d[4], state[:peak_plot_data])
+    return state[:peak_plot_skip_err] = lift(d -> d[5], state[:peak_plot_data])
 end
 
 function makepeakplot!(gui, state, expt, ::ModelFitVisualisation)
@@ -155,8 +159,8 @@ function makepeakplot!(gui, state, expt, ::ModelFitVisualisation)
     scatter!(ax, state[:peak_plot_obs])
     # Skipped planes: open grey markers
     errorbars!(ax, state[:peak_plot_skip_err]; whiskerwidth=10, color=:gray60)
-    scatter!(ax, state[:peak_plot_skip_obs]; color=:transparent, strokecolor=:gray60,
-             strokewidth=1.5, markersize=8)
+    return scatter!(ax, state[:peak_plot_skip_obs]; color=:transparent, strokecolor=:gray60,
+                    strokewidth=1.5, markersize=8)
 end
 
 get_model_xlabel(::Experiment) = "x"
