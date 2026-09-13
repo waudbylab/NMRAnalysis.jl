@@ -56,6 +56,16 @@ function stepslice!(sl, nplanes, delta)
     return (1 ≤ i ≤ nplanes) && set_close_to!(sl, i)
 end
 
+"""Close the GUI window, deferred so the click/keypress event finishes first (matches
+GUI2D's `quit!`) - calling `GLMakie.closeall()` synchronously from inside the renderloop's
+own event callback tears down the GL context while it is still being polled."""
+function quit!()
+    return @async begin
+        sleep(0.05)
+        GLMakie.closeall()
+    end
+end
+
 """
     gui!(expt::Experiment1D; call=nothing)
 
@@ -75,6 +85,7 @@ window closes.
 - Left/Right arrows: step through spectra.
 - Up/Down arrows: scale the spectrum's y-axis (×2 / ÷2).
 - Shift+scroll: resize the active region, about its own centre.
+- `Q`: close the window.
 """
 function gui!(expt::Experiment1D; call=nothing)
     # the analysis type is already shown as a large bold label inside the window, so the
@@ -275,6 +286,8 @@ function gui!(expt::Experiment1D; call=nothing)
     gui[:togglefit] = fitrow[1, 1] = Toggle(fig; active=true)
     fitrow[1, 2] = Label(fig, "Fitting")
     connect!(state[:isfitting], gui[:togglefit].active)
+    btnquit = fitrow[1, 3] = Button(fig; label="(Q)uit")
+    on(_ -> quit!(), btnquit.clicks)
     fittingrow = r  # extra gap added below this row, once later rows exist to gap against
 
     # The whole info panel - active region, its bounds, the fit and its derived
@@ -488,8 +501,8 @@ function setupmouse!(fig, ax, state)
 end
 
 """Wire keyboard shortcuts: A to add a region (tap or drag), R to rename, D to delete,
-Left/Right to step through spectra, Up/Down to scale the spectrum's y-axis, matching the
-2D fitting GUI's key bindings."""
+Left/Right to step through spectra, Up/Down to scale the spectrum's y-axis, Q to quit,
+matching the 2D fitting GUI's key bindings."""
 function setupkeyboard!(fig, ax, state)
     defaultwidth = defaultregionwidth(first(state[:planes].traces).δ)
     on(events(fig).keyboardbutton; priority=2) do ev
@@ -519,6 +532,9 @@ function setupkeyboard!(fig, ax, state)
                 return Consume(true)
             elseif ev.key == Keyboard.down
                 scaleyaxis!(ax, 0.5)
+                return Consume(true)
+            elseif ev.key == Keyboard.q
+                quit!()
                 return Consume(true)
             end
         elseif mode == :addingdrag

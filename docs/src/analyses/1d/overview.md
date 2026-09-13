@@ -111,6 +111,7 @@ with no signal in any spectrum.
 | `D` | Delete the selected region |
 | `←` `→` | Step through the spectra |
 | `↑` `↓` | Double or halve the vertical scale |
+| `Q` | Close the window |
 
 The background turns yellow while you are dragging out a new region, and blue while you
 are typing a name. Press escape to cancel a rename.
@@ -123,6 +124,7 @@ are typing a name. Press escape to cancel a rename.
 | **←**, **→**, slider | Step through the spectra |
 | **(R)ename**, **(D)elete** | The same as the keys, for the selected region |
 | **Fitting** | Turn fitting off to look at the raw integrals alone |
+| **(Q)uit** | Close the window |
 | **Save** | Write every output file to the output folder |
 | **Load** | Restore the regions saved in that folder by an earlier session |
 
