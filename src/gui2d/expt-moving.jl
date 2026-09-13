@@ -1115,11 +1115,13 @@ function add_moving_overlays!(g, state, expt::MovingPeakExperiment)
     # --- per-peak position trajectories across all planes ---
     # One flat point list with NaN separators between peaks, so a single lines! call draws
     # every trajectory as disconnected segments, plus matching per-vertex dots. Colours mirror
-    # the peak markers: touched/unfitted → red, fitted → pale blue, selected → lime. The fitted
-    # colour is kept light so a busy peak list doesn't turn into a solid-blue tangle. Concrete
-    # RGBAf values are used (a Vector{Symbol} colour is not honoured by lines!).
+    # the peak markers: touched/unfitted → red, fitted → pale blue, selected → lime. Non-selected
+    # trajectories are drawn at reduced alpha so the selected peak's path stands out and a busy
+    # peak list doesn't turn into a solid tangle. Concrete RGBAf values are used (a Vector{Symbol}
+    # colour is not honoured by lines!).
     statuscolour(j, sel, touched) = j == sel ? RGBAf(0, 1, 0, 1) :
-                                    touched ? RGBAf(1, 0, 0, 1) : RGBAf(0.7, 0.8, 1, 1)
+                                    touched ? RGBAf(1, 0, 0, 0.45) :
+                                    RGBAf(0.7, 0.8, 1, 0.45)
     # Single source of truth, recomputed whenever the peaks (positions/fit status) or the
     # selection change; the points and colours derive from it so they stay length-consistent.
     state[:trajectorydata] = lift(expt.peaks, state[:current_peak_idx]) do peaks, sel

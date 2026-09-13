@@ -2,7 +2,7 @@ function preparestate(expt::Experiment)
     @debug "Preparing state"
     state = Dict{Symbol,Observable}()
 
-    state[:mode] = Observable(:normal) # options = :normal, :renaming, :renamingstart, :moving, :fitting
+    state[:mode] = Observable(:normal) # options = :normal, :renaming, :renamingstart, :moving, :fitting, :saving
 
     # Background-fit control. :fit_generation is bumped whenever the fit inputs change (peaks,
     # radii, fitting toggled off, window closed); an in-flight fit checks it and aborts if it no

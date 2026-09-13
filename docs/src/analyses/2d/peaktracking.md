@@ -44,8 +44,8 @@ plane does not disturb the others.
 
 - Each peak's **trajectory** across the planes is drawn as a coloured polyline (red = needs
   fitting, blue = fitted, green = selected).
-- The **Show all** toggle overlays every plane's contours faintly, for context when a peak
-  moves a long way.
+- The **(S)how all** toggle (also bound to `s`) overlays every plane's contours faintly, for
+  context when a peak moves a long way.
 
 ## Output
 

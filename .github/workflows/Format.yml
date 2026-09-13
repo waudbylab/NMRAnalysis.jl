@@ -1,5 +1,8 @@
-# Fails when the tree is not what JuliaFormatter would produce, and prints the diff so the
-# failure says what to change. Run `using JuliaFormatter; format(".")` to fix.
+# On a same-repo pull request, formats the tree and pushes a fixup commit back to the PR
+# branch instead of just failing. Forked-repo PRs and direct pushes to main can't be
+# auto-fixed this way (no push access to a fork; a bot commit straight to main would be a
+# surprise), so those just fail with the diff printed, as before. Run
+# `using JuliaFormatter; format(".")` locally to fix.
 name: Format
 
 on:
@@ -8,11 +11,19 @@ on:
       - main
   pull_request:
 
+concurrency:
+  group: format-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   format:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref }}
       - uses: julia-actions/setup-julia@v2
         with:
           version: '1'
@@ -21,8 +32,13 @@ jobs:
         run: julia -e 'using Pkg; Pkg.add("JuliaFormatter")'
       # The style ("yas") comes from .JuliaFormatter.toml, so both this and a local run
       # read the same configuration.
-      - name: Check formatting
-        run: julia -e 'using JuliaFormatter; exit(format(".") ? 0 : 1)'
-      - name: Show what would change
-        if: failure()
-        run: git --no-pager diff
+      - name: Format
+        run: julia -e 'using JuliaFormatter; format(".")'
+      - name: Commit formatting fixes
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Apply JuliaFormatter"
+      - name: Fail if formatting was needed
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+        run: git --no-pager diff --exit-code

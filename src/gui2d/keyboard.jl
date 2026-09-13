@@ -49,6 +49,10 @@ function process_keyboardbutton(expt, state, event)
                 i += 1
                 set_close_to!(state[:gui][][:sliderslice], i)
             end
+        elseif ispressed(g[:fig], Keyboard.s) && haskey(g, :toggleother)
+            g[:toggleother].active[] = !g[:toggleother].active[]
+        elseif ispressed(g[:fig], Keyboard.q)
+            quit!()
         end
     elseif state[:mode][] == :adding
         if event.action == Keyboard.press
@@ -96,6 +100,9 @@ function process_keyboardbutton(expt, state, event)
             state[:mode][] = :normal
             return Consume()
         end
+        return Consume(false)
+    elseif state[:mode][] == :saving
+        # a save cannot be cancelled mid-write, so swallow every key until it finishes
         return Consume(false)
     end
 end
