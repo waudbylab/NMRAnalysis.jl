@@ -13,6 +13,28 @@ const ADD_TAP_THRESHOLD = 0.005
 # own auto-sizing. Generous for the theme's default 14pt font rather than exact.
 const PANEL_LINE_HEIGHT = 20
 
+validatetextbox(s, validator::Function) = validator(s)
+validatetextbox(s, ::Type{T}) where {T} = !isnothing(tryparse(T, s))
+function validatetextbox(s, validator::Regex)
+    return (m=match(validator, s); !isnothing(m) && m.match == s)
+end
+
+"""
+    commitondefocus!(tb::Textbox)
+
+Commit `tb`'s displayed text to `stored_string` when it loses focus. Makie's `Textbox`
+only commits on Enter; clicking away otherwise leaves the typed text on screen without
+ever applying it to `stored_string` (and hence to whatever listens on it).
+"""
+function commitondefocus!(tb)
+    on(tb.focused) do focused
+        focused && return
+        s = tb.displayed_string[]
+        return validatetextbox(s, tb.validator[]) && (tb.stored_string[] = s)
+    end
+    return tb
+end
+
 """Scale the spectrum axis's y-view by `factor` - `factor=2` makes peaks look twice as
 tall (divides both bounds by 2, i.e. halves the range), `factor=0.5` half as tall
 (doubles the range). Scales `ymin`/`ymax` directly rather than re-centring on the
@@ -225,6 +247,7 @@ function gui!(expt::Experiment1D; call=nothing)
     on(tout.stored_string) do s
         return state[:outputdir][] = isempty(strip(s)) ? "out" : strip(s)
     end
+    commitondefocus!(tout)
     btnsave = outputrow[1, 2] = Button(fig; label="Save")
     on(btnsave.clicks) do _
         return saveresults(state)
@@ -558,6 +581,7 @@ function ppmbox!(fig, parent, row, col, obs; digits=3, boxwidth=90)
                                     validator=Float64, width=boxwidth)
     on(str -> obs[] = parse(Float64, str), tb.stored_string)
     on(v -> tb.displayed_string[] = string(round(v; digits)), obs)
+    commitondefocus!(tb)
     return tb
 end
 

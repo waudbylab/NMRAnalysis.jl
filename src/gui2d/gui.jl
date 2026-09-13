@@ -121,6 +121,7 @@ function gui!(expt::Experiment)
     on(g[:toutput].stored_string) do s
         return expt.state[][:outputdir][] = isempty(strip(s)) ? "out" : strip(s)
     end
+    commitondefocus!(g[:toutput])
     g[:cmdsave] = Button(g[:fig]; label="Save")
     outputrow[1, 2] = g[:cmdsave]
     g[:cmdrename] = Button(g[:panelinfo][3, 1]; label="(R)ename peak")

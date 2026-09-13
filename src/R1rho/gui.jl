@@ -1,3 +1,25 @@
+validatetextbox(s, validator::Function) = validator(s)
+validatetextbox(s, ::Type{T}) where {T} = !isnothing(tryparse(T, s))
+function validatetextbox(s, validator::Regex)
+    return (m=match(validator, s); !isnothing(m) && m.match == s)
+end
+
+"""
+    commitondefocus!(tb::Textbox)
+
+Commit `tb`'s displayed text to `stored_string` when it loses focus. Makie's `Textbox`
+only commits on Enter; clicking away otherwise leaves the typed text on screen without
+ever applying it to `stored_string` (and hence to whatever listens on it).
+"""
+function commitondefocus!(tb)
+    on(tb.focused) do focused
+        focused && return
+        s = tb.displayed_string[]
+        return validatetextbox(s, tb.validator[]) && (tb.stored_string[] = s)
+    end
+    return tb
+end
+
 function gui!(state)
     state[:gui] = Dict{Symbol,Any}()
     gui = state[:gui]
@@ -63,6 +85,7 @@ function gui!(state)
     on(text_peakppm.stored_string) do s
         return state[:peakppm][] = parse(Float64, s)
     end
+    commitondefocus!(text_peakppm)
 
     input_panel[4, 1] = Label(fig, "Noise position (ppm):")
     text_noiseppm = input_panel[4, 2:3] = Textbox(fig;
@@ -74,6 +97,7 @@ function gui!(state)
     on(text_noiseppm.stored_string) do s
         return state[:noiseppm][] = parse(Float64, s)
     end
+    commitondefocus!(text_noiseppm)
 
     input_panel[2, 1] = Label(fig, "Integration width (ppm):")
     text_dx = input_panel[2, 2] = Textbox(fig;
@@ -85,6 +109,7 @@ function gui!(state)
     on(text_dx.stored_string) do s
         return state[:dx][] = parse(Float64, s)
     end
+    commitondefocus!(text_dx)
     button_optimisewidth = input_panel[2, 3] = Button(fig; label="Optimise")
     on(button_optimisewidth.clicks) do _
         optimisewidth!(state)
@@ -101,6 +126,7 @@ function gui!(state)
     on(text_I0.stored_string) do s
         return state[:initialI0][] = parse(Float64, s)
     end
+    commitondefocus!(text_I0)
     on(state[:intensities]) do I
         state[:initialI0][] = I[1]
         return text_I0.displayed_string[] = string(round(I[1]; digits=1))
@@ -116,6 +142,7 @@ function gui!(state)
     on(text_R20.stored_string) do s
         return state[:initialR20][] = parse(Float64, s)
     end
+    commitondefocus!(text_R20)
 
     input_panel[7, 1] = Label(fig, "Initial Rex (s⁻¹):")
     text_Rex = input_panel[7, 2:3] = Textbox(fig;
@@ -127,6 +154,7 @@ function gui!(state)
     on(text_Rex.stored_string) do s
         return state[:initialRex][] = parse(Float64, s)
     end
+    commitondefocus!(text_Rex)
 
     input_panel[8, 1] = Label(fig, "Initial kex (s⁻¹):")
     text_kex = input_panel[8, 2:3] = Textbox(fig;
@@ -138,6 +166,7 @@ function gui!(state)
     on(text_kex.stored_string) do s
         return state[:initiallnk][] = log(parse(Float64, s))
     end
+    commitondefocus!(text_kex)
 
     input_panel[9, 1] = Label(fig, "Δδ stdev (ppm):")
     text_σΔδ = input_panel[9, 2:3] = Textbox(fig;
@@ -149,6 +178,7 @@ function gui!(state)
     on(text_σΔδ.stored_string) do s
         return state[:σΔδ][] = parse(Float64, s)
     end
+    commitondefocus!(text_σΔδ)
 
     gui[:fitplottitle] = lift(state[:currentseries]) do i
         return "Peak integrals (νSL = $(round(0.001*νSL(state[:dataset])[i],digits=2)) kHz)"
@@ -248,6 +278,7 @@ function gui!(state)
     on(text_out.stored_string) do s
         return state[:outputdir][] = isempty(strip(s)) ? "out" : strip(s)
     end
+    commitondefocus!(text_out)
     button_save = results_panel[4, 1:2] = Button(fig; label="Save results")
     on(button_save.clicks) do _
         return savefig!(state)
