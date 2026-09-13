@@ -66,7 +66,8 @@ function process_keyboardbutton(expt, state, event)
         return Consume(false)
     elseif state[:mode][] == :renaming || state[:mode][] == :renamingstart
         if event.action == Keyboard.press && event.key == Keyboard.enter
-            state[:current_peak][].label[] = strip(state[:current_peak][].label[][1:(end - 1)])
+            label = strip(state[:current_peak][].label[][1:(end - 1)])
+            state[:current_peak][].label[] = sanitizelabel(label)
             state[:mode][] = :normal
             notify(expt.peaks)
             return Consume()
@@ -110,6 +111,8 @@ function process_unicode_input(expt, state, character)
         end
     end
     if state[:mode][] == :renaming
+        # peak labels are written unescaped into CSV cells, so a comma would corrupt the row
+        character == ',' && return Consume()
         state[:current_peak][].label[] = state[:current_peak][].label[][1:(end - 1)] *
                                          character * "‸"
         notify(expt.peaks)

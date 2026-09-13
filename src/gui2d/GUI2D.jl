@@ -14,8 +14,8 @@ using REPL.TerminalMenus
 using Statistics
 using ..MaybeVectorModule
 # shared output rules - see src/output.jl and docs/src/advanced/conventions.md
-using ..NMRAnalysis: csvcolumn, csvcolumns, csvvalue, safename, backupfile, backupfolder,
-                     writetable
+using ..NMRAnalysis: csvcolumn, csvcolumns, csvvalue, safename, sanitizelabel, backupfile,
+                     backupfolder, writetable
 
 include("util.jl")
 include("types.jl")

@@ -46,6 +46,14 @@ function safename(label::AbstractString)
 end
 
 """
+    sanitizelabel(label) -> String
+
+Strip commas from a user-entered region or peak label. Labels are written unescaped into
+CSV cells (see [`writetable`](@ref)), so a comma in one would corrupt the row.
+"""
+sanitizelabel(label::AbstractString) = replace(String(label), "," => "")
+
+"""
     backupfile(filepath)
 
 Rename an existing file to `<name>.bak`, so a save never silently destroys the last one.

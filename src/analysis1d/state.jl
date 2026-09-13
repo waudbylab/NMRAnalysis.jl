@@ -158,11 +158,22 @@ function setregionwidth!(state, i, w)
     return state[:regions][] = rs
 end
 
+"""
+Strip commas (region labels are written unescaped into CSV cells) and rename the reserved
+noise marker (see [`NOISE_LABEL`](@ref)) to `noise_`, so a signal region can never be
+mistaken for it.
+"""
+function sanitizeregionlabel(label)
+    label = sanitizelabel(label)
+    lowercase(label) == NOISE_LABEL && (label *= "_")
+    return label
+end
+
 function setactivelabel!(state, label)
     i = state[:active][]
     (1 ≤ i ≤ length(state[:regions][])) || return
     rs = copy(state[:regions][])
-    rs[i] = Region(label, rs[i].lo, rs[i].hi)
+    rs[i] = Region(sanitizeregionlabel(label), rs[i].lo, rs[i].hi)
     return state[:regions][] = rs
 end
 
