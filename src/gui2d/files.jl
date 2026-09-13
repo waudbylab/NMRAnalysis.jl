@@ -106,8 +106,8 @@ end
 function setradius!(expt, dim, value)
     g = get(expt.state[], :gui, nothing)
     g = g isa Observable ? g[] : g
-    if g isa AbstractDict && haskey(g, :sgradii)
-        slider = dim === :x ? g[:sgradii].sliders[1] : g[:sgradii].sliders[2]
+    if g isa AbstractDict && haskey(g, :sgradiix)
+        slider = dim === :x ? g[:sgradiix].sliders[1] : g[:sgradiiy].sliders[1]
         set_close_to!(slider, value)
     else
         (dim === :x ? expt.xradius : expt.yradius)[] = value

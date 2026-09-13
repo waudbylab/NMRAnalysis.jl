@@ -17,10 +17,13 @@ function gui!(expt::Experiment)
     g[:panelcontour] = g[:fig][2:3, 1] = GridLayout()
     g[:panelinfo] = g[:fig][2, 2] = GridLayout()
     g[:panelpeakplot] = g[:fig][3, 2] = GridLayout()
+
     rowsize!(g[:fig].layout, 1, Auto(true))
-    rowsize!(g[:fig].layout, 2, Auto(false, 1))
+    # Row 2 (info panel: buttons, hint, radius sliders) is sized to its own content so it
+    # never gets squeezed; row 3 (peak plot) takes whatever height is left.
+    rowsize!(g[:fig].layout, 2, Auto(true))
     rowsize!(g[:fig].layout, 3, Auto(false, 1))
-    colsize!(g[:fig].layout, 1, Auto(false, 2))
+    colsize!(g[:fig].layout, 1, Auto(false, 1.6))
     colsize!(g[:fig].layout, 2, Auto(false, 1))
 
     # top panel
@@ -31,6 +34,7 @@ function gui!(expt::Experiment)
     g[:cmdsliceleft] = Button(g[:paneltop][1, 5]; label="←")
     g[:cmdsliceright] = Button(g[:paneltop][1, 6]; label="→")
     g[:slicelabel] = Label(g[:paneltop][1, 7], state[:current_slice_label])
+
     # Moving-peak experiments get a "Show all" planes toggle just left of the Fitting toggle.
     # The toggle's plots and handler are wired up later in add_moving_overlays!.
     col = 8
@@ -124,16 +128,20 @@ function gui!(expt::Experiment)
     commitondefocus!(g[:toutput])
     g[:cmdsave] = Button(g[:fig]; label="Save")
     outputrow[1, 2] = g[:cmdsave]
-    g[:cmdrename] = Button(g[:panelinfo][3, 1]; label="(R)ename peak")
-    g[:cmddelete] = Button(g[:panelinfo][3, 2]; label="(D)elete peak")
-    Label(g[:panelinfo][4, 1:2], addpeakhint(expt); word_wrap=true)
-    g[:sgradii] = SliderGrid(g[:panelinfo][5, 1:2],
-                             (label="X radius", range=0.02:0.005:0.1, format="{:.3f} ppm",
-                              startvalue=expt.xradius[]),
-                             (label="Y radius", range=0.1:0.02:0.8, format="{:.2f} ppm",
-                              startvalue=expt.yradius[])) # width = 350, tellheight = false)
-    g[:sliderxradius] = g[:sgradii].sliders[1].value
-    g[:slideryradius] = g[:sgradii].sliders[2].value
+    Label(g[:panelinfo][3, 1:2], addpeakhint(expt); word_wrap=true)
+    g[:cmdrename] = Button(g[:panelinfo][4, 1]; label="(R)ename peak")
+    g[:cmddelete] = Button(g[:panelinfo][4, 2]; label="(D)elete peak")
+    # A SliderGrid's slider column only expands into space its container already has, so
+    # left to auto-size it collapses to a token width; giving it an explicit width is what
+    # makes the track usable.
+    g[:sgradiix] = SliderGrid(g[:panelinfo][5, 1],
+                              (label="X radius", range=0.02:0.005:0.1, format="{:.3f} ppm",
+                               startvalue=expt.xradius[]); width=210)
+    g[:sgradiiy] = SliderGrid(g[:panelinfo][5, 2],
+                              (label="Y radius", range=0.1:0.02:0.8, format="{:.2f} ppm",
+                               startvalue=expt.yradius[]); width=210)
+    g[:sliderxradius] = g[:sgradiix].sliders[1].value
+    g[:slideryradius] = g[:sgradiiy].sliders[1].value
 
     g[:infotext] = Label(g[:panelinfo][6, 1:2], state[:current_peak_info])
 
