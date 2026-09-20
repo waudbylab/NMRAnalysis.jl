@@ -316,7 +316,7 @@ hz(Power(12.0, :dB), cal)     # field at a power the calibration did not measure
 function B1Calibration(r::RegionResult; nuc=nothing, source::AbstractString="")
     isempty(r.series) && throw(ArgumentError("region \"$(r.region)\" has no fitted series"))
     haskey(r.parameters, seriesname(:nu, first(r.series).group)) &&
-        haskey(r.parameters, :inhomogeneity) ||
+    haskey(r.parameters, :inhomogeneity) ||
         throw(ArgumentError("region \"$(r.region)\" has no fitted nutation frequency; " *
                             "was the analysis run with fitting switched off?"))
     haskey(r.parameters, :power) || !isempty(first(r.series).group) ||

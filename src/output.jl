@@ -125,6 +125,7 @@ function shortpath(path::AbstractString)
     parts = splitpath(String(path))
     isempty(parts) && return ""
     # `.../<experiment>/pdata/<n>`: the processed-data folder identifies nothing
-    length(parts) ≥ 3 && lowercase(parts[end - 1]) == "pdata" && (parts = parts[1:(end - 2)])
+    length(parts) ≥ 3 && lowercase(parts[end - 1]) == "pdata" &&
+        (parts = parts[1:(end - 2)])
     return length(parts) ≤ 2 ? joinpath(parts...) : joinpath(parts[end - 1], parts[end])
 end
