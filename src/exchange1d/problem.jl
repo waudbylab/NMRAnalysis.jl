@@ -68,6 +68,71 @@ function _ratelowerbound(item)
 end
 
 """
+    _atbound(value, bound; tol=1e-6) -> Bool
+
+Whether a fitted parameter has converged onto a finite bound (from
+`_ratelowerbound`) rather than settling to an interior optimum near it.
+`tol` is relative to the larger of `value` and `bound` in magnitude (floored
+at 1), so a rate pinned near zero and one pinned near 500 s⁻¹ are judged on
+the same proportional slack.
+"""
+function _atbound(value::Float64, bound::Float64; tol::Float64=1e-6)
+    isfinite(bound) || return false
+    scale = max(abs(value), abs(bound), 1.0)
+    return abs(value - bound) <= tol * scale
+end
+
+"""
+    _correlationmatrix(cov::Matrix{Float64}) -> Matrix{Float64}
+
+Correlation matrix corresponding to covariance matrix `cov`:
+`cor[i,j] = cov[i,j] / sqrt(cov[i,i] * cov[j,j])`.
+"""
+function _correlationmatrix(cov::Matrix{Float64})
+    d = sqrt.(diag(cov))
+    return cov ./ (d * d')
+end
+
+"""
+    _strongcorrelations(cor::Matrix{Float64}; threshold=0.95) -> Vector{Tuple{Int,Int,Float64}}
+
+Off-diagonal `(i, j, r)` triples of `cor` with `|r| ≥ threshold` and `i < j`,
+indexed into `cor`'s own row/column order (the fitted, non-fixed parameters —
+see `FitResult.freeidx`), not the flat parameter indices used elsewhere in
+`FitResult`.
+"""
+function _strongcorrelations(cor::Matrix{Float64}; threshold::Float64=0.95)
+    n = size(cor, 1)
+    pairs = Tuple{Int,Int,Float64}[]
+    for i in 1:n, j in (i + 1):n
+        r = cor[i, j]
+        isfinite(r) && abs(r) >= threshold && push!(pairs, (i, j, r))
+    end
+    return pairs
+end
+
+"""
+    _warncorrelations(cor, freeitems, state_labels, fields)
+
+Emit an `@warn` for each pair of fitted parameters correlated at or above
+`_strongcorrelations`'s threshold: this strong a correlation usually means
+the two parameters trade off against each other rather than being separately
+identifiable from this data, so their individually-reported uncertainties
+understate that. `freeitems` are the `_ParamItem`s of the fitted (non-fixed)
+parameters in `cor`'s row/column order. `_pretty_label` is defined in
+interface.jl, included after this file — see `_ratelowerbound` above for why
+that's fine.
+"""
+function _warncorrelations(cor::Matrix{Float64}, freeitems, state_labels, fields)
+    for (i, j, r) in _strongcorrelations(cor)
+        labeli = _pretty_label(freeitems[i], state_labels, fields)
+        labelj = _pretty_label(freeitems[j], state_labels, fields)
+        @warn "Strongly correlated fitted parameters ($labeli, $labelj): r = $(round(r; digits=3))"
+    end
+    return nothing
+end
+
+"""
     fit(prob::ExchangeProblem, params0::ComponentArray; fixed=Set{Int}()) -> FitResult
 
 Fit all experiments jointly using least-squares optimisation.
@@ -86,8 +151,9 @@ function fit(prob::ExchangeProblem, params0::ComponentArray; fixed::Set{Int}=Set
     n = length(p0)
     freeidx = [i for i in 1:n if i ∉ fixed]
 
+    items = _flatten_params_items(params0)
     lower = fill(-Inf, n)
-    for item in _flatten_params_items(params0)
+    for item in items
         lower[item.flat_index] = _ratelowerbound(item)
     end
 
@@ -136,7 +202,15 @@ function fit(prob::ExchangeProblem, params0::ComponentArray; fixed::Set{Int}=Set
     n_params = length(freeidx)
     dof = n_obs - n_params
 
+    cor = _correlationmatrix(covar)
+    atbound = Set{Int}(freeidx[k] for k in eachindex(freeidx)
+                       if _atbound(result.param[k], lower[freeidx[k]]))
+
+    state_labels = states(prob.model)
+    fields = _unique_fields(prob.experiments)
+    _warncorrelations(cor, items[freeidx], state_labels, fields)
+
     return FitResult(pfit_uncertain, pfit, ComponentArray(copy(p0), ax),
-                     chi2, chi2 / dof, covar,
-                     n_obs, n_params, dof, copy(fixed), prob)
+                     chi2, chi2 / dof, covar, cor,
+                     n_obs, n_params, dof, copy(fixed), atbound, copy(freeidx), prob)
 end

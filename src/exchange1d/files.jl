@@ -202,12 +202,13 @@ end
     globaltable(result) -> (header, rows)
 
 Column names and rows for `global.csv`: every fitted parameter, flat, with the value it
-started at, the value it reached, its uncertainty, and whether it was held fixed. This is
+started at, the value it reached, its uncertainty, whether it was held fixed, and whether it
+converged onto a bound (see `FitResult.atbound`) rather than an interior optimum. This is
 where an exchange fit's actual results are, a joint fit having nothing that belongs to one
 experiment alone.
 """
 function globaltable(result::FitResult)
-    header = ["parameter", "value", "error", "unit", "initial", "fixed"]
+    header = ["parameter", "value", "error", "unit", "initial", "fixed", "atbound"]
     initial = Dict(item.flat_index => item
                    for item in _flatten_params_items(result.params0))
     rows = Vector{String}[]
@@ -221,7 +222,8 @@ function globaltable(result::FitResult)
                csvvalue(value isa Measurement ? Measurements.uncertainty(value) : nothing),
                parameterunit(item),
                csvvalue(start isa Measurement ? Measurements.value(start) : start),
-               item.flat_index in result.fixed ? "true" : "false"])
+               item.flat_index in result.fixed ? "true" : "false",
+               item.flat_index in result.atbound ? "true" : "false"])
     end
     return header, rows
 end

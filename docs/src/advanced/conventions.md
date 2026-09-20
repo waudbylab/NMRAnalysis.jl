@@ -175,8 +175,9 @@ parameter,value,error,unit
 Kd,12.4,0.8,uM
 ```
 
-An exchange fit adds `initial` and `fixed` columns, since every parameter of a joint fit is
-global and what it started at and whether it moved are part of the result.
+An exchange fit adds `initial`, `fixed` and `atbound` columns, since every parameter of a
+joint fit is global and what it started at, whether it moved, and whether it converged onto
+a bound rather than an interior optimum are all part of the result.
 
 ## `summary.txt`
 

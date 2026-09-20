@@ -35,7 +35,8 @@ function Base.show(io::IO, ::MIME"text/plain", result::FitResult)
         initial = [_format_value(_displayvalue(item, result.params0))
                    for item in sec_items0]
         fitted = [_format_value(_displayvalue(item, result.params)) *
-                  (item.flat_index in result.fixed ? " (fixed)" : "")
+                  (item.flat_index in result.fixed ? " (fixed)" :
+                   item.flat_index in result.atbound ? " (at bound)" : "")
                   for item in sec_items]
         tdata = hcat(labels, initial, fitted)
 
@@ -61,5 +62,25 @@ function Base.show(io::IO, ::MIME"text/plain", result::FitResult)
                  tf=tf_unicode_rounded,
                  crop=:none,
                  header_crayon=Crayon(; bold=true))
+
+    # strongly correlated parameter pairs, if any — see _strongcorrelations
+    correlations = _strongcorrelations(result.cor)
+    if !isempty(correlations)
+        freeitems = items_fit[result.freeidx]
+        label1 = [_pretty_label(freeitems[i], state_labels, fields) for (i, _, _) in correlations]
+        label2 = [_pretty_label(freeitems[j], state_labels, fields) for (_, j, _) in correlations]
+        rvals = [string(round(r; digits=3)) for (_, _, r) in correlations]
+
+        println(io)
+        printstyled(io, "  Strongly correlated parameters (|r| ≥ 0.95)\n"; bold=true,
+                    color=:yellow)
+        pretty_table(io, hcat(label1, label2, rvals);
+                     header=["Parameter", "Parameter", "r"],
+                     alignment=[:l, :l, :r],
+                     tf=tf_unicode_rounded,
+                     crop=:none,
+                     header_crayon=Crayon(; bold=true))
+    end
+
     return println(io)
 end

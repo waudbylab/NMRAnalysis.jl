@@ -43,11 +43,17 @@ Result of a joint fit of exchange experiments. Fields are accessible via dot syn
 - `params0`: initial parameters used for the fit
 - `chi2`: chi-squared statistic
 - `reduced_chi2`: chi-squared / degrees of freedom
-- `cov`: parameter covariance matrix
+- `cov`: covariance matrix of the fitted (non-fixed) parameters
+- `cor`: correlation matrix of the fitted (non-fixed) parameters, derived from `cov`
 - `nobs`: number of observations
 - `nparams`: number of fitted (i.e. non-fixed) parameters
 - `dof`: degrees of freedom
 - `fixed`: flat indices of parameters held fixed during the fit (see `fit`)
+- `atbound`: flat indices of fitted parameters that converged onto a bound (e.g. a
+  relaxation rate pinned at zero) rather than settling to an interior optimum — their
+  reported uncertainty still holds, but treat the value itself as a limit, not an estimate
+- `freeidx`: flat indices of the fitted (non-fixed) parameters, in the order corresponding
+  to the rows/columns of `cov` and `cor`
 - `prob`: the `ExchangeProblem` that was fitted
 """
 struct FitResult
@@ -57,9 +63,12 @@ struct FitResult
     chi2::Float64
     reduced_chi2::Float64
     cov::Matrix{Float64}
+    cor::Matrix{Float64}
     nobs::Int
     nparams::Int
     dof::Int
     fixed::Set{Int}
+    atbound::Set{Int}
+    freeidx::Vector{Int}
     prob::ExchangeProblem
 end
