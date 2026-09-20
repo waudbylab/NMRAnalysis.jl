@@ -74,9 +74,6 @@ function exchange1d(filenames::Vector{String})
 
         GLMakie.activate!()
         display(combineplots(result))
-        # a fresh screen: reusing the default one would replace the fit-results window
-        # instead of opening alongside it, as `summaryplot` does in the 2D GUI
-        result.nparams > 1 && display(GLMakie.Screen(), correlationheatmap(result))
 
         action = _prompt_after_fit()
         if action == :save
