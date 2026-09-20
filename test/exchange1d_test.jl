@@ -8,7 +8,7 @@ import NMRAnalysis.Exchange1D:
                                default_spin_params, default_nuisance_params,
                                field_label, liouvillian, liouvillian_inhom,
                                AbstractExperiment,
-                               simulate!, residuals, fit,
+                               simulate!, residuals, ratewres, fit,
                                R1rhoOnResExperiment, R1rhoOffResExperiment,
                                seriescoordinates, observable, coordinateunit,
                                parameterunit, experimenttype, resultstable, seriestable,
@@ -49,7 +49,8 @@ and whose spin-lock field varies point by point."""
 function fakeonres(path="/data/set/102/pdata/1")
     return R1rhoOnResExperiment(FakeSpec(path), 14.1, Dict{String,Float64}(),
                                 [12.0 ± 0.5, 9.0 ± 0.4], [12.2, 8.9],
-                                [100.0, 500.0], [0.0, 0.04])
+                                [100.0, 500.0], [0.0, 0.04],
+                                zeros(2, 2), 0.01)
 end
 
 """An off-resonance R1rho experiment, whose spin-lock field is a single constant - the same
@@ -57,7 +58,8 @@ coordinate that varies point by point on resonance."""
 function fakeoffres(path="/data/set/103/pdata/1")
     return R1rhoOffResExperiment(FakeSpec(path), 14.1, Dict{String,Float64}(),
                                  [20.0 ± 0.8, 15.0 ± 0.6], [19.8, 15.2],
-                                 [-1.0, 1.0], 250.0, [0.0, 0.04])
+                                 [-1.0, 1.0], 250.0, [0.0, 0.04],
+                                 zeros(2, 2), 0.01)
 end
 
 @testset "Exchange1D output" begin
@@ -329,6 +331,46 @@ end
         @test r[1] ≈ (0.8 - 0.82) / noise
         @test r[2] ≈ (0.6 - 0.61) / noise
         @test r[3] ≈ (0.3 - 0.28) / noise
+    end
+
+    @testset "R1rho residuals - I0 eliminated by variable projection" begin
+        TSL = [0.0, 0.05, 0.1, 0.2]
+        νSL = [100.0, 500.0]
+        R_true = [15.0, 8.0]
+        I0_true = [1.0, 0.8]  # a different amplitude per condition
+        rawintensities = hcat([I0_true[k] .* exp.(-TSL .* R_true[k])
+                               for k in eachindex(νSL)]...)
+        noise = 0.01
+
+        expt = R1rhoOnResExperiment(FakeSpec("dummy"), 14.1, Dict{String,Float64}(),
+                                    zeros(2) .± 1.0, copy(R_true), νSL, TSL,
+                                    rawintensities, noise)
+
+        # predicted_intensities (set here as if simulate! had just run) already holds
+        # the true rate for each condition, so the analytically-eliminated I0 exactly
+        # reproduces the noiseless data and every residual vanishes
+        r = residuals(expt)
+        @test length(r) == length(TSL) * length(νSL)
+        @test all(abs.(r) .< 1e-8)
+
+        # a rate that doesn't match the data leaves a nonzero residual: I0 elimination
+        # cannot also absorb an error in the (nonlinear) rate itself
+        expt.predicted_intensities .= R_true .+ 5.0
+        @test any(abs.(residuals(expt)) .> 1e-3)
+
+        offresexpt = R1rhoOffResExperiment(FakeSpec("dummy"), 14.1, Dict{String,Float64}(),
+                                           zeros(2) .± 1.0, copy(R_true), νSL, 300.0, TSL,
+                                           rawintensities, noise)
+        @test all(abs.(residuals(offresexpt)) .< 1e-8)
+    end
+
+    @testset "R1rho ratewres - per-condition rate residual for display" begin
+        expt = fakeonres()
+        wr = ratewres(expt)
+        yobs = expt.observed_intensities
+        expected = (Measurements.value.(yobs) .- expt.predicted_intensities) ./
+                   Measurements.uncertainty.(yobs)
+        @test wr ≈ expected
     end
 
     @testset "defaultparams - structure" begin

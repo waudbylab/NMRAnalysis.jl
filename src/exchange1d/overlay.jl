@@ -122,7 +122,7 @@ function overlayr1rhooffres(experiments, params_value)
         sortidx = sortperm(x)
         yobs = expt.observed_intensities
         ypred = expt.predicted_intensities
-        wres = residuals(expt)
+        wres = ratewres(expt)
         maxwres = max(maxwres, maximum(abs, wres))
         label = "$(Int(round(expt.νSL; digits=0))) Hz"
         return (; i, x, sortidx, yobs, ypred, wres, label)
