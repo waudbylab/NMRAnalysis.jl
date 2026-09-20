@@ -98,15 +98,12 @@ function __init__()
                        e -> relaxation1d(e.filename), "1D R2 relaxation")
     # Every nutation calibration selected at once, since several power levels make a
     # calibration curve where one makes only a point on it.
-    return register_analysis!(MultiFileRule(expts -> begin
-                                                matched = filter(e -> "1d" in e.types &&
-                                                                      "calibration" in
-                                                                      e.types &&
-                                                                      "nutation" in
-                                                                      e.features,
-                                                                 expts)
-                                                isempty(matched) ? nothing : matched
-                                            end,
+    isnutation(e) = "1d" in e.types && "calibration" in e.types && "nutation" in e.features
+    function nutations(expts)
+        matched = filter(isnutation, expts)
+        return isempty(matched) ? nothing : matched
+    end
+    return register_analysis!(MultiFileRule(nutations,
                                             expts -> calibration1d([e.filename
                                                                     for e in expts]),
                                             "1D nutation calibration"))
