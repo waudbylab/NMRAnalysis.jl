@@ -67,8 +67,10 @@ function Base.show(io::IO, ::MIME"text/plain", result::FitResult)
     correlations = strongcorrelations(result.cor)
     if !isempty(correlations)
         freeitems = items_fit[result.freeidx]
-        label1 = [_pretty_label(freeitems[i], state_labels, fields) for (i, _, _) in correlations]
-        label2 = [_pretty_label(freeitems[j], state_labels, fields) for (_, j, _) in correlations]
+        label1 = [_pretty_label(freeitems[i], state_labels, fields)
+                  for (i, _, _) in correlations]
+        label2 = [_pretty_label(freeitems[j], state_labels, fields)
+                  for (_, j, _) in correlations]
         rvals = [string(round(r; digits=3)) for (_, _, r) in correlations]
 
         println(io)

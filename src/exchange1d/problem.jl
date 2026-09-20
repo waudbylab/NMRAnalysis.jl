@@ -193,7 +193,8 @@ function fit(prob::ExchangeProblem, params0::ComponentArray; fixed::Set{Int}=Set
     dof = n_obs - n_params
 
     cor = correlationmatrix(covar)
-    atbound = Set{Int}(freeidx[k] for k in eachindex(freeidx)
+    atbound = Set{Int}(freeidx[k]
+                       for k in eachindex(freeidx)
                        if isatbound(result.param[k], lower[freeidx[k]]))
 
     state_labels = states(prob.model)
