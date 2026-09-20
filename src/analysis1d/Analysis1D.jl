@@ -24,7 +24,9 @@ using OrderedCollections
 using REPL.TerminalMenus
 using Statistics
 
-using ..NMRAnalysis: register_analysis!, viscosity
+using ..NMRAnalysis: register_analysis!, MultiFileRule, viscosity
+# B₁ calibration: the type and its accessors, built from a nutation fit in expt-nutation.jl
+using ..NMRAnalysis: B1Calibration, refpower, ν1ref, linearity
 # shared output rules - see src/output.jl and docs/src/advanced/conventions.md
 using ..NMRAnalysis: csvcolumn, csvcolumns, csvvalue, safename, sanitizelabel, backupfile,
                      backupfolder, writetable
@@ -88,8 +90,18 @@ function __init__()
                        e -> relaxation1d(e.filename), "1D R1 relaxation")
     register_analysis!(["1d", "relaxation"], ["R2"],
                        e -> relaxation1d(e.filename), "1D R2 relaxation")
-    return register_analysis!(["1d", "calibration"], ["nutation"],
-                              e -> calibration1d(e.filename), "1D nutation calibration")
+    # Every nutation calibration selected at once, since several power levels make a
+    # calibration curve where one makes only a point on it.
+    return register_analysis!(MultiFileRule(expts -> begin
+                                                matched = filter(e -> "1d" in e.types &&
+                                                                      "calibration" in e.types &&
+                                                                      "nutation" in e.features,
+                                                                 expts)
+                                                isempty(matched) ? nothing : matched
+                                            end,
+                                            expts -> calibration1d([e.filename
+                                                                    for e in expts]),
+                                            "1D nutation calibration"))
 end
 
 end # module Analysis1D

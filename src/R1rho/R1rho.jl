@@ -13,13 +13,15 @@ using Random
 using Statistics
 
 export r1rho, setupR1rhopowers
-using ..NMRAnalysis: select_expts, analyse
+using ..NMRAnalysis: select_expts
 using ..NMRAnalysis: register_analysis!, MultiFileRule
+# B₁ calibration (src/b1.jl), and the nutation analysis that measures one
+using ..NMRAnalysis: B1Calibration
+using ..Analysis1D: calibration1d
 # shared output rules - see src/output.jl and docs/src/advanced/conventions.md
 using ..NMRAnalysis: backupfolder
 
 include("dataset.jl")
-include("power.jl")
 include("experiments.jl")
 include("fitting.jl")
 include("Kandkex.jl")

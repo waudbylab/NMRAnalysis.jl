@@ -6,6 +6,10 @@ using SafeTestsets
     include("maybevector_test.jl")
 end
 
+@safetestset "B1" begin
+    include("b1_test.jl")
+end
+
 @safetestset "Exchange1D" begin
     include("exchange1d_test.jl")
 end

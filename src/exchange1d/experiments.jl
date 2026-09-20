@@ -61,6 +61,34 @@ E.g. `field_label(14.1)` → `:14p1T`.
 field_label(field_teslas::Float64) = Symbol(replace(string(field_teslas), "." => "p") * "T")
 field_label(expt::AbstractExperiment) = field_label(expt.field_teslas)
 
+"""
+    b1calibration(given) -> B1Calibration or nothing
+    b1calibration(given, spec, nuc) -> B1Calibration
+
+Resolve the `calibration` argument an entry point was given.
+
+The one-argument form runs once per problem: a ready-made [`B1Calibration`](@ref) is passed
+through, `nothing` stays `nothing`, and anything else is taken to be the nutation
+calibration experiment(s) to fit (see `calibration1d`). The three-argument form runs once
+per experiment and supplies the fallback: the nominal calibration read from that
+spectrum's own reference pulse, with an assumed B₁ inhomogeneity.
+
+A calibration measured on another channel is a warning rather than an error, since
+`exchange1d` may be given experiments on more than one nucleus.
+"""
+b1calibration(::Nothing) = nothing
+b1calibration(cal::B1Calibration) = cal
+b1calibration(given) = B1Calibration(given)
+
+function b1calibration(given, spec, nuc)
+    isnothing(given) && return B1Calibration(spec, nuc)
+    calnuc = nucleus(given)
+    isnothing(calnuc) || calnuc == nuc ||
+        @warn "B₁ calibration was measured on $calnuc but is being applied to a " *
+              "$nuc experiment"
+    return given
+end
+
 include("expt-r1.jl")
 include("expt-cest.jl")
 include("expt-r1rho-onres.jl")
@@ -77,7 +105,7 @@ Dispatches on `annotations(spec, :experiment_type)` and `annotations(spec, :feat
 - `"cest"` → `CESTExperiment`
 - `"r1rho"` + `"on_resonance"`/`"off_resonance"` → `R1rhoOnResExperiment`/`R1rhoOffResExperiment`
 """
-function load_experiment(filename)
+function load_experiment(filename; calibration=nothing)
     spec = loadnmr(filename)
     hasannotations(spec) ||
         throw(ArgumentError("$filename has no annotations — cannot classify experiment"))
@@ -88,11 +116,11 @@ function load_experiment(filename)
     if "relaxation" in types && "R1" in features
         return R1Experiment(filename)
     elseif "cest" in types
-        return CESTExperiment(filename)
+        return CESTExperiment(filename; calibration)
     elseif "r1rho" in types && "on_resonance" in features
-        return R1rhoOnResExperiment(filename)
+        return R1rhoOnResExperiment(filename; calibration)
     elseif "r1rho" in types && "off_resonance" in features
-        return R1rhoOffResExperiment(filename)
+        return R1rhoOffResExperiment(filename; calibration)
     else
         throw(ArgumentError("Cannot classify experiment $filename " *
                             "(types=$types, features=$features)"))
@@ -100,12 +128,20 @@ function load_experiment(filename)
 end
 
 """
-    ExchangeProblem(filenames::Vector{String}, model::AbstractModel)
+    ExchangeProblem(filenames::Vector{String}, model::AbstractModel; calibration=nothing)
 
 Construct an ExchangeProblem by loading experiments from filenames.
 Each file is classified and loaded via `load_experiment`.
+
+`calibration` gives the B₁ field strengths and inhomogeneity every experiment is simulated
+with: a [`B1Calibration`](@ref), or the nutation calibration experiment(s) to fit for one.
+It is resolved here rather than per experiment, so calibration experiments are fitted once.
+Without it each experiment falls back to its own reference pulse and an assumed 5%
+inhomogeneity.
 """
-function ExchangeProblem(filenames::Vector{String}, model::AbstractModel)
-    experiments = AbstractExperiment[load_experiment(f) for f in filenames]
+function ExchangeProblem(filenames::Vector{String}, model::AbstractModel;
+                         calibration=nothing)
+    cal = b1calibration(calibration)
+    experiments = AbstractExperiment[load_experiment(f; calibration=cal) for f in filenames]
     return ExchangeProblem(experiments, model)
 end

@@ -260,4 +260,5 @@ analyse("11")
 ```
 
 This works today for nutation calibrations and for R1 and R2 relaxation experiments.
-Diffusion and TRACT are called directly.
+Several nutation calibrations selected together are analysed as one calibration curve
+rather than one at a time. Diffusion and TRACT are called directly.

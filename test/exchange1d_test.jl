@@ -15,6 +15,8 @@ import NMRAnalysis.Exchange1D:
                                problemcomments, short_expt_path, _ParamItem
 using ComponentArrays
 using Measurements
+using NMRTools: Power
+using LinearAlgebra: tr
 using Test
 
 # Minimal experiment stand-in for tests that build a Liouvillian directly:
@@ -37,27 +39,35 @@ struct FakeSpec
 end
 Base.getindex(s::FakeSpec, ::Symbol) = s.filename
 
+"""A nominal calibration: one power level, the ideal power law, and an assumed B₁
+inhomogeneity - what an experiment loaded without a calibration carries."""
+fakecalibration(ν1; inhomogeneity=0.05) = B1Calibration([Power(-12.0, :dB)], [ν1];
+                                                        inhomogeneity)
+
 """A CEST experiment with plausible contents and no spectrum behind it."""
-function fakecest(path="/data/set/101/pdata/1"; nu1=50.0, tsat=0.4)
+function fakecest(path="/data/set/101/pdata/1"; nu1=50.0, tsat=0.4, inhomogeneity=0.05)
     δsat = [-2.0, 0.0, 2.0]
     return CESTExperiment(FakeSpec(path), 14.1, Dict{String,Float64}(), δsat, nu1, tsat,
-                          [1.0 ± 0.02, 0.6 ± 0.02, 0.95 ± 0.02], [0.99, 0.62, 0.94])
+                          [1.0 ± 0.02, 0.6 ± 0.02, 0.95 ± 0.02], [0.99, 0.62, 0.94],
+                          fakecalibration(nu1; inhomogeneity))
 end
 
 """An on-resonance R1rho experiment, whose observable is a rate rather than an intensity,
 and whose spin-lock field varies point by point."""
-function fakeonres(path="/data/set/102/pdata/1")
+function fakeonres(path="/data/set/102/pdata/1"; inhomogeneity=0.05)
     return R1rhoOnResExperiment(FakeSpec(path), 14.1, Dict{String,Float64}(),
                                 [12.0 ± 0.5, 9.0 ± 0.4], [12.2, 8.9],
-                                [100.0, 500.0], [0.0, 0.04])
+                                [100.0, 500.0], [0.0, 0.04],
+                                fakecalibration(100.0; inhomogeneity))
 end
 
 """An off-resonance R1rho experiment, whose spin-lock field is a single constant - the same
 coordinate that varies point by point on resonance."""
-function fakeoffres(path="/data/set/103/pdata/1")
+function fakeoffres(path="/data/set/103/pdata/1"; inhomogeneity=0.05)
     return R1rhoOffResExperiment(FakeSpec(path), 14.1, Dict{String,Float64}(),
                                  [20.0 ± 0.8, 15.0 ± 0.6], [19.8, 15.2],
-                                 [-1.0, 1.0], 250.0, [0.0, 0.04])
+                                 [-1.0, 1.0], 250.0, [0.0, 0.04],
+                                 fakecalibration(250.0; inhomogeneity))
 end
 
 @testset "Exchange1D output" begin
@@ -421,5 +431,84 @@ end
         # residuals should be near zero when predicted matches observed
         r = residuals(prob, params)
         @test all(abs.(r) .< 1e-10)
+    end
+end
+
+@testset "B₁ inhomogeneity in the simulations" begin
+    # A two-state system, and parameters built by hand (as the Liouvillian tests do) so
+    # that the simulation under test is the only thing being exercised.
+    model = TwoStateModel()
+    pB = 0.05
+    params = ComponentArray(;
+                            model=ComponentArray(; logkex=log(1000.0),
+                                                 dGB=log((1 - pB) / pB)),
+                            spin=ComponentArray(; delta=[0.0, 5.0],
+                                                R1_14p1T=[1.0], R2_14p1T=[10.0, 10.0]),
+                            nuisance=ComponentArray(; CEST_14p1T_I0=1.0))
+    ν1, Tsat = 50.0, 0.4
+    δsat = [-2.0, 0.0, 2.0, 5.0]
+
+    # `StubSpec` answers `spec[1, :bf]`, which is all the Liouvillian asks of a spectrum.
+    cestexpt(inhom) = CESTExperiment(StubSpec(564.0), 14.1, Dict{String,Float64}(), δsat,
+                                     ν1, Tsat, [1.0 ± 0.02 for _ in δsat],
+                                     zeros(length(δsat)),
+                                     B1Calibration([Power(-12.0, :dB)], [ν1];
+                                                   inhomogeneity=inhom))
+
+    # equilibrium magnetisation, augmented, as `simulate!` starts from
+    function equilibrium(expt)
+        N = nstates(model)
+        p0 = populations(model, params, expt)
+        M0 = zeros(3N + 1)
+        for i in 1:N
+            M0[3(i - 1) + 3] = p0[i]
+        end
+        M0[end] = 1.0
+        return M0
+    end
+
+    mz(expt, δ, ν) = sum((exp(liouvillian_inhom(model, params, expt, δ, ν) * Tsat) *
+                          equilibrium(expt))[3:3:end])
+
+    @testset "CEST averages the profile over the distribution" begin
+        # With no inhomogeneity, one Liouvillian per offset, exactly as before.
+        sharp = cestexpt(0.0)
+        simulate!(sharp, model, params)
+        @test sharp.predicted_intensities ≈ [mz(sharp, δ, ν1) for δ in δsat]
+
+        # With a spread, the weighted sum of the profiles each part of the sample gives.
+        # Mz is measured directly, so this weighted sum is what the spectrum reports.
+        broad = cestexpt(0.05)
+        simulate!(broad, model, params)
+        d = B1Distribution(0.05)
+        @test broad.predicted_intensities ≈
+              [sum(w * mz(broad, δ, s * ν1) for (s, w) in zip(d.scaling, d.weight))
+               for δ in δsat]
+        @test broad.predicted_intensities != sharp.predicted_intensities
+        # far off resonance nothing is saturated, so the field strength does not matter
+        @test broad.predicted_intensities[1] ≈ sharp.predicted_intensities[1] rtol = 1e-3
+    end
+
+    @testset "R₁ρ averages the decay, not the rate" begin
+        νSL, TSL = [100.0, 500.0], [0.0, 0.02, 0.04]
+        onres(inhom) = R1rhoOnResExperiment(StubSpec(564.0), 14.1, Dict{String,Float64}(),
+                                            [12.0 ± 0.5, 9.0 ± 0.4], zeros(2), νSL, TSL,
+                                            B1Calibration([Power(-12.0, :dB)], [νSL[1]];
+                                                          inhomogeneity=inhom))
+
+        sharp = onres(0.0)
+        simulate!(sharp, model, params)
+        rate(e, ν) = -1 / tr(inv(liouvillian(model, params, e, params.spin.delta[1], ν)))
+        @test sharp.predicted_intensities ≈ [rate(sharp, ν) for ν in νSL]
+
+        # The apparent rate of a monoexponential fit to a sum of exponentials lies below
+        # the weighted mean of the rates - the point of `b1rate` - by a margin that grows
+        # with the evolution time and the spread of rates.
+        broad = onres(0.05)
+        simulate!(broad, model, params)
+        d = B1Distribution(0.05)
+        meanrates = [b1average(ν -> rate(broad, ν), d, ν0) for ν0 in νSL]
+        @test all(broad.predicted_intensities .< meanrates)
+        @test broad.predicted_intensities ≈ meanrates rtol = 0.05
     end
 end

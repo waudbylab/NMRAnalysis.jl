@@ -50,6 +50,26 @@ Call with no arguments to open a file selection dialog:
 exchange1d()
 ```
 
+### With a B₁ calibration
+
+The spin-lock and saturation field strengths, and the B₁ inhomogeneity the simulations
+average over, can come from a nutation calibration rather than from the nominal power law:
+
+```julia
+# fit the calibration experiments as part of loading
+exchange1d(["101", "102"]; calibration=["1", "2", "3"])
+
+# or check the fits first, then reuse the calibration
+cal = B1Calibration(calibration1d(["1", "2", "3"]))
+exchange1d(["101", "102"]; calibration=cal)
+```
+
+Without it, each experiment's own reference pulse (`p1`/`pl1`) gives the field strengths on
+the assumption of a perfectly linear amplifier, and the B₁ inhomogeneity is assumed to be
+5%. Either way the analysis prints the calibration it is using before fitting, and records
+it alongside the saved results. See [Pulse Calibration](../1d/calibration.md) for measuring
+one and [B₁ Inhomogeneity](theory.md#B₁-Inhomogeneity) for how it enters the simulations.
+
 ## Supported Experiment Types
 
 Exchange1D currently supports four experiment types, which can be combined in a joint fit:

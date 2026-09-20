@@ -271,7 +271,7 @@ coordinates (`:which`, `:run`) and relative ones (`:gradient`) have no unit.
 """
 coordinateunit(::Experiment1D, name::Symbol) = get(COORDINATE_UNITS, name, "")
 
-const COORDINATE_UNITS = Dict(:time => "s", :duration => "s")
+const COORDINATE_UNITS = Dict(:time => "s", :duration => "s", :power => "dB")
 
 """
     paramblock(io, expt, params, width=nothing)

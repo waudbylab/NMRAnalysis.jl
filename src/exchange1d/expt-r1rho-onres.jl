@@ -6,10 +6,11 @@ struct R1rhoOnResExperiment <: AbstractExperiment
     predicted_intensities::Vector{Float64}              # predicted relaxation rates vs vSL
 
     νSL::Vector{Float64}      # νSL for each data point (Hz)
-    TSL::Vector{Float64}      # TSL for each data point (s)
+    TSL::Vector{Float64}      # spin-lock durations the decays were sampled at (s)
+    calibration::B1Calibration  # νSL above, and the B₁ spread it is simulated with
 end
 
-function R1rhoOnResExperiment(filename)
+function R1rhoOnResExperiment(filename; calibration=nothing)
     detail("Loading on-resonance R1rho experiment from $filename")
 
     spec = loadnmr(filename)
@@ -30,8 +31,8 @@ function R1rhoOnResExperiment(filename)
     # Read spin-lock powers and convert to Hz
     powers = annotations(spec, :r1rho, :power)
     nuc = nucleus(annotations(spec, :r1rho, :channel))
-    refpulse, refpower = referencepulse(spec, nuc)
-    νSL = hz.(powers, refpower, refpulse, 90)
+    cal = b1calibration(calibration, spec, nuc)
+    νSL = hz.(powers, cal)
 
     # Read relaxation times
     TSL = annotations(spec, :r1rho, :duration)
@@ -40,7 +41,8 @@ function R1rhoOnResExperiment(filename)
     predicted_intensities = zeros(length(νSL))
 
     return R1rhoOnResExperiment(spec, field_teslas, sampleconcentrations(spec),
-                                observed_intensities, predicted_intensities, νSL, TSL)
+                                observed_intensities, predicted_intensities, νSL, TSL,
+                                cal)
 end
 
 function default_spin_params(expt::R1rhoOnResExperiment, nstates)
@@ -88,22 +90,28 @@ function integrate!(expt::R1rhoOnResExperiment, peakppm, noiseppm, ppmwidth)
     end
 end
 
+"""
+    simulate!(expt::R1rhoOnResExperiment, model, params)
+
+Simulate R₁ρ at each spin-lock strength, averaged over the B₁ distribution.
+
+The observable is a rate the data reduction obtained by fitting one exponential to the
+decay, so the average is taken over the decays and converted back (see [`b1rate`](@ref))
+rather than over the rates themselves. The matching time is the mean of the sampled
+spin-lock durations; the fit weights the longer delays more heavily, so this is a
+first-order match rather than an exact one.
+"""
 function simulate!(expt::R1rhoOnResExperiment, model, params)
-    fl = field_label(expt)
     spinlock_ppm = params.spin.delta[1]
+    d = B1Distribution(expt.calibration)
+    T = mean(expt.TSL)
 
-    for k in 1:length(expt.νSL)
-        L = liouvillian(model, params, expt,
-                        spinlock_ppm,
-                        expt.νSL[k])
-        # Exact R1rho from least negative eigenvalue of L
-        # evals = real.(eigen(L).values)
-        # R1rho = -maximum(evals[evals .< 0])
-
-        # Compute R1rho from inverse of trace of inverse L (Koss)
-        R1rho = -1/tr(inv(L))
-
-        expt.predicted_intensities[k] = R1rho
+    for k in eachindex(expt.νSL)
+        # R1rho from the inverse of the trace of the inverse Liouvillian (Koss), in place
+        # of the least negative eigenvalue, as before.
+        expt.predicted_intensities[k] = b1rate(d, expt.νSL[k], T) do ν
+            return -1 / tr(inv(liouvillian(model, params, expt, spinlock_ppm, ν)))
+        end
     end
 end
 
@@ -116,6 +124,7 @@ Acquisition parameters worth recording alongside a saved fit (see
 function experimentinfo(expt::R1rhoOnResExperiment)
     return ["Type" => "On-resonance R1ρ",
             "Field" => _format_field(expt.field_teslas),
+            "B₁ calibration" => string(expt.calibration),
             "Spin-lock strengths" =>
                 "$(length(expt.νSL)) points, " *
                 "$(round(minimum(expt.νSL); digits=1)) to " *

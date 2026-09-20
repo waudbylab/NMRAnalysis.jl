@@ -20,6 +20,9 @@ using NMRAnalysis.Analysis1D: resultstable, seriestable, experimentinfo,
                               baseparam, regionlisttable, readregions!, NOISE_LABEL
 using NMRAnalysis.Analysis1D: analysiscall, callstring, callvalue, writesummary
 using NMRAnalysis.Analysis1D: ask, askvector, askchoice, parsevector, acqusvalue
+using NMRAnalysis.Analysis1D: powerdb
+using NMRAnalysis: refpower, ν1ref
+using NMRTools: Power, db, hz
 using Measurements
 using Random
 using Test
@@ -47,6 +50,10 @@ function peakdataset(amps, var::Symbol, vals; δ0=8.0, noise=0.0, seed=42, noise
 end
 
 signalregion(δ0=8.0) = [Region("signal", δ0 - 0.3, δ0 + 0.3)]
+
+"""Nutation of an inhomogeneous B₁ field: the envelope is Gaussian, not exponential, being
+the average of `sin(2πνt)` over a Gaussian distribution of ν of fractional width `σ`."""
+nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^2)
 
 @testset "Analysis1D" begin
     @testset "Region" begin
@@ -175,24 +182,81 @@ signalregion(δ0=8.0) = [Region("signal", δ0 - 0.3, δ0 + 0.3)]
     end
 
     @testset "Nutation calibration" begin
-        # the initial guess assumes half a period across the sampled range, so sample one
-        ν, Rdecay = 500.0, 500.0
-        durations = collect(range(0.0, 1.0e-3; length=21))
-        amps = [100 * sin(2π * ν * t) * exp(-Rdecay * t) for t in durations]
+        # a nominal 720° nutation, as the annotated sequence runs: a few percent of B₁
+        # inhomogeneity is only measurable over several periods
+        ν, σ = 500.0, 0.06
+        durations = collect(range(0.0, 2 / ν; length=21))
+        amps = [nutation(100.0, ν, σ, t) for t in durations]
         ds = peakdataset(amps, :duration, durations; noise=0.2)
         expt = NutationExperiment(ds; regions=signalregion())
         @test primaryparam(expt) == :pulse90
+        @test groupcols(expt) == ()          # no power recorded: one series, bare names
 
         res = analyse1d(expt)
         @test Measurements.value(param(res[1], :nu)) ≈ ν rtol = 0.05
+        # σ is the fractional width of the B₁ distribution, fitted directly from the
+        # Gaussian envelope rather than converted from an exponential decay rate
+        @test Measurements.value(param(res[1], :sigma)) ≈ σ rtol = 0.1
         # stored in the units they are quoted in: µs and %, not seconds and a fraction
         @test Measurements.value(param(res[1], :pulse90)) ≈ 1e6 / (4ν) rtol = 0.05
-        @test Measurements.value(param(res[1], :inhomogeneity)) ≈
-              100 * Rdecay / (2π * ν) rtol = 0.1
+        @test Measurements.value(param(res[1], :inhomogeneity)) ≈ 100σ rtol = 0.1
+        # only σ² enters the model, so a fit landing on -σ still reports a positive width
+        @test Measurements.value(param(res[1], :inhomogeneity)) > 0
 
         @test nutationphase(nothing) === nothing
         @test nutationphase("cosine_modulated") === :cosine
         @test nutationphase("sine_modulated") === :sine
+
+        # power levels: `Power`s converted, bare numbers taken as dB, and a calibration
+        # curve needs every power or none
+        @test powerdb(Power(-12.0, :dB)) == [-12.0]
+        @test powerdb([-18.0, -12.0]) == [-18.0, -12.0]
+        @test powerdb(nothing) === nothing
+        @test powerdb([Power(-12.0, :dB), nothing]) === nothing
+    end
+
+    @testset "Nutation calibration over several powers" begin
+        # Three power levels 6 dB apart on an amplifier that falls 2% short of the ideal
+        # power law, and a B₁ inhomogeneity that relaxation inflates at the lowest power.
+        dB = [-18.0, -12.0, -6.0]
+        L = 0.98
+        ν = [500.0 * 10^(-L * (p - dB[1]) / 20) for p in dB]
+        σ = [0.05, 0.06, 0.09]
+        durations = [collect(range(0.0, 2 / νi; length=21)) for νi in ν]
+
+        traces = Trace[]
+        vars = NamedTuple[]
+        rng = MersenneTwister(7)
+        for i in eachindex(dB), (j, t) in enumerate(durations[i])
+            push!(traces, peaktrace(nutation(100.0, ν[i], σ[i], t), 8.0; noise=0.2, rng))
+            push!(vars, (; duration=t, power=dB[i]))
+        end
+        ds = Dataset1D(Planes(traces, vars), 0.0, "synthetic")
+        expt = NutationExperiment(ds; regions=signalregion())
+        @test groupcols(expt) == (:power,)   # one series per power level
+
+        res = analyse1d(expt)
+        r = only(res)
+        @test length(r.series) == 3
+        for i in eachindex(dB)
+            g = (; power=dB[i])
+            @test Measurements.value(param(r, seriesname(:nu, g))) ≈ ν[i] rtol = 0.05
+            @test Measurements.value(param(r, seriesname(:pulse90, g))) ≈ 1e6 / (4ν[i]) rtol = 0.05
+        end
+
+        # the smallest estimate, from the highest power where relaxation contributes least
+        @test Measurements.value(param(r, :inhomogeneity)) ≈ 100 * minimum(σ) rtol = 0.15
+        # the calibration curve: anchored on the first power level, and recovering the
+        # amplifier's shortfall rather than assuming the ideal law
+        @test param(r, :powerref) == dB[1]
+        @test Measurements.value(param(r, :nu1ref)) ≈ ν[1] rtol = 0.05
+        @test Measurements.value(param(r, :linearity)) ≈ L rtol = 0.02
+
+        # ... and the calibration the analysis hands to exchange1d
+        cal = B1Calibration(res)
+        @test inhomogeneity(cal) ≈ minimum(σ) rtol = 0.15
+        @test hz(Power(dB[2], :dB), cal) ≈ ν[2] rtol = 0.05
+        @test db(Power(ν[3], cal)) ≈ dB[3] rtol = 0.02
     end
 
     @testset "Diffusion" begin

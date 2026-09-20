@@ -15,9 +15,10 @@ struct CESTExperiment <: AbstractExperiment
     saturation_time::Float64                    # seconds
     observed_intensities::Vector{Measurement{Float64}}
     predicted_intensities::Vector{Float64}
+    calibration::B1Calibration       # ν1 above, and the B₁ spread it is simulated with
 end
 
-function CESTExperiment(filename)
+function CESTExperiment(filename; calibration=nothing)
     detail("Loading CEST experiment from $filename")
 
     spec = loadnmr(filename)
@@ -38,8 +39,8 @@ function CESTExperiment(filename)
 
     satpower = annotations(spec, :cest, :power)
     nuc = nucleus(annotations(spec, :cest, :channel))
-    refpulse, refpower = referencepulse(spec, nuc)
-    ν1 = hz(satpower, refpower, refpulse, 90)
+    cal = b1calibration(calibration, spec, nuc)
+    ν1 = hz(satpower, cal)
 
     saturation_time = annotations(spec, :cest, :duration)
 
@@ -48,7 +49,7 @@ function CESTExperiment(filename)
 
     return CESTExperiment(spec, field_teslas, sampleconcentrations(spec),
                           δsat, ν1, saturation_time,
-                          observed_intensities, predicted_intensities)
+                          observed_intensities, predicted_intensities, cal)
 end
 
 """
@@ -108,6 +109,12 @@ end
 Simulate the CEST saturation profile, then scale it by the fitted `I0`
 intensity (`params.nuisance.CEST_<field>_I0`) to match the observed,
 integration-normalised intensities.
+
+The profile is averaged over the B₁ distribution of the saturation field. Mz is what is
+measured, so the weighted mean of the profiles from separate parts of the sample is exactly
+what the spectrum reports (unlike a rate, which reaches the data through a fit - see
+[`b1rate`](@ref)). With no inhomogeneity the distribution is the single nominal field and
+this reduces to one Liouvillian per offset.
 """
 function simulate!(expt::CESTExperiment, model, params)
     n = length(expt.δsat)
@@ -120,10 +127,12 @@ function simulate!(expt::CESTExperiment, model, params)
     end
     M0[end] = 1.0  # augmented state for constant term
 
+    d = B1Distribution(expt.calibration)
     for i in 1:n
-        L = liouvillian_inhom(model, params, expt, expt.δsat[i], expt.ν1)
-        M = exp(L * T) * M0
-        expt.predicted_intensities[i] = sum(M[3:3:end])  # sum of Mz across states
+        expt.predicted_intensities[i] = b1average(d, expt.ν1) do ν
+            L = liouvillian_inhom(model, params, expt, expt.δsat[i], ν)
+            return sum((exp(L * T) * M0)[3:3:end])  # sum of Mz across states
+        end
     end
 
     tag = Symbol("CEST_", field_label(expt))
@@ -142,6 +151,7 @@ function experimentinfo(expt::CESTExperiment)
     return ["Type" => "CEST",
             "Field" => _format_field(expt.field_teslas),
             "Saturation power (ν1)" => "$(round(expt.ν1; digits=1)) Hz",
+            "B₁ calibration" => string(expt.calibration),
             "Saturation time" => "$(round(expt.saturation_time * 1000; digits=1)) ms",
             "Saturation offsets" =>
                 "$(length(expt.δsat)) points, " *
