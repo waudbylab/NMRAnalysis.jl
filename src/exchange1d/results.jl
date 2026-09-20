@@ -63,8 +63,8 @@ function Base.show(io::IO, ::MIME"text/plain", result::FitResult)
                  crop=:none,
                  header_crayon=Crayon(; bold=true))
 
-    # strongly correlated parameter pairs, if any — see _strongcorrelations
-    correlations = _strongcorrelations(result.cor)
+    # strongly correlated parameter pairs, if any — see strongcorrelations
+    correlations = strongcorrelations(result.cor)
     if !isempty(correlations)
         freeitems = items_fit[result.freeidx]
         label1 = [_pretty_label(freeitems[i], state_labels, fields) for (i, _, _) in correlations]

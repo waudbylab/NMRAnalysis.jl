@@ -13,8 +13,8 @@ import NMRAnalysis.Exchange1D:
                                seriescoordinates, observable, coordinateunit,
                                parameterunit, experimenttype, resultstable, seriestable,
                                problemcomments, short_expt_path, _ParamItem,
-                               _flatten_params_items, _correlationmatrix, _atbound,
-                               _strongcorrelations
+                               _flatten_params_items, correlationmatrix, isatbound,
+                               strongcorrelations
 using ComponentArrays
 using LinearAlgebra
 using Measurements
@@ -428,27 +428,27 @@ end
 end
 
 @testset "Fit diagnostics" begin
-    @testset "_correlationmatrix" begin
+    @testset "correlationmatrix" begin
         cov = [4.0 -2.0; -2.0 9.0]
-        cor = _correlationmatrix(cov)
+        cor = correlationmatrix(cov)
         @test cor[1, 1] ≈ 1.0
         @test cor[2, 2] ≈ 1.0
         @test cor[1, 2] ≈ -2.0 / (2.0 * 3.0)
         @test cor[2, 1] ≈ cor[1, 2]
     end
 
-    @testset "_atbound" begin
-        @test _atbound(0.0, 0.0)              # exactly on the bound
-        @test _atbound(1e-9, 0.0)             # within tolerance of the bound
-        @test !_atbound(0.5, 0.0)             # well clear of the bound
-        @test !_atbound(1.0, -Inf)            # no finite bound to sit on
+    @testset "isatbound" begin
+        @test isatbound(0.0, 0.0)              # exactly on the bound
+        @test isatbound(1e-9, 0.0)             # within tolerance of the bound
+        @test !isatbound(0.5, 0.0)             # well clear of the bound
+        @test !isatbound(1.0, -Inf)            # no finite bound to sit on
     end
 
-    @testset "_strongcorrelations" begin
+    @testset "strongcorrelations" begin
         cor = [1.0 0.97 0.1;
                0.97 1.0 0.99;
                0.1 0.99 1.0]
-        pairs = _strongcorrelations(cor)
+        pairs = strongcorrelations(cor)
         @test (1, 2, 0.97) in pairs
         @test (2, 3, 0.99) in pairs
         @test !any(p -> p[1] == 1 && p[2] == 3, pairs)
