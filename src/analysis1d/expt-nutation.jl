@@ -278,7 +278,7 @@ function postfit!(r::RegionResult, e::NutationExperiment)
     # `liftparameters!` inserted the fitted coefficients series by series and `setpost!`
     # appends, which would otherwise list every 90° pulse below every frequency.
     ordered = OrderedDict{Symbol,Any}()
-    for s in r.series, key in (:A, :nu, :sigma, :pulse90)
+    for s in r.series, key in (:nu, :pulse90, :sigma, :A)
         name = seriesname(key, s.group)
         haskey(r.parameters, name) && (ordered[name] = r.parameters[name])
     end
@@ -437,7 +437,7 @@ end
 # headline figure is distinguishable from the estimate it was chosen from.
 const NUTATION_PARAM_LABELS = Dict(:nu => "Nutation frequency",
                                    :pulse90 => "90° pulse",
-                                   :sigma => "σ",
+                                   :sigma => "B₁ inhomogeneity",
                                    :inhomogeneity => "B₁ inhomogeneity",
                                    :power => "Power",
                                    :powerref => "Reference power",
@@ -451,7 +451,11 @@ const NUTATION_PARAM_UNITS = Dict(:nu => "Hz",
                                   :powerref => "dB",
                                   :nu1ref => "Hz")
 
-function paramlabel(::NutationExperiment, name::Symbol)
+function paramlabel(e::NutationExperiment, name::Symbol)
+    # Several power levels each report a B₁ inhomogeneity, and the region-level figure is
+    # the smallest of them: worth saying, where a single power level has nothing to choose
+    # between and the plain name is right.
+    name === :inhomogeneity && !isempty(groupcols(e)) && return "B₁ inhom. (smallest)"
     return get(NUTATION_PARAM_LABELS, name, get(PARAM_LABELS, name, string(name)))
 end
 function paramunit(::NutationExperiment, name::Symbol)

@@ -187,7 +187,32 @@ global and what it started at and whether it moved are part of the result.
 The human-readable record, and the one file where numbers are rounded. It carries the
 package version and the date, the input filenames and titles, the sample information, the
 region or peak definitions with the noise position and integration width, the acquisition
-parameters actually used, and the key results formatted with units.
+parameters actually used, and the key results formatted with units. Paths are written in
+full here and in the CSV headers, since a saved file has to say where its data were; what
+is shown on screen is shortened instead, having a panel's width to live within.
+
+Where a region was measured under several conditions, its results are written as a block
+per condition, under a heading naming it, followed by whatever was derived across them:
+
+```
+peak1
+-----
+11.11 dB
+  Nutation frequency     2033.0 ± 7.4 Hz
+  90° pulse              123.0 ± 0.45 µs
+  B₁ inhomogeneity       7.583 ± 0.79 %
+
+31.11 dB
+  Nutation frequency     204.9 ± 0.66 Hz
+  90° pulse              1220.0 ± 3.9 µs
+  B₁ inhomogeneity       9.731 ± 0.53 %
+
+B₁ inhom. (smallest)     7.583 ± 0.79 %
+Linearity                0.9965 ± 0.0021
+```
+
+A region with one series has nothing to group, and is written as the flat block it always
+was. The GUI's results panel is built from the same text, so the two cannot drift apart.
 
 It should also carry the Julia call that would repeat the analysis, together with where
 each resolved parameter came from, which makes the annotation lookup auditable:

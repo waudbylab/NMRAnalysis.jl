@@ -303,13 +303,79 @@ The GUI panel passes a `width` computed across every region ([`panelwidth`](@ref
 column does not jump as regions are selected; `summary.txt` leaves it to align to its own
 block.
 """
-function paramblock(io::IO, expt::Experiment1D, params, width=nothing)
+function paramblock(io::IO, expt::Experiment1D, params, width=nothing; indent="")
     isempty(params) && return nothing
     w = something(width,
                   maximum(length(displaylabel(expt, name)) for name in keys(params)) + 2)
     for (name, value) in params
-        println(io,
-                "$(rpad(displaylabel(expt, name), w))$(fmt(value))$(prettyparamunit(expt, name))")
+        label = rpad(displaylabel(expt, name), max(w - length(indent), 0))
+        println(io, indent, label, fmt(value), prettyparamunit(expt, name))
+    end
+    return nothing
+end
+
+"""
+    paramgroups(result) -> Vector{Pair{NamedTuple,OrderedDict{Symbol,Any}}}
+
+A region's parameters split into one block per series, each keyed by that series' grouping
+key and holding its parameters under their bare names, followed by a block keyed by the
+empty `NamedTuple` for whatever belongs to the region rather than to any one series - the
+quantities [`postfit!`](@ref) derived from all of them.
+
+This is what turns a flat dump of `nu_11.11`, `nu_31.11`, `pulse90_11.11` … into something
+a reader can take in: each condition's results together, under a heading naming it. A
+region with a single series has one block with an empty key, so nothing is grouped and
+nothing is indented that was not before.
+"""
+function paramgroups(r::RegionResult)
+    # The empty key comes last and holds what belongs to the region rather than to any one
+    # series. A single series is itself empty-keyed, so `unique` leaves one block and
+    # nothing is grouped. The vector is typed, the keys of different series being one
+    # `NamedTuple` type and the empty key another.
+    groupkeys = unique(NamedTuple[[s.group for s in r.series]; NamedTuple()])
+    groups = Pair{NamedTuple,OrderedDict{Symbol,Any}}[k => OrderedDict{Symbol,Any}()
+                                                      for k in groupkeys]
+    for (name, value) in r.parameters
+        base = baseparam(name)
+        i = findfirst(g -> seriesname(base, first(g)) == name, groups)
+        # an unsuffixed name matches the empty key, so only a name belonging to no series
+        # at all reaches the fallback, where it keeps the name it was given
+        isnothing(i) ? (groups[end].second[name] = value) : (groups[i].second[base] = value)
+    end
+    return groups
+end
+
+"""
+    paramwidth(expt, groups) -> Int
+
+Width of the label column across every block of [`paramgroups`](@ref), indentation
+included, so the values line up down the whole region and not just within a block. Zero
+where there is nothing to show.
+"""
+function paramwidth(expt::Experiment1D, groups)
+    len = 0
+    for (group, params) in groups, name in keys(params)
+        len = max(len, length(displaylabel(expt, name)) + (isempty(group) ? 0 : 2))
+    end
+    return len
+end
+
+"""
+    paramblock(io, expt, result::RegionResult, width=nothing)
+
+Everything a region reports, a block per series under a heading naming it, then the
+quantities derived across them. See [`paramgroups`](@ref).
+"""
+function paramblock(io::IO, expt::Experiment1D, r::RegionResult, width=nothing)
+    groups = paramgroups(r)
+    w = something(width, paramwidth(expt, groups) + 2)
+    isfirst = true
+    for (group, params) in groups
+        isempty(params) && continue
+        isfirst || println(io)
+        isfirst = false
+        isempty(group) || println(io, groupname(expt, group))
+        paramblock(io, expt, params, w; indent=isempty(group) ? "" : "  ")
     end
     return nothing
 end
@@ -340,9 +406,7 @@ function panelwidth(expt::Experiment1D, result, activelabel::AbstractString)
     len = 0
     for r in result
         r.region == activelabel || continue
-        for k in keys(r.parameters)
-            len = max(len, length(displaylabel(expt, k)))
-        end
+        len = max(len, paramwidth(expt, paramgroups(r)))
     end
     return len == 0 ? nothing : len + 2
 end
@@ -389,7 +453,7 @@ function resultstext(e::Experiment1D, result, activelabel::AbstractString, width
     spans = Any[]
     for r in result
         r.region == activelabel || continue
-        block = paramtext(e, r.parameters, width)
+        block = paramtext(e, r, width)
         isempty(block) && continue
         push!(spans, plaintext(block), "\n")
     end
@@ -413,7 +477,7 @@ function summarytext(e::Experiment1D, result, activelabel::AbstractString)
         r.region == activelabel || continue
         println(io, r.region)
         println(io, "-"^length(r.region))
-        paramblock(io, e, r.parameters)
+        paramblock(io, e, r)
         println(io)
     end
     return String(take!(io))

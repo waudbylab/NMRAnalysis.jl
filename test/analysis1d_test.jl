@@ -20,7 +20,8 @@ using NMRAnalysis.Analysis1D: resultstable, seriestable, experimentinfo,
                               baseparam, regionlisttable, readregions!, NOISE_LABEL
 using NMRAnalysis.Analysis1D: analysiscall, callstring, callvalue, writesummary
 using NMRAnalysis.Analysis1D: ask, askvector, askchoice, parsevector, acqusvalue
-using NMRAnalysis.Analysis1D: powerdb, saveextras!, fitseries, groupname, displaylabel
+using NMRAnalysis.Analysis1D: powerdb, saveextras!, fitseries, groupname, displaylabel,
+                              summarytext, paramgroups
 using NMRAnalysis: refpower, ν1ref
 using NMRTools: Power, db, hz
 using Measurements
@@ -202,6 +203,10 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
         # with one power level there is nothing to choose between, so the fitted `sigma`
         # is reported under the name it was chosen for and not twice
         @test !haskey(res[1].parameters, :sigma)
+        # one series, so nothing to group: the summary is the flat block it always was
+        lines = split(summarytext(expt, res, "signal"), '\n')
+        @test !any(startswith(l, "  ") for l in lines)
+        @test any(startswith(l, "B₁ inhomogeneity") for l in lines)
         # only σ² enters the model, so a fit landing on -σ still reports a positive width
         @test Measurements.value(param(res[1], :inhomogeneity)) > 0
 
@@ -266,11 +271,31 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
         @test displaylabel(expt, seriesname(:nu, (; power=dB[1]))) ==
               "Nutation frequency (-18.0 dB)"
         @test displaylabel(expt, :inhomogeneity) == "B₁ inhomogeneity"
+        # the summary reads as a block per power level, under a heading naming it, then
+        # what was derived across them - not one flat dump of suffixed names
+        lines = split(summarytext(expt, res, "signal"), '\n')
+        @test "-18.0 dB" in lines
+        @test any(startswith(l, "  Nutation frequency") for l in lines)
+        @test any(startswith(l, "  90° pulse") for l in lines)
+        # the region's own results are not indented, and say they are the smallest
+        @test any(startswith(l, "B₁ inhom. (smallest)") for l in lines)
+        @test any(startswith(l, "Linearity") for l in lines)
+
+        # the split behind that layout: a block per series keyed by its group, holding
+        # bare names, then one keyed by the empty group for what spans them
+        groups = paramgroups(r)
+        @test length(groups) == 4                       # three power levels, plus derived
+        @test first(groups).first == (; power=dB[1])
+        @test haskey(first(groups).second, :nu)
+        @test last(groups).first == NamedTuple()
+        @test haskey(last(groups).second, :inhomogeneity)
+        @test haskey(last(groups).second, :linearity)
+
         # each power level's results are listed together, not every 90° pulse below every
         # frequency
         names = collect(keys(r.parameters))
         @test names[1:4] == [seriesname(k, (; power=dB[1]))
-                             for k in (:A, :nu, :sigma, :pulse90)]
+                             for k in (:nu, :pulse90, :sigma, :A)]
         @test last(names) == :linearity
 
         # the curve is plotted as well as tabulated - a calibration is a thing you look at
