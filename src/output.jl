@@ -107,3 +107,24 @@ function writetable(filepath::AbstractString, comments, header, rows)
     end
     return filepath
 end
+
+"""
+    shortpath(path) -> String
+
+The last two components of `path`, with a Bruker `pdata/<n>` tail dropped first:
+`/Users/chris/NMR/crick-701/sophia_990_260823/10/pdata/1` → `sophia_990_260823/10`.
+
+What identifies a spectrum to the person who recorded it is the dataset folder and the
+experiment number, not the fifty characters above them, and a full path overflows a GUI
+panel and pads every line of a summary. The call that produced an analysis is still
+recorded in full (see `AnalysisCall`), so nothing needed to repeat it is lost.
+
+Anything that is not a path is returned as it stands.
+"""
+function shortpath(path::AbstractString)
+    parts = splitpath(String(path))
+    isempty(parts) && return ""
+    # `.../<experiment>/pdata/<n>`: the processed-data folder identifies nothing
+    length(parts) ≥ 3 && lowercase(parts[end - 1]) == "pdata" && (parts = parts[1:(end - 2)])
+    return length(parts) ≤ 2 ? joinpath(parts...) : joinpath(parts[end - 1], parts[end])
+end

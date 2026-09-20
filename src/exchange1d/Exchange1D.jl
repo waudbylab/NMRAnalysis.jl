@@ -26,6 +26,7 @@ using Statistics
 import ..NMRAnalysis  # module itself, for pkgversion(NMRAnalysis)
 using ..NMRAnalysis: analyse, register_analysis!, MultiFileRule
 using ..NMRAnalysis: select_expts
+using ..NMRAnalysis: stderrors   # standard errors that survive a singular covariance
 # B₁ field strength and its distribution across the sample - see src/b1.jl
 using ..NMRAnalysis: B1Calibration, B1Distribution, b1average, b1rate, inhomogeneity,
                      npoints

@@ -14,6 +14,7 @@ using Statistics
 
 export r1rho, setupR1rhopowers
 using ..NMRAnalysis: select_expts
+using ..NMRAnalysis: stderrors   # standard errors that survive a singular covariance
 using ..NMRAnalysis: register_analysis!, MultiFileRule
 # B₁ calibration (src/b1.jl), and the nutation analysis that measures one
 using ..NMRAnalysis: B1Calibration

@@ -14,6 +14,7 @@ using REPL.TerminalMenus
 using Statistics
 using ..MaybeVectorModule
 # shared output rules - see src/output.jl and docs/src/advanced/conventions.md
+using ..NMRAnalysis: stderrors   # standard errors that survive a singular covariance
 using ..NMRAnalysis: csvcolumn, csvcolumns, csvvalue, safename, sanitizelabel, backupfile,
                      backupfolder, writetable
 

@@ -128,18 +128,23 @@ t_{90} = \frac{1}{4\nu}.
 The envelope is Gaussian rather than exponential because that is what a Gaussian spread of
 B₁ produces: averaging ``\sin(2\pi\nu t)`` over a distribution of ν with mean ν̄ and
 standard deviation σν̄ gives ``\sin(2\pi\bar\nu t)\exp(-\tfrac{1}{2}(2\pi\sigma\bar\nu
-t)^2)``. Fitting it this way makes σ the fractional width of the B₁ distribution directly,
-which is the same quantity the CEST and R1ρ simulations sample.
+t)^2)``. Fitting it this way makes σ the width of the B₁ distribution directly, which is
+the same quantity the CEST and R1ρ simulations sample. It is fitted, and reported, as a
+percentage.
 
 | Parameter | Meaning |
 |---|---|
 | `A` | Amplitude |
 | `nu` | Nutation frequency, Hz |
-| `sigma` | Fractional width of the B₁ distribution |
+| `sigma` | Width of the B₁ distribution at this power level, % |
 | `power` | Power level, dB (single-power analyses only) |
 | `pulse90` | 90° pulse length, µs |
-| `inhomogeneity` | B₁ inhomogeneity, % |
+| `inhomogeneity` | B₁ inhomogeneity, %: the smallest `sigma` |
 | `powerref`, `nu1ref`, `linearity` | The calibration curve (several power levels only) |
+
+With several power levels, each one's parameters carry its power as a suffix
+(`nu_11.11`, `pulse90_11.11`) and are reported together, followed by the calibration
+curve.
 
 A B₁ inhomogeneity of 5 to 10% is normal for a standard probe. A much larger value usually
 means the fit has gone wrong, or the signal is not on resonance.

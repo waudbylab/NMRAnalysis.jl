@@ -66,14 +66,29 @@ function resultplotdata(e::Experiment1D, result, activelabel::AbstractString)
         else
             Point2f[]
         end
-        return ResultSeries(points, errors, fitline, groupname(s.group))
+        return ResultSeries(points, errors, fitline, groupname(e, s.group))
     end
 end
 
-"""Human-readable label for a grouping key, e.g. `(which = :trosy,)` → `"trosy"`."""
-function groupname(group::NamedTuple)
+"""
+    groupname(expt, group) -> String
+
+Human-readable label for a grouping key: `(which = :trosy,)` → `"trosy"`,
+`(power = 11.11,)` → `"11.11 dB"`.
+
+The unit comes from [`coordinateunit`](@ref), the same table that labels the coordinate's
+column in `series.csv`, because a curve labelled `11.11` names nothing a reader can act on.
+A categorical coordinate has no unit and is shown as it stands.
+"""
+function groupname(e::Experiment1D, group::NamedTuple)
     isempty(group) && return ""
-    return join((string(v) for v in values(group)), ", ")
+    return join((coordinatetext(e, k, v) for (k, v) in pairs(group)), ", ")
+end
+
+"""One coordinate's value with its unit, as a label: `(:power, 11.11)` → `"11.11 dB"`."""
+function coordinatetext(e::Experiment1D, name::Symbol, value)
+    unit = coordinateunit(e, name)
+    return isempty(unit) ? string(value) : "$value $unit"
 end
 
 """
@@ -237,7 +252,13 @@ from [`baseparam`](@ref), so an experiment's label table needs only bare names.
 function displaylabel(e::Experiment1D, name::Symbol)
     base = baseparam(name)
     base === name && return paramlabel(e, name)
-    return "$(paramlabel(e, base)) ($(string(name)[(length(string(base)) + 2):end]))"
+    # The suffix is the value of the grouping variable, which needs its unit to mean
+    # anything: a nutation series named `11.11` is a power level in dB. Recovered from
+    # `groupcols` rather than carried around, the name being all `paramblock` has.
+    suffix = string(name)[(length(string(base)) + 2):end]
+    cols = groupcols(e)
+    length(cols) == 1 && (suffix = coordinatetext(e, only(cols), suffix))
+    return "$(paramlabel(e, base)) ($suffix)"
 end
 
 """

@@ -85,7 +85,7 @@ function integrate!(expt::R1rhoOnResExperiment, peakppm, noiseppm, ppmwidth)
     for i in 1:length(expt.νSL)
         y = vec(data(integrals[1, i, :]))
         fitres = curve_fit(expdecay, expt.TSL, y, p0)
-        R = coef(fitres)[2] ± stderror(fitres)[2]
+        R = coef(fitres)[2] ± stderrors(fitres)[2]
         expt.observed_intensities[i] = R
     end
 end

@@ -72,7 +72,7 @@ function fitexp(t, I, p)
         fit = LsqFit.curve_fit(model, t, I, p0)
         R = coef(fit)[1]
         Re = try
-            stderror(fit)[1]
+            stderrors(fit)[1]
         catch
             0.0
         end

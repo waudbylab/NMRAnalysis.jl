@@ -88,5 +88,7 @@ function datasetfromspec(spec, vars::AbstractVector{<:NamedTuple};
                      speclabel(spec))
 end
 
-"""A short description of where a spectrum came from, for results-file provenance."""
-speclabel(spec) = string(something(spec[:filename], spec[:title], ""))
+"""A short description of where a spectrum came from, for results-file provenance: the
+dataset folder and the experiment number, via [`shortpath`](@ref), rather than an absolute
+path that overflows a panel and pads every line of a summary."""
+speclabel(spec) = shortpath(string(something(spec[:filename], spec[:title], "")))

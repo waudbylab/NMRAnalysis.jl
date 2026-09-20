@@ -246,7 +246,7 @@ function gui!(expt::Experiment1D; call=nothing)
     end
 
     r += 1
-    right[r, 1] = Label(fig, "Working directory:\n$(pwd())"; word_wrap=true,
+    right[r, 1] = Label(fig, "Working directory:\n$(shortpath(pwd()))"; word_wrap=true,
                         tellwidth=false,
                         halign=:left)
 

@@ -20,7 +20,7 @@ using NMRAnalysis.Analysis1D: resultstable, seriestable, experimentinfo,
                               baseparam, regionlisttable, readregions!, NOISE_LABEL
 using NMRAnalysis.Analysis1D: analysiscall, callstring, callvalue, writesummary
 using NMRAnalysis.Analysis1D: ask, askvector, askchoice, parsevector, acqusvalue
-using NMRAnalysis.Analysis1D: powerdb, saveextras!
+using NMRAnalysis.Analysis1D: powerdb, saveextras!, fitseries, groupname, displaylabel
 using NMRAnalysis: refpower, ν1ref
 using NMRTools: Power, db, hz
 using Measurements
@@ -194,12 +194,14 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
 
         res = analyse1d(expt)
         @test Measurements.value(param(res[1], :nu)) ≈ ν rtol = 0.05
-        # σ is the fractional width of the B₁ distribution, fitted directly from the
-        # Gaussian envelope rather than converted from an exponential decay rate
-        @test Measurements.value(param(res[1], :sigma)) ≈ σ rtol = 0.1
         # stored in the units they are quoted in: µs and %, not seconds and a fraction
         @test Measurements.value(param(res[1], :pulse90)) ≈ 1e6 / (4ν) rtol = 0.05
+        # the width of the B₁ distribution, fitted directly from the Gaussian envelope
+        # rather than converted from an exponential decay rate
         @test Measurements.value(param(res[1], :inhomogeneity)) ≈ 100σ rtol = 0.1
+        # with one power level there is nothing to choose between, so the fitted `sigma`
+        # is reported under the name it was chosen for and not twice
+        @test !haskey(res[1].parameters, :sigma)
         # only σ² enters the model, so a fit landing on -σ still reports a positive width
         @test Measurements.value(param(res[1], :inhomogeneity)) > 0
 
@@ -258,6 +260,19 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
         @test hz(Power(dB[2], :dB), cal) ≈ ν[2] rtol = 0.05
         @test db(Power(ν[3], cal)) ≈ dB[3] rtol = 0.02
 
+        # A series is named by its power level, which means nothing without its unit: the
+        # plot legend and the parameter labels both say "11.11 dB", not "11.11".
+        @test groupname(expt, (; power=dB[1])) == "-18.0 dB"
+        @test displaylabel(expt, seriesname(:nu, (; power=dB[1]))) ==
+              "Nutation frequency (-18.0 dB)"
+        @test displaylabel(expt, :inhomogeneity) == "B₁ inhomogeneity"
+        # each power level's results are listed together, not every 90° pulse below every
+        # frequency
+        names = collect(keys(r.parameters))
+        @test names[1:4] == [seriesname(k, (; power=dB[1]))
+                             for k in (:A, :nu, :sigma, :pulse90)]
+        @test last(names) == :linearity
+
         # the curve is plotted as well as tabulated - a calibration is a thing you look at
         mktempdir() do dir
             @test saveextras!(expt, res, dir) isa AbstractString
@@ -274,6 +289,30 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
             @test saveextras!(single, analyse1d(single), dir) === nothing
             @test !isfile(joinpath(dir, "calibration.pdf"))
         end
+    end
+
+    @testset "A fit the data cannot constrain" begin
+        # The second parameter has no effect, so the Jacobian is rank-deficient and the
+        # covariance matrix singular. LsqFit throws on that, which would take an
+        # interactive refit down with it; NaN uncertainties are visible and harmless.
+        model = CurveFitModel((x, p) -> @.(p[1] + 0 * p[2] * x), ["A", "unused"],
+                              (x, y) -> [1.0, 1.0])
+        x = collect(range(0.0, 1.0; length=8))
+        fit = fitseries(model, x, [1.0 ± 0.1 for _ in x])
+        @test Measurements.value(fit.params[1]) ≈ 1.0 rtol = 1e-6
+        @test all(isnan, Measurements.uncertainty.(fit.params))
+    end
+
+    @testset "Paths shown in the interface" begin
+        # the dataset folder and the experiment number, not the fifty characters above them
+        @test shortpath("/Users/chris/NMR/crick-701/sophia_990_260823/10/pdata/1") ==
+              joinpath("sophia_990_260823", "10")
+        @test shortpath("/Users/chris/NMR/crick-701/sophia_990_260823") ==
+              joinpath("crick-701", "sophia_990_260823")
+        @test shortpath("10") == "10"
+        @test shortpath("") == ""
+        # not a path at all (a spectrum's title, where it has no filename)
+        @test shortpath("my sample, 298 K") == "my sample, 298 K"
     end
 
     @testset "Diffusion" begin

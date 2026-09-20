@@ -25,12 +25,15 @@ using REPL.TerminalMenus
 using Statistics
 
 using ..NMRAnalysis: register_analysis!, MultiFileRule, viscosity
-# B₁ calibration: the type and its accessors, built from a nutation fit in expt-nutation.jl
-using ..NMRAnalysis: B1Calibration, refpower, ν1ref, linearity, inhomogeneity,
-                     powers, fields
+using ..NMRAnalysis: stderrors   # standard errors that survive a singular covariance
+# B₁ calibration: the type and its accessors, built from a nutation fit in expt-nutation.jl.
+# `import` rather than `using`, because expt-nutation.jl adds constructor methods to it:
+# `using` brings the name in to call, not to extend.
+import ..NMRAnalysis: B1Calibration
+using ..NMRAnalysis: refpower, ν1ref, linearity, inhomogeneity, powers, fields
 # shared output rules - see src/output.jl and docs/src/advanced/conventions.md
 using ..NMRAnalysis: csvcolumn, csvcolumns, csvvalue, safename, sanitizelabel, backupfile,
-                     backupfolder, writetable
+                     backupfolder, writetable, shortpath
 
 # the analysis core: no Makie in the computational path. (An experiment that saves a
 # figure of its own draws it in its `expt-*.jl`, as Exchange1D's experiments do, so that

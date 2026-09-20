@@ -193,11 +193,15 @@ Nutation of an inhomogeneous B₁ field: `A·sin(2π·ν·t)·exp(−½(2π·σ�
 `phase = :cosine`), parameters `[A, ν, σ]`.
 
 `ν` is the mean nutation frequency (Hz), from which the 90° pulse length follows as
-`1/(4ν)`, and `σ` is the *fractional* width of the B₁ distribution, which is what damps the
-nutation: averaging `sin(2πνt)` over a Gaussian distribution of ν with mean ν̄ and standard
-deviation σν̄ gives `sin(2πν̄t)·exp(−½(2πσν̄t)²)`, a Gaussian decay rather than an
+`1/(4ν)`, and `σ` is the width of the B₁ distribution as a *percentage* of ν, which is what
+damps the nutation: averaging `sin(2πνt)` over a Gaussian distribution of ν with mean ν̄ and
+standard deviation σν̄ gives `sin(2πν̄t)·exp(−½(2πσν̄t)²)`, a Gaussian decay rather than an
 exponential one. Fitting the envelope this way makes σ the same quantity
 [`B1Distribution`](@ref) later samples, instead of an exponential rate needing conversion.
+
+σ is fitted in percent rather than as a fraction so that every inhomogeneity this analysis
+reports is in the unit it is quoted in, and incidentally so that the three parameters are of
+comparable magnitude, which is what a Levenberg-Marquardt step prefers.
 
 Relaxation during the pulse damps the nutation too, and is not separated here: σ is
 therefore an upper bound, worst at the lowest power where the pulses are longest, which is
@@ -207,9 +211,9 @@ Only σ² enters, so the fitted sign is arbitrary and `postfit!` reports |σ|.
 """
 function DampedSinusoidModel(; phase::Symbol=:sine)
     trig = phase === :cosine ? cos : sin
-    est(x, y) = [maximum(abs.(y)), estimatefrequency(x, y, trig), 0.05]
+    est(x, y) = [maximum(abs.(y)), estimatefrequency(x, y, trig), 5.0]
     return CurveFitModel((x, p) -> @.(p[1] * trig(2π * p[2] * x) *
-                                      exp(-0.5 * (2π * p[3] * p[2] * x)^2)),
+                                      exp(-0.5 * (2π * (p[3] / 100) * p[2] * x)^2)),
                          ["A", "nu", "sigma"],
                          est;
                          xlabel="Pulse duration / s")
@@ -236,8 +240,8 @@ function estimatefrequency(x, y, trig)
     return argmax(ν -> abs(sum(y .* trig.(2π * ν .* x))), νs)
 end
 
-# Stored in the units `PARAM_UNITS` names for them: a 90° pulse reads naturally in µs, never
-# in seconds, and an inhomogeneity as a percentage.
+# Stored in the units `PARAM_UNITS` names for them: a 90° pulse reads naturally in µs,
+# never in seconds, and an inhomogeneity in percent, which is what the model fits.
 function postfit!(r::RegionResult, e::NutationExperiment)
     p = dataset(e).planes
     # With one power level the group is empty, so the power is not in the parameter names
@@ -248,12 +252,17 @@ function postfit!(r::RegionResult, e::NutationExperiment)
     for s in r.series
         ν = param(r, seriesname(:nu, s.group))
         setpost!(r, seriesname(:pulse90, s.group), 1e6 / (4ν))
+        # only σ² enters the model, so the fitted sign means nothing
+        setpost!(r, seriesname(:sigma, s.group), abs(param(r, seriesname(:sigma, s.group))))
     end
 
     # The smallest estimate across power levels: every one is inflated by relaxation during
     # the pulse, least so at high power where the pulses are shortest.
-    σ = [abs(param(r, seriesname(:sigma, s.group))) for s in r.series]
-    setpost!(r, :inhomogeneity, 100 * σ[argmin(Measurements.value.(σ))])
+    σ = [param(r, seriesname(:sigma, s.group)) for s in r.series]
+    setpost!(r, :inhomogeneity, σ[argmin(Measurements.value.(σ))])
+    # With one power level there is nothing to choose between, so `sigma` and
+    # `inhomogeneity` are one number under two names: keep the one it is named for.
+    length(r.series) == 1 && delete!(r.parameters, :sigma)
 
     # The calibration curve, where several power levels were measured. `nu1ref` is the
     # field at `powerref` and `linearity` the fitted exponent relative to the ideal power
@@ -264,6 +273,19 @@ function postfit!(r::RegionResult, e::NutationExperiment)
         setpost!(r, :nu1ref, ν1ref(cal))
         setpost!(r, :linearity, linearity(cal))
     end
+
+    # One power level's results together, then the next, then the calibration:
+    # `liftparameters!` inserted the fitted coefficients series by series and `setpost!`
+    # appends, which would otherwise list every 90° pulse below every frequency.
+    ordered = OrderedDict{Symbol,Any}()
+    for s in r.series, key in (:A, :nu, :sigma, :pulse90)
+        name = seriesname(key, s.group)
+        haskey(r.parameters, name) && (ordered[name] = r.parameters[name])
+    end
+    for (name, value) in r.parameters
+        haskey(ordered, name) || (ordered[name] = value)
+    end
+    r.parameters = ordered
     return nothing
 end
 
@@ -293,7 +315,8 @@ hz(Power(12.0, :dB), cal)     # field at a power the calibration did not measure
 """
 function B1Calibration(r::RegionResult; nuc=nothing, source::AbstractString="")
     isempty(r.series) && throw(ArgumentError("region \"$(r.region)\" has no fitted series"))
-    haskey(r.parameters, seriesname(:nu, first(r.series).group)) ||
+    haskey(r.parameters, seriesname(:nu, first(r.series).group)) &&
+        haskey(r.parameters, :inhomogeneity) ||
         throw(ArgumentError("region \"$(r.region)\" has no fitted nutation frequency; " *
                             "was the analysis run with fitting switched off?"))
     haskey(r.parameters, :power) || !isempty(first(r.series).group) ||
@@ -307,10 +330,10 @@ function B1Calibration(r::RegionResult; nuc=nothing, source::AbstractString="")
         push!(power, Power(Float64(dB), :dB))
         push!(ν1, param(r, seriesname(:nu, s.group)))
     end
-    σ = [abs(param(r, seriesname(:sigma, s.group))) for s in r.series]
-    return B1Calibration(power, ν1; nuc,
-                         inhomogeneity=Measurements.value(σ[argmin(Measurements.value.(σ))]),
-                         source)
+    # The headline inhomogeneity is already the smallest of the per-power estimates, and
+    # `postfit!` reports it in the percent it is quoted in; a calibration holds a fraction.
+    σ = Measurements.value(param(r, :inhomogeneity))
+    return B1Calibration(power, ν1; nuc, inhomogeneity=σ / 100, source)
 end
 
 function B1Calibration(results::AbstractVector{RegionResult}; kwargs...)
@@ -409,19 +432,20 @@ end
 # everything about this experiment's presentation lives here. The keys are ASCII (:nu, not
 # :ν) because they become CSV column headers; the typeset names are in the labels.
 #
-# :sigma is the fitted fractional width of the B₁ distribution and :inhomogeneity the
-# smallest of those estimates as a percentage - the same quantity in different units, which
-# is why they are named apart rather than sharing a name with two units.
+# :sigma is the width of the B₁ distribution fitted at one power level and :inhomogeneity
+# the smallest of those estimates, both in percent. They are named apart so that the
+# headline figure is distinguishable from the estimate it was chosen from.
 const NUTATION_PARAM_LABELS = Dict(:nu => "Nutation frequency",
-                                   :pulse90 => "90°",
-                                   :sigma => "B₁ inhom. (σ)",
-                                   :inhomogeneity => "B₁ inhom.",
+                                   :pulse90 => "90° pulse",
+                                   :sigma => "σ",
+                                   :inhomogeneity => "B₁ inhomogeneity",
                                    :power => "Power",
                                    :powerref => "Reference power",
                                    :nu1ref => "ν₁ at reference power",
                                    :linearity => "Linearity")
 const NUTATION_PARAM_UNITS = Dict(:nu => "Hz",
                                   :pulse90 => "us",
+                                  :sigma => "%",
                                   :inhomogeneity => "%",
                                   :power => "dB",
                                   :powerref => "dB",

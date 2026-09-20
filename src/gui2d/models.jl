@@ -94,7 +94,7 @@ function postfit!(peak::Peak, expt::IntensityExperiment, model::ParametricModel)
     p0 = collect(values(estimate_parameters(x_fit, y_fit, model)))
     fit = curve_fit(model.func, x_fit, y_fit, p0)
     pfit = coef(fit)
-    perr = stderror(fit)
+    perr = stderrors(fit)
 
     for (i, name) in enumerate(model.param_names)
         param = peak.postparameters[Symbol(name)]

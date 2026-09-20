@@ -207,7 +207,7 @@ function postfit!(peak::Peak, expt::CESTExperiment)
     model(x, p) = Z(x, v0, v1, Tsat, p[1], p[2])
     fit = curve_fit(model, vsat, zspecobs, p0)
     pfit = coef(fit)
-    perr = stderror(fit)
+    perr = stderrors(fit)
     # pfit = p0
     # perr = [0.1, 0.1]
 
