@@ -17,7 +17,7 @@ nmolecules(::ThreeStateBindingModel) = 2
 molecules(::ThreeStateBindingModel) = Dict(:A => "observed", :X => "titrant")
 function defaultparams(::ThreeStateBindingModel)
     return ComponentArray(; logKd1=log(100.0), logkoff1=log(1000.0),
-        logKd2=log(500.0), logkoff2=log(5000.0))
+                          logKd2=log(500.0), logkoff2=log(5000.0))
 end
 
 """
@@ -42,9 +42,9 @@ function populations(model::ThreeStateBindingModel, params, expt)
     # Free ligand from quadratic solution (n1=n2=1, parallel sites)
     # From TITAN bmGeneralThreeStateParallel
     Lfree = real((Kd2*(X0 - A0) + Kd1*(X0 - (Kd2 + A0)) +
-        sqrt(4*Kd1*Kd2*(Kd1 + Kd2)*A0 +
-            (Kd1*X0 + Kd2*X0 + Kd1*Kd2 - (Kd1 + Kd2)*A0)^2)) /
-        (2*(Kd1 + Kd2)))
+                  sqrt(4*Kd1*Kd2*(Kd1 + Kd2)*A0 +
+                       (Kd1*X0 + Kd2*X0 + Kd1*Kd2 - (Kd1 + Kd2)*A0)^2)) /
+                 (2*(Kd1 + Kd2)))
 
     kon1 = koff1 / Kd1
     kon2 = koff2 / Kd2
@@ -76,9 +76,9 @@ function exchangematrix(model::ThreeStateBindingModel, params, expt)
     A0, X0 = modelconcentrations(model, expt)
 
     Lfree = real((Kd2*(X0 - A0) + Kd1*(X0 - (Kd2 + A0)) +
-        sqrt(4*Kd1*Kd2*(Kd1 + Kd2)*A0 +
-            (Kd1*X0 + Kd2*X0 + Kd1*Kd2 - (Kd1 + Kd2)*A0)^2)) /
-        (2*(Kd1 + Kd2)))
+                  sqrt(4*Kd1*Kd2*(Kd1 + Kd2)*A0 +
+                       (Kd1*X0 + Kd2*X0 + Kd1*Kd2 - (Kd1 + Kd2)*A0)^2)) /
+                 (2*(Kd1 + Kd2)))
 
     kon1 = koff1 / Kd1
     kon2 = koff2 / Kd2
@@ -88,8 +88,8 @@ function exchangematrix(model::ThreeStateBindingModel, params, expt)
     kca = koff2
 
     return [-kab-kac kba kca;
-        kab -kba 0.0;
-        kac 0.0 -kca]
+            kab -kba 0.0;
+            kac 0.0 -kca]
 end
 
 """

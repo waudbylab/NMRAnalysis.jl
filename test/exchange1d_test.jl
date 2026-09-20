@@ -508,7 +508,7 @@ end
         corheader, corrows = correlationmatrixtable(result)
 
         freelabels = [item.label
-                     for item in _flatten_params_items(result.params)[result.freeidx]]
+                      for item in _flatten_params_items(result.params)[result.freeidx]]
         @test covheader == corheader == vcat(["parameter"], freelabels)
         @test length(covrows) == length(corrows) == length(freelabels)
         @test all(row[1] == label for (row, label) in zip(covrows, freelabels))
