@@ -74,6 +74,7 @@ function exchange1d(filenames::Vector{String})
 
         GLMakie.activate!()
         display(combineplots(result))
+        result.nparams > 1 && display(correlationheatmap(result))
 
         action = _prompt_after_fit()
         if action == :save
@@ -701,6 +702,12 @@ function _save_results(result::FitResult)
     for (i, p) in enumerate(overlays)
         save(joinpath(outputfolder, "overlay_$i.pdf"), p; backend=CairoMakie)
         push!(saved, "overlay_$i.pdf")
+    end
+
+    if result.nparams > 1
+        save(joinpath(outputfolder, "correlation.pdf"), correlationheatmap(result);
+             backend=CairoMakie)
+        push!(saved, "correlation.pdf")
     end
 
     writesummary(joinpath(outputfolder, "summary.txt"), result)

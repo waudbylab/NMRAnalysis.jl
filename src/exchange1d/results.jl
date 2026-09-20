@@ -63,26 +63,13 @@ function Base.show(io::IO, ::MIME"text/plain", result::FitResult)
                  crop=:none,
                  header_crayon=Crayon(; bold=true))
 
-    # correlation matrix of the fitted (non-fixed) parameters
-    freeitems = items_fit[result.freeidx]
-    if length(freeitems) > 1
-        clabels = [_pretty_label(item, state_labels, fields) for item in freeitems]
-        n = length(clabels)
-        body = [string(round(result.cor[i, j]; digits=2)) for i in 1:n, j in 1:n]
-
-        println(io)
-        printstyled(io, "  Correlation matrix\n"; bold=true, color=:cyan)
-        pretty_table(io, hcat(clabels, body);
-                     header=vcat(["Parameter"], clabels),
-                     alignment=vcat([:l], fill(:r, n)),
-                     tf=tf_unicode_rounded,
-                     crop=:none,
-                     header_crayon=Crayon(; bold=true))
-    end
-
-    # strongly correlated parameter pairs, if any — see strongcorrelations
+    # strongly correlated parameter pairs, if any — see strongcorrelations. The full
+    # correlation matrix goes to correlation.csv/correlation.pdf instead of here: it grows
+    # wider than a terminal (or a printed page) with every extra parameter, while this list
+    # stays short.
     correlations = strongcorrelations(result.cor)
     if !isempty(correlations)
+        freeitems = items_fit[result.freeidx]
         label1 = [_pretty_label(freeitems[i], state_labels, fields)
                   for (i, _, _) in correlations]
         label2 = [_pretty_label(freeitems[j], state_labels, fields)

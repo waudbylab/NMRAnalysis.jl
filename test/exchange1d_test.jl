@@ -13,8 +13,10 @@ import NMRAnalysis.Exchange1D:
                                seriescoordinates, observable, coordinateunit,
                                parameterunit, experimenttype, resultstable, seriestable,
                                problemcomments, short_expt_path, _ParamItem,
-                               _flatten_params_items, correlationmatrix, isatbound,
-                               strongcorrelations, covariancematrixtable, correlationmatrixtable
+                               _flatten_params_items, isatbound,
+                               strongcorrelations, covariancematrixtable, correlationmatrixtable,
+                               correlationheatmap
+using CairoMakie
 using ComponentArrays
 using LinearAlgebra
 using Measurements
@@ -428,15 +430,6 @@ end
 end
 
 @testset "Fit diagnostics" begin
-    @testset "correlationmatrix" begin
-        cov = [4.0 -2.0; -2.0 9.0]
-        cor = correlationmatrix(cov)
-        @test cor[1, 1] ≈ 1.0
-        @test cor[2, 2] ≈ 1.0
-        @test cor[1, 2] ≈ -2.0 / (2.0 * 3.0)
-        @test cor[2, 1] ≈ cor[1, 2]
-    end
-
     @testset "isatbound" begin
         @test isatbound(0.0, 0.0)              # exactly on the bound
         @test isatbound(1e-9, 0.0)             # within tolerance of the bound
@@ -527,5 +520,16 @@ end
             @test parse(Float64, corrows[i][1 + i]) ≈ 1.0
             @test parse(Float64, covrows[i][1 + i]) ≈ result.cov[i, i]
         end
+    end
+
+    @testset "correlationheatmap" begin
+        delays = [0.1, 0.2, 0.5, 1.0]
+        observed = (1.0 .* exp.(-delays .* 2.0)) .± 0.01
+        expt = R1Experiment(nothing, 14.1, Dict{String,Float64}(), delays,
+                            observed, zeros(length(delays)), :exponential_decay)
+        prob = ExchangeProblem([expt], NoExchangeModel())
+        result = fit(prob, defaultparams(prob))
+
+        @test correlationheatmap(result) isa Figure
     end
 end

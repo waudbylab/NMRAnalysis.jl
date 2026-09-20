@@ -80,13 +80,6 @@ function isatbound(value::Float64, bound::Float64; tol::Float64=1e-6)
     return abs(value - bound) <= tol * scale
 end
 
-"""Correlation matrix corresponding to covariance matrix `cov`:
-`cor[i,j] = cov[i,j] / sqrt(cov[i,i] * cov[j,j])`."""
-function correlationmatrix(cov::Matrix{Float64})
-    d = sqrt.(diag(cov))
-    return cov ./ (d * d')
-end
-
 """Off-diagonal `(i, j, r)` triples of `cor` with `|r| ≥ threshold` and
 `i < j`, indexed into `cor`'s own row/column order (the fitted, non-fixed
 parameters — see `FitResult.freeidx`), not the flat parameter indices used
@@ -192,7 +185,8 @@ function fit(prob::ExchangeProblem, params0::ComponentArray; fixed::Set{Int}=Set
     n_params = length(freeidx)
     dof = n_obs - n_params
 
-    cor = correlationmatrix(covar)
+    d = sqrt.(diag(covar))
+    cor = covar ./ (d * d')
     atbound = Set{Int}(freeidx[k]
                        for k in eachindex(freeidx)
                        if isatbound(result.param[k], lower[freeidx[k]]))
