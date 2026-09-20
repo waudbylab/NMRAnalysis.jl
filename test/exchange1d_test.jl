@@ -14,7 +14,8 @@ import NMRAnalysis.Exchange1D:
                                parameterunit, experimenttype, resultstable, seriestable,
                                problemcomments, short_expt_path, _ParamItem,
                                _flatten_params_items, isatbound,
-                               strongcorrelations, covariancematrixtable, correlationmatrixtable,
+                               strongcorrelations, covariancematrixtable,
+                               correlationmatrixtable,
                                correlationheatmap
 using CairoMakie
 using ComponentArrays
