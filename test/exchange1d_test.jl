@@ -7,8 +7,8 @@ import NMRAnalysis.Exchange1D:
                                exchangematrix, populations, defaultparams,
                                default_spin_params, default_nuisance_params,
                                field_label, liouvillian, liouvillian_inhom,
-                               AbstractExperiment,
-                               simulate!, residuals, ratewres, fit,
+                               AbstractExperiment, AbstractModel,
+                               simulate!, residuals, ratewres, nprofiledparams, fit,
                                R1rhoOnResExperiment, R1rhoOffResExperiment,
                                seriescoordinates, observable, coordinateunit,
                                parameterunit, experimenttype, resultstable, seriestable,
@@ -61,6 +61,23 @@ function fakeoffres(path="/data/set/103/pdata/1")
                                  [-1.0, 1.0], 250.0, [0.0, 0.04],
                                  zeros(2, 2), 0.01)
 end
+
+"""A minimal fake experiment for exercising `fit`'s bookkeeping around
+`nprofiledparams`, independent of any real NMR physics: `predicted = a * x` for a single
+free spin parameter `a`, with an injected, arbitrary profiled-parameter count."""
+struct DoFTestExperiment <: AbstractExperiment
+    x::Vector{Float64}
+    observed_intensities::Vector{Measurement{Float64}}
+    predicted_intensities::Vector{Float64}
+    profiled::Int
+end
+default_spin_params(::DoFTestExperiment, nstates) = [:a => [1.0]]
+default_nuisance_params(::DoFTestExperiment) = Pair{Symbol,Any}[]
+function simulate!(expt::DoFTestExperiment, ::AbstractModel, params)
+    expt.predicted_intensities .= params.spin.a[1] .* expt.x
+    return nothing
+end
+nprofiledparams(expt::DoFTestExperiment) = expt.profiled
 
 @testset "Exchange1D output" begin
     @testset "Per-experiment hooks" begin
@@ -371,6 +388,56 @@ end
         expected = (Measurements.value.(yobs) .- expt.predicted_intensities) ./
                    Measurements.uncertainty.(yobs)
         @test wr ≈ expected
+    end
+
+    @testset "nprofiledparams" begin
+        # unprofiled experiment types don't override it
+        expt = R1Experiment(nothing, 14.1, Dict{String,Float64}(), [0.1],
+                            [1.0 ± 0.02], zeros(1), :exponential_decay)
+        @test nprofiledparams(expt) == 0
+
+        # one I0 profiled analytically per condition (see residuals above)
+        @test nprofiledparams(fakeonres()) == 2   # two νSL conditions
+        @test nprofiledparams(fakeoffres()) == 2  # two offsets
+    end
+
+    @testset "fit - profiled parameters inflate dof and rescale covariance" begin
+        # predicted = a * x is exactly the same separable-amplitude shape as R1rho's I0, so
+        # it stands in for a real R1rho fit without needing the Bloch-McConnell machinery:
+        # nprofiledparams doesn't touch what curve_fit itself sees, only the bookkeeping fit
+        # derives from it afterwards, so this isolates that bookkeeping from convergence
+        # behaviour.
+        x = collect(1.0:20.0)
+        observed = (3.0 .* x .+ 0.1 .* sin.(x)) .± 1.0
+        mkexpt(profiled) = DoFTestExperiment(x, observed, zeros(length(x)), profiled)
+
+        prob0 = ExchangeProblem([mkexpt(0)], NoExchangeModel())
+        prob5 = ExchangeProblem([mkexpt(5)], NoExchangeModel())
+        params0 = defaultparams(prob0)
+
+        result0 = fit(prob0, params0)
+        result5 = fit(prob5, params0)
+
+        @test result0.nobs == 20
+        @test result0.nparams == 1  # just `a` - no profiled parameters
+        @test result0.dof == 19
+
+        @test result5.nobs == 20
+        @test result5.nparams == 1 + 5  # `a` plus 5 profiled amplitudes
+        @test result5.dof == 20 - 6
+
+        # nprofiledparams plays no part in what curve_fit optimises, so both fits land on
+        # the same parameter estimate and the same chi2 - only the reported dof, reduced
+        # chi2 and uncertainty should differ
+        @test result0.params_value.spin.a[1] ≈ result5.params_value.spin.a[1]
+        @test result0.chi2 ≈ result5.chi2
+
+        @test result0.reduced_chi2 ≈ result0.chi2 / 19
+        @test result5.reduced_chi2 ≈ result5.chi2 / 14
+
+        # the covariance is the same curve_fit output rescaled onto the true dof
+        scale = result0.dof / result5.dof
+        @test result5.cov ≈ result0.cov .* scale
     end
 
     @testset "defaultparams - structure" begin

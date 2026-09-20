@@ -65,6 +65,20 @@ function residuals(expt::Union{R1rhoOnResExperiment,R1rhoOffResExperiment})
 end
 
 """
+    nprofiledparams(expt::AbstractExperiment) -> Int
+
+Number of parameters `residuals(expt)` fits implicitly by analytic profiling (variable
+projection) rather than exposing them in the `ComponentArray` `fit` optimises. Zero by
+default. R1ρ experiments override this to one I₀ per condition (see `residuals` above):
+each is a genuine fitted parameter, so `fit` must count it towards `dof` and the parameter
+covariance even though the optimiser never sees it directly.
+"""
+nprofiledparams(::AbstractExperiment) = 0
+function nprofiledparams(expt::Union{R1rhoOnResExperiment,R1rhoOffResExperiment})
+    return size(expt.rawintensities, 2)
+end
+
+"""
     ratewres(expt::Union{R1rhoOnResExperiment,R1rhoOffResExperiment})
 
 Weighted residual of the rate independently fitted per condition (`observed_intensities`)
@@ -153,13 +167,26 @@ function fit(prob::ExchangeProblem, params0::ComponentArray; fixed::Set{Int}=Set
 
     result = curve_fit(resid_func, dummy_x, target, p0[freeidx]; lower=lower[freeidx])
 
+    # R1ρ profiles one I₀ per condition out of residuals(expt) by variable projection (see
+    # residuals(::Union{R1rhoOnResExperiment,R1rhoOffResExperiment})) rather than exposing
+    # it to curve_fit, but each is still a genuine fitted parameter and must be counted
+    # here — otherwise dof, reduced_chi2 and (below) the parameter covariance are all
+    # biased as if those amplitudes came for free
+    n_profiled = sum(nprofiledparams(expt) for expt in prob.experiments)
+    n_params = length(freeidx) + n_profiled
+    dof = n_obs - n_params
+
     # reconstruct as ComponentArrays, re-inserting fixed values
     pfull_fit = copy(p0)
     pfull_fit[freeidx] .= result.param
     pfit = ComponentArray(pfull_fit, ax)
 
     covar = try
-        vcov(result)
+        # curve_fit's own vcov scales by chi2 / (n_obs - length(freeidx)), oblivious to the
+        # profiled parameters above; its inv(J'J) shape is unaffected (that's the useful
+        # property of variable projection) but the noise-variance scalar needs rescaling
+        # onto the true dof for the reported uncertainties to reflect every fitted parameter
+        vcov(result) .* (n_obs - length(freeidx)) / dof
     catch e
         @error "Failed to compute covariance matrix"
         zeros(length(freeidx), length(freeidx))
@@ -173,8 +200,6 @@ function fit(prob::ExchangeProblem, params0::ComponentArray; fixed::Set{Int}=Set
     pfit_uncertain = ComponentArray(full_uncertain, ax)
 
     chi2 = sum(result.resid .^ 2)
-    n_params = length(freeidx)
-    dof = n_obs - n_params
 
     return FitResult(pfit_uncertain, pfit, ComponentArray(copy(p0), ax),
                      chi2, chi2 / dof, covar,

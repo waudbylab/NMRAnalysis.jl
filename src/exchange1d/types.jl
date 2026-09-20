@@ -45,7 +45,9 @@ Result of a joint fit of exchange experiments. Fields are accessible via dot syn
 - `reduced_chi2`: chi-squared / degrees of freedom
 - `cov`: parameter covariance matrix
 - `nobs`: number of observations
-- `nparams`: number of fitted (i.e. non-fixed) parameters
+- `nparams`: number of fitted parameters — non-fixed `ComponentArray` entries plus any
+  profiled out of `residuals` analytically (see `nprofiledparams`, e.g. R1ρ's I₀ per
+  condition), which never appear in `params` but still cost a degree of freedom
 - `dof`: degrees of freedom
 - `fixed`: flat indices of parameters held fixed during the fit (see `fit`)
 - `prob`: the `ExchangeProblem` that was fitted
