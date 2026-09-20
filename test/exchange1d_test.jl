@@ -14,7 +14,8 @@ import NMRAnalysis.Exchange1D:
                                parameterunit, experimenttype, resultstable, seriestable,
                                problemcomments, short_expt_path, _ParamItem,
                                _flatten_params_items, correlationmatrix, isatbound,
-                               strongcorrelations, covariancematrixtable, correlationmatrixtable
+                               strongcorrelations, covariancematrixtable,
+                               correlationmatrixtable
 using ComponentArrays
 using LinearAlgebra
 using Measurements
@@ -515,7 +516,7 @@ end
         corheader, corrows = correlationmatrixtable(result)
 
         freelabels = [item.label
-                     for item in _flatten_params_items(result.params)[result.freeidx]]
+                      for item in _flatten_params_items(result.params)[result.freeidx]]
         @test covheader == corheader == vcat(["parameter"], freelabels)
         @test length(covrows) == length(corrows) == length(freelabels)
         @test all(row[1] == label for (row, label) in zip(covrows, freelabels))
