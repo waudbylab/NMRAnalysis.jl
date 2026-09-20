@@ -49,7 +49,8 @@ results = calibration1d(["cal/1", "cal/2", "cal/3"])
 cal = B1Calibration(results)      # ready for exchange1d(...; calibration=cal)
 ```
 """
-function calibration1d(specs::AbstractVector; durations=nothing, phase=nothing, power=nothing,
+function calibration1d(specs::AbstractVector; durations=nothing, phase=nothing,
+                       power=nothing,
                        regions=nothing, integration=nothing, window::Bool=true,
                        prompt::Bool=isinteractive())
     isempty(specs) && throw(ArgumentError("no calibration experiments given"))
@@ -72,8 +73,9 @@ function calibration1d(specs::AbstractVector; durations=nothing, phase=nothing, 
                             "experiments - one power level each, in dB"))
 
     traces = reduce(vcat, tracesfromspec.(specs))
-    vars = reduce(vcat, [planevars(t[i], isnothing(dB) ? nothing : dB[i])
-                         for i in eachindex(specs)])
+    vars = reduce(vcat,
+                  [planevars(t[i], isnothing(dB) ? nothing : dB[i])
+                   for i in eachindex(specs)])
     src = reduce(vcat, [fill(speclabel(specs[i]), length(t[i])) for i in eachindex(specs)])
     ds = Dataset1D(Planes(traces, vars), defaultnoisecentre(first(specs)),
                    speclabel(first(specs)), src)

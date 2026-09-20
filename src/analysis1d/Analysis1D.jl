@@ -97,8 +97,10 @@ function __init__()
     # calibration curve where one makes only a point on it.
     return register_analysis!(MultiFileRule(expts -> begin
                                                 matched = filter(e -> "1d" in e.types &&
-                                                                      "calibration" in e.types &&
-                                                                      "nutation" in e.features,
+                                                                      "calibration" in
+                                                                      e.types &&
+                                                                      "nutation" in
+                                                                      e.features,
                                                                  expts)
                                                 isempty(matched) ? nothing : matched
                                             end,

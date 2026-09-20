@@ -121,7 +121,8 @@ inhomogeneity is visible rather than silent. The keyword is easy to miss, so the
 says what it is using either way.
 """
 function reportcalibration(prob::ExchangeProblem)
-    cals = [expt.calibration for expt in prob.experiments if hasproperty(expt, :calibration)]
+    cals = [expt.calibration
+            for expt in prob.experiments if hasproperty(expt, :calibration)]
     isempty(cals) && return nothing
     sectionheader("B₁ calibration:")
     for cal in unique(cals)

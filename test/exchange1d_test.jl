@@ -41,8 +41,10 @@ Base.getindex(s::FakeSpec, ::Symbol) = s.filename
 
 """A nominal calibration: one power level, the ideal power law, and an assumed B₁
 inhomogeneity - what an experiment loaded without a calibration carries."""
-fakecalibration(ν1; inhomogeneity=0.05) = B1Calibration([Power(-12.0, :dB)], [ν1];
-                                                        inhomogeneity)
+function fakecalibration(ν1; inhomogeneity=0.05)
+    return B1Calibration([Power(-12.0, :dB)], [ν1];
+                         inhomogeneity)
+end
 
 """A CEST experiment with plausible contents and no spectrum behind it."""
 function fakecest(path="/data/set/101/pdata/1"; nu1=50.0, tsat=0.4, inhomogeneity=0.05)
@@ -467,8 +469,7 @@ end
         return M0
     end
 
-    mz(expt, δ, ν) = sum((exp(liouvillian_inhom(model, params, expt, δ, ν) * Tsat) *
-                          equilibrium(expt))[3:3:end])
+    mz(expt, δ, ν) = sum((exp(liouvillian_inhom(model, params, expt, δ, ν) * Tsat) * equilibrium(expt))[3:3:end])
 
     @testset "CEST averages the profile over the distribution" begin
         # With no inhomogeneity, one Liouvillian per offset, exactly as before.
