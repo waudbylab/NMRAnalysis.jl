@@ -14,7 +14,7 @@ import NMRAnalysis.Exchange1D:
                                parameterunit, experimenttype, resultstable, seriestable,
                                problemcomments, short_expt_path, _ParamItem,
                                _flatten_params_items, correlationmatrix, isatbound,
-                               strongcorrelations
+                               strongcorrelations, covariancematrixtable, correlationmatrixtable
 using ComponentArrays
 using LinearAlgebra
 using Measurements
@@ -499,5 +499,33 @@ end
         @test i0item.flat_index ∉ result.freeidx
         @test size(result.cov) == (result.nparams, result.nparams)
         @test result.params.nuisance[i0tag] == I0_true ± 0.0  # fixed, so unchanged
+    end
+
+    @testset "covariancematrixtable / correlationmatrixtable" begin
+        delays = [0.1, 0.2, 0.5, 1.0]
+        R1_true = 2.0
+        I0_true = 1.0
+        observed = (I0_true .* exp.(-delays .* R1_true)) .± 0.01
+        expt = R1Experiment(nothing, 14.1, Dict{String,Float64}(), delays,
+                            observed, zeros(length(delays)), :exponential_decay)
+        prob = ExchangeProblem([expt], NoExchangeModel())
+        result = fit(prob, defaultparams(prob))
+
+        covheader, covrows = covariancematrixtable(result)
+        corheader, corrows = correlationmatrixtable(result)
+
+        freelabels = [item.label
+                     for item in _flatten_params_items(result.params)[result.freeidx]]
+        @test covheader == corheader == vcat(["parameter"], freelabels)
+        @test length(covrows) == length(corrows) == length(freelabels)
+        @test all(row[1] == label for (row, label) in zip(covrows, freelabels))
+
+        # correlation.csv's diagonal is always 1 (a parameter correlates perfectly with
+        # itself); covariance.csv's diagonal is each parameter's variance
+        n = length(freelabels)
+        for i in 1:n
+            @test parse(Float64, corrows[i][1 + i]) ≈ 1.0
+            @test parse(Float64, covrows[i][1 + i]) ≈ result.cov[i, i]
+        end
     end
 end

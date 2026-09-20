@@ -707,6 +707,7 @@ function _save_results(result::FitResult)
     push!(saved, "summary.txt")
     writeresults!(result, outputfolder)
     append!(saved, ["results.csv", "series.csv", "global.csv"])
+    result.nparams > 1 && append!(saved, ["covariance.csv", "correlation.csv"])
     for expt in result.prob.experiments
         push!(saved, joinpath("experiments", "$(safename(short_expt_path(expt))).csv"))
     end
