@@ -32,11 +32,19 @@ function R1rhoOffResExperiment(filename; calibration=nothing)
     offsets = annotations(spec, :r1rho, :offset)
     offsets_ppm = ppm(offsets, dims(spec, F1Dim))
 
-    # Read spin-lock power (single value for off-resonance)
-    power = annotations(spec, :r1rho, :power)
+    # Read spin-lock power
     nuc = nucleus(annotations(spec, :r1rho, :channel))
     cal = b1calibration(calibration, spec, nuc)
-    νSL = first(hz.(power, cal))
+    # An off-resonance experiment sweeps the offset at one fixed spin-lock strength, so
+    # several annotated powers mean this is not the experiment it says it is - an arrayed
+    # power is the on-resonance experiment - and taking the first of them would analyse
+    # every offset at the wrong field.
+    fields = hz.(annotations(spec, :r1rho, :power), cal)
+    length(fields) == 1 ||
+        throw(ArgumentError("off-resonance R1rho experiment $filename annotates " *
+                            "$(length(fields)) spin-lock powers; it takes exactly one, " *
+                            "the offset being what is arrayed"))
+    νSL = only(fields)
 
     # Read relaxation times
     TSL = annotations(spec, :r1rho, :duration)
