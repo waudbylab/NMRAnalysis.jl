@@ -163,6 +163,12 @@ end
 # broadcasts over the powers alone.
 Base.broadcastable(cal::B1Calibration) = Ref(cal)
 
+"The power levels a calibration was measured at."
+powers(cal::B1Calibration) = cal.power
+
+"The field strength measured at each power level, with its uncertainty."
+fields(cal::B1Calibration) = cal.ν1
+
 "Field strength (Hz) at the calibration's reference power, with its uncertainty."
 ν1ref(cal::B1Calibration) = cal.ν1ref
 

@@ -172,6 +172,17 @@ the relevant results. Runs after every `postfit!`. Mirrors GUI2D's `postfitgloba
 postfitglobal!(::AbstractVector{RegionResult}, ::Experiment1D) = nothing
 
 """
+    saveextras!(expt, results, folder)
+
+Write any further files an experiment reports, beyond the shared set every analysis saves
+(`summary.txt`, `results.csv`, `series.csv`, `fit.pdf` and the per-region plots and data).
+The default writes nothing; nutation writes its calibration curve. Called by
+[`saveresults`](@ref) once the shared files are written. Returns the path written, or
+`nothing` where there was nothing to write.
+"""
+saveextras!(::Experiment1D, results, folder::AbstractString) = nothing
+
+"""
     primaryparam(expt) -> Symbol
 
 The experiment's headline quantity: the parameter a reader wants first, listed first

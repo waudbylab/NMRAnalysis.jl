@@ -26,12 +26,15 @@ using Statistics
 
 using ..NMRAnalysis: register_analysis!, MultiFileRule, viscosity
 # B₁ calibration: the type and its accessors, built from a nutation fit in expt-nutation.jl
-using ..NMRAnalysis: B1Calibration, refpower, ν1ref, linearity
+using ..NMRAnalysis: B1Calibration, refpower, ν1ref, linearity, inhomogeneity,
+                     powers, fields
 # shared output rules - see src/output.jl and docs/src/advanced/conventions.md
 using ..NMRAnalysis: csvcolumn, csvcolumns, csvvalue, safename, sanitizelabel, backupfile,
                      backupfolder, writetable
 
-# pure analysis core (no Makie dependency in these files)
+# the analysis core: no Makie in the computational path. (An experiment that saves a
+# figure of its own draws it in its `expt-*.jl`, as Exchange1D's experiments do, so that
+# everything about one analysis stays in one file.)
 include("types.jl")
 include("integration.jl")
 include("seriesmodels.jl")

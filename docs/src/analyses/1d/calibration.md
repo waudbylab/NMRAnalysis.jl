@@ -46,6 +46,12 @@ The power level of each experiment is read from its `calibration.power` annotati
 can give them with `power=[-18.0, -12.0, -6.0]`, in dB. A single experiment still
 calibrates, reporting the field at its own power with the linearity assumed ideal.
 
+**Save** then writes `calibration.pdf` alongside the usual output: ν₁ against power on a
+log axis, where the ideal power law is a straight line, with the fitted curve through the
+measurements and the residuals from it underneath in percent. Amplifier compression is a
+percent or two and invisible against a decade of field strength, so the residual panel is
+where you see it. One power level gets no plot, having no curve to draw.
+
 ## Using a calibration in other analyses
 
 `B1Calibration` turns an analysis into the object the exchange analyses take, so that CEST

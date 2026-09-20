@@ -20,6 +20,7 @@ out/
   series.csv           the measurements, one row per entity per plane
   global.csv           parameters fitted once across every entity (when there are any)
   <overview>.pdf       fit.pdf in 1D, summary.pdf in 2D
+  calibration.pdf      1D: the calibration curve of a multi-power nutation analysis
   regions/             1D: one file pair per region
     signal.csv
     signal.pdf
@@ -37,7 +38,10 @@ require filtering a file of several thousand rows.
 A file is written only when it has something to say. `global.csv` appears only where the
 analysis fits something across every entity, which today means a titration `Kd` and an
 exchange `kex`; a relaxation fit has nothing global and the file is absent. `results.csv`
-is absent where nothing is reported per entity, as in a kinetics run.
+is absent where nothing is reported per entity, as in a kinetics run. `calibration.pdf`
+appears only where a nutation analysis measured more than one power level, one power level
+being a point rather than a curve; an analysis adds a file of its own this way through
+`saveextras!`.
 
 Saving starts from an empty folder: an existing one is moved aside to `<name>_previous`,
 replacing any earlier backup. That is what keeps a peak or region deleted since the last

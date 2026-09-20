@@ -342,6 +342,67 @@ function spectruminfo(::NutationExperiment, vars::NamedTuple)
     return info
 end
 
+"""
+    calibrationplot(cal) -> Figure
+
+The calibration curve: the field measured at each power level, the fitted power law through
+them, and the residuals from it.
+
+ν₁ is drawn on a log axis against power in dB, the coordinates in which the ideal law is a
+straight line, so amplifier compression shows as curvature. The deviations are a percent or
+two and invisible against a decade of field strength, hence the residual panel underneath,
+in percent rather than in σ: what matters here is how far the amplifier departs from the
+law, not how that compares with the fitting uncertainty.
+"""
+function calibrationplot(cal::B1Calibration)
+    x = db.(powers(cal))
+    y = Measurements.value.(fields(cal))
+    yerr = Measurements.uncertainty.(fields(cal))
+    fitted = [hz(p, cal) for p in powers(cal)]
+    grid = range(minimum(x) - 0.5, maximum(x) + 0.5; length=100)
+
+    fig = Figure()
+    common = (; xgridvisible=false, ygridvisible=false)
+    # data above, residuals below at a third the height, sharing an x-axis (matching the
+    # Exchange1D result plots); the shared axis is labelled once, underneath
+    ax1 = Axis(fig[1, 1]; ylabel="ν₁ / Hz", yscale=log10,
+               title="Calibration: linearity $(fmt(linearity(cal))), " *
+                     "B₁ inhomogeneity $(round(100 * inhomogeneity(cal); digits=1))%",
+               common...)
+    ax2 = Axis(fig[2, 1]; xlabel="Power / dB", ylabel="Residual / %", common...)
+    linkxaxes!(ax1, ax2)
+    rowsize!(fig.layout, 1, Auto(false, 3))
+    rowsize!(fig.layout, 2, Auto(false, 1))
+    rowgap!(fig.layout, 4)
+
+    lines!(ax1, grid, [hz(Power(g, :dB), cal) for g in grid]; color=:grey)
+    errorbars!(ax1, x, y, yerr; whiskerwidth=8, color=seriescolor(1))
+    scatter!(ax1, x, y; color=seriescolor(1))
+
+    hlines!(ax2, [0]; color=:grey)
+    errorbars!(ax2, x, 100 .* (y ./ fitted .- 1), 100 .* yerr ./ fitted;
+               whiskerwidth=8, color=seriescolor(1))
+    scatter!(ax2, x, 100 .* (y ./ fitted .- 1); color=seriescolor(1))
+    return fig
+end
+
+"""
+    saveextras!(expt::NutationExperiment, results, folder)
+
+Write `calibration.pdf`, the calibration curve, where several power levels were measured.
+One power level is a point rather than a curve, and gets no plot. As with
+[`B1Calibration`](@ref), the first region carrying a curve is the calibration; any others
+are there for comparison.
+"""
+function saveextras!(e::NutationExperiment, results, folder::AbstractString)
+    hasvar(dataset(e).planes, :power) || return nothing
+    i = findfirst(r -> length(r.series) > 1, results)
+    isnothing(i) && return nothing
+    path = joinpath(folder, "calibration.pdf")
+    save(path, calibrationplot(B1Calibration(results[i])); backend=CairoMakie)
+    return path
+end
+
 # Own display names and units, not the shared PARAM_LABELS/PARAM_UNITS tables -
 # everything about this experiment's presentation lives here. The keys are ASCII (:nu, not
 # :ν) because they become CSV column headers; the typeset names are in the labels.

@@ -751,7 +751,8 @@ panels), to the output folder, in the layout described in
 `docs/src/advanced/conventions.md`: `summary.txt` to read, `results.csv` and `series.csv`
 to compute with (`results.csv` is also the file a region list is restored from
 - see `readregions!`), an overlay of every region in `fit.pdf`, and a `regions/` folder
-holding each region's own plot and the data behind it under the same basename."""
+holding each region's own plot and the data behind it under the same basename. An
+experiment with anything further to report adds it through `saveextras!`."""
 function saveresults(state)
     # The whole folder is moved aside rather than individual files backed up, so that a
     # region deleted since the last save doesn't leave its plot and data behind looking
@@ -793,6 +794,7 @@ function saveresults(state)
 
     writesummary(joinpath(dir, "summary.txt"), expt, ds, result, regs, state[:call])
     writeresults!(expt, ds, result, regs, dir)
+    saveextras!(expt, result, dir)
     @info "Saved results to $dir"
     return dir
 end

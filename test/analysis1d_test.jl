@@ -20,7 +20,7 @@ using NMRAnalysis.Analysis1D: resultstable, seriestable, experimentinfo,
                               baseparam, regionlisttable, readregions!, NOISE_LABEL
 using NMRAnalysis.Analysis1D: analysiscall, callstring, callvalue, writesummary
 using NMRAnalysis.Analysis1D: ask, askvector, askchoice, parsevector, acqusvalue
-using NMRAnalysis.Analysis1D: powerdb
+using NMRAnalysis.Analysis1D: powerdb, saveextras!
 using NMRAnalysis: refpower, ν1ref
 using NMRTools: Power, db, hz
 using Measurements
@@ -257,6 +257,23 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
         @test inhomogeneity(cal) ≈ minimum(σ) rtol = 0.15
         @test hz(Power(dB[2], :dB), cal) ≈ ν[2] rtol = 0.05
         @test db(Power(ν[3], cal)) ≈ dB[3] rtol = 0.02
+
+        # the curve is plotted as well as tabulated - a calibration is a thing you look at
+        mktempdir() do dir
+            @test saveextras!(expt, res, dir) isa AbstractString
+            @test isfile(joinpath(dir, "calibration.pdf"))
+            @test filesize(joinpath(dir, "calibration.pdf")) > 0
+        end
+        # one power level is a point, not a curve, so it gets no plot
+        mktempdir() do dir
+            t1 = collect(range(0.0, 2 / ν[1]; length=21))
+            single = NutationExperiment(peakdataset([nutation(100.0, ν[1], σ[1], t)
+                                                     for t in t1], :duration, t1;
+                                                    noise=0.2);
+                                        regions=signalregion())
+            @test saveextras!(single, analyse1d(single), dir) === nothing
+            @test !isfile(joinpath(dir, "calibration.pdf"))
+        end
     end
 
     @testset "Diffusion" begin
