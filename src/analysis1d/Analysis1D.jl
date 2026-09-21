@@ -81,6 +81,8 @@ export gui!, pickregion
 # top-level entry points (each opens the GUI, or analyses directly given an
 # `integration` triple).
 export relaxation1d, tract, calibration1d, diffusion1d, kinetics1d
+# fit a calibration without a window, and save it where the caller decides
+export calibrationanalysis
 
 """
 Register the interactive 1D analyses with the analysis-dispatch registry, so `analyse`

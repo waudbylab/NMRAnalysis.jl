@@ -52,6 +52,11 @@ measurements and the residuals from it underneath in percent. Amplifier compress
 percent or two and invisible against a decade of field strength, so the residual panel is
 where you see it. One power level gets no plot, having no curve to draw.
 
+`fit.pdf` holds the nutation curves themselves, one panel per power level. They are not
+drawn on a shared axis: the 90° pulse at the lowest power can be ten times the longest
+duration sampled at the highest, which would leave the fastest nutation as a spike against
+the origin.
+
 ## Using a calibration in other analyses
 
 `B1Calibration` turns an analysis into the object the exchange analyses take, so that CEST
@@ -68,7 +73,7 @@ exchange1d(["11", "12"]; calibration=cal)
 ```
 
 The calibration experiments can also be passed directly, in which case they are fitted
-without a window opening and their results written to a `calibration/` folder:
+without a window opening:
 
 ```julia
 exchange1d(["11", "12"]; calibration=["1", "2", "3"])
@@ -76,9 +81,16 @@ setupR1rhopowers(["1", "2", "3"])
 ```
 
 A calibration fitted on the way to something else is still a measurement and still needs
-checking, so it saves what the Save button would have: the fits in `fit.pdf`, the curve in
-`calibration.pdf`, the numbers in `summary.txt` and `results.csv`. The analysis that used
-it prints it as it starts, and records it in its own saved results.
+checking, so when that analysis saves its results the calibration's own analysis is written
+into a `calibration/` folder beside them: the fits in `fit.pdf`, the curve in
+`calibration.pdf`, the numbers in `summary.txt` and `results.csv`. An analysis that is
+never saved leaves nothing behind. To fit a calibration and save it where you choose, use
+`calibrationanalysis`, which hands back the calibration and a function that writes it:
+
+```julia
+cal, save = calibrationanalysis(["1", "2", "3"])
+save("mycalibration")
+```
 
 Without a calibration, each experiment falls back to its own reference pulse (`p1`/`pl1`)
 on the assumption of a perfectly linear amplifier, and the B₁ inhomogeneity is taken to be

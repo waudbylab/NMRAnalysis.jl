@@ -38,11 +38,8 @@ and an unknown power costs only the calibration curve, not the analysis.
 - `integration`: a `(; peakppm, noiseppm, ppmwidth)` triple, which skips the window and
   analyses that region directly.
 - `window`: whether to open the analysis window at all. `false` analyses the default region
-  (the tallest peak) without one, which is how `B1Calibration(specs)` fits a calibration
-  without interrupting the analysis that asked for it.
-- `output`: where to write the results when no window was opened, there being no Save
-  button to press. `nothing` writes nothing. Ignored when a window opens, which saves where
-  the window says.
+  (the tallest peak) without one, which is how [`calibrationanalysis`](@ref) fits a
+  calibration without interrupting the analysis that asked for it.
 - `prompt`: whether to ask for anything that could not be determined. Defaults to `false`
   outside an interactive session, where a missing value raises an error instead.
 
@@ -52,10 +49,32 @@ results = calibration1d(["cal/1", "cal/2", "cal/3"])
 cal = B1Calibration(results)      # ready for exchange1d(...; calibration=cal)
 ```
 """
-function calibration1d(specs::AbstractVector; durations=nothing, phase=nothing,
-                       power=nothing, regions=nothing, integration=nothing,
-                       window::Bool=true, output=nothing,
-                       prompt::Bool=isinteractive())
+function calibration1d(specs::AbstractVector; integration=nothing, window::Bool=true,
+                       kwargs...)
+    expt, _, _, call = nutationexperiment(specs; kwargs...)
+    window && return run1d(expt; integration, call)
+    return analyse(expt)
+end
+
+function calibration1d(spec; kwargs...)
+    return calibration1d([spec]; kwargs...)
+end
+
+"""
+    nutationexperiment(specs; durations, phase, power, regions, prompt)
+        -> (expt, dataset, regions, call)
+
+Everything [`calibration1d`](@ref) resolves before it fits: the spectra loaded, their pulse
+durations and power levels found, the experiment built from them, and the call that would
+repeat the analysis.
+
+Separate from the entry point so that a calibration fitted on behalf of another analysis
+can be saved afterwards from the same pieces the entry point would have saved - see
+[`calibrationanalysis`](@ref).
+"""
+function nutationexperiment(specs::AbstractVector; durations=nothing, phase=nothing,
+                            power=nothing, regions=nothing,
+                            prompt::Bool=isinteractive())
     isempty(specs) && throw(ArgumentError("no calibration experiments given"))
     given = specs                      # the argument as written, for the reproduce line
     specs = loadspec.(specs)
@@ -90,19 +109,35 @@ function calibration1d(specs::AbstractVector; durations=nothing, phase=nothing,
     # agree; where they differ, each spectrum's own annotation reproduces the analysis.
     call = analysiscall("calibration1d", given;
                         durations=(allequal(t) ? first(t) : nothing), phase, power=dB)
-    window && return run1d(expt; integration, call)
+    return expt, ds, regs, call
+end
 
-    # No window, so no Save button: a calibration fitted on behalf of another analysis
-    # would otherwise be used and thrown away, leaving nothing to check it by.
+"""
+    calibrationanalysis(specs; kwargs...) -> (calibration, save)
+
+Fit nutation calibration experiments without a window, returning the
+[`B1Calibration`](@ref) they measure and a function that writes the analysis into a folder,
+given one.
+
+Whether and where those results are kept is for the analysis that asked for the calibration
+to decide: a calibration fitted on the way to an exchange fit belongs inside that fit's
+output folder, written when it is written, and not written at all if the fit is abandoned.
+Keywords are [`calibration1d`](@ref)'s.
+
+# Example
+```julia
+cal, save = calibrationanalysis(["cal/1", "cal/2"])
+save(joinpath("out", "calibration"))     # fit.pdf, calibration.pdf, summary.txt, …
+```
+"""
+function calibrationanalysis(specs::AbstractVector; kwargs...)
+    expt, ds, regs, call = nutationexperiment(specs; kwargs...)
     results = analyse(expt)
-    isnothing(output) ||
-        saveanalysis(expt, ds, results, regs, joinpath(pwd(), output); call)
-    return results
+    return (B1Calibration(results; source=join(string.(specs), ", ")),
+            folder -> saveanalysis(expt, ds, results, regs, folder; call))
 end
 
-function calibration1d(spec; kwargs...)
-    return calibration1d([spec]; kwargs...)
-end
+calibrationanalysis(spec; kwargs...) = calibrationanalysis([spec]; kwargs...)
 
 """Per-plane variables for one spectrum of a calibration: the pulse duration always, and the
 power level where it is known. Powers are rounded to the 0.01 dB they are set to on the
@@ -310,11 +345,9 @@ the smallest of its B₁ inhomogeneity estimates.
 Pass the results of [`calibration1d`](@ref), having checked the fits in the analysis window,
 or pass the calibration experiments themselves to have them fitted without a window opening
 (which is what `exchange1d(…; calibration=["cal/1", …])` does; keywords are forwarded to
-`calibration1d`). That second form writes its results to `output`, a `calibration/` folder
-by default, since a calibration fitted on the way to something else is still a measurement
-and still needs checking: the fits are in `fit.pdf`, the curve in `calibration.pdf`, and
-the numbers in `summary.txt`. Where several regions were integrated, the first is the
-calibration; the others are presumably there for comparison.
+`calibration1d`). To keep the analysis behind it as well as the calibration itself, use
+[`calibrationanalysis`](@ref), which hands back both. Where several regions were
+integrated, the first is the calibration; the others are presumably there for comparison.
 
 Every power level has to be known, since a calibration is a map from power to field: give
 them with `power=`, or annotate the sequence with `calibration.power`.
@@ -353,10 +386,8 @@ function B1Calibration(results::AbstractVector{RegionResult}; kwargs...)
     return B1Calibration(first(results); kwargs...)
 end
 
-function B1Calibration(specs::AbstractVector; prompt::Bool=isinteractive(),
-                       output="calibration", kwargs...)
-    results = calibration1d(specs; prompt, window=false, output, kwargs...)
-    return B1Calibration(results; source=join(string.(specs), ", "))
+function B1Calibration(specs::AbstractVector; kwargs...)
+    return first(calibrationanalysis(specs; kwargs...))
 end
 
 function B1Calibration(spec::Union{AbstractString,Integer}; kwargs...)
@@ -378,6 +409,34 @@ function spectruminfo(::NutationExperiment, vars::NamedTuple)
     info = "$(round(1e6 * vars.duration; digits=1)) µs pulse"
     haskey(vars, :power) && return "$info at $(vars.power) dB"
     return info
+end
+
+"""
+    resultfigure(expt::NutationExperiment, result, labels) -> Figure
+
+One panel per power level rather than one axis for all of them.
+
+The whole point of calibrating at several powers is that they nutate at different rates,
+so their pulse durations differ by the same factor: 123 µs against 1220 µs here, which on
+a shared axis leaves the fast series as a spike against the origin. Each series gets its
+own axis, autoscaled to its own durations, stacked in the order they were measured and
+labelled once underneath.
+"""
+function resultfigure(e::NutationExperiment, result, labels)
+    xl, yl = resultlabels(e)
+    fig = Figure()
+    axes = Axis[]
+    for label in labels, (i, s) in enumerate(resultplotdata(e, result, label))
+        title = isempty(s.label) ? label : "$label ($(s.label))"
+        ax = Axis(fig[length(axes) + 1, 1]; ylabel=yl, title=title, titlesize=12,
+                  xgridvisible=false, ygridvisible=false)
+        hlines!(ax, [0]; color=:grey)
+        plotseries!(ax, s, seriescolor(i))
+        push!(axes, ax)
+    end
+    # the shared quantity is labelled once, under the bottom panel
+    isempty(axes) || (last(axes).xlabel = xl)
+    return fig
 end
 
 """

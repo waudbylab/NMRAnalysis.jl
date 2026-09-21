@@ -21,7 +21,8 @@ using NMRAnalysis.Analysis1D: resultstable, seriestable, experimentinfo,
 using NMRAnalysis.Analysis1D: analysiscall, callstring, callvalue, writesummary
 using NMRAnalysis.Analysis1D: ask, askvector, askchoice, parsevector, acqusvalue
 using NMRAnalysis.Analysis1D: powerdb, saveextras!, fitseries, groupname, displaylabel,
-                              summarytext, paramgroups, saveanalysis, dataset
+                              summarytext, paramgroups, saveanalysis, dataset, resultfigure
+using CairoMakie: Axis
 using NMRAnalysis: refpower, ν1ref
 using NMRTools: Power, db, hz
 using Measurements
@@ -203,6 +204,8 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
         # with one power level there is nothing to choose between, so the fitted `sigma`
         # is reported under the name it was chosen for and not twice
         @test !haskey(res[1].parameters, :sigma)
+        # one series, one panel: the generic layout, every series on one axis
+        @test count(x -> x isa Axis, resultfigure(expt, res, ["signal"]).content) == 1
         # one series, so nothing to group: the summary is the flat block it always was
         lines = split(summarytext(expt, res, "signal"), '\n')
         @test !any(startswith(l, "  ") for l in lines)
@@ -304,17 +307,20 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
             @test isfile(joinpath(dir, "calibration.pdf"))
             @test filesize(joinpath(dir, "calibration.pdf")) > 0
         end
-        # and a calibration fitted without a window still writes its analysis somewhere,
-        # since there is no Save button to press
+        # a calibration fitted without a window is saved by whatever asked for it, into
+        # its own folder, with the same files the Save button writes
         mktempdir() do dir
-            ds = dataset(expt)
-            saveanalysis(expt, ds, res, [only(signalregion())],
+            saveanalysis(expt, dataset(expt), res, [only(signalregion())],
                          joinpath(dir, "calibration"))
             for name in ("summary.txt", "results.csv", "series.csv", "fit.pdf",
                          "calibration.pdf")
                 @test isfile(joinpath(dir, "calibration", name))
             end
         end
+
+        # one panel per power level: on a shared axis the fastest nutation is a spike
+        # against the origin, the slowest sampling ten times the pulse duration
+        @test count(x -> x isa Axis, resultfigure(expt, res, ["signal"]).content) == 3
         # one power level is a point, not a curve, so it gets no plot
         mktempdir() do dir
             t1 = collect(range(0.0, 2 / ν[1]; length=21))

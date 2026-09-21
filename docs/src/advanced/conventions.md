@@ -21,6 +21,7 @@ out/
   global.csv           parameters fitted once across every entity (when there are any)
   <overview>.pdf       fit.pdf in 1D, summary.pdf in 2D
   calibration.pdf      1D: the calibration curve of a multi-power nutation analysis
+  calibration/         the analysis of a B₁ calibration fitted for this one
   regions/             1D: one file pair per region
     signal.csv
     signal.pdf
@@ -41,7 +42,9 @@ exchange `kex`; a relaxation fit has nothing global and the file is absent. `res
 is absent where nothing is reported per entity, as in a kinetics run. `calibration.pdf`
 appears only where a nutation analysis measured more than one power level, one power level
 being a point rather than a curve; an analysis adds a file of its own this way through
-`saveextras!`.
+`saveextras!`. A `calibration/` folder appears where an analysis fitted a B₁ calibration
+on its own behalf: it is that calibration's own output folder, written when the analysis
+that used it is saved and not before, so an abandoned fit leaves nothing behind.
 
 Saving starts from an empty folder: an existing one is moved aside to `<name>_previous`,
 replacing any earlier backup. That is what keeps a peak or region deleted since the last

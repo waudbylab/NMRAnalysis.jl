@@ -62,24 +62,30 @@ field_label(field_teslas::Float64) = Symbol(replace(string(field_teslas), "." =>
 field_label(expt::AbstractExperiment) = field_label(expt.field_teslas)
 
 """
-    b1calibration(given) -> B1Calibration or nothing
+    resolvecalibration(given) -> (calibration, save)
+
+Resolve the `calibration` argument an entry point was given, once per problem.
+
+A ready-made [`B1Calibration`](@ref) is passed through and `nothing` stays `nothing`;
+anything else is taken to be the nutation calibration experiment(s) to fit, which are
+fitted here so that several experiments share one calibration rather than each refitting
+it. The second return value writes that fit's own analysis into a folder when there is one
+to write it into (see `calibrationanalysis`), and is `nothing` where nothing was fitted.
+"""
+resolvecalibration(::Nothing) = (nothing, nothing)
+resolvecalibration(cal::B1Calibration) = (cal, nothing)
+resolvecalibration(given) = calibrationanalysis(given)
+
+"""
     b1calibration(given, spec, nuc) -> B1Calibration
 
-Resolve the `calibration` argument an entry point was given.
-
-The one-argument form runs once per problem: a ready-made [`B1Calibration`](@ref) is passed
-through, `nothing` stays `nothing`, and anything else is taken to be the nutation
-calibration experiment(s) to fit (see `calibration1d`). The three-argument form runs once
-per experiment and supplies the fallback: the nominal calibration read from that
-spectrum's own reference pulse, with an assumed B₁ inhomogeneity.
+The calibration one experiment should use: the one resolved for the problem, or the nominal
+calibration read from that spectrum's own reference pulse, with an assumed B₁
+inhomogeneity.
 
 A calibration measured on another channel is a warning rather than an error, since
 `exchange1d` may be given experiments on more than one nucleus.
 """
-b1calibration(::Nothing) = nothing
-b1calibration(cal::B1Calibration) = cal
-b1calibration(given) = B1Calibration(given)
-
 function b1calibration(given, spec, nuc)
     isnothing(given) && return B1Calibration(spec, nuc)
     calnuc = nucleus(given)
@@ -141,7 +147,7 @@ inhomogeneity.
 """
 function ExchangeProblem(filenames::Vector{String}, model::AbstractModel;
                          calibration=nothing)
-    cal = b1calibration(calibration)
+    cal, savecalibration = resolvecalibration(calibration)
     experiments = AbstractExperiment[load_experiment(f; calibration=cal) for f in filenames]
-    return ExchangeProblem(experiments, model)
+    return ExchangeProblem(experiments, model, nothing, savecalibration)
 end

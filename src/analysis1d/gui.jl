@@ -777,32 +777,14 @@ function saveanalysis(expt::Experiment1D, ds::Dataset1D, result, regs,
     dir = backupfolder(folder)
     regionsdir = mkpath(joinpath(dir, "regions"))
     labels = [r.label for r in regs]
-    xl, yl = resultlabels(expt)
 
-    # no gridlines (matching the live GUI panels), but keep a visible zero line
-    newfitaxis(fig) = Axis(fig[1, 1]; xlabel=xl, ylabel=yl, xgridvisible=false,
-                           ygridvisible=false)
-
-    # overlay of every region
-    fig = Figure()
-    ax = newfitaxis(fig)
-    hlines!(ax, [0]; color=:grey)
-    i = 0
+    # every region together, then one plot per region, each sharing its basename with that
+    # region's CSV so the data behind a plot sits beside it. How a figure is laid out is
+    # the experiment's to say - see `resultfigure`.
+    save(joinpath(dir, "fit.pdf"), resultfigure(expt, result, labels); backend=CairoMakie)
     for label in labels
-        i += plotresult!(ax, expt, result, label, i)
-    end
-    i > 1 && axislegend(ax; position=:rt)
-    save(joinpath(dir, "fit.pdf"), fig; backend=CairoMakie)
-
-    # one plot per region, sharing its basename with that region's CSV so the data behind
-    # a plot is beside it
-    for label in labels
-        fig1 = Figure()
-        ax1 = newfitaxis(fig1)
-        hlines!(ax1, [0]; color=:grey)
-        n1 = plotresult!(ax1, expt, result, label, 0)
-        n1 > 1 && axislegend(ax1; position=:rt)
-        save(joinpath(regionsdir, "$(safename(label)).pdf"), fig1; backend=CairoMakie)
+        save(joinpath(regionsdir, "$(safename(label)).pdf"),
+             resultfigure(expt, result, [label]); backend=CairoMakie)
     end
 
     writesummary(joinpath(dir, "summary.txt"), expt, ds, result, regs, call)

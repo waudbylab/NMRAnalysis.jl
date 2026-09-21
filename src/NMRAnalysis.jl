@@ -64,6 +64,7 @@ using .Exchange1D
 @reexport using .Analysis1D: RelaxationExperiment, TractExperiment, NutationExperiment
 @reexport using .Analysis1D: KineticsExperiment, DiffusionExperiment
 @reexport using .Analysis1D: relaxation1d, tract, calibration1d, diffusion1d, kinetics1d
+@reexport using .Analysis1D: calibrationanalysis
 # results, and the series models a caller can choose between
 @reexport using .Analysis1D: RegionResult, param
 @reexport using .Analysis1D: SeriesModel, CurveFitModel, NoFitting, ExponentialModel

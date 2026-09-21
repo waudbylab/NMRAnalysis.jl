@@ -24,13 +24,22 @@ A set of experiments to be fitted jointly to a shared exchange `model`.
 `NamedTuple`, or `nothing` before `integrate!` has been called. Kept here
 (rather than discarded once used) so it can be saved alongside the fit
 results for traceability back to the source spectra.
+
+`savecalibration` is how a B₁ calibration fitted for this problem is kept:
+a function writing that analysis into a folder, or `nothing` where the
+calibration was given ready-made or not at all. Saving it is deferred to
+`_save_results`, so the calibration lands inside the output folder of the
+fit that used it, and a fit that is never saved leaves nothing behind.
 """
 mutable struct ExchangeProblem
     experiments::Vector{AbstractExperiment}
     model::AbstractModel
     integration::Union{Nothing,NamedTuple{(:peakppm, :noiseppm, :ppmwidth)}}
+    savecalibration::Any
 end
-ExchangeProblem(experiments, model) = ExchangeProblem(experiments, model, nothing)
+function ExchangeProblem(experiments, model, integration=nothing)
+    return ExchangeProblem(experiments, model, integration, nothing)
+end
 
 """
     FitResult

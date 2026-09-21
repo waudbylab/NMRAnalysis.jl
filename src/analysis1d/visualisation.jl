@@ -578,11 +578,47 @@ function plotresult!(ax, expt::Experiment1D, result, label, i0, ::SeriesVisualis
     i = i0
     for s in resultplotdata(expt, result, label)
         i += 1
-        c = seriescolor(i)
         lbl = isempty(s.label) ? label : "$label ($(s.label))"
-        errorbars!(ax, s.errors; whiskerwidth=8, color=c)
-        scatter!(ax, s.points; color=c, label=lbl)
-        isempty(s.fitline) || lines!(ax, s.fitline; color=c)
+        plotseries!(ax, s, seriescolor(i); label=lbl)
     end
     return i - i0
+end
+
+"""
+    plotseries!(ax, series, colour; label=nothing)
+
+Draw one measured series and its fit into an axis: error bars, points, and the fitted
+curve where there is one. The one place a series becomes marks on a plot, so an experiment
+laying its series out differently ([`resultfigure`](@ref)) draws them the same way.
+"""
+function plotseries!(ax, s::ResultSeries, colour; label=nothing)
+    errorbars!(ax, s.errors; whiskerwidth=8, color=colour)
+    isnothing(label) ? scatter!(ax, s.points; color=colour) :
+    scatter!(ax, s.points; color=colour, label=label)
+    isempty(s.fitline) || lines!(ax, s.fitline; color=colour)
+    return nothing
+end
+
+"""
+    resultfigure(expt, result, labels) -> Figure
+
+The figure an analysis saves for the regions named in `labels`: every series of every
+region on one axis, with a legend where there is more than one.
+
+An experiment whose series do not share an x-range overrides this. A nutation calibration
+is the case in point: the 90° pulse at the lowest power can be ten times the longest
+duration sampled at the highest, so one axis shows one series and a spike at the origin.
+"""
+function resultfigure(e::Experiment1D, result, labels)
+    xl, yl = resultlabels(e)
+    fig = Figure()
+    # no gridlines (matching the live GUI panels), but keep a visible zero line
+    ax = Axis(fig[1, 1]; xlabel=xl, ylabel=yl, xgridvisible=false, ygridvisible=false)
+    hlines!(ax, [0]; color=:grey)
+    n = 0
+    for label in labels
+        n += plotresult!(ax, e, result, label, n)
+    end
+    n > 1 && axislegend(ax; position=:rt)
+    return fig
 end

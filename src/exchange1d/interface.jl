@@ -744,6 +744,14 @@ function _save_results(result::FitResult)
         push!(saved, joinpath("experiments", "$(safename(short_expt_path(expt))).csv"))
     end
 
+    # A B₁ calibration fitted for this fit is part of its record, so it is saved here
+    # rather than when it was measured: inside this folder, and only once there is a
+    # folder to put it in.
+    if !isnothing(result.prob.savecalibration)
+        result.prob.savecalibration(joinpath(outputfolder, "calibration"))
+        push!(saved, joinpath("calibration", "*"))
+    end
+
     println()
     sectionheader("Saved to $outputfolder:")
     for name in saved

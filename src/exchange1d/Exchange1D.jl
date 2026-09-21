@@ -34,7 +34,7 @@ using ..NMRAnalysis: B1Calibration, B1Distribution, b1average, b1rate, inhomogen
 using ..NMRAnalysis: csvcolumn, csvvalue, safename, backupfile, backupfolder,
                      writetable
 # Interactive region selection for `integrate!` (replaces the former readline prompts).
-using ..Analysis1D: pickregion
+using ..Analysis1D: pickregion, calibrationanalysis
 
 # Include submodules in dependency order
 include("fitting-with-errors.jl")
