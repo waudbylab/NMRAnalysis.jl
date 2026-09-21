@@ -23,6 +23,11 @@ using Test
 # Minimal experiment stand-in for tests that build a Liouvillian directly:
 # liouvillian/liouvillian_inhom only reach for `field_teslas` (via field_label)
 # and the base frequency, `spec[1, :bf]`.
+#
+# `bf` is in **Hz**: the Liouvillian forms an offset as Δδ · bf · 1e-6, so a value in MHz
+# puts every state within a millihertz of resonance and any saturation field saturates the
+# whole spectrum. It makes no difference to a test of what happens at equilibrium, and all
+# the difference to a test of what happens off resonance.
 struct StubSpec
     bf::Float64
 end
@@ -260,7 +265,7 @@ end
                                                      dGB=log((1 - pB) / pB)),
                                 spin=ComponentArray(; delta=[0.0, 5.0],
                                                     R1_14p1T=[1.0], R2_14p1T=[10.0, 10.0]))
-        expt = StubExperiment(14.1, StubSpec(564.0))
+        expt = StubExperiment(14.1, StubSpec(564.0e6))
 
         p0 = populations(model, params, expt)
         N = nstates(model)
@@ -479,11 +484,7 @@ end
     ν1, Tsat = 50.0, 0.4
     δsat = [-2.0, 0.0, 2.0, 5.0]
 
-    # `StubSpec` answers `spec[1, :bf]`, which is all the Liouvillian asks of a spectrum.
-    # It is the base frequency in **Hz**: `liouvillian` forms an offset as
-    # Δδ · bf · 1e-6, so 564.0 would put every state within a millihertz of resonance and
-    # a 50 Hz field would saturate the whole spectrum.
-    bf = 564.0e6
+    bf = 564.0e6      # Hz - see the note on `StubSpec`
     cestexpt(inhom) = CESTExperiment(StubSpec(bf), 14.1, Dict{String,Float64}(), δsat,
                                      ν1, Tsat, [1.0 ± 0.02 for _ in δsat],
                                      zeros(length(δsat)),
