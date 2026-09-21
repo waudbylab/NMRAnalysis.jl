@@ -50,7 +50,7 @@ cal = B1Calibration(results)      # ready for exchange1d(...; calibration=cal)
 ```
 """
 function calibration1d(specs::AbstractVector; integration=nothing, window::Bool=true,
-                       kwargs...)
+    kwargs...)
     expt, _, _, call = nutationexperiment(specs; kwargs...)
     window && return run1d(expt; integration, call)
     return analyse(expt)
@@ -73,34 +73,34 @@ can be saved afterwards from the same pieces the entry point would have saved - 
 [`calibrationanalysis`](@ref).
 """
 function nutationexperiment(specs::AbstractVector; durations=nothing, phase=nothing,
-                            power=nothing, regions=nothing,
-                            prompt::Bool=isinteractive())
+    power=nothing, regions=nothing,
+    prompt::Bool=isinteractive())
     isempty(specs) && throw(ArgumentError("no calibration experiments given"))
     given = specs                      # the argument as written, for the reproduce line
     specs = loadspec.(specs)
     # The modulation is a property of the pulse sequence, so it is read once, from the first
     # spectrum, rather than asked for again per power level.
     phase = @something(phase,
-                       nutationphase(annotation(first(specs), :calibration, :model)),
-                       asknutationphase(; prompt))
+        nutationphase(annotation(first(specs), :calibration, :model)),
+        asknutationphase(; prompt))
     t = [@something(durations,
-                    annotation(spec, :calibration, :duration),
-                    askdurations(nplanesfromspec(spec); prompt)) for spec in specs]
+        annotation(spec, :calibration, :duration),
+        askdurations(nplanesfromspec(spec); prompt)) for spec in specs]
     dB = @something(powerdb(power),
-                    powerdb(annotation.(specs, :calibration, :power)),
-                    askpowers(length(specs); prompt),
-                    Some(nothing))
+        powerdb(annotation.(specs, :calibration, :power)),
+        askpowers(length(specs); prompt),
+        Some(nothing))
     isnothing(dB) || length(dB) == length(specs) ||
         throw(ArgumentError("got $(length(dB)) power levels for $(length(specs)) " *
-                            "experiments - one power level each, in dB"))
+            "experiments - one power level each, in dB"))
 
     traces = reduce(vcat, tracesfromspec.(specs))
     vars = reduce(vcat,
-                  [planevars(t[i], isnothing(dB) ? nothing : dB[i])
-                   for i in eachindex(specs)])
+        [planevars(t[i], isnothing(dB) ? nothing : dB[i])
+         for i in eachindex(specs)])
     src = reduce(vcat, [fill(speclabel(specs[i]), length(t[i])) for i in eachindex(specs)])
     ds = Dataset1D(Planes(traces, vars), defaultnoisecentre(first(specs)),
-                   speclabel(first(specs)), src)
+        speclabel(first(specs)), src)
 
     # named `regs`, the accessor `regions` being shadowed here by the keyword of that name
     regs = @something(regions, [defaultregion(ds)])
@@ -108,7 +108,7 @@ function nutationexperiment(specs::AbstractVector; durations=nothing, phase=noth
     # `durations` applies to every spectrum, so it is only worth recording when the lists
     # agree; where they differ, each spectrum's own annotation reproduces the analysis.
     call = analysiscall("calibration1d", given;
-                        durations=(allequal(t) ? first(t) : nothing), phase, power=dB)
+        durations=(allequal(t) ? first(t) : nothing), phase, power=dB)
     return expt, ds, regs, call
 end
 
@@ -134,7 +134,7 @@ function calibrationanalysis(specs::AbstractVector; kwargs...)
     expt, ds, regs, call = nutationexperiment(specs; kwargs...)
     results = analyse(expt)
     return (B1Calibration(results; source=join(string.(specs), ", ")),
-            folder -> saveanalysis(expt, ds, results, regs, folder; call))
+        folder -> saveanalysis(expt, ds, results, regs, folder; call))
 end
 
 calibrationanalysis(spec; kwargs...) = calibrationanalysis([spec]; kwargs...)
@@ -151,7 +151,7 @@ end
 the seconds the analysis works in."""
 function askdurations(n::Integer; prompt::Bool=true)
     return 1e-6 .* askvector("pulse durations", n;
-                             unit="µs", prompt)
+        unit="µs", prompt)
 end
 
 """
@@ -186,9 +186,9 @@ nutationphase(s) = string(s) == "cosine_modulated" ? :cosine : :sine
 """Offer the choice of modulation. Without prompting, a sine modulation is assumed."""
 function asknutationphase(; prompt::Bool=true)
     choice = askchoice("How is the signal modulated by the nutation pulse?",
-                       ["Sine:   I(t) = A sin(2πνt) exp(-½(2πσνt)²), from equilibrium",
-                        "Cosine: I(t) = A cos(2πνt) exp(-½(2πσνt)²), from transverse magnetisation"];
-                       prompt)
+        ["Sine:   I(t) = A sin(2πνt) exp(-½(2πσνt)²), from equilibrium",
+            "Cosine: I(t) = A cos(2πνt) exp(-½(2πσνt)²), from transverse magnetisation"];
+        prompt)
     return choice == 2 ? :cosine : :sine
 end
 
@@ -210,9 +210,9 @@ struct NutationExperiment <: Experiment1D
 end
 
 function NutationExperiment(dataset::Dataset1D; phase::Symbol=:sine,
-                            regions=[defaultregion(dataset)])
+    regions=[defaultregion(dataset)])
     return NutationExperiment(dataset, collect(Region, regions),
-                              DampedSinusoidModel(; phase))
+        DampedSinusoidModel(; phase))
 end
 
 # ---- 3. interface -------------------------------------------------------------
@@ -257,10 +257,10 @@ function DampedSinusoidModel(; phase::Symbol=:sine)
     trig = phase === :cosine ? cos : sin
     est(x, y) = [maximum(abs.(y)), estimatefrequency(x, y, trig), 5.0]
     return CurveFitModel((x, p) -> @.(p[1] * trig(2π * p[2] * x) *
-                                      exp(-0.5 * (2π * (p[3] / 100) * p[2] * x)^2)),
-                         ["A", "nu", "sigma"],
-                         est;
-                         xlabel="Pulse duration / s")
+        exp(-0.5 * (2π * (p[3] / 100) * p[2] * x)^2)),
+        ["A", "nu", "sigma"],
+        est;
+        xlabel="Pulse duration / s")
 end
 
 """
@@ -361,13 +361,13 @@ hz(Power(12.0, :dB), cal)     # field at a power the calibration did not measure
 function B1Calibration(r::RegionResult; nuc=nothing, source::AbstractString="")
     isempty(r.series) && throw(ArgumentError("region \"$(r.region)\" has no fitted series"))
     haskey(r.parameters, seriesname(:nu, first(r.series).group)) &&
-    haskey(r.parameters, :inhomogeneity) ||
+        haskey(r.parameters, :inhomogeneity) ||
         throw(ArgumentError("region \"$(r.region)\" has no fitted nutation frequency; " *
-                            "was the analysis run with fitting switched off?"))
+            "was the analysis run with fitting switched off?"))
     haskey(r.parameters, :power) || !isempty(first(r.series).group) ||
         throw(ArgumentError("the power level of the calibration is unknown, so it cannot " *
-                            "be turned into a calibration: pass power=… to calibration1d, " *
-                            "or annotate the sequence with calibration.power"))
+            "be turned into a calibration: pass power=… to calibration1d, " *
+            "or annotate the sequence with calibration.power"))
     power = Power{Float64}[]
     ν1 = Measurement{Float64}[]
     for s in r.series
@@ -402,7 +402,7 @@ resultxfactor(e::NutationExperiment) = timescale(column(dataset(e).planes, :dura
 
 function resultlabels(e::NutationExperiment)
     _, unit = timescale(column(dataset(e).planes, :duration))
-    return ("Pulse duration / $unit", "Integrated intensity (a.u.)")
+    return ("Pulse duration / $unit", "Intensity")
 end
 
 function spectruminfo(::NutationExperiment, vars::NamedTuple)
@@ -428,8 +428,8 @@ function resultfigure(e::NutationExperiment, result, labels)
     axes = Axis[]
     for label in labels, (i, s) in enumerate(resultplotdata(e, result, label))
         title = isempty(s.label) ? label : "$label ($(s.label))"
-        ax = Axis(fig[length(axes) + 1, 1]; ylabel=yl, title=title, titlesize=12,
-                  xgridvisible=false, ygridvisible=false)
+        ax = Axis(fig[length(axes)+1, 1]; ylabel=yl, title=title, titlesize=12,
+            xgridvisible=false, ygridvisible=false)
         hlines!(ax, [0]; color=:grey)
         plotseries!(ax, s, seriescolor(i))
         push!(axes, ax)
@@ -463,9 +463,9 @@ function calibrationplot(cal::B1Calibration)
     # data above, residuals below at a third the height, sharing an x-axis (matching the
     # Exchange1D result plots); the shared axis is labelled once, underneath
     ax1 = Axis(fig[1, 1]; ylabel="ν₁ / Hz", yscale=log10,
-               title="Calibration: linearity $(fmt(linearity(cal))), " *
-                     "B₁ inhomogeneity $(round(100 * inhomogeneity(cal); digits=1))%",
-               common...)
+        title="Calibration: linearity $(fmt(linearity(cal))), " *
+            "B₁ inhomogeneity $(round(100 * inhomogeneity(cal); digits=1))%",
+        common...)
     ax2 = Axis(fig[2, 1]; xlabel="Power / dB", ylabel="Residual / %", common...)
     linkxaxes!(ax1, ax2)
     rowsize!(fig.layout, 1, Auto(false, 3))
@@ -478,7 +478,7 @@ function calibrationplot(cal::B1Calibration)
 
     hlines!(ax2, [0]; color=:grey)
     errorbars!(ax2, x, 100 .* (y ./ fitted .- 1), 100 .* yerr ./ fitted;
-               whiskerwidth=8, color=seriescolor(1))
+        whiskerwidth=8, color=seriescolor(1))
     scatter!(ax2, x, 100 .* (y ./ fitted .- 1); color=seriescolor(1))
     return fig
 end
@@ -508,20 +508,20 @@ end
 # the smallest of those estimates, both in percent. They are named apart so that the
 # headline figure is distinguishable from the estimate it was chosen from.
 const NUTATION_PARAM_LABELS = Dict(:nu => "Nutation frequency",
-                                   :pulse90 => "90° pulse",
-                                   :sigma => "B₁ inhomogeneity",
-                                   :inhomogeneity => "B₁ inhomogeneity",
-                                   :power => "Power",
-                                   :powerref => "Reference power",
-                                   :nu1ref => "ν₁ at reference power",
-                                   :linearity => "Linearity")
+    :pulse90 => "90° pulse",
+    :sigma => "B₁ inhomogeneity",
+    :inhomogeneity => "B₁ inhomogeneity",
+    :power => "Power",
+    :powerref => "Reference power",
+    :nu1ref => "ν₁ at reference power",
+    :linearity => "Linearity")
 const NUTATION_PARAM_UNITS = Dict(:nu => "Hz",
-                                  :pulse90 => "us",
-                                  :sigma => "%",
-                                  :inhomogeneity => "%",
-                                  :power => "dB",
-                                  :powerref => "dB",
-                                  :nu1ref => "Hz")
+    :pulse90 => "us",
+    :sigma => "%",
+    :inhomogeneity => "%",
+    :power => "dB",
+    :powerref => "dB",
+    :nu1ref => "Hz")
 
 function paramlabel(e::NutationExperiment, name::Symbol)
     # Several power levels each report a B₁ inhomogeneity, and the region-level figure is
