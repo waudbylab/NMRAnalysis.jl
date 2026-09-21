@@ -90,5 +90,5 @@ end
 
 """Where a spectrum came from, for results-file provenance: the full path, since a saved
 file has to say where its data were on the disk. What is shown *on screen* is shortened
-instead, by [`shortpath`](@ref), which has a panel's width to live within."""
+instead, by [`shortpath`](@ref NMRAnalysis.shortpath), which has a panel's width to live within."""
 speclabel(spec) = string(something(spec[:filename], spec[:title], ""))

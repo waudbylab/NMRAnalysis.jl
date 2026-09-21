@@ -66,7 +66,7 @@ field_label(expt::AbstractExperiment) = field_label(expt.field_teslas)
 
 Resolve the `calibration` argument an entry point was given, once per problem.
 
-A ready-made [`B1Calibration`](@ref) is passed through and `nothing` stays `nothing`;
+A ready-made [`B1Calibration`](@ref NMRAnalysis.B1Calibration) is passed through and `nothing` stays `nothing`;
 anything else is taken to be the nutation calibration experiment(s) to fit, which are
 fitted here so that several experiments share one calibration rather than each refitting
 it. The second return value writes that fit's own analysis into a folder when there is one
@@ -140,7 +140,7 @@ Construct an ExchangeProblem by loading experiments from filenames.
 Each file is classified and loaded via `load_experiment`.
 
 `calibration` gives the B₁ field strengths and inhomogeneity every experiment is simulated
-with: a [`B1Calibration`](@ref), or the nutation calibration experiment(s) to fit for one.
+with: a [`B1Calibration`](@ref NMRAnalysis.B1Calibration), or the nutation calibration experiment(s) to fit for one.
 It is resolved here rather than per experiment, so calibration experiments are fitted once.
 Without it each experiment falls back to its own reference pulse and an assumed 5%
 inhomogeneity.

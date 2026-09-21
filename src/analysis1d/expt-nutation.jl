@@ -17,7 +17,7 @@ Given several spectra recorded at different power levels, each is fitted separat
 results combined into a calibration curve: the field at a reference power and the
 `linearity` of the amplifier's response, 1 being the ideal ν₁ ∝ √W. A single spectrum still
 calibrates, with the linearity assumed ideal. Either way
-[`B1Calibration`](@ref)`(results)` turns the analysis into the calibration that `exchange1d`
+[`B1Calibration`](@ref NMRAnalysis.B1Calibration)`(results)` turns the analysis into the calibration that `exchange1d`
 takes, so CEST and R₁ρ are simulated with measured field strengths and a measured B₁
 inhomogeneity rather than nominal ones.
 
@@ -116,7 +116,7 @@ end
     calibrationanalysis(specs; kwargs...) -> (calibration, save)
 
 Fit nutation calibration experiments without a window, returning the
-[`B1Calibration`](@ref) they measure and a function that writes the analysis into a folder,
+[`B1Calibration`](@ref NMRAnalysis.B1Calibration) they measure and a function that writes the analysis into a folder,
 given one.
 
 Whether and where those results are kept is for the analysis that asked for the calibration
@@ -241,7 +241,7 @@ Nutation of an inhomogeneous B₁ field: `A·sin(2π·ν·t)·exp(−½(2π·σ�
 damps the nutation: averaging `sin(2πνt)` over a Gaussian distribution of ν with mean ν̄ and
 standard deviation σν̄ gives `sin(2πν̄t)·exp(−½(2πσν̄t)²)`, a Gaussian decay rather than an
 exponential one. Fitting the envelope this way makes σ the same quantity
-[`B1Distribution`](@ref) later samples, instead of an exponential rate needing conversion.
+[`B1Distribution`](@ref NMRAnalysis.B1Distribution) later samples, instead of an exponential rate needing conversion.
 
 σ is fitted in percent rather than as a fraction so that every inhomogeneity this analysis
 reports is in the unit it is quoted in, and incidentally so that the three parameters are of
@@ -488,7 +488,7 @@ end
 
 Write `calibration.pdf`, the calibration curve, where several power levels were measured.
 One power level is a point rather than a curve, and gets no plot. As with
-[`B1Calibration`](@ref), the first region carrying a curve is the calibration; any others
+[`B1Calibration`](@ref NMRAnalysis.B1Calibration), the first region carrying a curve is the calibration; any others
 are there for comparison.
 """
 function saveextras!(e::NutationExperiment, results, folder::AbstractString)

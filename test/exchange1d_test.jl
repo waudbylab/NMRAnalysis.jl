@@ -480,7 +480,11 @@ end
     δsat = [-2.0, 0.0, 2.0, 5.0]
 
     # `StubSpec` answers `spec[1, :bf]`, which is all the Liouvillian asks of a spectrum.
-    cestexpt(inhom) = CESTExperiment(StubSpec(564.0), 14.1, Dict{String,Float64}(), δsat,
+    # It is the base frequency in **Hz**: `liouvillian` forms an offset as
+    # Δδ · bf · 1e-6, so 564.0 would put every state within a millihertz of resonance and
+    # a 50 Hz field would saturate the whole spectrum.
+    bf = 564.0e6
+    cestexpt(inhom) = CESTExperiment(StubSpec(bf), 14.1, Dict{String,Float64}(), δsat,
                                      ν1, Tsat, [1.0 ± 0.02 for _ in δsat],
                                      zeros(length(δsat)),
                                      B1Calibration([Power(-12.0, :dB)], [ν1];
@@ -515,13 +519,20 @@ end
               [sum(w * mz(broad, δ, s * ν1) for (s, w) in zip(d.scaling, d.weight))
                for δ in δsat]
         @test broad.predicted_intensities != sharp.predicted_intensities
-        # far off resonance nothing is saturated, so the field strength does not matter
+        # -2 ppm is 1128 Hz from the major state and 3948 Hz from the minor: a 50 Hz field
+        # saturates neither, so the spread of that field cannot matter, and the
+        # magnetisation is still at equilibrium
         @test broad.predicted_intensities[1] ≈ sharp.predicted_intensities[1] rtol = 1e-3
+        # a 50 Hz field 1128 Hz off resonance still costs a fraction of a percent, so this
+        # is one-sided rather than a tolerance guessed at
+        @test sharp.predicted_intensities[1] > 0.95
+        # on the minor state's shift it is saturated, and transfers to the major state
+        @test sharp.predicted_intensities[end] < 0.95
     end
 
     @testset "R₁ρ averages the decay, not the rate" begin
         νSL, TSL = [100.0, 500.0], [0.0, 0.02, 0.04]
-        onres(inhom) = R1rhoOnResExperiment(StubSpec(564.0), 14.1, Dict{String,Float64}(),
+        onres(inhom) = R1rhoOnResExperiment(StubSpec(bf), 14.1, Dict{String,Float64}(),
                                             [12.0 ± 0.5, 9.0 ± 0.4], zeros(2), νSL, TSL,
                                             B1Calibration([Power(-12.0, :dB)], [νSL[1]];
                                                           inhomogeneity=inhom))

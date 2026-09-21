@@ -102,7 +102,7 @@ end
     simulate!(expt::R1rhoOffResExperiment, model, params)
 
 Simulate R₁ρ at each spin-lock offset, averaged over the B₁ distribution the same way as
-the on-resonance experiment: over the decays rather than the rates (see [`b1rate`](@ref)),
+the on-resonance experiment: over the decays rather than the rates (see [`b1rate`](@ref NMRAnalysis.b1rate)),
 matched at the mean of the sampled spin-lock durations.
 """
 function simulate!(expt::R1rhoOffResExperiment, model, params)

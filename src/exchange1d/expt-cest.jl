@@ -113,7 +113,7 @@ integration-normalised intensities.
 The profile is averaged over the B₁ distribution of the saturation field. Mz is what is
 measured, so the weighted mean of the profiles from separate parts of the sample is exactly
 what the spectrum reports (unlike a rate, which reaches the data through a fit - see
-[`b1rate`](@ref)). With no inhomogeneity the distribution is the single nominal field and
+[`b1rate`](@ref NMRAnalysis.b1rate)). With no inhomogeneity the distribution is the single nominal field and
 this reduces to one Liouvillian per offset.
 """
 function simulate!(expt::CESTExperiment, model, params)

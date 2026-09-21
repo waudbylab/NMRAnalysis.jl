@@ -5,7 +5,7 @@ Interactively calculate spin-lock power levels (in Watts) for an R1ρ relaxation
 dispersion experiment, ready to paste into the acquisition software's power list.
 
 - `calibration`: one or more 1D nutation calibration experiments, given as paths or
-  experiment numbers, or a ready-made [`B1Calibration`](@ref). Each experiment is fitted in
+  experiment numbers, or a ready-made [`B1Calibration`](@ref NMRAnalysis.B1Calibration). Each experiment is fitted in
   the analysis window, so the fits can be checked before powers are computed from them;
   several of them, recorded at different power levels, give a calibration curve and the
   powers follow it rather than the ideal √W law. If omitted, you are prompted to enter p1

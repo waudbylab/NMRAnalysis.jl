@@ -96,7 +96,7 @@ end
 Simulate R₁ρ at each spin-lock strength, averaged over the B₁ distribution.
 
 The observable is a rate the data reduction obtained by fitting one exponential to the
-decay, so the average is taken over the decays and converted back (see [`b1rate`](@ref))
+decay, so the average is taken over the decays and converted back (see [`b1rate`](@ref NMRAnalysis.b1rate))
 rather than over the rates themselves. The matching time is the mean of the sampled
 spin-lock durations; the fit weights the longer delays more heavily, so this is a
 first-order match rather than an exact one.

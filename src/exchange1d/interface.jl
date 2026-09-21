@@ -29,7 +29,7 @@ Guides the user through:
 # Arguments
 - `filenames`: Vector of paths to NMR experiment directories
 - `calibration`: the B₁ field strengths and inhomogeneity to simulate with, as a
-  [`B1Calibration`](@ref) or as the nutation calibration experiment(s) to fit for one.
+  [`B1Calibration`](@ref NMRAnalysis.B1Calibration) or as the nutation calibration experiment(s) to fit for one.
   Without it, each experiment's own reference pulse gives the field strengths on the
   assumption of a perfectly linear amplifier, and the B₁ inhomogeneity is taken to be 5%.
 
