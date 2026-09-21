@@ -53,8 +53,10 @@ Several nutation calibrations selected together are analysed as one calibration 
 rather than one at a time. Where they are selected alongside CEST or R1ρ experiments they
 are offered both ways: on their own as a calibration to inspect, and as part of the
 exchange analysis, where they are not fitted as data but used for the spin-lock field
-strengths and the B₁ inhomogeneity. Without them the exchange fit falls back to each
-experiment's own reference pulse and an assumed 5% inhomogeneity.
+strengths and the B₁ inhomogeneity. Taken that second way they are fitted without a window
+and their results written to a `calibration/` folder, so there is still something to check
+them by. Without them the exchange fit falls back to each experiment's own reference pulse
+and an assumed 5% inhomogeneity.
 
 Diffusion and TRACT don't currently register with `analyse()` — call
 [`diffusion1d()`](1d/diffusion.md) or [`tract()`](1d/tract.md) directly.

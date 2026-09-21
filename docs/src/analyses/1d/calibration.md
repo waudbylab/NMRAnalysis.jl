@@ -68,12 +68,17 @@ exchange1d(["11", "12"]; calibration=cal)
 ```
 
 The calibration experiments can also be passed directly, in which case they are fitted
-without a window opening:
+without a window opening and their results written to a `calibration/` folder:
 
 ```julia
 exchange1d(["11", "12"]; calibration=["1", "2", "3"])
 setupR1rhopowers(["1", "2", "3"])
 ```
+
+A calibration fitted on the way to something else is still a measurement and still needs
+checking, so it saves what the Save button would have: the fits in `fit.pdf`, the curve in
+`calibration.pdf`, the numbers in `summary.txt` and `results.csv`. The analysis that used
+it prints it as it starts, and records it in its own saved results.
 
 Without a calibration, each experiment falls back to its own reference pulse (`p1`/`pl1`)
 on the assumption of a perfectly linear amplifier, and the B₁ inhomogeneity is taken to be

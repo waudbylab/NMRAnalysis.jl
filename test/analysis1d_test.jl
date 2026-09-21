@@ -21,7 +21,7 @@ using NMRAnalysis.Analysis1D: resultstable, seriestable, experimentinfo,
 using NMRAnalysis.Analysis1D: analysiscall, callstring, callvalue, writesummary
 using NMRAnalysis.Analysis1D: ask, askvector, askchoice, parsevector, acqusvalue
 using NMRAnalysis.Analysis1D: powerdb, saveextras!, fitseries, groupname, displaylabel,
-                              summarytext, paramgroups
+                              summarytext, paramgroups, saveanalysis, dataset
 using NMRAnalysis: refpower, ν1ref
 using NMRTools: Power, db, hz
 using Measurements
@@ -303,6 +303,16 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
             @test saveextras!(expt, res, dir) isa AbstractString
             @test isfile(joinpath(dir, "calibration.pdf"))
             @test filesize(joinpath(dir, "calibration.pdf")) > 0
+        end
+        # and a calibration fitted without a window still writes its analysis somewhere,
+        # since there is no Save button to press
+        mktempdir() do dir
+            ds = dataset(expt)
+            saveanalysis(expt, ds, res, [only(signalregion())], joinpath(dir, "calibration"))
+            for name in ("summary.txt", "results.csv", "series.csv", "fit.pdf",
+                         "calibration.pdf")
+                @test isfile(joinpath(dir, "calibration", name))
+            end
         end
         # one power level is a point, not a curve, so it gets no plot
         mktempdir() do dir

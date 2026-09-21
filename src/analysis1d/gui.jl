@@ -754,15 +754,28 @@ to compute with (`results.csv` is also the file a region list is restored from
 holding each region's own plot and the data behind it under the same basename. An
 experiment with anything further to report adds it through `saveextras!`."""
 function saveresults(state)
+    return saveanalysis(state[:expt], state[:dataset][], state[:result][],
+                        state[:regions][], joinpath(pwd(), state[:outputdir][]);
+                        call=state[:call])
+end
+
+"""
+    saveanalysis(expt, dataset, result, regions, folder; call=nothing) -> String
+
+Write an analysis's output folder, with or without a window having been open: the files
+[`saveresults`](@ref) describes, in the folder named. Returns the folder written.
+
+The Save button goes through here, and so does an analysis run without a window - a
+calibration fitted on behalf of `exchange1d`, say - so what is saved does not depend on how
+the analysis was run.
+"""
+function saveanalysis(expt::Experiment1D, ds::Dataset1D, result, regs,
+                      folder::AbstractString; call=nothing)
     # The whole folder is moved aside rather than individual files backed up, so that a
     # region deleted since the last save doesn't leave its plot and data behind looking
     # like part of the current result.
-    dir = backupfolder(joinpath(pwd(), state[:outputdir][]))
+    dir = backupfolder(folder)
     regionsdir = mkpath(joinpath(dir, "regions"))
-    expt = state[:expt]
-    ds = state[:dataset][]
-    result = state[:result][]
-    regs = state[:regions][]
     labels = [r.label for r in regs]
     xl, yl = resultlabels(expt)
 
@@ -792,7 +805,7 @@ function saveresults(state)
         save(joinpath(regionsdir, "$(safename(label)).pdf"), fig1; backend=CairoMakie)
     end
 
-    writesummary(joinpath(dir, "summary.txt"), expt, ds, result, regs, state[:call])
+    writesummary(joinpath(dir, "summary.txt"), expt, ds, result, regs, call)
     writeresults!(expt, ds, result, regs, dir)
     saveextras!(expt, result, dir)
     @info "Saved results to $dir"

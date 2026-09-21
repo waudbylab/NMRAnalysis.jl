@@ -40,6 +40,9 @@ and an unknown power costs only the calibration curve, not the analysis.
 - `window`: whether to open the analysis window at all. `false` analyses the default region
   (the tallest peak) without one, which is how `B1Calibration(specs)` fits a calibration
   without interrupting the analysis that asked for it.
+- `output`: where to write the results when no window was opened, there being no Save
+  button to press. `nothing` writes nothing. Ignored when a window opens, which saves where
+  the window says.
 - `prompt`: whether to ask for anything that could not be determined. Defaults to `false`
   outside an interactive session, where a missing value raises an error instead.
 
@@ -50,8 +53,8 @@ cal = B1Calibration(results)      # ready for exchange1d(...; calibration=cal)
 ```
 """
 function calibration1d(specs::AbstractVector; durations=nothing, phase=nothing,
-                       power=nothing,
-                       regions=nothing, integration=nothing, window::Bool=true,
+                       power=nothing, regions=nothing, integration=nothing,
+                       window::Bool=true, output=nothing,
                        prompt::Bool=isinteractive())
     isempty(specs) && throw(ArgumentError("no calibration experiments given"))
     given = specs                      # the argument as written, for the reproduce line
@@ -80,15 +83,21 @@ function calibration1d(specs::AbstractVector; durations=nothing, phase=nothing,
     ds = Dataset1D(Planes(traces, vars), defaultnoisecentre(first(specs)),
                    speclabel(first(specs)), src)
 
-    expt = isnothing(regions) ? NutationExperiment(ds; phase) :
-           NutationExperiment(ds; phase, regions)
-    window || return analyse(expt)
+    # named `regs`, the accessor `regions` being shadowed here by the keyword of that name
+    regs = @something(regions, [defaultregion(ds)])
+    expt = NutationExperiment(ds; phase, regions=regs)
     # `durations` applies to every spectrum, so it is only worth recording when the lists
     # agree; where they differ, each spectrum's own annotation reproduces the analysis.
-    return run1d(expt; integration,
-                 call=analysiscall("calibration1d", given;
-                                   durations=(allequal(t) ? first(t) : nothing), phase,
-                                   power=dB))
+    call = analysiscall("calibration1d", given;
+                        durations=(allequal(t) ? first(t) : nothing), phase, power=dB)
+    window && return run1d(expt; integration, call)
+
+    # No window, so no Save button: a calibration fitted on behalf of another analysis
+    # would otherwise be used and thrown away, leaving nothing to check it by.
+    results = analyse(expt)
+    isnothing(output) ||
+        saveanalysis(expt, ds, results, regs, joinpath(pwd(), output); call)
+    return results
 end
 
 function calibration1d(spec; kwargs...)
@@ -301,8 +310,11 @@ the smallest of its B₁ inhomogeneity estimates.
 Pass the results of [`calibration1d`](@ref), having checked the fits in the analysis window,
 or pass the calibration experiments themselves to have them fitted without a window opening
 (which is what `exchange1d(…; calibration=["cal/1", …])` does; keywords are forwarded to
-`calibration1d`). Where several regions were integrated, the first is the calibration; the
-others are presumably there for comparison.
+`calibration1d`). That second form writes its results to `output`, a `calibration/` folder
+by default, since a calibration fitted on the way to something else is still a measurement
+and still needs checking: the fits are in `fit.pdf`, the curve in `calibration.pdf`, and
+the numbers in `summary.txt`. Where several regions were integrated, the first is the
+calibration; the others are presumably there for comparison.
 
 Every power level has to be known, since a calibration is a map from power to field: give
 them with `power=`, or annotate the sequence with `calibration.power`.
@@ -341,8 +353,9 @@ function B1Calibration(results::AbstractVector{RegionResult}; kwargs...)
     return B1Calibration(first(results); kwargs...)
 end
 
-function B1Calibration(specs::AbstractVector; prompt::Bool=isinteractive(), kwargs...)
-    results = calibration1d(specs; prompt, window=false, kwargs...)
+function B1Calibration(specs::AbstractVector; prompt::Bool=isinteractive(),
+                       output="calibration", kwargs...)
+    results = calibration1d(specs; prompt, window=false, output, kwargs...)
     return B1Calibration(results; source=join(string.(specs), ", "))
 end
 
