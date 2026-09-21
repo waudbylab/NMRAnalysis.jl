@@ -19,6 +19,9 @@ out/
   results.csv          one row per entity: everything reported for it
   series.csv           the measurements, one row per entity per plane
   global.csv           parameters fitted once across every entity (when there are any)
+  covariance.csv       covariance matrix of global.csv's fitted parameters (when jointly fitted)
+  correlation.csv      the same fit's correlation matrix
+  correlation.pdf      correlation.csv as a heatmap
   <overview>.pdf       fit.pdf in 1D, summary.pdf in 2D
   regions/             1D: one file pair per region
     signal.csv
@@ -37,7 +40,9 @@ require filtering a file of several thousand rows.
 A file is written only when it has something to say. `global.csv` appears only where the
 analysis fits something across every entity, which today means a titration `Kd` and an
 exchange `kex`; a relaxation fit has nothing global and the file is absent. `results.csv`
-is absent where nothing is reported per entity, as in a kinetics run.
+is absent where nothing is reported per entity, as in a kinetics run. `covariance.csv`,
+`correlation.csv` and `correlation.pdf` appear only where that global fit jointly optimises
+more than one parameter, since a single parameter has no covariance structure to report.
 
 Saving starts from an empty folder: an existing one is moved aside to `<name>_previous`,
 replacing any earlier backup. That is what keeps a peak or region deleted since the last
@@ -175,8 +180,9 @@ parameter,value,error,unit
 Kd,12.4,0.8,uM
 ```
 
-An exchange fit adds `initial` and `fixed` columns, since every parameter of a joint fit is
-global and what it started at and whether it moved are part of the result.
+An exchange fit adds `initial`, `fixed` and `atbound` columns, since every parameter of a
+joint fit is global and what it started at, whether it moved, and whether it converged onto
+a bound rather than an interior optimum are all part of the result.
 
 ## `summary.txt`
 

@@ -12,8 +12,14 @@ import NMRAnalysis.Exchange1D:
                                R1rhoOnResExperiment, R1rhoOffResExperiment,
                                seriescoordinates, observable, coordinateunit,
                                parameterunit, experimenttype, resultstable, seriestable,
-                               problemcomments, short_expt_path, _ParamItem
+                               problemcomments, short_expt_path, _ParamItem,
+                               _flatten_params_items, isatbound,
+                               strongcorrelations, covariancematrixtable,
+                               correlationmatrixtable,
+                               correlationheatmap
+using CairoMakie
 using ComponentArrays
+using LinearAlgebra
 using Measurements
 using Test
 
@@ -421,5 +427,110 @@ end
         # residuals should be near zero when predicted matches observed
         r = residuals(prob, params)
         @test all(abs.(r) .< 1e-10)
+    end
+end
+
+@testset "Fit diagnostics" begin
+    @testset "isatbound" begin
+        @test isatbound(0.0, 0.0)              # exactly on the bound
+        @test isatbound(1e-9, 0.0)             # within tolerance of the bound
+        @test !isatbound(0.5, 0.0)             # well clear of the bound
+        @test !isatbound(1.0, -Inf)            # no finite bound to sit on
+    end
+
+    @testset "strongcorrelations" begin
+        cor = [1.0 0.97 0.1;
+               0.97 1.0 0.99;
+               0.1 0.99 1.0]
+        pairs = strongcorrelations(cor)
+        @test (1, 2, 0.97) in pairs
+        @test (2, 3, 0.99) in pairs
+        @test !any(p -> p[1] == 1 && p[2] == 3, pairs)
+    end
+
+    @testset "fit() reports cov, cor, freeidx and atbound" begin
+        # data with no decay at all: the least-squares optimum is exactly R1 = 0,
+        # I0 = 1, so a correctly box-constrained fit should drive R1 onto the lower
+        # bound `_ratelowerbound` enforces for relaxation rates.
+        delays = [0.1, 0.5, 1.0, 2.0, 4.0]
+        observed = fill(1.0 ± 0.01, length(delays))
+        expt = R1Experiment(nothing, 14.1, Dict{String,Float64}(), delays,
+                            observed, zeros(length(delays)), :exponential_decay)
+        prob = ExchangeProblem([expt], NoExchangeModel())
+        p0 = defaultparams(prob)
+
+        result = fit(prob, p0)
+
+        n = result.nparams
+        @test size(result.cov) == (n, n)
+        @test size(result.cor) == (n, n)
+        @test all(x -> x ≈ 1.0, diag(result.cor))
+        @test result.cor ≈ transpose(result.cor)
+        @test length(result.freeidx) == n
+        @test issorted(result.freeidx)
+
+        r1item = only(filter(i -> startswith(i.label, "spin.R1_"),
+                             _flatten_params_items(result.params)))
+        @test result.params_value.spin[Symbol("R1_", field_label(14.1))][1] < 1e-4
+        @test r1item.flat_index in result.atbound
+    end
+
+    @testset "fit() with a fixed parameter shrinks freeidx" begin
+        delays = [0.1, 0.5, 1.0, 2.0]
+        R1_true = 2.0
+        I0_true = 1.0
+        observed = (I0_true .* exp.(-delays .* R1_true)) .± 0.01
+        expt = R1Experiment(nothing, 14.1, Dict{String,Float64}(), delays,
+                            observed, zeros(length(delays)), :exponential_decay)
+        prob = ExchangeProblem([expt], NoExchangeModel())
+        p0 = defaultparams(prob)
+
+        i0tag = Symbol("R1_", field_label(14.1), "_I0")
+        i0item = only(filter(i -> i.label == "nuisance.$i0tag", _flatten_params_items(p0)))
+        result = fit(prob, p0; fixed=Set([i0item.flat_index]))
+
+        @test result.nparams == length(p0) - 1
+        @test i0item.flat_index ∉ result.freeidx
+        @test size(result.cov) == (result.nparams, result.nparams)
+        @test result.params.nuisance[i0tag] == I0_true ± 0.0  # fixed, so unchanged
+    end
+
+    @testset "covariancematrixtable / correlationmatrixtable" begin
+        delays = [0.1, 0.2, 0.5, 1.0]
+        R1_true = 2.0
+        I0_true = 1.0
+        observed = (I0_true .* exp.(-delays .* R1_true)) .± 0.01
+        expt = R1Experiment(nothing, 14.1, Dict{String,Float64}(), delays,
+                            observed, zeros(length(delays)), :exponential_decay)
+        prob = ExchangeProblem([expt], NoExchangeModel())
+        result = fit(prob, defaultparams(prob))
+
+        covheader, covrows = covariancematrixtable(result)
+        corheader, corrows = correlationmatrixtable(result)
+
+        freelabels = [item.label
+                      for item in _flatten_params_items(result.params)[result.freeidx]]
+        @test covheader == corheader == vcat(["parameter"], freelabels)
+        @test length(covrows) == length(corrows) == length(freelabels)
+        @test all(row[1] == label for (row, label) in zip(covrows, freelabels))
+
+        # correlation.csv's diagonal is always 1 (a parameter correlates perfectly with
+        # itself); covariance.csv's diagonal is each parameter's variance
+        n = length(freelabels)
+        for i in 1:n
+            @test parse(Float64, corrows[i][1 + i]) ≈ 1.0
+            @test parse(Float64, covrows[i][1 + i]) ≈ result.cov[i, i]
+        end
+    end
+
+    @testset "correlationheatmap" begin
+        delays = [0.1, 0.2, 0.5, 1.0]
+        observed = (1.0 .* exp.(-delays .* 2.0)) .± 0.01
+        expt = R1Experiment(nothing, 14.1, Dict{String,Float64}(), delays,
+                            observed, zeros(length(delays)), :exponential_decay)
+        prob = ExchangeProblem([expt], NoExchangeModel())
+        result = fit(prob, defaultparams(prob))
+
+        @test correlationheatmap(result) isa Figure
     end
 end

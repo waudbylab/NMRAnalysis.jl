@@ -31,7 +31,6 @@ Calculate equilibrium populations for three-state parallel binding:
 Free ligand concentration is solved analytically from the quadratic
 binding equation for two parallel binding sites (n1=n2=1).
 """
-
 function populations(model::ThreeStateBindingModel, params, expt)
     Kd1 = exp(params.model.logKd1)
     koff1 = exp(params.model.logkoff1)
