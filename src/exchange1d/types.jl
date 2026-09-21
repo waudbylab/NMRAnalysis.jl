@@ -46,7 +46,9 @@ Result of a joint fit of exchange experiments. Fields are accessible via dot syn
 - `cov`: covariance matrix of the fitted (non-fixed) parameters
 - `cor`: correlation matrix of the fitted (non-fixed) parameters, derived from `cov`
 - `nobs`: number of observations
-- `nparams`: number of fitted (i.e. non-fixed) parameters
+- `nparams`: number of fitted parameters — non-fixed `ComponentArray` entries plus any
+  profiled out of `residuals` analytically (see `nprofiledparams`, e.g. R1ρ's I₀ per
+  condition), which never appear in `params` but still cost a degree of freedom
 - `dof`: degrees of freedom
 - `fixed`: flat indices of parameters held fixed during the fit (see `fit`)
 - `atbound`: flat indices of fitted parameters that converged onto a bound (e.g. a

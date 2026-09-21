@@ -1,12 +1,17 @@
-struct R1rhoOnResExperiment <: AbstractExperiment
+mutable struct R1rhoOnResExperiment <: AbstractExperiment
     spec::Any
     field_teslas::Float64
     sampleconcentrations::Dict{String,Float64}
-    observed_intensities::Vector{Measurement{Float64}}  # observed (fitted) relaxation rates vs vSL
-    predicted_intensities::Vector{Float64}              # predicted relaxation rates vs vSL
+    observed_intensities::Vector{Measurement{Float64}}  # rate fitted per νSL, display only
+    predicted_intensities::Vector{Float64}              # Bloch-McConnell rate per νSL
 
     νSL::Vector{Float64}      # νSL for each data point (Hz)
     TSL::Vector{Float64}      # TSL for each data point (s)
+
+    # TSL × νSL decay data (integration-normalised) and its noise level — what the fit
+    # itself compares to; see residuals(::R1rhoOnResExperiment)
+    rawintensities::Matrix{Float64}
+    rawnoise::Float64
 end
 
 function R1rhoOnResExperiment(filename)
@@ -38,9 +43,11 @@ function R1rhoOnResExperiment(filename)
 
     observed_intensities = zeros(length(νSL)) .± 0.0
     predicted_intensities = zeros(length(νSL))
+    rawintensities = zeros(length(TSL), length(νSL))
 
     return R1rhoOnResExperiment(spec, field_teslas, sampleconcentrations(spec),
-                                observed_intensities, predicted_intensities, νSL, TSL)
+                                observed_intensities, predicted_intensities, νSL, TSL,
+                                rawintensities, 0.0)
 end
 
 function default_spin_params(expt::R1rhoOnResExperiment, nstates)
@@ -75,13 +82,17 @@ function integrate!(expt::R1rhoOnResExperiment, peakppm, noiseppm, ppmwidth)
     scale = maximum(abs, integrals)
     noise /= scale
     integrals /= scale
+    expt.rawnoise = noise
 
-    # fit to exponential decays
+    # fit to exponential decays, purely to give a rate per condition for display
+    # (plotresult!) — the joint fit itself compares rawintensities directly, see
+    # residuals(::R1rhoOnResExperiment)
     expdecay(t, p) = @. p[1] * exp(-p[2] * t)
     p0 = [1.0, 20.0]
 
     for i in 1:length(expt.νSL)
         y = vec(data(integrals[1, i, :]))
+        expt.rawintensities[:, i] .= y
         fitres = curve_fit(expdecay, expt.TSL, y, p0)
         R = coef(fitres)[2] ± stderror(fitres)[2]
         expt.observed_intensities[i] = R
@@ -127,7 +138,7 @@ function plotresult!(gl, expt::R1rhoOnResExperiment, fitresult; axiskw=(;))
     ypred = expt.predicted_intensities
     x = expt.νSL
     sortidx = sortperm(x)
-    wres = (Measurements.value.(yobs) .- ypred) ./ Measurements.uncertainty.(yobs)
+    wres = ratewres(expt)
 
     ax1, ax2 = resultpanels!(gl; xlabel="Spin-lock strength / Hz", ylabel="R₁ρ / s⁻¹",
                              title="On-resonance R₁ρ", axiskw=axiskw)
