@@ -442,7 +442,7 @@ end
     # a CEST experiment and the nutation calibrations recorded beside it should offer one
     # exchange analysis over all of them, the calibrations included.
     File(name, types, features) = NMRAnalysis.AnalysisDispatch.ExperimentFile(name, types,
-                                                                             features)
+                                                                              features)
     cest = File("101", ["1d", "cest"], String[])
     calib = [File("10", ["1d", "calibration"], ["nutation"]),
              File("11", ["1d", "calibration"], ["nutation"])]
