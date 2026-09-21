@@ -9,9 +9,11 @@ mutable struct R1rhoOffResExperiment <: AbstractExperiment
     TSL::Vector{Float64}      # spin-lock durations the decays were sampled at (s)
 
     # TSL × offset decay data (integration-normalised) and its noise level — what the fit
-    # itself compares to; see residuals(::R1rhoOffResExperiment)
+    # itself compares to — and the model decay simulate! writes for it, same shape; see
+    # residuals(::R1rhoOffResExperiment)
     rawintensities::Matrix{Float64}
     rawnoise::Float64
+    predicteddecays::Matrix{Float64}
 
     calibration::B1Calibration  # νSL above, and the B₁ spread it is simulated with
 end
@@ -61,7 +63,8 @@ function R1rhoOffResExperiment(filename; calibration=nothing)
 
     return R1rhoOffResExperiment(spec, field_teslas, sampleconcentrations(spec),
                                  observed_intensities, predicted_intensities,
-                                 offsets_ppm, νSL, TSL, rawintensities, 0.0, cal)
+                                 offsets_ppm, νSL, TSL, rawintensities, 0.0,
+                                 zero(rawintensities), cal)
 end
 
 function default_spin_params(expt::R1rhoOffResExperiment, nstates)
@@ -112,11 +115,11 @@ end
 """
     simulate!(expt::R1rhoOffResExperiment, model, params)
 
-Simulate R₁ρ at each spin-lock offset, averaged over the B₁ distribution the same way as
-the on-resonance experiment: over the decays rather than the rates (see
-[`b1rate`](@ref NMRAnalysis.b1rate)), matched at the mean of the sampled spin-lock
-durations, and for the same reason - `residuals` compares the raw decay against a single
-exponential of this rate.
+Simulate the spin-lock decay at each offset, over the B₁ distribution, exactly as the
+on-resonance experiment does: `residuals` compares the sum of exponentials the spread of
+fields gives ([`b1decay`](@ref NMRAnalysis.b1decay)) against the measured decay, and
+`predicted_intensities` carries the monoexponential rate
+([`b1rate`](@ref NMRAnalysis.b1rate)) for the result plots alone.
 """
 function simulate!(expt::R1rhoOffResExperiment, model, params)
     d = B1Distribution(expt.calibration)
@@ -125,9 +128,9 @@ function simulate!(expt::R1rhoOffResExperiment, model, params)
     for k in eachindex(expt.offsets_ppm)
         # R1rho from the inverse of the trace of the inverse Liouvillian (Koss), in place
         # of the least negative eigenvalue, as before.
-        expt.predicted_intensities[k] = b1rate(d, expt.νSL, T) do ν
-            return -1 / tr(inv(liouvillian(model, params, expt, expt.offsets_ppm[k], ν)))
-        end
+        rate(ν) = -1 / tr(inv(liouvillian(model, params, expt, expt.offsets_ppm[k], ν)))
+        expt.predicteddecays[:, k] .= b1decay(rate, d, expt.νSL, expt.TSL)
+        expt.predicted_intensities[k] = b1rate(rate, d, expt.νSL, T)
     end
 end
 

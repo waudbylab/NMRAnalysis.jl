@@ -44,20 +44,23 @@ Weighted residuals comparing the raw spin-lock decay intensities directly to the
 Bloch-McConnell model, rather than to the rate independently fitted per condition into
 `observed_intensities` (which exists only for display — see `plotresult!` and `ratewres`).
 
+The model decay is the one `simulate!` has just written into `predicteddecays`: a sum of
+exponentials over the B₁ distribution, so a spread of spin-lock field enters the fit as the
+non-exponential decay it actually produces, with no apparent rate standing in for it.
+
 Each condition (one νSL on resonance, one offset off resonance) has its own equilibrium
-intensity I₀. This is a linear parameter, separable from the nonlinear relaxation rate
-that `simulate!` has just written into `predicted_intensities`, so rather than adding one
-I₀ per condition to the fit, each is eliminated analytically by variable projection (Golub
-& Pereyra, 1973, *SIAM J. Numer. Anal.* 10, 413–432): for a fixed rate R the weighted
-least-squares I₀ minimising `Σ (I_obs - I₀ exp(-R t))²` has the closed form used below,
-leaving only the exchange and relaxation parameters for the nonlinear optimiser.
+intensity I₀. This is a linear parameter, separable from the nonlinear relaxation the decay
+shape carries, so rather than adding one I₀ per condition to the fit, each is eliminated
+analytically by variable projection (Golub & Pereyra, 1973, *SIAM J. Numer. Anal.* 10,
+413–432): for a fixed decay shape `x` the least-squares I₀ minimising `Σ (I_obs - I₀ x)²`
+has the closed form used below, leaving only the exchange and relaxation parameters for the
+nonlinear optimiser.
 """
 function residuals(expt::Union{R1rhoOnResExperiment,R1rhoOffResExperiment})
-    R = expt.predicted_intensities
     resid = similar(expt.rawintensities)
-    for k in eachindex(R)
+    for k in axes(expt.rawintensities, 2)
         y = @view expt.rawintensities[:, k]
-        x = @. exp(-expt.TSL * R[k])
+        x = @view expt.predicteddecays[:, k]
         I0 = dot(y, x) / sum(abs2, x)
         @. resid[:, k] = (y - I0 * x) / expt.rawnoise
     end

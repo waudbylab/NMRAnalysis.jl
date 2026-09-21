@@ -140,6 +140,32 @@ end
         @test b1average(ν -> ν^2, d, ν̄) ≈ ν̄^2 * (1 + 0.05^2)
     end
 
+    @testset "the decay a spread of fields gives" begin
+        d = B1Distribution(0.05)
+        rate(ν) = 30 / (1 + (ν / 300)^2)
+        ν̄ = 400.0
+        t = [0.0, 0.02, 0.05, 0.1]
+
+        # the weighted sum of exponentials, written out
+        expected = [sum(w * exp(-rate(s * ν̄) * tᵢ)
+                        for (s, w) in zip(d.scaling, d.weight)) for tᵢ in t]
+        @test b1decay(rate, d, ν̄, t) ≈ expected
+        # normalised at t = 0 whatever the spread
+        @test b1decay(rate, d, ν̄, [0.0]) ≈ [1.0]
+        # with no inhomogeneity it is the single exponential it was before
+        @test b1decay(rate, B1Distribution(0.0), ν̄, t) ≈ exp.(-rate(ν̄) .* t)
+
+        # a sum of exponentials decays more slowly than the exponential of the mean rate:
+        # the slow-relaxing part of the sample dominates what is left at long times
+        mono = exp.(-b1average(rate, d, ν̄) .* t)
+        @test all(b1decay(rate, d, ν̄, t)[2:end] .> mono[2:end])
+
+        # b1rate is the rate of the single exponential through that decay at whatever
+        # time it is matched at
+        T = 0.1
+        @test only(b1decay(rate, d, ν̄, (T,))) ≈ exp(-b1rate(rate, d, ν̄, T) * T)
+    end
+
     @testset "averaging a fitted rate" begin
         d = B1Distribution(0.05)
         # A rate that varies steeply with the field, as R₁ρ does at low spin-lock

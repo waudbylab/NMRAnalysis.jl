@@ -72,7 +72,7 @@ function fakeonres(path="/data/set/102/pdata/1"; inhomogeneity=0.05)
     return R1rhoOnResExperiment(FakeSpec(path), 14.1, Dict{String,Float64}(),
                                 [12.0 ± 0.5, 9.0 ± 0.4], [12.2, 8.9],
                                 [100.0, 500.0], [0.0, 0.04],
-                                zeros(2, 2), 0.01,
+                                zeros(2, 2), 0.01, zeros(2, 2),
                                 fakecalibration(100.0; inhomogeneity))
 end
 
@@ -82,7 +82,7 @@ function fakeoffres(path="/data/set/103/pdata/1"; inhomogeneity=0.05)
     return R1rhoOffResExperiment(FakeSpec(path), 14.1, Dict{String,Float64}(),
                                  [20.0 ± 0.8, 15.0 ± 0.6], [19.8, 15.2],
                                  [-1.0, 1.0], 250.0, [0.0, 0.04],
-                                 zeros(2, 2), 0.01,
+                                 zeros(2, 2), 0.01, zeros(2, 2),
                                  fakecalibration(250.0; inhomogeneity))
 end
 
@@ -375,7 +375,7 @@ end
         @test r[3] ≈ (0.3 - 0.28) / noise
     end
 
-    @testset "R1rho residuals - I0 eliminated by variable projection" begin
+    @testset "R1rho residuals - decays compared, I0 eliminated by variable projection" begin
         TSL = [0.0, 0.05, 0.1, 0.2]
         νSL = [100.0, 500.0]
         R_true = [15.0, 8.0]
@@ -386,25 +386,44 @@ end
 
         expt = R1rhoOnResExperiment(FakeSpec("dummy"), 14.1, Dict{String,Float64}(),
                                     zeros(2) .± 1.0, copy(R_true), νSL, TSL,
-                                    rawintensities, noise, fakecalibration(νSL[1]))
+                                    copy(rawintensities), noise,
+                                    exp.(-TSL .* R_true'), fakecalibration(νSL[1]))
 
-        # predicted_intensities (set here as if simulate! had just run) already holds
-        # the true rate for each condition, so the analytically-eliminated I0 exactly
-        # reproduces the noiseless data and every residual vanishes
+        # predicteddecays (set here as if simulate! had just run) is the decay of the true
+        # rate for each condition, so the analytically-eliminated I0 recovers I0_true and
+        # every residual vanishes
         r = residuals(expt)
         @test length(r) == length(TSL) * length(νSL)
         @test all(abs.(r) .< 1e-8)
 
-        # a rate that doesn't match the data leaves a nonzero residual: I0 elimination
-        # cannot also absorb an error in the (nonlinear) rate itself
-        expt.predicted_intensities .= R_true .+ 5.0
-        @test any(abs.(residuals(expt)) .> 1e-3)
-
         offresexpt = R1rhoOffResExperiment(FakeSpec("dummy"), 14.1, Dict{String,Float64}(),
                                            zeros(2) .± 1.0, copy(R_true), νSL, 300.0, TSL,
-                                           rawintensities, noise,
+                                           copy(rawintensities), noise,
+                                           exp.(-TSL .* R_true'),
                                            fakecalibration(300.0))
         @test all(abs.(residuals(offresexpt)) .< 1e-8)
+
+        # a decay that doesn't match the data leaves a nonzero residual: eliminating I0
+        # scales the model curve but cannot reshape it
+        expt.predicteddecays .= exp.(-TSL .* (R_true .+ 5.0)')
+        @test any(abs.(residuals(expt)) .> 1e-3)
+
+        # and the model need not be a single exponential at all: a spread of B₁ makes it a
+        # sum of them, compared as it stands
+        d = B1Distribution(0.2)
+        rate(ν) = 25 / (1 + (ν / 200)^2)
+        mixture = hcat([b1decay(rate, d, ν, TSL) for ν in νSL]...)
+        expt.rawintensities .= mixture
+        expt.predicteddecays .= mixture
+        @test all(abs.(residuals(expt)) .< 1e-8)
+
+        # the single exponential that stood in for that sum, matched at the mean spin-lock
+        # duration, cannot follow it. The mismatch is a few percent of the noise at a 5%
+        # spread and comparable with the noise at the 20% used here, so what this buys is
+        # accuracy for wide distributions and long spin-locks rather than for a good probe.
+        T̄ = sum(TSL) / length(TSL)
+        expt.predicteddecays .= hcat([exp.(-b1rate(rate, d, ν, T̄) .* TSL) for ν in νSL]...)
+        @test maximum(abs, residuals(expt)) > 0.5
     end
 
     @testset "R1rho ratewres - per-condition rate residual for display" begin
@@ -648,25 +667,39 @@ end
         @test sharp.predicted_intensities[end] < 0.95
     end
 
-    @testset "R₁ρ averages the decay, not the rate" begin
+    @testset "R₁ρ simulates the decay, not a rate" begin
         νSL, TSL = [100.0, 500.0], [0.0, 0.02, 0.04]
         onres(inhom) = R1rhoOnResExperiment(StubSpec(bf), 14.1, Dict{String,Float64}(),
                                             [12.0 ± 0.5, 9.0 ± 0.4], zeros(2), νSL, TSL,
                                             zeros(length(TSL), length(νSL)), 0.01,
+                                            zeros(length(TSL), length(νSL)),
                                             B1Calibration([Power(-12.0, :dB)], [νSL[1]];
                                                           inhomogeneity=inhom))
 
+        rate(e, ν) = -1 / tr(inv(liouvillian(model, params, e, params.spin.delta[1], ν)))
+
+        # With no inhomogeneity the simulated decay is the single exponential it always
+        # was, and the reported rate is that one rate.
         sharp = onres(0.0)
         simulate!(sharp, model, params)
-        rate(e, ν) = -1 / tr(inv(liouvillian(model, params, e, params.spin.delta[1], ν)))
         @test sharp.predicted_intensities ≈ [rate(sharp, ν) for ν in νSL]
+        @test sharp.predicteddecays ≈
+              hcat([exp.(-rate(sharp, ν) .* TSL) for ν in νSL]...)
 
-        # The apparent rate of a monoexponential fit to a sum of exponentials lies below
-        # the weighted mean of the rates - the point of `b1rate` - by a margin that grows
-        # with the evolution time and the spread of rates.
+        # With a spread it is the sum of exponentials the spread gives, which is what the
+        # residual compares against - no rate stands in for it.
         broad = onres(0.05)
         simulate!(broad, model, params)
         d = B1Distribution(0.05)
+        @test broad.predicteddecays ≈
+              hcat([[sum(w * exp(-rate(broad, s * ν) * t)
+                         for (s, w) in zip(d.scaling, d.weight)) for t in TSL]
+                    for ν in νSL]...)
+
+        # `predicted_intensities` still carries the rate a monoexponential fit to that
+        # decay would report, for the result plots. It lies below the weighted mean of the
+        # rates - the point of `b1rate` - by a margin that grows with the evolution time
+        # and the spread of rates.
         meanrates = [b1average(ν -> rate(broad, ν), d, ν0) for ν0 in νSL]
         @test all(broad.predicted_intensities .< meanrates)
         @test broad.predicted_intensities ≈ meanrates rtol = 0.05

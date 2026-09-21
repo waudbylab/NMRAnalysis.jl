@@ -9,9 +9,11 @@ mutable struct R1rhoOnResExperiment <: AbstractExperiment
     TSL::Vector{Float64}      # spin-lock durations the decays were sampled at (s)
 
     # TSL × νSL decay data (integration-normalised) and its noise level — what the fit
-    # itself compares to; see residuals(::R1rhoOnResExperiment)
+    # itself compares to — and the model decay simulate! writes for it, same shape; see
+    # residuals(::R1rhoOnResExperiment)
     rawintensities::Matrix{Float64}
     rawnoise::Float64
+    predicteddecays::Matrix{Float64}
 
     calibration::B1Calibration  # νSL above, and the B₁ spread it is simulated with
 end
@@ -49,7 +51,7 @@ function R1rhoOnResExperiment(filename; calibration=nothing)
 
     return R1rhoOnResExperiment(spec, field_teslas, sampleconcentrations(spec),
                                 observed_intensities, predicted_intensities, νSL, TSL,
-                                rawintensities, 0.0, cal)
+                                rawintensities, 0.0, zero(rawintensities), cal)
 end
 
 function default_spin_params(expt::R1rhoOnResExperiment, nstates)
@@ -104,28 +106,31 @@ end
 """
     simulate!(expt::R1rhoOnResExperiment, model, params)
 
-Simulate R₁ρ at each spin-lock strength, averaged over the B₁ distribution.
+Simulate the spin-lock decay at each spin-lock strength, over the B₁ distribution.
 
-A spread of B₁ gives a spread of rates, so the decay is a sum of exponentials, and what
-`residuals` compares the data against is a single exponential of this rate with I₀
-profiled out. The rate handed to it is therefore the apparent one a monoexponential fit
-would report, obtained by averaging the decays and converting back (see
-[`b1rate`](@ref NMRAnalysis.b1rate)) rather than by averaging the rates. It is matched at
-the mean of the sampled spin-lock durations, which makes it a first-order match: now that
-the residual sees the raw decay, building the sum of exponentials there instead would be
-exact.
+A spread of B₁ gives a spread of rates, so what the sample gives is a sum of exponentials
+rather than a single exponential of any one rate ([`b1decay`](@ref NMRAnalysis.b1decay)).
+`residuals` compares that sum against the measured decay directly, with I₀ profiled out,
+so no monoexponential approximation enters the fit and there is no evolution time to match
+it at.
+
+`predicted_intensities` holds the rate a monoexponential fit to that same decay would
+report ([`b1rate`](@ref NMRAnalysis.b1rate)), matched at the mean of the sampled spin-lock
+durations. That is the quantity the result plots draw against the rates fitted from the
+data one spin-lock at a time; the fit itself no longer depends on it.
 """
 function simulate!(expt::R1rhoOnResExperiment, model, params)
     spinlock_ppm = params.spin.delta[1]
     d = B1Distribution(expt.calibration)
     T = mean(expt.TSL)
 
+    # R1rho from the inverse of the trace of the inverse Liouvillian (Koss), in place of
+    # the least negative eigenvalue, as before.
+    rate(ν) = -1 / tr(inv(liouvillian(model, params, expt, spinlock_ppm, ν)))
+
     for k in eachindex(expt.νSL)
-        # R1rho from the inverse of the trace of the inverse Liouvillian (Koss), in place
-        # of the least negative eigenvalue, as before.
-        expt.predicted_intensities[k] = b1rate(d, expt.νSL[k], T) do ν
-            return -1 / tr(inv(liouvillian(model, params, expt, spinlock_ppm, ν)))
-        end
+        expt.predicteddecays[:, k] .= b1decay(rate, d, expt.νSL[k], expt.TSL)
+        expt.predicted_intensities[k] = b1rate(rate, d, expt.νSL[k], T)
     end
 end
 

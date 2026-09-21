@@ -66,19 +66,32 @@ parts:
 M_z = \sum_i w_i \, M_z(\nu_1 \to s_i \nu_1).
 ```
 
-R1ρ is different, because the reported quantity is a *rate* obtained by fitting one
-exponential to a decay. A spread of fields gives a spread of rates, so the decay is a sum
-of exponentials and the fitted rate is
+R1ρ is different, because a spread of fields gives a spread of *rates*, and a spread of
+rates is not a rate. What each condition gives is a sum of exponentials,
+
+```math
+\frac{I(t)}{I(0)} = \sum_i w_i \exp(-R_{1\rho}(s_i \nu_1) \, t),
+```
+
+and it is this sum that the fit compares against the measured spin-lock decay, with the
+equilibrium intensity ``I(0)`` of each condition eliminated analytically by variable
+projection. No single rate stands in for the sum, so there is no evolution time at which
+the two have to be matched.
+
+The rate quoted in the result tables and drawn in the plots is the one a monoexponential
+fit to that same decay would report,
 
 ```math
 R_{1\rho} = -\frac{1}{\bar{T}} \ln \sum_i w_i \exp(-R_{1\rho}(s_i \nu_1) \, \bar{T}),
 ```
 
-where ``\bar{T}`` is the mean of the spin-lock durations the decay was sampled at. This
-lies below the weighted mean of the rates, and approaches it as ``\bar{T} \to 0``. The
-difference is of order ``\tfrac{1}{2}\bar{T}\,\mathrm{var}(R_{1\rho})``, which at the
-low spin-lock strengths of a dispersion profile is comparable with the uncertainty on the
-measurement; averaging the rates instead would bias the fit there.
+where ``\bar{T}`` is the mean of the spin-lock durations sampled. That is what the rates
+fitted from the data one condition at a time also are, so the measured and simulated points
+on those plots are the same quantity. It lies below the weighted mean of the rates and
+approaches it as ``\bar{T} \to 0``, the difference being of order
+``\tfrac{1}{2}\bar{T}\,\mathrm{var}(R_{1\rho})``, which at the low spin-lock strengths
+of a dispersion profile is comparable with the uncertainty on the measurement. Averaging
+the rates would therefore bias what is plotted; it no longer affects the fit itself.
 
 ## R1 Simulation
 

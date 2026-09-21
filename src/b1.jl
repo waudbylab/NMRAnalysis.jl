@@ -286,22 +286,46 @@ function b1average(f, d::B1Distribution, ν1)
 end
 
 """
+    b1decay(f, distribution, ν1, t)
+
+Relaxation decay at times `t`, normalised to 1 at t = 0, over a B₁ `distribution` of
+nominal field `ν1`, where `f(ν)` is the relaxation rate at field `ν`.
+
+Each part of the sample relaxes at its own rate, so the decay of the whole sample is a sum
+of exponentials
+
+    I(t)/I(0) = Σᵢ wᵢ exp(−R(sᵢν₁) t)
+
+and not a single exponential of any one rate. This is what a spin-lock decay looks like,
+and what a fit to the measured intensities compares against; for the rate a monoexponential
+fit to such a decay would report, see [`b1rate`](@ref).
+
+`f` is evaluated once per node, which matters where each evaluation costs a matrix
+inversion.
+"""
+function b1decay(f, d::B1Distribution, ν1, t)
+    R = [f(s * ν1) for s in d.scaling]
+    return [sum(w * exp(-Rᵢ * tᵢ) for (Rᵢ, w) in zip(R, d.weight)) for tᵢ in t]
+end
+
+"""
     b1rate(f, distribution, ν1, T)
 
 Apparent relaxation rate over a B₁ `distribution`, where `f(ν)` is the rate at field `ν`
-and `T` the evolution time the rate was measured over.
-
-A spread of B₁ gives a spread of rates, so the decay is a sum of exponentials, and what a
-monoexponential fit to the data reports is
+and `T` the evolution time the rate was measured over: the single rate a monoexponential
+fit to [`b1decay`](@ref) would report,
 
     R = −ln(Σᵢ wᵢ exp(−Rᵢ T)) / T
 
 rather than the weighted mean of the rates ⟨R⟩. The two agree as T → 0 and diverge by
 about ½T·var(R) beyond that, which at the low spin-lock strengths of an R₁ρ dispersion is
-comparable with the uncertainty on the measurement. `T` is the time the experiment actually
-sampled, so the simulated quantity is the one the data reduction produced.
+comparable with the uncertainty on the measurement.
+
+This is the quantity to report or plot against rates fitted from the data one condition at
+a time. A fit that reaches the intensities themselves should use `b1decay` instead, which
+needs no evolution time to match at.
 """
 function b1rate(f, d::B1Distribution, ν1, T)
     T > 0 || return b1average(f, d, ν1)
-    return -log(b1average(ν -> exp(-f(ν) * T), d, ν1)) / T
+    return -log(only(b1decay(f, d, ν1, (T,)))) / T
 end

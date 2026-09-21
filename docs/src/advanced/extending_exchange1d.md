@@ -389,11 +389,14 @@ end
     end
     ```
 
-    Use `b1average` where the observable is measured directly, and `b1rate(f, d, ν1, T)`
-    where it is a rate obtained by fitting a decay of duration `T`: the two differ, and
-    [B₁ Inhomogeneity](../analyses/exchange1d/theory.md#B₁-Inhomogeneity) says why. With no
-    inhomogeneity the distribution holds the single nominal field, so the averaged form
-    costs nothing.
+    Use `b1average` where the observable is measured directly, as a CEST profile is.
+    Where the observable is a decay, compare the decay: `b1decay(f, d, ν1, t)` gives the
+    sum of exponentials the spread of fields produces at times `t`, which is exact, and is
+    what the R1ρ experiments' residuals use. Reserve `b1rate(f, d, ν1, T)` for reporting a
+    single rate against rates fitted from the data, since it has to be matched at some
+    evolution time `T`. [B₁ Inhomogeneity](../analyses/exchange1d/theory.md#B₁-Inhomogeneity)
+    says why the three differ. With no inhomogeneity the distribution holds the single
+    nominal field, so the averaged form costs nothing.
 
 #### `plot_result(expt::YourExperiment, fit_result; kwargs...)`
 
