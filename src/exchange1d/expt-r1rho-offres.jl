@@ -1,12 +1,18 @@
-struct R1rhoOffResExperiment <: AbstractExperiment
+mutable struct R1rhoOffResExperiment <: AbstractExperiment
     spec::Any
     field_teslas::Float64
     sampleconcentrations::Dict{String,Float64}
-    observed_intensities::Vector{Measurement{Float64}}
-    predicted_intensities::Vector{Float64}
+    observed_intensities::Vector{Measurement{Float64}}  # rate fitted per offset, display only
+    predicted_intensities::Vector{Float64}              # Bloch-McConnell rate per offset
     offsets_ppm::Vector{Float64}  # offsets for each data point (ppm)
     νSL::Float64      # νSL for each data point (Hz)
     TSL::Vector{Float64}      # spin-lock durations the decays were sampled at (s)
+
+    # TSL × offset decay data (integration-normalised) and its noise level — what the fit
+    # itself compares to; see residuals(::R1rhoOffResExperiment)
+    rawintensities::Matrix{Float64}
+    rawnoise::Float64
+
     calibration::B1Calibration  # νSL above, and the B₁ spread it is simulated with
 end
 
@@ -51,10 +57,11 @@ function R1rhoOffResExperiment(filename; calibration=nothing)
 
     observed_intensities = zeros(length(offsets_ppm)) .± 0.0
     predicted_intensities = zeros(length(offsets_ppm))
+    rawintensities = zeros(length(TSL), length(offsets_ppm))
 
     return R1rhoOffResExperiment(spec, field_teslas, sampleconcentrations(spec),
                                  observed_intensities, predicted_intensities,
-                                 offsets_ppm, νSL, TSL, cal)
+                                 offsets_ppm, νSL, TSL, rawintensities, 0.0, cal)
 end
 
 function default_spin_params(expt::R1rhoOffResExperiment, nstates)
@@ -85,13 +92,17 @@ function integrate!(expt::R1rhoOffResExperiment, peakppm, noiseppm, ppmwidth)
     scale = maximum(abs, integrals)
     noise /= scale
     integrals /= scale
+    expt.rawnoise = noise
 
-    # fit exponential decay for each offset
+    # fit exponential decay for each offset, purely to give a rate per condition for
+    # display (plotresult!) — the joint fit itself compares rawintensities directly, see
+    # residuals(::R1rhoOffResExperiment)
     expdecay(t, p) = @. p[1] * exp(-p[2] * t)
     p0 = [1.0, 5.0]
 
     for i in 1:length(expt.offsets_ppm)
         y = vec(data(integrals[1, i, :]))
+        expt.rawintensities[:, i] .= y
         fitres = curve_fit(expdecay, expt.TSL, y, p0)
         R = coef(fitres)[2] ± stderrors(fitres)[2]
         expt.observed_intensities[i] = R
@@ -102,8 +113,10 @@ end
     simulate!(expt::R1rhoOffResExperiment, model, params)
 
 Simulate R₁ρ at each spin-lock offset, averaged over the B₁ distribution the same way as
-the on-resonance experiment: over the decays rather than the rates (see [`b1rate`](@ref NMRAnalysis.b1rate)),
-matched at the mean of the sampled spin-lock durations.
+the on-resonance experiment: over the decays rather than the rates (see
+[`b1rate`](@ref NMRAnalysis.b1rate)), matched at the mean of the sampled spin-lock
+durations, and for the same reason - `residuals` compares the raw decay against a single
+exponential of this rate.
 """
 function simulate!(expt::R1rhoOffResExperiment, model, params)
     d = B1Distribution(expt.calibration)
@@ -141,7 +154,7 @@ function plotresult!(gl, expt::R1rhoOffResExperiment, fitresult; axiskw=(;))
     x = expt.offsets_ppm
     sortidx = sortperm(x)
     params_value = fitresult.params_value
-    wres = (Measurements.value.(yobs) .- ypred) ./ Measurements.uncertainty.(yobs)
+    wres = ratewres(expt)
 
     title = "Off-resonance R₁ρ ($(Int(round(expt.νSL; digits=0))) Hz)"
     ax1, ax2 = resultpanels!(gl; xlabel="Spin-lock offset / ppm", ylabel="R₁ρ / s⁻¹",

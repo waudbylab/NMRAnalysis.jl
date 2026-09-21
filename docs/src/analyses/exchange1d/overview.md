@@ -136,6 +136,9 @@ out/
   results.csv         one row per experiment: its type, field, number of points and settings
   series.csv          the measurements, one row per experiment per data point
   global.csv          every fitted parameter, with its starting value, uncertainty and unit
+  covariance.csv      covariance matrix of the fitted parameters (when more than one)
+  correlation.csv     the same fit's correlation matrix
+  correlation.pdf     correlation.csv as a heatmap
   fit.pdf             all experiments on one grid
   overlay_*.pdf       overlays of comparable experiments
   experiments/
@@ -158,6 +161,15 @@ columns that do not apply to it.
     Concentrations come from the sample metadata, and any dissociation constant fitted from
     them is in whatever units that metadata uses. `global.csv` therefore leaves the unit of
     `Kd` blank rather than guessing at one.
+
+!!! note "Correlated and bound-limited parameters"
+    A joint fit with more than one free parameter reports a warning, both on screen and in
+    the parameter tables, whenever two fitted parameters correlate at `|r| ≥ 0.95` — a sign
+    they are trading off against each other rather than independently constrained by the
+    data. The full correlation matrix behind that warning is in `correlation.csv` and
+    `correlation.pdf`. A parameter tagged `(at bound)` (a relaxation rate pinned at zero, for
+    instance) has converged onto a limit rather than an interior optimum, so its uncertainty
+    describes how well-constrained that limit is, not a two-sided confidence interval.
 
 ## Parameter Structure
 

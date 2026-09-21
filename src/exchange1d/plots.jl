@@ -104,3 +104,26 @@ function plotresults(result::FitResult)
     simulate!(result.prob, result.params_value)
     return [resultfigure(expt, result) for expt in result.prob.experiments]
 end
+
+"""
+    correlationheatmap(result::FitResult) -> Figure
+
+Heatmap of the correlation matrix of the fitted (non-fixed) parameters, axes labelled with
+the same display names as the parameter tables — the picture version of `correlation.csv`,
+for spotting at a glance which parameters trade off against each other.
+"""
+function correlationheatmap(result::FitResult)
+    state_labels = states(result.prob.model)
+    fields = _unique_fields(result.prob.experiments)
+    freeitems = _flatten_params_items(result.params)[result.freeidx]
+    labels = [_pretty_label(item, state_labels, fields) for item in freeitems]
+    n = length(labels)
+
+    f = Figure(; size=(max(500, 55 * n + 220), max(450, 55 * n + 120)))
+    ax = Makie.Axis(f[1, 1]; title="Parameter correlation",
+                    xticks=(1:n, labels), yticks=(1:n, labels),
+                    xticklabelrotation=π / 4, yreversed=true)
+    hm = heatmap!(ax, 1:n, 1:n, result.cor; colormap=:RdBu, colorrange=(-1, 1))
+    Colorbar(f[1, 2], hm; label="r")
+    return f
+end

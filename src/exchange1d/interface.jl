@@ -736,10 +736,17 @@ function _save_results(result::FitResult)
         push!(saved, "overlay_$i.pdf")
     end
 
+    if result.nparams > 1
+        save(joinpath(outputfolder, "correlation.pdf"), correlationheatmap(result);
+             backend=CairoMakie)
+        push!(saved, "correlation.pdf")
+    end
+
     writesummary(joinpath(outputfolder, "summary.txt"), result)
     push!(saved, "summary.txt")
     writeresults!(result, outputfolder)
     append!(saved, ["results.csv", "series.csv", "global.csv"])
+    result.nparams > 1 && append!(saved, ["covariance.csv", "correlation.csv"])
     for expt in result.prob.experiments
         push!(saved, joinpath("experiments", "$(safename(short_expt_path(expt))).csv"))
     end

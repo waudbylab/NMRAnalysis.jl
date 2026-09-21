@@ -8,13 +8,19 @@ import NMRAnalysis.Exchange1D:
                                exchangematrix, populations, defaultparams,
                                default_spin_params, default_nuisance_params,
                                field_label, liouvillian, liouvillian_inhom,
-                               AbstractExperiment,
-                               simulate!, residuals, fit,
+                               AbstractExperiment, AbstractModel,
+                               simulate!, residuals, ratewres, nprofiledparams, fit,
                                R1rhoOnResExperiment, R1rhoOffResExperiment,
                                seriescoordinates, observable, coordinateunit,
                                parameterunit, experimenttype, resultstable, seriestable,
-                               problemcomments, short_expt_path, _ParamItem
+                               problemcomments, short_expt_path, _ParamItem,
+                               _flatten_params_items, isatbound,
+                               strongcorrelations, covariancematrixtable,
+                               correlationmatrixtable,
+                               correlationheatmap
+using CairoMakie
 using ComponentArrays
+using LinearAlgebra
 using Measurements
 using NMRTools: Power
 using LinearAlgebra: tr
@@ -66,6 +72,7 @@ function fakeonres(path="/data/set/102/pdata/1"; inhomogeneity=0.05)
     return R1rhoOnResExperiment(FakeSpec(path), 14.1, Dict{String,Float64}(),
                                 [12.0 ± 0.5, 9.0 ± 0.4], [12.2, 8.9],
                                 [100.0, 500.0], [0.0, 0.04],
+                                zeros(2, 2), 0.01,
                                 fakecalibration(100.0; inhomogeneity))
 end
 
@@ -75,8 +82,26 @@ function fakeoffres(path="/data/set/103/pdata/1"; inhomogeneity=0.05)
     return R1rhoOffResExperiment(FakeSpec(path), 14.1, Dict{String,Float64}(),
                                  [20.0 ± 0.8, 15.0 ± 0.6], [19.8, 15.2],
                                  [-1.0, 1.0], 250.0, [0.0, 0.04],
+                                 zeros(2, 2), 0.01,
                                  fakecalibration(250.0; inhomogeneity))
 end
+
+"""A minimal fake experiment for exercising `fit`'s bookkeeping around
+`nprofiledparams`, independent of any real NMR physics: `predicted = a * x` for a single
+free spin parameter `a`, with an injected, arbitrary profiled-parameter count."""
+struct DoFTestExperiment <: AbstractExperiment
+    x::Vector{Float64}
+    observed_intensities::Vector{Measurement{Float64}}
+    predicted_intensities::Vector{Float64}
+    profiled::Int
+end
+default_spin_params(::DoFTestExperiment, nstates) = [:a => [1.0]]
+default_nuisance_params(::DoFTestExperiment) = Pair{Symbol,Any}[]
+function simulate!(expt::DoFTestExperiment, ::AbstractModel, params)
+    expt.predicted_intensities .= params.spin.a[1] .* expt.x
+    return nothing
+end
+nprofiledparams(expt::DoFTestExperiment) = expt.profiled
 
 @testset "Exchange1D output" begin
     @testset "Per-experiment hooks" begin
@@ -349,6 +374,96 @@ end
         @test r[3] ≈ (0.3 - 0.28) / noise
     end
 
+    @testset "R1rho residuals - I0 eliminated by variable projection" begin
+        TSL = [0.0, 0.05, 0.1, 0.2]
+        νSL = [100.0, 500.0]
+        R_true = [15.0, 8.0]
+        I0_true = [1.0, 0.8]  # a different amplitude per condition
+        rawintensities = hcat([I0_true[k] .* exp.(-TSL .* R_true[k])
+                               for k in eachindex(νSL)]...)
+        noise = 0.01
+
+        expt = R1rhoOnResExperiment(FakeSpec("dummy"), 14.1, Dict{String,Float64}(),
+                                    zeros(2) .± 1.0, copy(R_true), νSL, TSL,
+                                    rawintensities, noise)
+
+        # predicted_intensities (set here as if simulate! had just run) already holds
+        # the true rate for each condition, so the analytically-eliminated I0 exactly
+        # reproduces the noiseless data and every residual vanishes
+        r = residuals(expt)
+        @test length(r) == length(TSL) * length(νSL)
+        @test all(abs.(r) .< 1e-8)
+
+        # a rate that doesn't match the data leaves a nonzero residual: I0 elimination
+        # cannot also absorb an error in the (nonlinear) rate itself
+        expt.predicted_intensities .= R_true .+ 5.0
+        @test any(abs.(residuals(expt)) .> 1e-3)
+
+        offresexpt = R1rhoOffResExperiment(FakeSpec("dummy"), 14.1, Dict{String,Float64}(),
+                                           zeros(2) .± 1.0, copy(R_true), νSL, 300.0, TSL,
+                                           rawintensities, noise)
+        @test all(abs.(residuals(offresexpt)) .< 1e-8)
+    end
+
+    @testset "R1rho ratewres - per-condition rate residual for display" begin
+        expt = fakeonres()
+        wr = ratewres(expt)
+        yobs = expt.observed_intensities
+        expected = (Measurements.value.(yobs) .- expt.predicted_intensities) ./
+                   Measurements.uncertainty.(yobs)
+        @test wr ≈ expected
+    end
+
+    @testset "nprofiledparams" begin
+        # unprofiled experiment types don't override it
+        expt = R1Experiment(nothing, 14.1, Dict{String,Float64}(), [0.1],
+                            [1.0 ± 0.02], zeros(1), :exponential_decay)
+        @test nprofiledparams(expt) == 0
+
+        # one I0 profiled analytically per condition (see residuals above)
+        @test nprofiledparams(fakeonres()) == 2   # two νSL conditions
+        @test nprofiledparams(fakeoffres()) == 2  # two offsets
+    end
+
+    @testset "fit - profiled parameters inflate dof and rescale covariance" begin
+        # predicted = a * x is exactly the same separable-amplitude shape as R1rho's I0, so
+        # it stands in for a real R1rho fit without needing the Bloch-McConnell machinery:
+        # nprofiledparams doesn't touch what curve_fit itself sees, only the bookkeeping fit
+        # derives from it afterwards, so this isolates that bookkeeping from convergence
+        # behaviour.
+        x = collect(1.0:20.0)
+        observed = (3.0 .* x .+ 0.1 .* sin.(x)) .± 1.0
+        mkexpt(profiled) = DoFTestExperiment(x, observed, zeros(length(x)), profiled)
+
+        prob0 = ExchangeProblem([mkexpt(0)], NoExchangeModel())
+        prob5 = ExchangeProblem([mkexpt(5)], NoExchangeModel())
+        params0 = defaultparams(prob0)
+
+        result0 = fit(prob0, params0)
+        result5 = fit(prob5, params0)
+
+        @test result0.nobs == 20
+        @test result0.nparams == 1  # just `a` - no profiled parameters
+        @test result0.dof == 19
+
+        @test result5.nobs == 20
+        @test result5.nparams == 1 + 5  # `a` plus 5 profiled amplitudes
+        @test result5.dof == 20 - 6
+
+        # nprofiledparams plays no part in what curve_fit optimises, so both fits land on
+        # the same parameter estimate and the same chi2 - only the reported dof, reduced
+        # chi2 and uncertainty should differ
+        @test result0.params_value.spin.a[1] ≈ result5.params_value.spin.a[1]
+        @test result0.chi2 ≈ result5.chi2
+
+        @test result0.reduced_chi2 ≈ result0.chi2 / 19
+        @test result5.reduced_chi2 ≈ result5.chi2 / 14
+
+        # the covariance is the same curve_fit output rescaled onto the true dof
+        scale = result0.dof / result5.dof
+        @test result5.cov ≈ result0.cov .* scale
+    end
+
     @testset "defaultparams - structure" begin
         expt = R1Experiment(nothing, 14.1, Dict{String,Float64}(),
                             [0.1, 0.2, 0.5],
@@ -552,5 +667,108 @@ end
         meanrates = [b1average(ν -> rate(broad, ν), d, ν0) for ν0 in νSL]
         @test all(broad.predicted_intensities .< meanrates)
         @test broad.predicted_intensities ≈ meanrates rtol = 0.05
+
+@testset "Fit diagnostics" begin
+    @testset "isatbound" begin
+        @test isatbound(0.0, 0.0)              # exactly on the bound
+        @test isatbound(1e-9, 0.0)             # within tolerance of the bound
+        @test !isatbound(0.5, 0.0)             # well clear of the bound
+        @test !isatbound(1.0, -Inf)            # no finite bound to sit on
+    end
+
+    @testset "strongcorrelations" begin
+        cor = [1.0 0.97 0.1;
+               0.97 1.0 0.99;
+               0.1 0.99 1.0]
+        pairs = strongcorrelations(cor)
+        @test (1, 2, 0.97) in pairs
+        @test (2, 3, 0.99) in pairs
+        @test !any(p -> p[1] == 1 && p[2] == 3, pairs)
+    end
+
+    @testset "fit() reports cov, cor, freeidx and atbound" begin
+        # data with no decay at all: the least-squares optimum is exactly R1 = 0,
+        # I0 = 1, so a correctly box-constrained fit should drive R1 onto the lower
+        # bound `_ratelowerbound` enforces for relaxation rates.
+        delays = [0.1, 0.5, 1.0, 2.0, 4.0]
+        observed = fill(1.0 ± 0.01, length(delays))
+        expt = R1Experiment(nothing, 14.1, Dict{String,Float64}(), delays,
+                            observed, zeros(length(delays)), :exponential_decay)
+        prob = ExchangeProblem([expt], NoExchangeModel())
+        p0 = defaultparams(prob)
+
+        result = fit(prob, p0)
+
+        n = result.nparams
+        @test size(result.cov) == (n, n)
+        @test size(result.cor) == (n, n)
+        @test all(x -> x ≈ 1.0, diag(result.cor))
+        @test result.cor ≈ transpose(result.cor)
+        @test length(result.freeidx) == n
+        @test issorted(result.freeidx)
+
+        r1item = only(filter(i -> startswith(i.label, "spin.R1_"),
+                             _flatten_params_items(result.params)))
+        @test result.params_value.spin[Symbol("R1_", field_label(14.1))][1] < 1e-4
+        @test r1item.flat_index in result.atbound
+    end
+
+    @testset "fit() with a fixed parameter shrinks freeidx" begin
+        delays = [0.1, 0.5, 1.0, 2.0]
+        R1_true = 2.0
+        I0_true = 1.0
+        observed = (I0_true .* exp.(-delays .* R1_true)) .± 0.01
+        expt = R1Experiment(nothing, 14.1, Dict{String,Float64}(), delays,
+                            observed, zeros(length(delays)), :exponential_decay)
+        prob = ExchangeProblem([expt], NoExchangeModel())
+        p0 = defaultparams(prob)
+
+        i0tag = Symbol("R1_", field_label(14.1), "_I0")
+        i0item = only(filter(i -> i.label == "nuisance.$i0tag", _flatten_params_items(p0)))
+        result = fit(prob, p0; fixed=Set([i0item.flat_index]))
+
+        @test result.nparams == length(p0) - 1
+        @test i0item.flat_index ∉ result.freeidx
+        @test size(result.cov) == (result.nparams, result.nparams)
+        @test result.params.nuisance[i0tag] == I0_true ± 0.0  # fixed, so unchanged
+    end
+
+    @testset "covariancematrixtable / correlationmatrixtable" begin
+        delays = [0.1, 0.2, 0.5, 1.0]
+        R1_true = 2.0
+        I0_true = 1.0
+        observed = (I0_true .* exp.(-delays .* R1_true)) .± 0.01
+        expt = R1Experiment(nothing, 14.1, Dict{String,Float64}(), delays,
+                            observed, zeros(length(delays)), :exponential_decay)
+        prob = ExchangeProblem([expt], NoExchangeModel())
+        result = fit(prob, defaultparams(prob))
+
+        covheader, covrows = covariancematrixtable(result)
+        corheader, corrows = correlationmatrixtable(result)
+
+        freelabels = [item.label
+                      for item in _flatten_params_items(result.params)[result.freeidx]]
+        @test covheader == corheader == vcat(["parameter"], freelabels)
+        @test length(covrows) == length(corrows) == length(freelabels)
+        @test all(row[1] == label for (row, label) in zip(covrows, freelabels))
+
+        # correlation.csv's diagonal is always 1 (a parameter correlates perfectly with
+        # itself); covariance.csv's diagonal is each parameter's variance
+        n = length(freelabels)
+        for i in 1:n
+            @test parse(Float64, corrows[i][1 + i]) ≈ 1.0
+            @test parse(Float64, covrows[i][1 + i]) ≈ result.cov[i, i]
+        end
+    end
+
+    @testset "correlationheatmap" begin
+        delays = [0.1, 0.2, 0.5, 1.0]
+        observed = (1.0 .* exp.(-delays .* 2.0)) .± 0.01
+        expt = R1Experiment(nothing, 14.1, Dict{String,Float64}(), delays,
+                            observed, zeros(length(delays)), :exponential_decay)
+        prob = ExchangeProblem([expt], NoExchangeModel())
+        result = fit(prob, defaultparams(prob))
+
+        @test correlationheatmap(result) isa Figure
     end
 end

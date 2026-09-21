@@ -202,12 +202,13 @@ end
     globaltable(result) -> (header, rows)
 
 Column names and rows for `global.csv`: every fitted parameter, flat, with the value it
-started at, the value it reached, its uncertainty, and whether it was held fixed. This is
+started at, the value it reached, its uncertainty, whether it was held fixed, and whether it
+converged onto a bound (see `FitResult.atbound`) rather than an interior optimum. This is
 where an exchange fit's actual results are, a joint fit having nothing that belongs to one
 experiment alone.
 """
 function globaltable(result::FitResult)
-    header = ["parameter", "value", "error", "unit", "initial", "fixed"]
+    header = ["parameter", "value", "error", "unit", "initial", "fixed", "atbound"]
     initial = Dict(item.flat_index => item
                    for item in _flatten_params_items(result.params0))
     rows = Vector{String}[]
@@ -221,8 +222,39 @@ function globaltable(result::FitResult)
                csvvalue(value isa Measurement ? Measurements.uncertainty(value) : nothing),
                parameterunit(item),
                csvvalue(start isa Measurement ? Measurements.value(start) : start),
-               item.flat_index in result.fixed ? "true" : "false"])
+               item.flat_index in result.fixed ? "true" : "false",
+               item.flat_index in result.atbound ? "true" : "false"])
     end
+    return header, rows
+end
+
+"""
+    covariancematrixtable(result) -> (header, rows)
+
+Full-precision covariance matrix of the fitted (non-fixed) parameters: one row and one
+column per parameter, in `FitResult.freeidx` order, keyed by the same flat parameter label
+`global.csv` uses in its `parameter` column.
+"""
+function covariancematrixtable(result::FitResult)
+    return squarematrixtable(result, result.cov)
+end
+
+"""
+    correlationmatrixtable(result) -> (header, rows)
+
+Correlation matrix of the fitted (non-fixed) parameters, in the same shape as
+`covariancematrixtable`.
+"""
+function correlationmatrixtable(result::FitResult)
+    return squarematrixtable(result, result.cor)
+end
+
+"""Header and rows shared by `covariancematrixtable`/`correlationmatrixtable`: `m`'s rows
+and columns, keyed by the flat label of the fitted (non-fixed) parameter they belong to."""
+function squarematrixtable(result::FitResult, m::Matrix{Float64})
+    labels = [item.label for item in _flatten_params_items(result.params)[result.freeidx]]
+    header = vcat(["parameter"], labels)
+    rows = [vcat([labels[i]], csvvalue.(m[i, :])) for i in eachindex(labels)]
     return header, rows
 end
 
@@ -231,10 +263,10 @@ end
 """
     writeresults!(result, folder) -> String
 
-Write `results.csv`, `series.csv`, `global.csv` and one `experiments/<label>.csv` per
-experiment into `folder`, and return the path of `results.csv`. The per-experiment files
-hold that experiment's own rows of `series.csv`, so the data behind each plot sits beside
-it under the same basename.
+Write `results.csv`, `series.csv`, `global.csv`, `covariance.csv`, `correlation.csv` and one
+`experiments/<label>.csv` per experiment into `folder`, and return the path of
+`results.csv`. The per-experiment files hold that experiment's own rows of `series.csv`, so
+the data behind each plot sits beside it under the same basename.
 """
 function writeresults!(result::FitResult, folder::AbstractString)
     prob = result.prob
@@ -252,6 +284,13 @@ function writeresults!(result::FitResult, folder::AbstractString)
     end
 
     writetable(joinpath(folder, "global.csv"), comments, globaltable(result)...)
+    # a single fitted parameter has no covariance structure to report
+    if result.nparams > 1
+        writetable(joinpath(folder, "covariance.csv"), comments,
+                   covariancematrixtable(result)...)
+        writetable(joinpath(folder, "correlation.csv"), comments,
+                   correlationmatrixtable(result)...)
+    end
     return filepath
 end
 

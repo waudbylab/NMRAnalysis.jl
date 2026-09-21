@@ -1,12 +1,18 @@
-struct R1rhoOnResExperiment <: AbstractExperiment
+mutable struct R1rhoOnResExperiment <: AbstractExperiment
     spec::Any
     field_teslas::Float64
     sampleconcentrations::Dict{String,Float64}
-    observed_intensities::Vector{Measurement{Float64}}  # observed (fitted) relaxation rates vs vSL
-    predicted_intensities::Vector{Float64}              # predicted relaxation rates vs vSL
+    observed_intensities::Vector{Measurement{Float64}}  # rate fitted per νSL, display only
+    predicted_intensities::Vector{Float64}              # Bloch-McConnell rate per νSL
 
     νSL::Vector{Float64}      # νSL for each data point (Hz)
     TSL::Vector{Float64}      # spin-lock durations the decays were sampled at (s)
+
+    # TSL × νSL decay data (integration-normalised) and its noise level — what the fit
+    # itself compares to; see residuals(::R1rhoOnResExperiment)
+    rawintensities::Matrix{Float64}
+    rawnoise::Float64
+
     calibration::B1Calibration  # νSL above, and the B₁ spread it is simulated with
 end
 
@@ -39,10 +45,11 @@ function R1rhoOnResExperiment(filename; calibration=nothing)
 
     observed_intensities = zeros(length(νSL)) .± 0.0
     predicted_intensities = zeros(length(νSL))
+    rawintensities = zeros(length(TSL), length(νSL))
 
     return R1rhoOnResExperiment(spec, field_teslas, sampleconcentrations(spec),
                                 observed_intensities, predicted_intensities, νSL, TSL,
-                                cal)
+                                rawintensities, 0.0, cal)
 end
 
 function default_spin_params(expt::R1rhoOnResExperiment, nstates)
@@ -77,13 +84,17 @@ function integrate!(expt::R1rhoOnResExperiment, peakppm, noiseppm, ppmwidth)
     scale = maximum(abs, integrals)
     noise /= scale
     integrals /= scale
+    expt.rawnoise = noise
 
-    # fit to exponential decays
+    # fit to exponential decays, purely to give a rate per condition for display
+    # (plotresult!) — the joint fit itself compares rawintensities directly, see
+    # residuals(::R1rhoOnResExperiment)
     expdecay(t, p) = @. p[1] * exp(-p[2] * t)
     p0 = [1.0, 20.0]
 
     for i in 1:length(expt.νSL)
         y = vec(data(integrals[1, i, :]))
+        expt.rawintensities[:, i] .= y
         fitres = curve_fit(expdecay, expt.TSL, y, p0)
         R = coef(fitres)[2] ± stderrors(fitres)[2]
         expt.observed_intensities[i] = R
@@ -95,11 +106,14 @@ end
 
 Simulate R₁ρ at each spin-lock strength, averaged over the B₁ distribution.
 
-The observable is a rate the data reduction obtained by fitting one exponential to the
-decay, so the average is taken over the decays and converted back (see [`b1rate`](@ref NMRAnalysis.b1rate))
-rather than over the rates themselves. The matching time is the mean of the sampled
-spin-lock durations; the fit weights the longer delays more heavily, so this is a
-first-order match rather than an exact one.
+A spread of B₁ gives a spread of rates, so the decay is a sum of exponentials, and what
+`residuals` compares the data against is a single exponential of this rate with I₀
+profiled out. The rate handed to it is therefore the apparent one a monoexponential fit
+would report, obtained by averaging the decays and converting back (see
+[`b1rate`](@ref NMRAnalysis.b1rate)) rather than by averaging the rates. It is matched at
+the mean of the sampled spin-lock durations, which makes it a first-order match: now that
+the residual sees the raw decay, building the sum of exponentials there instead would be
+exact.
 """
 function simulate!(expt::R1rhoOnResExperiment, model, params)
     spinlock_ppm = params.spin.delta[1]
@@ -136,7 +150,7 @@ function plotresult!(gl, expt::R1rhoOnResExperiment, fitresult; axiskw=(;))
     ypred = expt.predicted_intensities
     x = expt.νSL
     sortidx = sortperm(x)
-    wres = (Measurements.value.(yobs) .- ypred) ./ Measurements.uncertainty.(yobs)
+    wres = ratewres(expt)
 
     ax1, ax2 = resultpanels!(gl; xlabel="Spin-lock strength / Hz", ylabel="R₁ρ / s⁻¹",
                              title="On-resonance R₁ρ", axiskw=axiskw)
