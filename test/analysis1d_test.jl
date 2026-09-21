@@ -308,7 +308,8 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
         # since there is no Save button to press
         mktempdir() do dir
             ds = dataset(expt)
-            saveanalysis(expt, ds, res, [only(signalregion())], joinpath(dir, "calibration"))
+            saveanalysis(expt, ds, res, [only(signalregion())],
+                         joinpath(dir, "calibration"))
             for name in ("summary.txt", "results.csv", "series.csv", "fit.pdf",
                          "calibration.pdf")
                 @test isfile(joinpath(dir, "calibration", name))
