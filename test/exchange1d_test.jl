@@ -91,6 +91,7 @@ end
 free spin parameter `a`, with an injected, arbitrary profiled-parameter count."""
 struct DoFTestExperiment <: AbstractExperiment
     x::Vector{Float64}
+    field_teslas::Float64
     observed_intensities::Vector{Measurement{Float64}}
     predicted_intensities::Vector{Float64}
     profiled::Int
@@ -385,7 +386,7 @@ end
 
         expt = R1rhoOnResExperiment(FakeSpec("dummy"), 14.1, Dict{String,Float64}(),
                                     zeros(2) .± 1.0, copy(R_true), νSL, TSL,
-                                    rawintensities, noise)
+                                    rawintensities, noise, fakecalibration(νSL[1]))
 
         # predicted_intensities (set here as if simulate! had just run) already holds
         # the true rate for each condition, so the analytically-eliminated I0 exactly
@@ -401,7 +402,8 @@ end
 
         offresexpt = R1rhoOffResExperiment(FakeSpec("dummy"), 14.1, Dict{String,Float64}(),
                                            zeros(2) .± 1.0, copy(R_true), νSL, 300.0, TSL,
-                                           rawintensities, noise)
+                                           rawintensities, noise,
+                                           fakecalibration(300.0))
         @test all(abs.(residuals(offresexpt)) .< 1e-8)
     end
 
@@ -433,7 +435,7 @@ end
         # behaviour.
         x = collect(1.0:20.0)
         observed = (3.0 .* x .+ 0.1 .* sin.(x)) .± 1.0
-        mkexpt(profiled) = DoFTestExperiment(x, observed, zeros(length(x)), profiled)
+        mkexpt(profiled) = DoFTestExperiment(x, 14.1, observed, zeros(length(x)), profiled)
 
         prob0 = ExchangeProblem([mkexpt(0)], NoExchangeModel())
         prob5 = ExchangeProblem([mkexpt(5)], NoExchangeModel())
@@ -650,6 +652,7 @@ end
         νSL, TSL = [100.0, 500.0], [0.0, 0.02, 0.04]
         onres(inhom) = R1rhoOnResExperiment(StubSpec(bf), 14.1, Dict{String,Float64}(),
                                             [12.0 ± 0.5, 9.0 ± 0.4], zeros(2), νSL, TSL,
+                                            zeros(length(TSL), length(νSL)), 0.01,
                                             B1Calibration([Power(-12.0, :dB)], [νSL[1]];
                                                           inhomogeneity=inhom))
 
@@ -667,6 +670,8 @@ end
         meanrates = [b1average(ν -> rate(broad, ν), d, ν0) for ν0 in νSL]
         @test all(broad.predicted_intensities .< meanrates)
         @test broad.predicted_intensities ≈ meanrates rtol = 0.05
+    end
+end
 
 @testset "Fit diagnostics" begin
     @testset "isatbound" begin
