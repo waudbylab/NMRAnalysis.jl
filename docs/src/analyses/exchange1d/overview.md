@@ -17,11 +17,14 @@ This page covers how to launch an analysis and what to expect from the interacti
 
 ### Via automatic dispatch
 
-If your experiments have appropriate annotations, the `analyse()` function will detect a CEST or off-resonance R1ρ experiment (any accompanying R1 or on-resonance R1ρ experiments are included automatically) and offer exchange analysis:
+If your experiments have appropriate annotations, the `analyse()` function will detect a CEST or off-resonance R1ρ experiment (any accompanying R1 or on-resonance R1ρ experiments are included automatically) and offer exchange analysis. Any nutation calibration experiments in the selection are included too, and are used as the [B₁ calibration](../1d/calibration.md) rather than fitted as data:
 
 ```julia
 using NMRAnalysis
 analyse(["data/101", "data/102", "data/103"])
+
+# with the nutation calibrations recorded beside them
+analyse(["data/10", "data/11", "data/101", "data/102", "data/103"])
 ```
 
 See [Automatic Analysis](../analyse.md) for details on how dispatch works.

@@ -44,10 +44,17 @@ for what it needs instead. See
 
 | Input | Runs |
 |---|---|
-| A 1D nutation calibration experiment | [Pulse Calibration](1d/calibration.md) |
+| One or more 1D nutation calibration experiments | [Pulse Calibration](1d/calibration.md) |
 | A 1D R1 or R2 relaxation experiment | [Relaxation](1d/relaxation.md) |
 | One or more on-resonance R1ρ experiments | [R1ρ Relaxation Dispersion](r1rho.md) |
-| CEST and/or off-resonance R1ρ experiments, together with any accompanying R1 or on-resonance R1ρ files | [Exchange Fitting](exchange1d/overview.md) |
+| CEST and/or off-resonance R1ρ experiments, together with any accompanying R1 or on-resonance R1ρ files, and any nutation calibrations | [Exchange Fitting](exchange1d/overview.md) |
+
+Several nutation calibrations selected together are analysed as one calibration curve
+rather than one at a time. Where they are selected alongside CEST or R1ρ experiments they
+are offered both ways: on their own as a calibration to inspect, and as part of the
+exchange analysis, where they are not fitted as data but used for the spin-lock field
+strengths and the B₁ inhomogeneity. Without them the exchange fit falls back to each
+experiment's own reference pulse and an assumed 5% inhomogeneity.
 
 Diffusion and TRACT don't currently register with `analyse()` — call
 [`diffusion1d()`](1d/diffusion.md) or [`tract()`](1d/tract.md) directly.

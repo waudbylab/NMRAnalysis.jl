@@ -1,4 +1,5 @@
 using NMRAnalysis
+import NMRAnalysis: Exchange1D
 import NMRAnalysis.Exchange1D:
                                NoExchangeModel, TwoStateModel, TwoStateBindingModel,
                                InducedFitModel,
@@ -434,6 +435,34 @@ end
         r = residuals(prob, params)
         @test all(abs.(r) .< 1e-10)
     end
+end
+
+@testset "Automatic dispatch" begin
+    # The dispatcher works on classified filenames, so this needs no data: a folder holding
+    # a CEST experiment and the nutation calibrations recorded beside it should offer one
+    # exchange analysis over all of them, the calibrations included.
+    File(name, types, features) = NMRAnalysis.AnalysisDispatch.ExperimentFile(name, types,
+                                                                             features)
+    cest = File("101", ["1d", "cest"], String[])
+    calib = [File("10", ["1d", "calibration"], ["nutation"]),
+             File("11", ["1d", "calibration"], ["nutation"])]
+
+    matched = Exchange1D.exchangeexperiments([cest; calib])
+    @test Set(e.filename for e in matched) == Set(["101", "10", "11"])
+    # and the calibrations are the calibration, not data to fit
+    @test Exchange1D.iscalibration(calib[1])
+    @test !Exchange1D.iscalibration(cest)
+
+    # a calibration on its own is not an exchange analysis
+    @test Exchange1D.exchangeexperiments(calib) === nothing
+    # nor is an on-resonance R1ρ experiment, which joins a fit without triggering one
+    @test Exchange1D.exchangeexperiments([File("102", ["1d", "r1rho"],
+                                               ["on_resonance"])]) === nothing
+
+    # the dispatcher offers it, over every one of those files
+    options = NMRAnalysis.AnalysisDispatch.find_available_analyses([cest; calib])
+    exchange = only(filter(o -> startswith(o.rule.name, "Exchange"), options))
+    @test Set(e.filename for e in exchange.matched_files) == Set(["101", "10", "11"])
 end
 
 @testset "B₁ inhomogeneity in the simulations" begin
