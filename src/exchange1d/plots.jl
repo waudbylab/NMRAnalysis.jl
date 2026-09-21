@@ -6,9 +6,25 @@
 const PALETTE = Makie.wong_colors()
 palettecolor(i) = PALETTE[mod1(i, length(PALETTE))]
 
-"Axis attributes for a plot tiled with many others by [`combineplots`](@ref)."
-const COMPACT = (titlesize=8, xlabelsize=7, ylabelsize=7, xticklabelsize=6,
-                 yticklabelsize=6)
+"Default Makie `Axis` font sizes, used by [`combineplots`](@ref) while there are few
+enough panels for the default sizing to stay legible."
+const DEFAULTFONTS = (titlesize=16, xlabelsize=16, ylabelsize=16, xticklabelsize=16,
+                      yticklabelsize=16)
+
+"The smallest [`combineplots`](@ref) ever shrinks its fonts to, for a grid of many panels."
+const COMPACTFONTS = (titlesize=12, xlabelsize=10.5, ylabelsize=10.5, xticklabelsize=9,
+                      yticklabelsize=9)
+
+"""
+    combinedfontscale(n) -> NamedTuple
+
+Axis font sizes for a [`combineplots`](@ref) grid of `n` panels: [`DEFAULTFONTS`](@ref) up
+to a single row, shrinking down to [`COMPACTFONTS`](@ref) as the grid grows to several rows.
+"""
+function combinedfontscale(n)
+    t = clamp((n - 4) / (20 - 4), 0, 1)
+    return map((lo, hi) -> lo + t * (hi - lo), DEFAULTFONTS, COMPACTFONTS)
+end
 
 """
     resultpanels!(gl; xlabel, ylabel, title="", xreversed=false, axiskw=(;))
@@ -87,10 +103,11 @@ function combineplots(result::FitResult)
     nrows = ceil(Int, n / ncols)
 
     f = Figure(; size=(max(1200, ncols * 350), max(800, nrows * 280)))
+    axiskw = combinedfontscale(n)
     for (i, expt) in enumerate(experiments)
         row, col = fldmod1(i, ncols)
         gl = f[row, col] = GridLayout()
-        plotresult!(gl, expt, result; axiskw=COMPACT)
+        plotresult!(gl, expt, result; axiskw=axiskw)
     end
     return f
 end
