@@ -273,7 +273,9 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
         @test groupname(expt, (; power=dB[1])) == "-18.0 dB"
         @test displaylabel(expt, seriesname(:nu, (; power=dB[1]))) ==
               "Nutation frequency (-18.0 dB)"
-        @test displaylabel(expt, :inhomogeneity) == "B₁ inhomogeneity"
+        # and with several power levels the region's own inhomogeneity says which of them
+        # it is (the single-power case, tested above, has nothing to choose between)
+        @test displaylabel(expt, :inhomogeneity) == "B₁ inhom. (smallest)"
         # the summary reads as a block per power level, under a heading naming it, then
         # what was derived across them - not one flat dump of suffixed names
         lines = split(summarytext(expt, res, "signal"), '\n')
