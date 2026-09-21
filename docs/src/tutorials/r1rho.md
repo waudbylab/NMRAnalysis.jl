@@ -31,14 +31,19 @@ The simplest approach is to provide a path to a nutation calibration experiment.
 setupR1rhopowers("examples/calibration/1")
 ```
 
-This first analyses the calibration experiment and then prompts for spin-lock strengths:
+Give several calibration experiments, recorded at different power levels, and the powers
+follow the fitted calibration curve rather than the ideal ν₁ ∝ √W law:
+
+```julia
+setupR1rhopowers(["examples/calibration/1", "examples/calibration/2", "examples/calibration/3"])
+```
+
+Each calibration experiment is fitted in the analysis window, so you can check the fits
+before the powers they imply go anywhere near the probe. Closing the window then prompts
+for the spin-lock strengths:
 
 ```
-[ Info:  - Power level: 16.997737581326444 dB
-[ Info:  - Nutation frequency ν₁: 1010.6 ± 5.7 Hz
-[ Info:  - 90° pulse length: 247.4 ± 1.4 µs
-[ Info:  - Decay rate: 327.0 ± 69.0 s⁻¹
-[ Info:  - B₁ inhomogeneity (R/2πν₁): 5.1 ± 1.1 %
+Using calibration: B1Calibration(1 point, 1010.6 Hz at 17.0 dB, B₁ inhomogeneity 5.1%, from examples/calibration/1)
 
 Input a list of spin-lock strengths (in Hz) separated by commas, or press ENTER for a default list:
 > 

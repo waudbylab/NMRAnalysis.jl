@@ -6,15 +6,17 @@ mutable struct R1rhoOnResExperiment <: AbstractExperiment
     predicted_intensities::Vector{Float64}              # Bloch-McConnell rate per νSL
 
     νSL::Vector{Float64}      # νSL for each data point (Hz)
-    TSL::Vector{Float64}      # TSL for each data point (s)
+    TSL::Vector{Float64}      # spin-lock durations the decays were sampled at (s)
 
     # TSL × νSL decay data (integration-normalised) and its noise level — what the fit
     # itself compares to; see residuals(::R1rhoOnResExperiment)
     rawintensities::Matrix{Float64}
     rawnoise::Float64
+
+    calibration::B1Calibration  # νSL above, and the B₁ spread it is simulated with
 end
 
-function R1rhoOnResExperiment(filename)
+function R1rhoOnResExperiment(filename; calibration=nothing)
     detail("Loading on-resonance R1rho experiment from $filename")
 
     spec = loadnmr(filename)
@@ -35,8 +37,8 @@ function R1rhoOnResExperiment(filename)
     # Read spin-lock powers and convert to Hz
     powers = annotations(spec, :r1rho, :power)
     nuc = nucleus(annotations(spec, :r1rho, :channel))
-    refpulse, refpower = referencepulse(spec, nuc)
-    νSL = hz.(powers, refpower, refpulse, 90)
+    cal = b1calibration(calibration, spec, nuc)
+    νSL = hz.(powers, cal)
 
     # Read relaxation times
     TSL = annotations(spec, :r1rho, :duration)
@@ -47,7 +49,7 @@ function R1rhoOnResExperiment(filename)
 
     return R1rhoOnResExperiment(spec, field_teslas, sampleconcentrations(spec),
                                 observed_intensities, predicted_intensities, νSL, TSL,
-                                rawintensities, 0.0)
+                                rawintensities, 0.0, cal)
 end
 
 function default_spin_params(expt::R1rhoOnResExperiment, nstates)
@@ -94,27 +96,36 @@ function integrate!(expt::R1rhoOnResExperiment, peakppm, noiseppm, ppmwidth)
         y = vec(data(integrals[1, i, :]))
         expt.rawintensities[:, i] .= y
         fitres = curve_fit(expdecay, expt.TSL, y, p0)
-        R = coef(fitres)[2] ± stderror(fitres)[2]
+        R = coef(fitres)[2] ± stderrors(fitres)[2]
         expt.observed_intensities[i] = R
     end
 end
 
+"""
+    simulate!(expt::R1rhoOnResExperiment, model, params)
+
+Simulate R₁ρ at each spin-lock strength, averaged over the B₁ distribution.
+
+A spread of B₁ gives a spread of rates, so the decay is a sum of exponentials, and what
+`residuals` compares the data against is a single exponential of this rate with I₀
+profiled out. The rate handed to it is therefore the apparent one a monoexponential fit
+would report, obtained by averaging the decays and converting back (see
+[`b1rate`](@ref NMRAnalysis.b1rate)) rather than by averaging the rates. It is matched at
+the mean of the sampled spin-lock durations, which makes it a first-order match: now that
+the residual sees the raw decay, building the sum of exponentials there instead would be
+exact.
+"""
 function simulate!(expt::R1rhoOnResExperiment, model, params)
-    fl = field_label(expt)
     spinlock_ppm = params.spin.delta[1]
+    d = B1Distribution(expt.calibration)
+    T = mean(expt.TSL)
 
-    for k in 1:length(expt.νSL)
-        L = liouvillian(model, params, expt,
-                        spinlock_ppm,
-                        expt.νSL[k])
-        # Exact R1rho from least negative eigenvalue of L
-        # evals = real.(eigen(L).values)
-        # R1rho = -maximum(evals[evals .< 0])
-
-        # Compute R1rho from inverse of trace of inverse L (Koss)
-        R1rho = -1/tr(inv(L))
-
-        expt.predicted_intensities[k] = R1rho
+    for k in eachindex(expt.νSL)
+        # R1rho from the inverse of the trace of the inverse Liouvillian (Koss), in place
+        # of the least negative eigenvalue, as before.
+        expt.predicted_intensities[k] = b1rate(d, expt.νSL[k], T) do ν
+            return -1 / tr(inv(liouvillian(model, params, expt, spinlock_ppm, ν)))
+        end
     end
 end
 
@@ -127,6 +138,7 @@ Acquisition parameters worth recording alongside a saved fit (see
 function experimentinfo(expt::R1rhoOnResExperiment)
     return ["Type" => "On-resonance R1ρ",
             "Field" => _format_field(expt.field_teslas),
+            "B₁ calibration" => string(expt.calibration),
             "Spin-lock strengths" =>
                 "$(length(expt.νSL)) points, " *
                 "$(round(minimum(expt.νSL); digits=1)) to " *

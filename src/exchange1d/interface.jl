@@ -14,7 +14,7 @@ out."""
 detail(msg::AbstractString) = printstyled(msg * "\n"; color=:light_black)
 
 """
-    exchange1d(filenames::Vector{String})
+    exchange1d(filenames::Vector{String}; calibration=nothing)
 
 Interactive text-based interface for 1D chemical exchange analysis.
 
@@ -28,8 +28,18 @@ Guides the user through:
 
 # Arguments
 - `filenames`: Vector of paths to NMR experiment directories
+- `calibration`: the B₁ field strengths and inhomogeneity to simulate with, as a
+  [`B1Calibration`](@ref NMRAnalysis.B1Calibration) or as the nutation calibration experiment(s) to fit for one.
+  Without it, each experiment's own reference pulse gives the field strengths on the
+  assumption of a perfectly linear amplifier, and the B₁ inhomogeneity is taken to be 5%.
+
+# Example
+```julia
+# spin-lock fields and B₁ inhomogeneity from a set of nutation calibrations
+exchange1d(["cest/11", "r1rho/12"]; calibration=["cal/1", "cal/2", "cal/3"])
+```
 """
-function exchange1d(filenames::Vector{String})
+function exchange1d(filenames::Vector{String}; calibration=nothing)
     println()
     sectionheader("Exchange 1D analysis")
     println()
@@ -40,13 +50,14 @@ function exchange1d(filenames::Vector{String})
     println()
 
     # ── 2. Build problem ────────────────────────────────────────────────
-    prob = ExchangeProblem(filenames, model)
+    prob = ExchangeProblem(filenames, model; calibration)
     println()
     sectionheader("Loaded $(length(prob.experiments)) experiments:")
     for expt in prob.experiments
         println("  $(short_expt_path(expt)) ($(typeof(expt).name.name), $(expt.field_teslas) T)")
     end
     println()
+    reportcalibration(prob)
 
     # ── 3. Molecule mapping (if model requires it) ──────────────────────
     if nmolecules(model) > 1
@@ -88,18 +99,40 @@ function exchange1d(filenames::Vector{String})
     end
 end
 
-function exchange1d(directory::String="")
+function exchange1d(directory::String=""; kwargs...)
     filenames = select_expts(directory)
     isempty(filenames) && return nothing
-    return exchange1d(filenames)
+    return exchange1d(filenames; kwargs...)
 end
 
-function exchange1d(exptno::Integer)
-    return exchange1d(string(exptno))
+function exchange1d(exptno::Integer; kwargs...)
+    return exchange1d(string(exptno); kwargs...)
 end
 
-function exchange1d(exptnos::AbstractVector{<:Integer})
-    return exchange1d(string.(exptnos))
+function exchange1d(exptnos::AbstractVector{<:Integer}; kwargs...)
+    return exchange1d(string.(exptnos); kwargs...)
+end
+
+"""
+    reportcalibration(prob)
+
+Print the B₁ calibration each experiment will be simulated with, so an assumed 5%
+inhomogeneity is visible rather than silent. The keyword is easy to miss, so the analysis
+says what it is using either way.
+"""
+function reportcalibration(prob::ExchangeProblem)
+    cals = [expt.calibration
+            for expt in prob.experiments if hasproperty(expt, :calibration)]
+    isempty(cals) && return nothing
+    sectionheader("B₁ calibration:")
+    for cal in unique(cals)
+        println("  ", cal)
+    end
+    any(cal -> npoints(cal) == 1, cals) &&
+        detail("  Pass calibration=[\"folder\", …] to measure the field strengths and " *
+               "the B₁ inhomogeneity from nutation experiments.")
+    println()
+    return nothing
 end
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -716,6 +749,14 @@ function _save_results(result::FitResult)
     result.nparams > 1 && append!(saved, ["covariance.csv", "correlation.csv"])
     for expt in result.prob.experiments
         push!(saved, joinpath("experiments", "$(safename(short_expt_path(expt))).csv"))
+    end
+
+    # A B₁ calibration fitted for this fit is part of its record, so it is saved here
+    # rather than when it was measured: inside this folder, and only once there is a
+    # folder to put it in.
+    if !isnothing(result.prob.savecalibration)
+        result.prob.savecalibration(joinpath(outputfolder, "calibration"))
+        push!(saved, joinpath("calibration", "*"))
     end
 
     println()

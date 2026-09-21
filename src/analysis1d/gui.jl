@@ -246,7 +246,7 @@ function gui!(expt::Experiment1D; call=nothing)
     end
 
     r += 1
-    right[r, 1] = Label(fig, "Working directory:\n$(pwd())"; word_wrap=true,
+    right[r, 1] = Label(fig, "Working directory:\n$(shortpath(pwd()))"; word_wrap=true,
                         tellwidth=false,
                         halign=:left)
 
@@ -751,48 +751,45 @@ panels), to the output folder, in the layout described in
 `docs/src/advanced/conventions.md`: `summary.txt` to read, `results.csv` and `series.csv`
 to compute with (`results.csv` is also the file a region list is restored from
 - see `readregions!`), an overlay of every region in `fit.pdf`, and a `regions/` folder
-holding each region's own plot and the data behind it under the same basename."""
+holding each region's own plot and the data behind it under the same basename. An
+experiment with anything further to report adds it through `saveextras!`."""
 function saveresults(state)
+    return saveanalysis(state[:expt], state[:dataset][], state[:result][],
+                        state[:regions][], joinpath(pwd(), state[:outputdir][]);
+                        call=state[:call])
+end
+
+"""
+    saveanalysis(expt, dataset, result, regions, folder; call=nothing) -> String
+
+Write an analysis's output folder, with or without a window having been open: the files
+[`saveresults`](@ref) describes, in the folder named. Returns the folder written.
+
+The Save button goes through here, and so does an analysis run without a window - a
+calibration fitted on behalf of `exchange1d`, say - so what is saved does not depend on how
+the analysis was run.
+"""
+function saveanalysis(expt::Experiment1D, ds::Dataset1D, result, regs,
+                      folder::AbstractString; call=nothing)
     # The whole folder is moved aside rather than individual files backed up, so that a
     # region deleted since the last save doesn't leave its plot and data behind looking
     # like part of the current result.
-    dir = backupfolder(joinpath(pwd(), state[:outputdir][]))
+    dir = backupfolder(folder)
     regionsdir = mkpath(joinpath(dir, "regions"))
-    expt = state[:expt]
-    ds = state[:dataset][]
-    result = state[:result][]
-    regs = state[:regions][]
     labels = [r.label for r in regs]
-    xl, yl = resultlabels(expt)
 
-    # no gridlines (matching the live GUI panels), but keep a visible zero line
-    newfitaxis(fig) = Axis(fig[1, 1]; xlabel=xl, ylabel=yl, xgridvisible=false,
-                           ygridvisible=false)
-
-    # overlay of every region
-    fig = Figure()
-    ax = newfitaxis(fig)
-    hlines!(ax, [0]; color=:grey)
-    i = 0
+    # every region together, then one plot per region, each sharing its basename with that
+    # region's CSV so the data behind a plot sits beside it. How a figure is laid out is
+    # the experiment's to say - see `resultfigure`.
+    save(joinpath(dir, "fit.pdf"), resultfigure(expt, result, labels); backend=CairoMakie)
     for label in labels
-        i += plotresult!(ax, expt, result, label, i)
-    end
-    i > 1 && axislegend(ax; position=:rt)
-    save(joinpath(dir, "fit.pdf"), fig; backend=CairoMakie)
-
-    # one plot per region, sharing its basename with that region's CSV so the data behind
-    # a plot is beside it
-    for label in labels
-        fig1 = Figure()
-        ax1 = newfitaxis(fig1)
-        hlines!(ax1, [0]; color=:grey)
-        n1 = plotresult!(ax1, expt, result, label, 0)
-        n1 > 1 && axislegend(ax1; position=:rt)
-        save(joinpath(regionsdir, "$(safename(label)).pdf"), fig1; backend=CairoMakie)
+        save(joinpath(regionsdir, "$(safename(label)).pdf"),
+             resultfigure(expt, result, [label]); backend=CairoMakie)
     end
 
-    writesummary(joinpath(dir, "summary.txt"), expt, ds, result, regs, state[:call])
+    writesummary(joinpath(dir, "summary.txt"), expt, ds, result, regs, call)
     writeresults!(expt, ds, result, regs, dir)
+    saveextras!(expt, result, dir)
     @info "Saved results to $dir"
     return dir
 end

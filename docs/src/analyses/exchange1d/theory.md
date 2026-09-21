@@ -42,6 +42,44 @@ sometimes referred to as the Koss method. On-resonance experiments vary the spin
 strength at zero offset; off-resonance experiments hold the spin-lock field fixed and vary
 the offset.
 
+## B₁ Inhomogeneity
+
+The spin-lock and saturation fields are not uniform across the sample, so every simulation
+above is averaged over a distribution of field strengths rather than evaluated at the
+nominal one. The distribution is represented by a three-point quadrature: the field is
+sampled at ``1 \pm \sqrt{3}\sigma`` and at the nominal value, with weights 1/6, 2/3 and
+1/6. These are the three-point Gauss-Hermite nodes and weights, which reproduce the mean,
+variance and fourth moment of a Gaussian of fractional width σ exactly, for any σ. The node
+positions scale with σ for that reason: nodes fixed at particular fractions of the nominal
+field can only represent a distribution as wide as their own spacing, whatever σ is said to
+be.
+
+σ comes from a [nutation calibration](../1d/calibration.md) where one has been given, and
+is otherwise assumed to be 5%, typical of a standard probe. With σ = 0 the quadrature is
+the single nominal field and the simulations reduce to the expressions above.
+
+For CEST the averaged quantity is the profile itself, since ``M_z`` is what the spectrum
+measures and the signal from the whole sample is the weighted sum of the signals from its
+parts:
+
+```math
+M_z = \sum_i w_i \, M_z(\nu_1 \to s_i \nu_1).
+```
+
+R1ρ is different, because the reported quantity is a *rate* obtained by fitting one
+exponential to a decay. A spread of fields gives a spread of rates, so the decay is a sum
+of exponentials and the fitted rate is
+
+```math
+R_{1\rho} = -\frac{1}{\bar{T}} \ln \sum_i w_i \exp(-R_{1\rho}(s_i \nu_1) \, \bar{T}),
+```
+
+where ``\bar{T}`` is the mean of the spin-lock durations the decay was sampled at. This
+lies below the weighted mean of the rates, and approaches it as ``\bar{T} \to 0``. The
+difference is of order ``\tfrac{1}{2}\bar{T}\,\mathrm{var}(R_{1\rho})``, which at the
+low spin-lock strengths of a dispersion profile is comparable with the uncertainty on the
+measurement; averaging the rates instead would bias the fit there.
+
 ## R1 Simulation
 
 R1 experiments are fitted independently of the exchange model (R1 decay is not sensitive to chemical exchange under typical conditions). Depending on the experiment type:

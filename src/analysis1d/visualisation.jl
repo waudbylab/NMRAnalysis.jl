@@ -66,14 +66,29 @@ function resultplotdata(e::Experiment1D, result, activelabel::AbstractString)
         else
             Point2f[]
         end
-        return ResultSeries(points, errors, fitline, groupname(s.group))
+        return ResultSeries(points, errors, fitline, groupname(e, s.group))
     end
 end
 
-"""Human-readable label for a grouping key, e.g. `(which = :trosy,)` → `"trosy"`."""
-function groupname(group::NamedTuple)
+"""
+    groupname(expt, group) -> String
+
+Human-readable label for a grouping key: `(which = :trosy,)` → `"trosy"`,
+`(power = 11.11,)` → `"11.11 dB"`.
+
+The unit comes from [`coordinateunit`](@ref), the same table that labels the coordinate's
+column in `series.csv`, because a curve labelled `11.11` names nothing a reader can act on.
+A categorical coordinate has no unit and is shown as it stands.
+"""
+function groupname(e::Experiment1D, group::NamedTuple)
     isempty(group) && return ""
-    return join((string(v) for v in values(group)), ", ")
+    return join((coordinatetext(e, k, v) for (k, v) in pairs(group)), ", ")
+end
+
+"""One coordinate's value with its unit, as a label: `(:power, 11.11)` → `"11.11 dB"`."""
+function coordinatetext(e::Experiment1D, name::Symbol, value)
+    unit = coordinateunit(e, name)
+    return isempty(unit) ? string(value) : "$value $unit"
 end
 
 """
@@ -237,7 +252,13 @@ from [`baseparam`](@ref), so an experiment's label table needs only bare names.
 function displaylabel(e::Experiment1D, name::Symbol)
     base = baseparam(name)
     base === name && return paramlabel(e, name)
-    return "$(paramlabel(e, base)) ($(string(name)[(length(string(base)) + 2):end]))"
+    # The suffix is the value of the grouping variable, which needs its unit to mean
+    # anything: a nutation series named `11.11` is a power level in dB. Recovered from
+    # `groupcols` rather than carried around, the name being all `paramblock` has.
+    suffix = string(name)[(length(string(base)) + 2):end]
+    cols = groupcols(e)
+    length(cols) == 1 && (suffix = coordinatetext(e, only(cols), suffix))
+    return "$(paramlabel(e, base)) ($suffix)"
 end
 
 """
@@ -271,7 +292,7 @@ coordinates (`:which`, `:run`) and relative ones (`:gradient`) have no unit.
 """
 coordinateunit(::Experiment1D, name::Symbol) = get(COORDINATE_UNITS, name, "")
 
-const COORDINATE_UNITS = Dict(:time => "s", :duration => "s")
+const COORDINATE_UNITS = Dict(:time => "s", :duration => "s", :power => "dB")
 
 """
     paramblock(io, expt, params, width=nothing)
@@ -282,13 +303,79 @@ The GUI panel passes a `width` computed across every region ([`panelwidth`](@ref
 column does not jump as regions are selected; `summary.txt` leaves it to align to its own
 block.
 """
-function paramblock(io::IO, expt::Experiment1D, params, width=nothing)
+function paramblock(io::IO, expt::Experiment1D, params, width=nothing; indent="")
     isempty(params) && return nothing
     w = something(width,
                   maximum(length(displaylabel(expt, name)) for name in keys(params)) + 2)
     for (name, value) in params
-        println(io,
-                "$(rpad(displaylabel(expt, name), w))$(fmt(value))$(prettyparamunit(expt, name))")
+        label = rpad(displaylabel(expt, name), max(w - length(indent), 0))
+        println(io, indent, label, fmt(value), prettyparamunit(expt, name))
+    end
+    return nothing
+end
+
+"""
+    paramgroups(result) -> Vector{Pair{NamedTuple,OrderedDict{Symbol,Any}}}
+
+A region's parameters split into one block per series, each keyed by that series' grouping
+key and holding its parameters under their bare names, followed by a block keyed by the
+empty `NamedTuple` for whatever belongs to the region rather than to any one series - the
+quantities [`postfit!`](@ref) derived from all of them.
+
+This is what turns a flat dump of `nu_11.11`, `nu_31.11`, `pulse90_11.11` … into something
+a reader can take in: each condition's results together, under a heading naming it. A
+region with a single series has one block with an empty key, so nothing is grouped and
+nothing is indented that was not before.
+"""
+function paramgroups(r::RegionResult)
+    # The empty key comes last and holds what belongs to the region rather than to any one
+    # series. A single series is itself empty-keyed, so `unique` leaves one block and
+    # nothing is grouped. The vector is typed, the keys of different series being one
+    # `NamedTuple` type and the empty key another.
+    groupkeys = unique(NamedTuple[[s.group for s in r.series]; NamedTuple()])
+    groups = Pair{NamedTuple,OrderedDict{Symbol,Any}}[k => OrderedDict{Symbol,Any}()
+                                                      for k in groupkeys]
+    for (name, value) in r.parameters
+        base = baseparam(name)
+        i = findfirst(g -> seriesname(base, first(g)) == name, groups)
+        # an unsuffixed name matches the empty key, so only a name belonging to no series
+        # at all reaches the fallback, where it keeps the name it was given
+        isnothing(i) ? (groups[end].second[name] = value) : (groups[i].second[base] = value)
+    end
+    return groups
+end
+
+"""
+    paramwidth(expt, groups) -> Int
+
+Width of the label column across every block of [`paramgroups`](@ref), indentation
+included, so the values line up down the whole region and not just within a block. Zero
+where there is nothing to show.
+"""
+function paramwidth(expt::Experiment1D, groups)
+    len = 0
+    for (group, params) in groups, name in keys(params)
+        len = max(len, length(displaylabel(expt, name)) + (isempty(group) ? 0 : 2))
+    end
+    return len
+end
+
+"""
+    paramblock(io, expt, result::RegionResult, width=nothing)
+
+Everything a region reports, a block per series under a heading naming it, then the
+quantities derived across them. See [`paramgroups`](@ref).
+"""
+function paramblock(io::IO, expt::Experiment1D, r::RegionResult, width=nothing)
+    groups = paramgroups(r)
+    w = something(width, paramwidth(expt, groups) + 2)
+    isfirst = true
+    for (group, params) in groups
+        isempty(params) && continue
+        isfirst || println(io)
+        isfirst = false
+        isempty(group) || println(io, groupname(expt, group))
+        paramblock(io, expt, params, w; indent=isempty(group) ? "" : "  ")
     end
     return nothing
 end
@@ -319,9 +406,7 @@ function panelwidth(expt::Experiment1D, result, activelabel::AbstractString)
     len = 0
     for r in result
         r.region == activelabel || continue
-        for k in keys(r.parameters)
-            len = max(len, length(displaylabel(expt, k)))
-        end
+        len = max(len, paramwidth(expt, paramgroups(r)))
     end
     return len == 0 ? nothing : len + 2
 end
@@ -368,7 +453,7 @@ function resultstext(e::Experiment1D, result, activelabel::AbstractString, width
     spans = Any[]
     for r in result
         r.region == activelabel || continue
-        block = paramtext(e, r.parameters, width)
+        block = paramtext(e, r, width)
         isempty(block) && continue
         push!(spans, plaintext(block), "\n")
     end
@@ -392,7 +477,7 @@ function summarytext(e::Experiment1D, result, activelabel::AbstractString)
         r.region == activelabel || continue
         println(io, r.region)
         println(io, "-"^length(r.region))
-        paramblock(io, e, r.parameters)
+        paramblock(io, e, r)
         println(io)
     end
     return String(take!(io))
@@ -493,11 +578,47 @@ function plotresult!(ax, expt::Experiment1D, result, label, i0, ::SeriesVisualis
     i = i0
     for s in resultplotdata(expt, result, label)
         i += 1
-        c = seriescolor(i)
         lbl = isempty(s.label) ? label : "$label ($(s.label))"
-        errorbars!(ax, s.errors; whiskerwidth=8, color=c)
-        scatter!(ax, s.points; color=c, label=lbl)
-        isempty(s.fitline) || lines!(ax, s.fitline; color=c)
+        plotseries!(ax, s, seriescolor(i); label=lbl)
     end
     return i - i0
+end
+
+"""
+    plotseries!(ax, series, colour; label=nothing)
+
+Draw one measured series and its fit into an axis: error bars, points, and the fitted
+curve where there is one. The one place a series becomes marks on a plot, so an experiment
+laying its series out differently ([`resultfigure`](@ref)) draws them the same way.
+"""
+function plotseries!(ax, s::ResultSeries, colour; label=nothing)
+    errorbars!(ax, s.errors; whiskerwidth=8, color=colour)
+    isnothing(label) ? scatter!(ax, s.points; color=colour) :
+    scatter!(ax, s.points; color=colour, label=label)
+    isempty(s.fitline) || lines!(ax, s.fitline; color=colour)
+    return nothing
+end
+
+"""
+    resultfigure(expt, result, labels) -> Figure
+
+The figure an analysis saves for the regions named in `labels`: every series of every
+region on one axis, with a legend where there is more than one.
+
+An experiment whose series do not share an x-range overrides this. A nutation calibration
+is the case in point: the 90° pulse at the lowest power can be ten times the longest
+duration sampled at the highest, so one axis shows one series and a spike at the origin.
+"""
+function resultfigure(e::Experiment1D, result, labels)
+    xl, yl = resultlabels(e)
+    fig = Figure()
+    # no gridlines (matching the live GUI panels), but keep a visible zero line
+    ax = Axis(fig[1, 1]; xlabel=xl, ylabel=yl, xgridvisible=false, ygridvisible=false)
+    hlines!(ax, [0]; color=:grey)
+    n = 0
+    for label in labels
+        n += plotresult!(ax, e, result, label, n)
+    end
+    n > 1 && axislegend(ax; position=:rt)
+    return fig
 end

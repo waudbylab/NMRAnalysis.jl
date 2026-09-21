@@ -23,6 +23,8 @@ out/
   correlation.csv      the same fit's correlation matrix
   correlation.pdf      correlation.csv as a heatmap
   <overview>.pdf       fit.pdf in 1D, summary.pdf in 2D
+  calibration.pdf      1D: the calibration curve of a multi-power nutation analysis
+  calibration/         the analysis of a B₁ calibration fitted for this one
   regions/             1D: one file pair per region
     signal.csv
     signal.pdf
@@ -43,6 +45,12 @@ exchange `kex`; a relaxation fit has nothing global and the file is absent. `res
 is absent where nothing is reported per entity, as in a kinetics run. `covariance.csv`,
 `correlation.csv` and `correlation.pdf` appear only where that global fit jointly optimises
 more than one parameter, since a single parameter has no covariance structure to report.
+`calibration.pdf` appears only where a nutation analysis measured more than one power
+level, one power level being a point rather than a curve; an analysis adds a file of its
+own this way through `saveextras!`. A `calibration/` folder appears where an analysis
+fitted a B₁ calibration on its own behalf: it is that calibration's own output folder,
+written when the analysis that used it is saved and not before, so an abandoned fit leaves
+nothing behind.
 
 Saving starts from an empty folder: an existing one is moved aside to `<name>_previous`,
 replacing any earlier backup. That is what keeps a peak or region deleted since the last
@@ -189,7 +197,32 @@ a bound rather than an interior optimum are all part of the result.
 The human-readable record, and the one file where numbers are rounded. It carries the
 package version and the date, the input filenames and titles, the sample information, the
 region or peak definitions with the noise position and integration width, the acquisition
-parameters actually used, and the key results formatted with units.
+parameters actually used, and the key results formatted with units. Paths are written in
+full here and in the CSV headers, since a saved file has to say where its data were; what
+is shown on screen is shortened instead, having a panel's width to live within.
+
+Where a region was measured under several conditions, its results are written as a block
+per condition, under a heading naming it, followed by whatever was derived across them:
+
+```
+peak1
+-----
+11.11 dB
+  Nutation frequency     2033.0 ± 7.4 Hz
+  90° pulse              123.0 ± 0.45 µs
+  B₁ inhomogeneity       7.583 ± 0.79 %
+
+31.11 dB
+  Nutation frequency     204.9 ± 0.66 Hz
+  90° pulse              1220.0 ± 3.9 µs
+  B₁ inhomogeneity       9.731 ± 0.53 %
+
+B₁ inhom. (smallest)     7.583 ± 0.79 %
+Linearity                0.9965 ± 0.0021
+```
+
+A region with one series has nothing to group, and is written as the flat block it always
+was. The GUI's results panel is built from the same text, so the two cannot drift apart.
 
 It should also carry the Julia call that would repeat the analysis, together with where
 each resolved parameter came from, which makes the annotation lookup auditable:

@@ -330,6 +330,8 @@ it would defeat the purpose.
 """
 callvalue(x::Union{Real,Bool,Symbol,AbstractString}) = repr(x)
 callvalue(x::AbstractVector{<:Real}) = repr(collect(x))
+# the experiment folders of a multi-file analysis: the one argument worth repeating in full
+callvalue(x::AbstractVector{<:AbstractString}) = repr(collect(x))
 callvalue(x::NamedTuple) = repr(x)
 callvalue(::Nothing) = nothing
 callvalue(x) = nothing

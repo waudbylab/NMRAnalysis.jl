@@ -224,7 +224,7 @@ function postfit!(peak::Peak, expt::CPMGExperiment)
     model(x, p) = ones(length(x)) * p[1] # no exchange, R2eff = R20
     fit = curve_fit(model, cpmglist, y, w, p0)
     pfit = coef(fit)
-    perr = stderror(fit)
+    perr = stderrors(fit)
     # pfit = p0
     # perr = [0.1]
     @debug "Fitted parameters: $(pfit), uncertainties: $(perr)"

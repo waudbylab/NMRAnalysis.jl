@@ -237,8 +237,8 @@ function postfit!(peak::Peak, expt::IntensityExperiment, model::MethylCCRModel)
     wt = 1 ./ max.(rerr, eps()) .^ 2
     p0 = _ccr_initial(t, rval, model.C)
     fit = curve_fit(model.func, t, rval, wt, p0; lower=[0.0, -Inf], upper=[Inf, 0.0])
-    ηm = coef(fit)[1] ± stderror(fit)[1]
-    δm = coef(fit)[2] ± stderror(fit)[2]
+    ηm = coef(fit)[1] ± stderrors(fit)[1]
+    δm = coef(fit)[2] ± stderrors(fit)[2]
     s2tcm = eta_to_s2tc_ns(ηm)  # eq 1, with the η uncertainty propagated through
 
     peak.postparameters[:eta].value[] .= Measurements.value(ηm)

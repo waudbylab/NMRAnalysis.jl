@@ -135,6 +135,7 @@ Only what differs from the defaults:
 | `postfitglobal!(results, e)` | none | quantities spanning every region |
 | `primaryparam(e)` | `:A` | the headline quantity |
 | `visualisationtype(e)` | `SeriesVisualisation()` | how results are drawn |
+| `saveextras!(e, results, folder)` | writes nothing | further files to save, e.g. a figure |
 
 A *series* is the set of planes sharing all grouping variables, differing only in the
 fit-axis. TRACT groups by `:which` (TROSY vs anti-TROSY); kinetics groups by `:run` when

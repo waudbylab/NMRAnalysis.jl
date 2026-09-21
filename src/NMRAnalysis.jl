@@ -1,5 +1,6 @@
 module NMRAnalysis
 
+using LinearAlgebra: LAPACKException, PosDefException, SingularException
 using LsqFit
 using Measurements
 using NativeFileDialog
@@ -12,6 +13,8 @@ include("fileselection.jl")
 include("analyse.jl")
 include("viscosity.jl")
 include("output.jl")   # shared CSV column/value rules - see docs/src/advanced/conventions.md
+include("fitting.jl")  # shared fitting utilities
+include("b1.jl")       # B₁ calibration and inhomogeneity, shared by Analysis1D and Exchange1D
 
 include("maybevector/MaybeVector.jl")
 using .MaybeVectorModule
@@ -29,6 +32,10 @@ include("precompile.jl")
 
 export analyse, register_analysis!, MultiFileRule
 export viscosity
+# B₁ fields: the calibration mapping power to field strength, and the distribution of that
+# field across the sample (see src/b1.jl)
+export B1Calibration, B1Distribution, b1average, b1rate, inhomogeneity, linearity
+export shortpath
 
 include("R1rho/R1rho.jl")
 using .R1rho
@@ -57,6 +64,7 @@ using .Exchange1D
 @reexport using .Analysis1D: RelaxationExperiment, TractExperiment, NutationExperiment
 @reexport using .Analysis1D: KineticsExperiment, DiffusionExperiment
 @reexport using .Analysis1D: relaxation1d, tract, calibration1d, diffusion1d, kinetics1d
+@reexport using .Analysis1D: calibrationanalysis
 # results, and the series models a caller can choose between
 @reexport using .Analysis1D: RegionResult, param
 @reexport using .Analysis1D: SeriesModel, CurveFitModel, NoFitting, ExponentialModel

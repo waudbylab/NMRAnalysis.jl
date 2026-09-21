@@ -20,6 +20,11 @@ using NMRAnalysis.Analysis1D: resultstable, seriestable, experimentinfo,
                               baseparam, regionlisttable, readregions!, NOISE_LABEL
 using NMRAnalysis.Analysis1D: analysiscall, callstring, callvalue, writesummary
 using NMRAnalysis.Analysis1D: ask, askvector, askchoice, parsevector, acqusvalue
+using NMRAnalysis.Analysis1D: powerdb, saveextras!, fitseries, groupname, displaylabel,
+                              summarytext, paramgroups, saveanalysis, dataset, resultfigure
+using CairoMakie: Axis
+using NMRAnalysis: refpower, ν1ref
+using NMRTools: Power, db, hz
 using Measurements
 using Random
 using Test
@@ -47,6 +52,10 @@ function peakdataset(amps, var::Symbol, vals; δ0=8.0, noise=0.0, seed=42, noise
 end
 
 signalregion(δ0=8.0) = [Region("signal", δ0 - 0.3, δ0 + 0.3)]
+
+"""Nutation of an inhomogeneous B₁ field: the envelope is Gaussian, not exponential, being
+the average of `sin(2πνt)` over a Gaussian distribution of ν of fractional width `σ`."""
+nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^2)
 
 @testset "Analysis1D" begin
     @testset "Region" begin
@@ -175,24 +184,179 @@ signalregion(δ0=8.0) = [Region("signal", δ0 - 0.3, δ0 + 0.3)]
     end
 
     @testset "Nutation calibration" begin
-        # the initial guess assumes half a period across the sampled range, so sample one
-        ν, Rdecay = 500.0, 500.0
-        durations = collect(range(0.0, 1.0e-3; length=21))
-        amps = [100 * sin(2π * ν * t) * exp(-Rdecay * t) for t in durations]
+        # a nominal 720° nutation, as the annotated sequence runs: a few percent of B₁
+        # inhomogeneity is only measurable over several periods
+        ν, σ = 500.0, 0.06
+        durations = collect(range(0.0, 2 / ν; length=21))
+        amps = [nutation(100.0, ν, σ, t) for t in durations]
         ds = peakdataset(amps, :duration, durations; noise=0.2)
         expt = NutationExperiment(ds; regions=signalregion())
         @test primaryparam(expt) == :pulse90
+        @test groupcols(expt) == ()          # no power recorded: one series, bare names
 
         res = analyse1d(expt)
         @test Measurements.value(param(res[1], :nu)) ≈ ν rtol = 0.05
         # stored in the units they are quoted in: µs and %, not seconds and a fraction
         @test Measurements.value(param(res[1], :pulse90)) ≈ 1e6 / (4ν) rtol = 0.05
-        @test Measurements.value(param(res[1], :inhomogeneity)) ≈
-              100 * Rdecay / (2π * ν) rtol = 0.1
+        # the width of the B₁ distribution, fitted directly from the Gaussian envelope
+        # rather than converted from an exponential decay rate
+        @test Measurements.value(param(res[1], :inhomogeneity)) ≈ 100σ rtol = 0.1
+        # with one power level there is nothing to choose between, so the fitted `sigma`
+        # is reported under the name it was chosen for and not twice
+        @test !haskey(res[1].parameters, :sigma)
+        # one series, one panel: the generic layout, every series on one axis
+        @test count(x -> x isa Axis, resultfigure(expt, res, ["signal"]).content) == 1
+        # one series, so nothing to group: the summary is the flat block it always was
+        lines = split(summarytext(expt, res, "signal"), '\n')
+        @test !any(startswith(l, "  ") for l in lines)
+        @test any(startswith(l, "B₁ inhomogeneity") for l in lines)
+        # only σ² enters the model, so a fit landing on -σ still reports a positive width
+        @test Measurements.value(param(res[1], :inhomogeneity)) > 0
 
         @test nutationphase(nothing) === nothing
         @test nutationphase("cosine_modulated") === :cosine
         @test nutationphase("sine_modulated") === :sine
+
+        # power levels: `Power`s converted, bare numbers taken as dB, and a calibration
+        # curve needs every power or none
+        @test powerdb(Power(-12.0, :dB)) == [-12.0]
+        @test powerdb([-18.0, -12.0]) == [-18.0, -12.0]
+        @test powerdb(nothing) === nothing
+        @test powerdb([Power(-12.0, :dB), nothing]) === nothing
+    end
+
+    @testset "Nutation calibration over several powers" begin
+        # Three power levels 6 dB apart on an amplifier that falls 2% short of the ideal
+        # power law, and a B₁ inhomogeneity that relaxation inflates at the lowest power.
+        dB = [-18.0, -12.0, -6.0]
+        L = 0.98
+        ν = [500.0 * 10^(-L * (p - dB[1]) / 20) for p in dB]
+        σ = [0.05, 0.06, 0.09]
+        durations = [collect(range(0.0, 2 / νi; length=21)) for νi in ν]
+
+        traces = Trace[]
+        vars = NamedTuple[]
+        rng = MersenneTwister(7)
+        for i in eachindex(dB), (j, t) in enumerate(durations[i])
+            push!(traces, peaktrace(nutation(100.0, ν[i], σ[i], t), 8.0; noise=0.2, rng))
+            push!(vars, (; duration=t, power=dB[i]))
+        end
+        ds = Dataset1D(Planes(traces, vars), 0.0, "synthetic")
+        expt = NutationExperiment(ds; regions=signalregion())
+        @test groupcols(expt) == (:power,)   # one series per power level
+
+        res = analyse1d(expt)
+        r = only(res)
+        @test length(r.series) == 3
+        for i in eachindex(dB)
+            g = (; power=dB[i])
+            @test Measurements.value(param(r, seriesname(:nu, g))) ≈ ν[i] rtol = 0.05
+            @test Measurements.value(param(r, seriesname(:pulse90, g))) ≈ 1e6 / (4ν[i]) rtol = 0.05
+        end
+
+        # the smallest estimate, from the highest power where relaxation contributes least
+        @test Measurements.value(param(r, :inhomogeneity)) ≈ 100 * minimum(σ) rtol = 0.15
+        # the calibration curve: anchored on the first power level, and recovering the
+        # amplifier's shortfall rather than assuming the ideal law
+        @test param(r, :powerref) == dB[1]
+        @test Measurements.value(param(r, :nu1ref)) ≈ ν[1] rtol = 0.05
+        @test Measurements.value(param(r, :linearity)) ≈ L rtol = 0.02
+
+        # ... and the calibration the analysis hands to exchange1d
+        cal = B1Calibration(res)
+        @test inhomogeneity(cal) ≈ minimum(σ) rtol = 0.15
+        @test hz(Power(dB[2], :dB), cal) ≈ ν[2] rtol = 0.05
+        @test db(Power(ν[3], cal)) ≈ dB[3] rtol = 0.02
+
+        # A series is named by its power level, which means nothing without its unit: the
+        # plot legend and the parameter labels both say "11.11 dB", not "11.11".
+        @test groupname(expt, (; power=dB[1])) == "-18.0 dB"
+        @test displaylabel(expt, seriesname(:nu, (; power=dB[1]))) ==
+              "Nutation frequency (-18.0 dB)"
+        # and with several power levels the region's own inhomogeneity says which of them
+        # it is (the single-power case, tested above, has nothing to choose between)
+        @test displaylabel(expt, :inhomogeneity) == "B₁ inhom. (smallest)"
+        # the summary reads as a block per power level, under a heading naming it, then
+        # what was derived across them - not one flat dump of suffixed names
+        lines = split(summarytext(expt, res, "signal"), '\n')
+        @test "-18.0 dB" in lines
+        @test any(startswith(l, "  Nutation frequency") for l in lines)
+        @test any(startswith(l, "  90° pulse") for l in lines)
+        # the region's own results are not indented, and say they are the smallest
+        @test any(startswith(l, "B₁ inhom. (smallest)") for l in lines)
+        @test any(startswith(l, "Linearity") for l in lines)
+
+        # the split behind that layout: a block per series keyed by its group, holding
+        # bare names, then one keyed by the empty group for what spans them
+        groups = paramgroups(r)
+        @test length(groups) == 4                       # three power levels, plus derived
+        @test first(groups).first == (; power=dB[1])
+        @test haskey(first(groups).second, :nu)
+        @test last(groups).first == NamedTuple()
+        @test haskey(last(groups).second, :inhomogeneity)
+        @test haskey(last(groups).second, :linearity)
+
+        # each power level's results are listed together, not every 90° pulse below every
+        # frequency
+        names = collect(keys(r.parameters))
+        @test names[1:4] == [seriesname(k, (; power=dB[1]))
+                             for k in (:nu, :pulse90, :sigma, :A)]
+        @test last(names) == :linearity
+
+        # the curve is plotted as well as tabulated - a calibration is a thing you look at
+        mktempdir() do dir
+            @test saveextras!(expt, res, dir) isa AbstractString
+            @test isfile(joinpath(dir, "calibration.pdf"))
+            @test filesize(joinpath(dir, "calibration.pdf")) > 0
+        end
+        # a calibration fitted without a window is saved by whatever asked for it, into
+        # its own folder, with the same files the Save button writes
+        mktempdir() do dir
+            saveanalysis(expt, dataset(expt), res, [only(signalregion())],
+                         joinpath(dir, "calibration"))
+            for name in ("summary.txt", "results.csv", "series.csv", "fit.pdf",
+                         "calibration.pdf")
+                @test isfile(joinpath(dir, "calibration", name))
+            end
+        end
+
+        # one panel per power level: on a shared axis the fastest nutation is a spike
+        # against the origin, the slowest sampling ten times the pulse duration
+        @test count(x -> x isa Axis, resultfigure(expt, res, ["signal"]).content) == 3
+        # one power level is a point, not a curve, so it gets no plot
+        mktempdir() do dir
+            t1 = collect(range(0.0, 2 / ν[1]; length=21))
+            single = NutationExperiment(peakdataset([nutation(100.0, ν[1], σ[1], t)
+                                                     for t in t1], :duration, t1;
+                                                    noise=0.2);
+                                        regions=signalregion())
+            @test saveextras!(single, analyse1d(single), dir) === nothing
+            @test !isfile(joinpath(dir, "calibration.pdf"))
+        end
+    end
+
+    @testset "A fit the data cannot constrain" begin
+        # The second parameter has no effect, so the Jacobian is rank-deficient and the
+        # covariance matrix singular. LsqFit throws on that, which would take an
+        # interactive refit down with it; NaN uncertainties are visible and harmless.
+        model = CurveFitModel((x, p) -> @.(p[1] + 0 * p[2] * x), ["A", "unused"],
+                              (x, y) -> [1.0, 1.0])
+        x = collect(range(0.0, 1.0; length=8))
+        fit = fitseries(model, x, [1.0 ± 0.1 for _ in x])
+        @test Measurements.value(fit.params[1]) ≈ 1.0 rtol = 1e-6
+        @test all(isnan, Measurements.uncertainty.(fit.params))
+    end
+
+    @testset "Paths shown in the interface" begin
+        # the dataset folder and the experiment number, not the fifty characters above them
+        @test shortpath("/Users/chris/NMR/crick-701/sophia_990_260823/10/pdata/1") ==
+              joinpath("sophia_990_260823", "10")
+        @test shortpath("/Users/chris/NMR/crick-701/sophia_990_260823") ==
+              joinpath("crick-701", "sophia_990_260823")
+        @test shortpath("10") == "10"
+        @test shortpath("") == ""
+        # not a path at all (a spectrum's title, where it has no filename)
+        @test shortpath("my sample, 298 K") == "my sample, 298 K"
     end
 
     @testset "Diffusion" begin

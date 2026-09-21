@@ -95,7 +95,7 @@ function initialisestate(dataset)
         state[:fitpars] = lift(coef, state[:fit])
         state[:fiterrs] = lift(state[:fit]) do fit
             try
-                stderror(fit)
+                stderrors(fit)
             catch
                 [0.1, 0.1, 0.1, 0.1]
             end
@@ -124,7 +124,7 @@ function initialisestate(dataset)
         state[:fitpars_null] = lift(coef, state[:fit_null])
         state[:fiterrs_null] = lift(state[:fit_null]) do fit
             try
-                stderror(fit)
+                stderrors(fit)
             catch
                 [0.1, 0.1]
             end

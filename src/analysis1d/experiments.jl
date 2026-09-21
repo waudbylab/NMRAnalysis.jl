@@ -172,6 +172,17 @@ the relevant results. Runs after every `postfit!`. Mirrors GUI2D's `postfitgloba
 postfitglobal!(::AbstractVector{RegionResult}, ::Experiment1D) = nothing
 
 """
+    saveextras!(expt, results, folder)
+
+Write any further files an experiment reports, beyond the shared set every analysis saves
+(`summary.txt`, `results.csv`, `series.csv`, `fit.pdf` and the per-region plots and data).
+The default writes nothing; nutation writes its calibration curve. Called by
+[`saveresults`](@ref) once the shared files are written. Returns the path written, or
+`nothing` where there was nothing to write.
+"""
+saveextras!(::Experiment1D, results, folder::AbstractString) = nothing
+
+"""
     primaryparam(expt) -> Symbol
 
 The experiment's headline quantity: the parameter a reader wants first, listed first
@@ -272,13 +283,19 @@ end
     defaultregion(dataset; label="signal", width=defaultregionwidth(...)) -> Region
 
 A sensible default single integration region: `width` ppm wide (2% of the spectral
-width by default) centred on the tallest peak (by absolute intensity) in the first
+width by default) centred on the tallest peak (by absolute intensity) of the strongest
 plane. Used as the default `regions` for every experiment with a single signal; the GUI
 lets the user reposition and resize it, or add further regions.
+
+The strongest plane rather than the first, because the first plane of a nutation
+calibration is recorded at the shortest pulse length and holds no signal, so its tallest
+point is noise. For a decay or a gradient ramp the first plane *is* the strongest, and the
+region is the same either way.
 """
 function defaultregion(dataset::Dataset1D; label="signal",
                        width=defaultregionwidth(first(dataset.planes.traces).δ))
-    t = first(dataset.planes.traces)
+    traces = dataset.planes.traces
+    t = traces[argmax(i -> maximum(abs, traces[i].y), eachindex(traces))]
     peak = t.δ[argmax(abs.(t.y))]
     return Region(label, peak - width / 2, peak + width / 2)
 end

@@ -351,7 +351,7 @@ function fit!(cluster::Vector{Int}, expt::Experiment, mygen=expt.state[][:fit_ge
                        autodiff=:finite,
                        maxIter=200, x_tol=1e-4, g_tol=1e-6)
     pfit = coef(sol)
-    perr = stderror(sol)
+    perr = stderrors(sol)
     @debug "fit complete" pfit maxlog = 10
     unpack!(pfit, peaks, :value)
     unpack!(perr, peaks, :uncertainty)

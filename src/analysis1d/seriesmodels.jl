@@ -87,7 +87,7 @@ function fitseries(m::CurveFitModel, x::AbstractVector, y::AbstractVector)
     else
         curve_fit(m.func, x, yv, p0)
     end
-    params = coef(fit) .± stderror(fit)
+    params = coef(fit) .± stderrors(fit)
     return (; params, names=m.paramnames, model=m, converged=fit.converged)
 end
 

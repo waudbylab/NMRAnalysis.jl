@@ -24,12 +24,20 @@ using OrderedCollections
 using REPL.TerminalMenus
 using Statistics
 
-using ..NMRAnalysis: register_analysis!, viscosity
+using ..NMRAnalysis: register_analysis!, MultiFileRule, viscosity
+using ..NMRAnalysis: stderrors   # standard errors that survive a singular covariance
+# B₁ calibration: the type and its accessors, built from a nutation fit in expt-nutation.jl.
+# `import` rather than `using`, because expt-nutation.jl adds constructor methods to it:
+# `using` brings the name in to call, not to extend.
+import ..NMRAnalysis: B1Calibration
+using ..NMRAnalysis: refpower, ν1ref, linearity, inhomogeneity, powers, fields
 # shared output rules - see src/output.jl and docs/src/advanced/conventions.md
 using ..NMRAnalysis: csvcolumn, csvcolumns, csvvalue, safename, sanitizelabel, backupfile,
-                     backupfolder, writetable
+                     backupfolder, writetable, shortpath
 
-# pure analysis core (no Makie dependency in these files)
+# the analysis core: no Makie in the computational path. (An experiment that saves a
+# figure of its own draws it in its `expt-*.jl`, as Exchange1D's experiments do, so that
+# everything about one analysis stays in one file.)
 include("types.jl")
 include("integration.jl")
 include("seriesmodels.jl")
@@ -73,6 +81,8 @@ export gui!, pickregion
 # top-level entry points (each opens the GUI, or analyses directly given an
 # `integration` triple).
 export relaxation1d, tract, calibration1d, diffusion1d, kinetics1d
+# fit a calibration without a window, and save it where the caller decides
+export calibrationanalysis
 
 """
 Register the interactive 1D analyses with the analysis-dispatch registry, so `analyse`
@@ -88,8 +98,17 @@ function __init__()
                        e -> relaxation1d(e.filename), "1D R1 relaxation")
     register_analysis!(["1d", "relaxation"], ["R2"],
                        e -> relaxation1d(e.filename), "1D R2 relaxation")
-    return register_analysis!(["1d", "calibration"], ["nutation"],
-                              e -> calibration1d(e.filename), "1D nutation calibration")
+    # Every nutation calibration selected at once, since several power levels make a
+    # calibration curve where one makes only a point on it.
+    isnutation(e) = "1d" in e.types && "calibration" in e.types && "nutation" in e.features
+    function nutations(expts)
+        matched = filter(isnutation, expts)
+        return isempty(matched) ? nothing : matched
+    end
+    return register_analysis!(MultiFileRule(nutations,
+                                            expts -> calibration1d([e.filename
+                                                                    for e in expts]),
+                                            "1D nutation calibration"))
 end
 
 end # module Analysis1D

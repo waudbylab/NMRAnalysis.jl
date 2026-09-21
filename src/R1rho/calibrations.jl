@@ -1,12 +1,15 @@
 """
-    setupR1rhopowers(calibration_experiment_file="")
+    setupR1rhopowers(calibration="")
 
 Interactively calculate spin-lock power levels (in Watts) for an R1ρ relaxation
 dispersion experiment, ready to paste into the acquisition software's power list.
 
-- `calibration_experiment_file`: Path to a 1D nutation calibration experiment, used to
-  read off the hard pulse length (p1) and power level (pldB1) automatically. If omitted,
-  you are prompted to enter p1 and pldB1 manually.
+- `calibration`: one or more 1D nutation calibration experiments, given as paths or
+  experiment numbers, or a ready-made [`B1Calibration`](@ref NMRAnalysis.B1Calibration). Each experiment is fitted in
+  the analysis window, so the fits can be checked before powers are computed from them;
+  several of them, recorded at different power levels, give a calibration curve and the
+  powers follow it rather than the ideal √W law. If omitted, you are prompted to enter p1
+  and pldB1 manually and the ideal law is assumed.
 
 You are then prompted for the target spin-lock strengths, either as an explicit
 comma-separated list (in Hz) or, if left blank, a minimum/maximum bound used to filter a
@@ -22,11 +25,14 @@ spin-lock strengths, ready to be copied into the experiment setup.
 # read pulse calibration from an experiment, then prompt for spin-lock strengths
 setupR1rhopowers("examples/calibration/1")
 
+# calibrate the amplifier's response over several power levels first
+setupR1rhopowers(["examples/calibration/1", "examples/calibration/2"])
+
 # prompt for pulse parameters and spin-lock strengths interactively
 setupR1rhopowers()
 ```
 """
-function setupR1rhopowers(calibration_experiment_file="")
+function setupR1rhopowers(calibration="")
     # ANSI escape code for magenta
     magenta = "\033[35m"
     reset = "\033[0m"
@@ -35,23 +41,9 @@ function setupR1rhopowers(calibration_experiment_file="")
     term_width = displaysize(stdout)[2]
     line_break = repeat("-", term_width)
 
-    if calibration_experiment_file == ""
-        # Prompt the user for inputs with magenta color and caret
-        println()
-        println("Enter p1 (19F hard pulse power, in us):")
-        print("> ")
-        p1 = parse(Float64, readline()) * 1e-6 # convert to seconds
-
-        println()
-        println("Enter pldB1 (19F hard pulse power, in dB):")
-        print("> ")
-        pldb1 = parse(Float64, readline())
-        pl1 = Power(pldb1, :dB)
-    else
-        calibration = analyse(calibration_experiment_file)
-        p1 = Measurements.value(calibration.pulse90)
-        pl1 = calibration.power_level
-    end
+    cal = b1calibration(calibration)
+    println()
+    println("Using calibration: ", cal)
 
     println()
     println("Input a list of spin-lock strengths (in Hz) separated by commas, or press ENTER for a default list:")
@@ -105,9 +97,8 @@ Type 'yes' to proceed. Do you want to proceed? (yes/no):$reset")
         end
     end
 
-    # Calculate the final powers
-    final_powers = convert_Hz_to_dB.(target_spinlock_strengths, pl1, p1)
-    final_powers_W = 10 .^ (-final_powers ./ 10) # Convert dB to Watts
+    # Calculate the final powers, inverting the calibration curve
+    final_powers_W = watts.(Power.(target_spinlock_strengths, cal))
 
     # Shuffle the final powers list and the corresponding spin-lock strengths
     shuffled_indices = shuffle(1:length(final_powers_W))
@@ -126,4 +117,36 @@ Type 'yes' to proceed. Do you want to proceed? (yes/no):$reset")
         println(@sprintf("%.10f", power))
     end
     return println(line_break)
+end
+
+"""
+    b1calibration(x) -> B1Calibration
+
+The calibration `setupR1rhopowers` works from: one ready-made, or the nutation calibration
+experiment(s) to measure one from, or `""` to ask for the hard pulse and its power level
+and assume the ideal √W power law.
+
+Each calibration experiment is fitted in the analysis window rather than headlessly: the
+powers about to be pasted into the spectrometer are only as good as these fits, so they are
+worth looking at.
+"""
+b1calibration(cal::B1Calibration) = cal
+function b1calibration(x::AbstractVector)
+    return B1Calibration(calibration1d(x); source=join(string.(x), ", "))
+end
+
+function b1calibration(x)
+    x == "" || return b1calibration([x])
+    println()
+    println("Enter p1 (hard pulse length, in us):")
+    print("> ")
+    p1 = parse(Float64, readline()) * 1e-6 # convert to seconds
+
+    println()
+    println("Enter pldB1 (hard pulse power, in dB):")
+    print("> ")
+    pldb1 = parse(Float64, readline())
+    # A 90° pulse of length p1 is a field of 1/(4·p1); with one measurement the power law
+    # is assumed ideal, which is what this routine has always done.
+    return B1Calibration([Power(pldb1, :dB)], [1 / (4p1)]; source="p1/pldB1 as entered")
 end

@@ -6,15 +6,17 @@ mutable struct R1rhoOffResExperiment <: AbstractExperiment
     predicted_intensities::Vector{Float64}              # Bloch-McConnell rate per offset
     offsets_ppm::Vector{Float64}  # offsets for each data point (ppm)
     νSL::Float64      # νSL for each data point (Hz)
-    TSL::Vector{Float64}      # TSL for each data point (s)
+    TSL::Vector{Float64}      # spin-lock durations the decays were sampled at (s)
 
     # TSL × offset decay data (integration-normalised) and its noise level — what the fit
     # itself compares to; see residuals(::R1rhoOffResExperiment)
     rawintensities::Matrix{Float64}
     rawnoise::Float64
+
+    calibration::B1Calibration  # νSL above, and the B₁ spread it is simulated with
 end
 
-function R1rhoOffResExperiment(filename)
+function R1rhoOffResExperiment(filename; calibration=nothing)
     detail("Loading off-resonance R1rho experiment from $filename")
 
     spec = loadnmr(filename)
@@ -36,11 +38,19 @@ function R1rhoOffResExperiment(filename)
     offsets = annotations(spec, :r1rho, :offset)
     offsets_ppm = ppm(offsets, dims(spec, F1Dim))
 
-    # Read spin-lock power (single value for off-resonance)
-    power = annotations(spec, :r1rho, :power)
+    # Read spin-lock power
     nuc = nucleus(annotations(spec, :r1rho, :channel))
-    refpulse, refpower = referencepulse(spec, nuc)
-    νSL = hz(power, refpower, refpulse, 90)[1]
+    cal = b1calibration(calibration, spec, nuc)
+    # An off-resonance experiment sweeps the offset at one fixed spin-lock strength, so
+    # several annotated powers mean this is not the experiment it says it is - an arrayed
+    # power is the on-resonance experiment - and taking the first of them would analyse
+    # every offset at the wrong field.
+    fields = hz.(annotations(spec, :r1rho, :power), cal)
+    length(fields) == 1 ||
+        throw(ArgumentError("off-resonance R1rho experiment $filename annotates " *
+                            "$(length(fields)) spin-lock powers; it takes exactly one, " *
+                            "the offset being what is arrayed"))
+    νSL = only(fields)
 
     # Read relaxation times
     TSL = annotations(spec, :r1rho, :duration)
@@ -51,7 +61,7 @@ function R1rhoOffResExperiment(filename)
 
     return R1rhoOffResExperiment(spec, field_teslas, sampleconcentrations(spec),
                                  observed_intensities, predicted_intensities,
-                                 offsets_ppm, νSL, TSL, rawintensities, 0.0)
+                                 offsets_ppm, νSL, TSL, rawintensities, 0.0, cal)
 end
 
 function default_spin_params(expt::R1rhoOffResExperiment, nstates)
@@ -94,29 +104,30 @@ function integrate!(expt::R1rhoOffResExperiment, peakppm, noiseppm, ppmwidth)
         y = vec(data(integrals[1, i, :]))
         expt.rawintensities[:, i] .= y
         fitres = curve_fit(expdecay, expt.TSL, y, p0)
-        R = coef(fitres)[2] ± stderror(fitres)[2]
+        R = coef(fitres)[2] ± stderrors(fitres)[2]
         expt.observed_intensities[i] = R
     end
 end
 
+"""
+    simulate!(expt::R1rhoOffResExperiment, model, params)
+
+Simulate R₁ρ at each spin-lock offset, averaged over the B₁ distribution the same way as
+the on-resonance experiment: over the decays rather than the rates (see
+[`b1rate`](@ref NMRAnalysis.b1rate)), matched at the mean of the sampled spin-lock
+durations, and for the same reason - `residuals` compares the raw decay against a single
+exponential of this rate.
+"""
 function simulate!(expt::R1rhoOffResExperiment, model, params)
-    for k in 1:length(expt.offsets_ppm)
-        L = liouvillian(model, params, expt,
-                        expt.offsets_ppm[k],
-                        expt.νSL)
+    d = B1Distribution(expt.calibration)
+    T = mean(expt.TSL)
 
-        # evals = real.(eigen(L).values)
-        # neg_evals = evals[evals .< 0]
-        # if isempty(neg_evals)
-        #     expt.predicted_intensities[k] = 1000.0
-        #     continue
-        # end
-        # R1rho = -maximum(neg_evals)
-
-        # Compute R1rho from inverse of trace of inverse L (Koss)
-        R1rho = -1/tr(inv(L))
-
-        expt.predicted_intensities[k] = R1rho
+    for k in eachindex(expt.offsets_ppm)
+        # R1rho from the inverse of the trace of the inverse Liouvillian (Koss), in place
+        # of the least negative eigenvalue, as before.
+        expt.predicted_intensities[k] = b1rate(d, expt.νSL, T) do ν
+            return -1 / tr(inv(liouvillian(model, params, expt, expt.offsets_ppm[k], ν)))
+        end
     end
 end
 
@@ -130,6 +141,7 @@ function experimentinfo(expt::R1rhoOffResExperiment)
     return ["Type" => "Off-resonance R1ρ",
             "Field" => _format_field(expt.field_teslas),
             "Spin-lock strength" => "$(round(expt.νSL; digits=1)) Hz",
+            "B₁ calibration" => string(expt.calibration),
             "Offsets" =>
                 "$(length(expt.offsets_ppm)) points, " *
                 "$(round(minimum(expt.offsets_ppm); digits=3)) to " *

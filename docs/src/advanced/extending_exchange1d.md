@@ -374,6 +374,27 @@ end
 !!! note
     The `predicted` values must be in the same units as `observed`. For intensity-based experiments, simulate the expected intensity profile. For rate-based experiments like R1ρ dispersion, compute the predicted relaxation rates (e.g. from analytical expressions or Liouvillian eigenvalue analysis) that will be compared against the experimentally determined rates.
 
+!!! tip "Averaging over B₁ inhomogeneity"
+    An experiment applying an RF field should carry a `calibration::B1Calibration` field,
+    set from the `calibration` keyword its constructor takes (see `b1calibration`), and
+    average its simulation over `B1Distribution(expt.calibration)` rather than evaluating
+    it at the nominal field:
+
+    ```julia
+    d = B1Distribution(expt.calibration)
+    for i in eachindex(expt.your_variable)
+        expt.predicted[i] = b1average(d, expt.ν1) do ν
+            # ... propagate at field ν and return the observable ...
+        end
+    end
+    ```
+
+    Use `b1average` where the observable is measured directly, and `b1rate(f, d, ν1, T)`
+    where it is a rate obtained by fitting a decay of duration `T`: the two differ, and
+    [B₁ Inhomogeneity](../analyses/exchange1d/theory.md#B₁-Inhomogeneity) says why. With no
+    inhomogeneity the distribution holds the single nominal field, so the averaged form
+    costs nothing.
+
 #### `plot_result(expt::YourExperiment, fit_result; kwargs...)`
 
 Create a diagnostic plot showing observed data, fitted values, and residuals:

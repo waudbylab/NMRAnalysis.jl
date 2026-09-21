@@ -1,4 +1,5 @@
 using NMRAnalysis
+import NMRAnalysis: Exchange1D
 import NMRAnalysis.Exchange1D:
                                NoExchangeModel, TwoStateModel, TwoStateBindingModel,
                                InducedFitModel,
@@ -21,11 +22,18 @@ using CairoMakie
 using ComponentArrays
 using LinearAlgebra
 using Measurements
+using NMRTools: Power
+using LinearAlgebra: tr
 using Test
 
 # Minimal experiment stand-in for tests that build a Liouvillian directly:
 # liouvillian/liouvillian_inhom only reach for `field_teslas` (via field_label)
 # and the base frequency, `spec[1, :bf]`.
+#
+# `bf` is in **Hz**: the Liouvillian forms an offset as Δδ · bf · 1e-6, so a value in MHz
+# puts every state within a millihertz of resonance and any saturation field saturates the
+# whole spectrum. It makes no difference to a test of what happens at equilibrium, and all
+# the difference to a test of what happens off resonance.
 struct StubSpec
     bf::Float64
 end
@@ -43,29 +51,39 @@ struct FakeSpec
 end
 Base.getindex(s::FakeSpec, ::Symbol) = s.filename
 
+"""A nominal calibration: one power level, the ideal power law, and an assumed B₁
+inhomogeneity - what an experiment loaded without a calibration carries."""
+function fakecalibration(ν1; inhomogeneity=0.05)
+    return B1Calibration([Power(-12.0, :dB)], [ν1];
+                         inhomogeneity)
+end
+
 """A CEST experiment with plausible contents and no spectrum behind it."""
-function fakecest(path="/data/set/101/pdata/1"; nu1=50.0, tsat=0.4)
+function fakecest(path="/data/set/101/pdata/1"; nu1=50.0, tsat=0.4, inhomogeneity=0.05)
     δsat = [-2.0, 0.0, 2.0]
     return CESTExperiment(FakeSpec(path), 14.1, Dict{String,Float64}(), δsat, nu1, tsat,
-                          [1.0 ± 0.02, 0.6 ± 0.02, 0.95 ± 0.02], [0.99, 0.62, 0.94])
+                          [1.0 ± 0.02, 0.6 ± 0.02, 0.95 ± 0.02], [0.99, 0.62, 0.94],
+                          fakecalibration(nu1; inhomogeneity))
 end
 
 """An on-resonance R1rho experiment, whose observable is a rate rather than an intensity,
 and whose spin-lock field varies point by point."""
-function fakeonres(path="/data/set/102/pdata/1")
+function fakeonres(path="/data/set/102/pdata/1"; inhomogeneity=0.05)
     return R1rhoOnResExperiment(FakeSpec(path), 14.1, Dict{String,Float64}(),
                                 [12.0 ± 0.5, 9.0 ± 0.4], [12.2, 8.9],
                                 [100.0, 500.0], [0.0, 0.04],
-                                zeros(2, 2), 0.01)
+                                zeros(2, 2), 0.01,
+                                fakecalibration(100.0; inhomogeneity))
 end
 
 """An off-resonance R1rho experiment, whose spin-lock field is a single constant - the same
 coordinate that varies point by point on resonance."""
-function fakeoffres(path="/data/set/103/pdata/1")
+function fakeoffres(path="/data/set/103/pdata/1"; inhomogeneity=0.05)
     return R1rhoOffResExperiment(FakeSpec(path), 14.1, Dict{String,Float64}(),
                                  [20.0 ± 0.8, 15.0 ± 0.6], [19.8, 15.2],
                                  [-1.0, 1.0], 250.0, [0.0, 0.04],
-                                 zeros(2, 2), 0.01)
+                                 zeros(2, 2), 0.01,
+                                 fakecalibration(250.0; inhomogeneity))
 end
 
 """A minimal fake experiment for exercising `fit`'s bookkeeping around
@@ -73,6 +91,7 @@ end
 free spin parameter `a`, with an injected, arbitrary profiled-parameter count."""
 struct DoFTestExperiment <: AbstractExperiment
     x::Vector{Float64}
+    field_teslas::Float64
     observed_intensities::Vector{Measurement{Float64}}
     predicted_intensities::Vector{Float64}
     profiled::Int
@@ -272,7 +291,7 @@ end
                                                      dGB=log((1 - pB) / pB)),
                                 spin=ComponentArray(; delta=[0.0, 5.0],
                                                     R1_14p1T=[1.0], R2_14p1T=[10.0, 10.0]))
-        expt = StubExperiment(14.1, StubSpec(564.0))
+        expt = StubExperiment(14.1, StubSpec(564.0e6))
 
         p0 = populations(model, params, expt)
         N = nstates(model)
@@ -367,7 +386,7 @@ end
 
         expt = R1rhoOnResExperiment(FakeSpec("dummy"), 14.1, Dict{String,Float64}(),
                                     zeros(2) .± 1.0, copy(R_true), νSL, TSL,
-                                    rawintensities, noise)
+                                    rawintensities, noise, fakecalibration(νSL[1]))
 
         # predicted_intensities (set here as if simulate! had just run) already holds
         # the true rate for each condition, so the analytically-eliminated I0 exactly
@@ -383,7 +402,8 @@ end
 
         offresexpt = R1rhoOffResExperiment(FakeSpec("dummy"), 14.1, Dict{String,Float64}(),
                                            zeros(2) .± 1.0, copy(R_true), νSL, 300.0, TSL,
-                                           rawintensities, noise)
+                                           rawintensities, noise,
+                                           fakecalibration(300.0))
         @test all(abs.(residuals(offresexpt)) .< 1e-8)
     end
 
@@ -415,7 +435,7 @@ end
         # behaviour.
         x = collect(1.0:20.0)
         observed = (3.0 .* x .+ 0.1 .* sin.(x)) .± 1.0
-        mkexpt(profiled) = DoFTestExperiment(x, observed, zeros(length(x)), profiled)
+        mkexpt(profiled) = DoFTestExperiment(x, 14.1, observed, zeros(length(x)), profiled)
 
         prob0 = ExchangeProblem([mkexpt(0)], NoExchangeModel())
         prob5 = ExchangeProblem([mkexpt(5)], NoExchangeModel())
@@ -536,6 +556,120 @@ end
         # residuals should be near zero when predicted matches observed
         r = residuals(prob, params)
         @test all(abs.(r) .< 1e-10)
+    end
+end
+
+@testset "Automatic dispatch" begin
+    # The dispatcher works on classified filenames, so this needs no data: a folder holding
+    # a CEST experiment and the nutation calibrations recorded beside it should offer one
+    # exchange analysis over all of them, the calibrations included.
+    File(name, types, features) = NMRAnalysis.AnalysisDispatch.ExperimentFile(name, types,
+                                                                              features)
+    cest = File("101", ["1d", "cest"], String[])
+    calib = [File("10", ["1d", "calibration"], ["nutation"]),
+             File("11", ["1d", "calibration"], ["nutation"])]
+
+    matched = Exchange1D.exchangeexperiments([cest; calib])
+    @test Set(e.filename for e in matched) == Set(["101", "10", "11"])
+    # and the calibrations are the calibration, not data to fit
+    @test Exchange1D.iscalibration(calib[1])
+    @test !Exchange1D.iscalibration(cest)
+
+    # a calibration on its own is not an exchange analysis
+    @test Exchange1D.exchangeexperiments(calib) === nothing
+    # nor is an on-resonance R1ρ experiment, which joins a fit without triggering one
+    @test Exchange1D.exchangeexperiments([File("102", ["1d", "r1rho"],
+                                               ["on_resonance"])]) === nothing
+
+    # the dispatcher offers it, over every one of those files
+    options = NMRAnalysis.AnalysisDispatch.find_available_analyses([cest; calib])
+    exchange = only(filter(o -> startswith(o.rule.name, "Exchange"), options))
+    @test Set(e.filename for e in exchange.matched_files) == Set(["101", "10", "11"])
+end
+
+@testset "B₁ inhomogeneity in the simulations" begin
+    # A two-state system, and parameters built by hand (as the Liouvillian tests do) so
+    # that the simulation under test is the only thing being exercised.
+    model = TwoStateModel()
+    pB = 0.05
+    params = ComponentArray(;
+                            model=ComponentArray(; logkex=log(1000.0),
+                                                 dGB=log((1 - pB) / pB)),
+                            spin=ComponentArray(; delta=[0.0, 5.0],
+                                                R1_14p1T=[1.0], R2_14p1T=[10.0, 10.0]),
+                            nuisance=ComponentArray(; CEST_14p1T_I0=1.0))
+    ν1, Tsat = 50.0, 0.4
+    δsat = [-2.0, 0.0, 2.0, 5.0]
+
+    bf = 564.0e6      # Hz - see the note on `StubSpec`
+    cestexpt(inhom) = CESTExperiment(StubSpec(bf), 14.1, Dict{String,Float64}(), δsat,
+                                     ν1, Tsat, [1.0 ± 0.02 for _ in δsat],
+                                     zeros(length(δsat)),
+                                     B1Calibration([Power(-12.0, :dB)], [ν1];
+                                                   inhomogeneity=inhom))
+
+    # equilibrium magnetisation, augmented, as `simulate!` starts from
+    function equilibrium(expt)
+        N = nstates(model)
+        p0 = populations(model, params, expt)
+        M0 = zeros(3N + 1)
+        for i in 1:N
+            M0[3(i - 1) + 3] = p0[i]
+        end
+        M0[end] = 1.0
+        return M0
+    end
+
+    mz(expt, δ, ν) = sum((exp(liouvillian_inhom(model, params, expt, δ, ν) * Tsat) * equilibrium(expt))[3:3:end])
+
+    @testset "CEST averages the profile over the distribution" begin
+        # With no inhomogeneity, one Liouvillian per offset, exactly as before.
+        sharp = cestexpt(0.0)
+        simulate!(sharp, model, params)
+        @test sharp.predicted_intensities ≈ [mz(sharp, δ, ν1) for δ in δsat]
+
+        # With a spread, the weighted sum of the profiles each part of the sample gives.
+        # Mz is measured directly, so this weighted sum is what the spectrum reports.
+        broad = cestexpt(0.05)
+        simulate!(broad, model, params)
+        d = B1Distribution(0.05)
+        @test broad.predicted_intensities ≈
+              [sum(w * mz(broad, δ, s * ν1) for (s, w) in zip(d.scaling, d.weight))
+               for δ in δsat]
+        @test broad.predicted_intensities != sharp.predicted_intensities
+        # -2 ppm is 1128 Hz from the major state and 3948 Hz from the minor: a 50 Hz field
+        # saturates neither, so the spread of that field cannot matter, and the
+        # magnetisation is still at equilibrium
+        @test broad.predicted_intensities[1] ≈ sharp.predicted_intensities[1] rtol = 1e-3
+        # a 50 Hz field 1128 Hz off resonance still costs a fraction of a percent, so this
+        # is one-sided rather than a tolerance guessed at
+        @test sharp.predicted_intensities[1] > 0.95
+        # on the minor state's shift it is saturated, and transfers to the major state
+        @test sharp.predicted_intensities[end] < 0.95
+    end
+
+    @testset "R₁ρ averages the decay, not the rate" begin
+        νSL, TSL = [100.0, 500.0], [0.0, 0.02, 0.04]
+        onres(inhom) = R1rhoOnResExperiment(StubSpec(bf), 14.1, Dict{String,Float64}(),
+                                            [12.0 ± 0.5, 9.0 ± 0.4], zeros(2), νSL, TSL,
+                                            zeros(length(TSL), length(νSL)), 0.01,
+                                            B1Calibration([Power(-12.0, :dB)], [νSL[1]];
+                                                          inhomogeneity=inhom))
+
+        sharp = onres(0.0)
+        simulate!(sharp, model, params)
+        rate(e, ν) = -1 / tr(inv(liouvillian(model, params, e, params.spin.delta[1], ν)))
+        @test sharp.predicted_intensities ≈ [rate(sharp, ν) for ν in νSL]
+
+        # The apparent rate of a monoexponential fit to a sum of exponentials lies below
+        # the weighted mean of the rates - the point of `b1rate` - by a margin that grows
+        # with the evolution time and the spread of rates.
+        broad = onres(0.05)
+        simulate!(broad, model, params)
+        d = B1Distribution(0.05)
+        meanrates = [b1average(ν -> rate(broad, ν), d, ν0) for ν0 in νSL]
+        @test all(broad.predicted_intensities .< meanrates)
+        @test broad.predicted_intensities ≈ meanrates rtol = 0.05
     end
 end
 

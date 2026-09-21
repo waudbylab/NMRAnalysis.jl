@@ -490,7 +490,7 @@ function fitplane!(peaks, expt::MovingPeakExperiment, i, mi, xbi, ybi, mygen, t0
     sol = LsqFit.lmfit(resid, p0, Float64[]; lower=pmin, upper=pmax, autodiff=:finite,
                        maxIter=50, x_tol=1e-4, g_tol=1e-6)
     unpackplane!(coef(sol), peaks, i, :value)
-    return unpackplane!(stderror(sol), peaks, i, :uncertainty)
+    return unpackplane!(stderrors(sol), peaks, i, :uncertainty)
 end
 
 # Pack/unpack just plane `i`'s parameters (in OrderedDict order: x, y, R2x, R2y, amp).
@@ -978,7 +978,7 @@ function postfitglobal!(expt::MovingExperiment, model::TitrationModel)
         sol = LsqFit.lmfit(resid, [log(Kd0)], Float64[]; autodiff=:finite, maxIter=200)
         logKd = coef(sol)[1]
         Kd = exp(logKd)
-        Kderr = Kd * stderror(sol)[1]   # delta method: σ(Kd) = Kd·σ(logKd)
+        Kderr = Kd * stderrors(sol)[1]   # delta method: σ(Kd) = Kd·σ(logKd)
     catch e
         e isa FitCancelled && rethrow()
         @debug "Titration global fit failed" exception = e
