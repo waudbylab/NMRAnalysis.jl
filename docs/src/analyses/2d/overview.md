@@ -180,6 +180,10 @@ by plane, the whole trajectory is restored, as are any radii you set for individ
 The whole list is fitted once, after it has loaded. See
 [Peak Lists and Output Files](peaklistformats.md).
 
+`summary.txt` ends with a `Reproduce:` block: the call that produced the analysis, with
+every parameter as it was resolved and `peaklist=` pointing at the saved peak list. Paste it
+into Julia to reopen the window with the same peaks and radii, and the fit repeats.
+
 You can also load a list as the window opens, by passing it to any 2D routine:
 
 ```julia

@@ -28,7 +28,9 @@ function cest2d(inputfilename; B1=nothing, Tsat=nothing, offsets=nothing,
                 skipplanes=nothing, peaklist=nothing, prompt::Bool=isinteractive())
     expt = CESTExperiment(asexptpath(inputfilename); B1, Tsat, offsets, skipplanes,
                           prompt)
-    return gui!(expt; peaklist)
+    call = analysiscall("cest2d", inputfilename; B1=expt.B1, Tsat=expt.Tsat,
+                        offsets=expt.frequencies, skipplanes=nonempty(expt.skipplanes))
+    return gui!(expt; peaklist, call)
 end
 
 """

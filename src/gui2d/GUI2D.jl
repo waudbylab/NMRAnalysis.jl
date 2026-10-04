@@ -21,6 +21,8 @@ using ..NMRAnalysis: csvcolumn, csvcolumns, csvvalue, safename, sanitizelabel, b
 # parameter resolution: argument, then annotation/acqus, then ask - see src/prompts.jl
 using ..NMRAnalysis: annotation, acqusvalue, ask, askvector
 using ..NMRAnalysis: B1Calibration
+# the call that produced an analysis, for summary.txt - see src/calls.jl
+using ..NMRAnalysis: AnalysisCall, analysiscall, callstring
 
 include("util.jl")
 include("types.jl")

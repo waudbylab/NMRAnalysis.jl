@@ -43,7 +43,9 @@ function hetnoe2d(planefilenames, saturationlist::AbstractVector{Bool}; skipplan
                   peaklist=nothing)
     skip = checkskipplanes(skipplanes, length(saturationlist))
     expt = HetNOEExperiment(asexptpath(planefilenames), saturationlist; skipplanes=skip)
-    return gui!(expt; peaklist)
+    call = analysiscall("hetnoe2d", planefilenames, saturationlist;
+                        skipplanes=nonempty(skip))
+    return gui!(expt; peaklist, call)
 end
 
 # Bool <: Integer, so plane numbers with a saturation list need a method of their own

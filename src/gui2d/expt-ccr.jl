@@ -40,7 +40,8 @@ function ccr2d(decay_expts::AbstractVector, buildup_expts::AbstractVector, T=not
     skip = checkskipplanes(skipplanes, 2 * length(decay_expts))
     expt = CCRExperiment(asexptpath(decay_expts), asexptpath(buildup_expts), T;
                          skipplanes=skip)
-    return gui!(expt; peaklist)
+    call = analysiscall("ccr2d", decay_expts, buildup_expts, T; skipplanes=nonempty(skip))
+    return gui!(expt; peaklist, call)
 end
 
 function ccr2d(decay_expt::String, buildup_expt::String, T=nothing; kwargs...)

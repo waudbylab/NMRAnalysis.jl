@@ -89,7 +89,8 @@ function fit2d(inputfilenames; skipplanes=nothing, peaklist=nothing)
     skip = checkskipplanes(skipplanes, length(specdata.z))
     expt = IntensityExperiment(specdata, Observable(Vector{Peak}()), NoFitting();
                                skipplanes=skip)
-    return gui!(expt; peaklist)
+    call = analysiscall("fit2d", inputfilenames; skipplanes=nonempty(skip))
+    return gui!(expt; peaklist, call)
 end
 
 """
@@ -155,7 +156,9 @@ function relaxation2d(inputfilenames; relaxationtimes=nothing, ncyc=nothing,
     model = ExponentialModel()
     expt = IntensityExperiment(specdata, Observable(Vector{Peak}()), model, tau,
                                ModelFitVisualisation(); skipplanes=skip)
-    return gui!(expt; peaklist)
+    call = analysiscall("relaxation2d", inputfilenames; relaxationtimes=tau,
+                        skipplanes=nonempty(skip))
+    return gui!(expt; peaklist, call)
 end
 
 function relaxation2d(inputfilenames, relaxationtimes; kwargs...)
@@ -198,7 +201,9 @@ function recovery2d(inputfilenames; relaxationtimes=nothing, ncyc=nothing,
     skip = checkskipplanes(skipplanes, length(tau))
     expt = IntensityExperiment(specdata, Observable(Vector{Peak}()), RecoveryModel(), tau,
                                ModelFitVisualisation(); skipplanes=skip)
-    return gui!(expt; peaklist)
+    call = analysiscall("recovery2d", inputfilenames; relaxationtimes=tau,
+                        skipplanes=nonempty(skip))
+    return gui!(expt; peaklist, call)
 end
 
 function recovery2d(inputfilenames, relaxationtimes; kwargs...)
@@ -240,7 +245,9 @@ function modelfit2d(inputfilenames, xvalues, modelfunction::String,
     model = CustomModel(modelfunction, parameters, xlabel)
     expt = IntensityExperiment(specdata, Observable(Vector{Peak}()), model, xval,
                                ModelFitVisualisation(); skipplanes=skip)
-    return gui!(expt; peaklist)
+    call = analysiscall("modelfit2d", inputfilenames, xval, modelfunction, parameters,
+                        xlabel; skipplanes=nonempty(skip))
+    return gui!(expt; peaklist, call)
 end
 
 # load the NMR data and prepare the SpecData object

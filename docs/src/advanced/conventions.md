@@ -242,6 +242,19 @@ Reproduce:
                  integration=(peakppm=8.21, noiseppm=-1.00, ppmwidth=0.60))
 
 tau from vdlist; model from annotation relaxation.model; region selected interactively.
+
+A 2D analysis records its call the same way, with the parameters as resolved, and adds the
+`peaklist.csv` saved beside it, which restores the peaks and their radii when the window
+opens, so the fit repeats:
+
+```
+Reproduce:
+    relaxation2d("11/pdata/1";
+                 relaxationtimes=[0.01, 0.03, 0.06, 0.1, 0.2, 0.4],
+                 peaklist="out/peaklist.csv")
+```
+
+`AnalysisCall`, `analysiscall` and `callstring` live in `src/calls.jl`, shared by both.
 ```
 
 ## Entry points
@@ -280,8 +293,6 @@ from the helpers in `src/prompts.jl`, and returns the analysis when its window c
 
 Still outstanding:
 
-- GUI2D has no `Reproduce:` block, and no equivalent of `AnalysisCall` to record what each
-  routine was given.
 - Analysis1D has no `global.csv` because no 1D analysis currently fits anything across
   regions. `postfitglobal!` exists and will need somewhere to put its results when one does.
 - The `Reproduce:` line records the resolved arguments but not *where* each came from (an

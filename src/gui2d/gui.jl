@@ -1,11 +1,12 @@
 """
-    gui!(expt; peaklist=nothing) -> expt
+    gui!(expt; peaklist=nothing, call=nothing) -> expt
 
 Open the analysis window for `expt`, loading the peaks in the file `peaklist` if one is
 given, and wait until it is closed, returning `expt` with its fitted peaks (see
-[`results`](@ref) and [`planeresults`](@ref)).
+[`results`](@ref) and [`planeresults`](@ref)). `call` is the [`AnalysisCall`](@ref) the
+entry point recorded, written to `summary.txt` so the analysis can be repeated.
 """
-function gui!(expt::Experiment; peaklist=nothing)
+function gui!(expt::Experiment; peaklist=nothing, call=nothing)
     GLMakie.activate!(; title="NMRAnalysis.jl (v$(string(pkgversion(GUI2D))))",
                       focus_on_show=true)
     # No gridlines anywhere (interactive or exported plots use the same Makie theme); axes
@@ -15,6 +16,7 @@ function gui!(expt::Experiment; peaklist=nothing)
                            xminorgridvisible=false, yminorgridvisible=false)))
 
     state = expt.state[]
+    state[:call] = Observable{Union{AnalysisCall,Nothing}}(call)
 
     g = Dict{Symbol,Any}() # GUI state
     state[:gui] = g

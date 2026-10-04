@@ -183,6 +183,9 @@ function checkskipplanes(skipplanes, n)
     return skip
 end
 
+"`v`, or `nothing` where it is empty, so that an unused option is left out of a call record."
+nonempty(v) = isempty(v) ? nothing : v
+
 """
     checklength(values, n, name) -> values
 

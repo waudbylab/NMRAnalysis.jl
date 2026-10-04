@@ -126,8 +126,10 @@ function methylccr2d(buildupexpt, decayexpt, T=nothing; C=3 / 4, skipplanes=noth
     # only ever uses its own `times`. A skipped delay skips its plane in both series.
     expt = IntensityExperiment(specdata, peaks, model, [tau; tau],
                                ModelFitVisualisation(); skipplanes=[skip; skip .+ N])
+    call = analysiscall("methylccr2d", buildupexpt, decayexpt, tau; C,
+                        skipplanes=nonempty(skip))
 
-    return gui!(expt; peaklist)
+    return gui!(expt; peaklist, call)
 end
 
 # Load one buildup/decay series (pseudo-3D path or vector of 2D paths) into flat

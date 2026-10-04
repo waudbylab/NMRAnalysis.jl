@@ -156,7 +156,8 @@ function peaktrack2d(inputfilenames; skipplanes=nothing, peaklist=nothing)
     skip = checkskipplanes(skipplanes, length(specdata.z))
     expt = MovingExperiment(specdata, Observable(Vector{Peak}()), NoFitting(), nothing;
                             skipplanes=skip)
-    return gui!(expt; peaklist)
+    call = analysiscall("peaktrack2d", inputfilenames; skipplanes=nonempty(skip))
+    return gui!(expt; peaklist, call)
 end
 
 """Add peak to experiment, setting up per-plane position, linewidth and amplitude parameters."""
@@ -551,7 +552,8 @@ function rdc2d(; isotropic, aligned, components=("a", "b"), coupling=nothing, sc
 
     peaks = Observable(Vector{Peak}())
     expt = MovingExperiment(specdata, peaks, model, nothing, CrossSectionVisualisation())
-    return gui!(expt; peaklist)
+    call = analysiscall("rdc2d"; isotropic, aligned, components, coupling, scale)
+    return gui!(expt; peaklist, call)
 end
 
 # Coupling dimension: :F1/:F2 (or :x/:y); default is the non-¹H (heteronuclear) dimension.
@@ -811,7 +813,9 @@ function titration2d(inputfilenames; L0=nothing, P0=nothing, weights=(1.0, 0.14)
     peaks = Observable(Vector{Peak}())
     expt = MovingExperiment(specdata, peaks, model, ligand, TitrationVisualisation();
                             skipplanes=skip)
-    return gui!(expt; peaklist)
+    call = analysiscall("titration2d", inputfilenames; L0=ligand, P0=protein, weights,
+                        skipplanes=nonempty(skip))
+    return gui!(expt; peaklist, call)
 end
 
 # Fraction of protein bound for total protein `Pt` (or `nothing`) and total ligand `L`. With a

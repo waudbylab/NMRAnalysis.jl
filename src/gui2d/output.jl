@@ -372,7 +372,7 @@ function writesummary(filepath, expt)
         if !any(haskey(p.postparameters, primary) for p in peaks)
             println(f, "Nothing is derived per peak. The fitted amplitudes, positions and")
             println(f, "linewidths of each peak in each plane are in series.csv.")
-            return nothing
+            return writereproduce(f, expt, dirname(filepath))
         end
         unit = paramunit(expt, primary)
         println(f, "$(primary)$(isempty(unit) ? "" : " / $unit") by peak:")
@@ -385,9 +385,31 @@ function writesummary(filepath, expt)
             suffix = isnothing(err) ? "" : " +/- $(round(err; sigdigits=2))"
             println(f, "  $(rpad(peak.label[], 12)) $rounded$suffix")
         end
-        return nothing
+        return writereproduce(f, expt, dirname(filepath))
     end
     return filepath
+end
+
+"""
+    writereproduce(io, expt, folder)
+
+The `Reproduce:` block of `summary.txt`: the call that produced the analysis, its parameters
+as resolved, with the `peaklist.csv` saved in `folder` to load. Pasted back into Julia it
+reopens the window with the same peaks and radii, and the fit repeats. Nothing is written
+where the call was not recorded.
+"""
+function writereproduce(io, expt, folder)
+    call = haskey(expt.state[], :call) ? expt.state[][:call][] : nothing
+    isnothing(call) && return nothing
+    peaklist = relpath(joinpath(folder, "peaklist.csv"))
+    text = callstring(call, [:peaklist => repr(peaklist)])
+    isnothing(text) && return nothing
+    println(io)
+    println(io, "Reproduce:")
+    for line in split(text, '\n')
+        println(io, "    ", line)
+    end
+    return nothing
 end
 
 # ---- returned to the caller ---------------------------------------------------
