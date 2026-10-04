@@ -50,7 +50,8 @@ function cpmg2d(inputfilename; Trelax=nothing, vCPMG=nothing, ncyc=nothing,
                        askvector("CPMG cycle numbers", n; prompt) ./ Trelax)
     expt = CPMGExperiment(inputfilename, Trelax, vCPMG;
                           skipplanes=checkskipplanes(skipplanes, n))
-    call = analysiscall("cpmg2d", given; Trelax, vCPMG, skipplanes=nonempty(expt.skipplanes))
+    call = analysiscall("cpmg2d", given; Trelax, vCPMG,
+                        skipplanes=nonempty(expt.skipplanes))
     return gui!(expt; peaklist, call)
 end
 
