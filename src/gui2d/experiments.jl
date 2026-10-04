@@ -317,22 +317,34 @@ function continuefit!(expt::Experiment; budget=CONTINUE_TIME_BUDGET)
 end
 
 """
-    convergefit!(expt)
+    convergefit!(expt; maxrounds=100)
 
 Continue the stopped fits without a time limit, round after round, until none is left
-stopped short, or a round leaves the same peaks unfinished as the one before. Cancelling
-with Esc leaves them unchanged, and so ends it.
+stopped short. It also ends when a round no longer moves any position or linewidth, after
+`maxrounds` rounds, or when the fit is cancelled with Esc or superseded by a change to the
+peaks.
 """
-function convergefit!(expt::Experiment)
+function convergefit!(expt::Experiment; maxrounds=100)
+    state = expt.state[]
+    planes(p) = eachindex(p.parameters[:x].value[])
+    shapes(peaks) = [shapeparams(p, i) for p in peaks for i in planes(p)]
     return @async begin
-        previous = Peak[]
-        while true
+        for round in 1:maxrounds
             unfinished = filter(iscontinuable, expt.peaks[])
-            isempty(unfinished) && break
-            length(unfinished) == length(previous) && all(unfinished .=== previous) && break
-            previous = unfinished
+            isempty(unfinished) && return @info "All fits have converged"
+            @info "Continuing $(length(unfinished)) unfinished fit(s), round $round " *
+                  "(Esc to stop)"
+            before = shapes(unfinished)
             task = continuefit!(expt; budget=Inf)
-            isnothing(task) || wait(task)
+            isnothing(task) && return nothing
+            generation = state[:fit_generation][]
+            wait(task)
+            # cancelled, or superseded by another change
+            state[:fit_generation][] == generation || return nothing
+            any(iscontinuable, unfinished) || continue
+            isapprox(reduce(vcat, collect.(shapes(unfinished))),
+                     reduce(vcat, collect.(before)); rtol=1e-9) &&
+                return @info "Fits have stopped improving"
         end
     end
 end

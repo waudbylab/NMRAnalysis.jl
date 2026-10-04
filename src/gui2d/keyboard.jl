@@ -1,7 +1,7 @@
 function process_keyboardbutton(expt, state, event)
     @debug "keyboard event: $event"
     g = state[:gui][]
-    g[:toutput].focused[] && return Consume(false)
+    istyping(g) && return Consume(false)
     if state[:mode][] == :normal && event.action in (Keyboard.press, Keyboard.repeat) &&
        event.key in (Keyboard.up, Keyboard.down, Keyboard.left, Keyboard.right) &&
        ispressed(g[:fig], Keyboard.left_shift | Keyboard.right_shift)
@@ -138,7 +138,7 @@ end
 
 function process_unicode_input(expt, state, character)
     @debug "Processing unicode input: $character"
-    state[:gui][][:toutput].focused[] && return Consume(false)
+    istyping(state[:gui][]) && return Consume(false)
     if state[:mode][] == :renamingstart
         state[:mode][] = :renaming
         if character == 'r'
@@ -156,3 +156,6 @@ function process_unicode_input(expt, state, character)
     end
     return Consume(false)
 end
+
+"Whether one of the window's text boxes has the keyboard, so keys are text, not commands."
+istyping(g) = g[:toutput].focused[] || g[:tpeaklist].focused[]

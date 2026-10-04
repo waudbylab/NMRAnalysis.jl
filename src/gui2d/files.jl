@@ -4,8 +4,23 @@
 #   - on read, only the label, x and y columns are used
 # Hand-made lists may instead be a bare, header-less `label x y` per line.
 
-function loadpeaks!(expt)
-    file = pick_file(; filterlist="csv;list;peaks;txt;bak")
+"""
+    choosepeaklist(typed) -> String
+
+The peak list to load: `typed` if it names a file, else one chosen in a file dialog, or
+`""` for none. Not on Linux, where the GTK file dialog can abort Julia when the system's
+GTK settings schema lacks a key the bundled GTK expects (`show-type-column`).
+"""
+function choosepeaklist(typed::AbstractString)
+    isfile(typed) && return String(typed)
+    if Sys.islinux()
+        @warn "No peak list at \"$typed\": type its path in the box beside Load peak list"
+        return ""
+    end
+    return pick_file(; filterlist="csv;list;peaks;txt;bak")
+end
+
+function loadpeaks!(expt, file::AbstractString)
     file == "" && return
 
     @info "Loading peak file $file"

@@ -193,7 +193,16 @@ end
 
 physical(f::ShapeFit, θ) = f.origin .+ f.scale .* θ
 
-function ShapeFit(peaks, i)
+"""
+    maxR2(axis, δ, radius) -> Float64
+
+The broadest linewidth the fitting window can determine: a Lorentzian whose full width at
+half height, R2/π, spans twice the window (four radii). Anything broader is barely curved
+across the window, so widening the radius is what allows a broader line.
+"""
+maxR2(axis, δ, radius) = 4π * abs(hz(δ + radius, axis) - hz(δ, axis))
+
+function ShapeFit(peaks, i, grid::PlaneGrid)
     origin = Float64[]
     scale = Float64[]
     lower = Float64[]
@@ -206,8 +215,9 @@ function ShapeFit(peaks, i)
                 (-1.0, -1.0, peak.parameters[:R2x].minvalue[],
                  peak.parameters[:R2y].minvalue[]))
         append!(upper,
-                (1.0, 1.0, peak.parameters[:R2x].maxvalue[],
-                 peak.parameters[:R2y].maxvalue[]))
+                (1.0, 1.0,
+                 max(peak.parameters[:R2x].maxvalue[], maxR2(grid.xaxis, x0, peak.xradius[])),
+                 max(peak.parameters[:R2y].maxvalue[], maxR2(grid.yaxis, y0, peak.yradius[]))))
     end
     return ShapeFit(origin, scale, lower, upper)
 end
@@ -222,7 +232,7 @@ positions and the initial linewidths, a warm one from the last fitted values. `c
 called at every step and throws to stop the fit; nothing is written to the peaks here.
 """
 function fitshapes(peaks, groups, i, check; warm=false)
-    f = ShapeFit(peaks, i)
+    f = ShapeFit(peaks, i, first(groups).grid)
     radii = [(p.xradius[], p.yradius[]) for p in peaks]
     φ0 = reduce(vcat, [collect(shapeparams(p, i, warm ? :value : :initial)) for p in peaks])
     θ0 = clamp.((φ0 .- f.origin) ./ f.scale, f.lower, f.upper)

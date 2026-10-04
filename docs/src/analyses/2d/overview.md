@@ -54,7 +54,7 @@ in the contour plot to work with it.
 | Show or hide the fitted lineshape overlay | **Fitting** toggle |
 | Show or hide other spectra (moving-peak experiments, e.g. titrations, RDCs) | `S` or **(S)how all** toggle |
 | Open a summary plot of the current results | **Summary plot** button (enabled once peaks are present) |
-| Load a previously saved peak list | **Load peak list** button |
+| Load a previously saved peak list | Type its path, then **Load peak list** |
 | Save all results to a folder | **Save to folder** button |
 | Close the GUI window | `Q` or **(Q)uit** button |
 
@@ -102,7 +102,14 @@ A fit that doesn't reach a converged optimum is flagged, and its peaks turn oran
 The info panel says which applies to the selected peak, and the label beside the
 **Fitting** toggle counts the unfinished peaks. Press `C` to continue the stopped fits from
 where they got to, with five minutes each, or `Shift` + `C` to keep continuing them, with no
-time limit, until they converge or stop improving. `Esc` cancels either. A position at its limit usually means the peak
+time limit, round after round, until they converge or a round no longer moves them. The
+REPL reports each round. `Esc` cancels either.
+
+Positions are bounded to within the peak's radius of where you placed it. Linewidths are
+bounded between 1 s⁻¹ and the broadest line the fitting window can determine, one whose full
+width at half height spans twice the window (four radii), or 100 s⁻¹ if that is larger. For
+a 0.04 ppm ¹H radius at 600 MHz that is about 300 s⁻¹. To fit broader peaks, widen their
+radius. A position at its limit usually means the peak
 needs moving or its radius widening. The status of each peak is saved in the `fitstatus`
 column of `results.csv` and `series.csv`, and `summary.txt` lists any unfinished peaks.
 
@@ -156,7 +163,10 @@ since the last one does not leave its plot behind. See
 
 ## Loading and Resuming Analysis
 
-The **Load peak list** button restores peak positions and labels from a saved
+Type the path of the peak list in the box beside **Load peak list**; it starts as
+`out/peaklist.csv`, which is where **Save** writes it. If the path names no file, a file
+dialog opens, except on Linux, where the GTK file dialog can crash Julia. The **Load peak
+list** button restores peak positions and labels from a saved
 `peaklist.csv`, a Sparky peak list, or a simple `label x y` text file, so you can resume
 work later or seed a new analysis from existing positions. Where peaks were tracked plane
 by plane, the whole trajectory is restored, as are any radii you set for individual peaks.
