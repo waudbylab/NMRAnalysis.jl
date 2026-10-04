@@ -392,21 +392,36 @@ end
 Fit each cluster (a vector of peaks), in parallel when Julia has more than one thread, and
 return how each ended, `:cancelled` included. Progress is published to
 `state[:fitprogress]`.
+
+Call this from the main thread. The worker threads only compute and write into the peaks'
+parameter arrays; every observable, and so every plot, is updated from the calling task,
+since GLMakie cannot update a plot from another thread.
 """
 function fitclusters!(expt, clusters, generation, budget; warm=false)
     progress = expt.state[][:fitprogress]
+    n = length(clusters)
     done = Threads.Atomic{Int}(0)
-    progresslock = ReentrantLock()
     function run(peaks)
         status = try
             fitcluster!(peaks, expt, fitcheck(expt, generation, budget); warm)
         catch e
             e isa FitTimeout ? :timeout : e isa FitCancelled ? :cancelled : rethrow()
         end
-        n = Threads.atomic_add!(done, 1) + 1
-        lock(() -> progress[] = (n, length(clusters)), progresslock)
+        Threads.atomic_add!(done, 1)
         return status
     end
-    Threads.nthreads() == 1 && return map(run, clusters)
-    return fetch.([Threads.@spawn run(peaks) for peaks in clusters])
+    if Threads.nthreads() == 1
+        return map(clusters) do peaks
+            status = run(peaks)
+            progress[] = (done[], n)
+            return status
+        end
+    end
+    tasks = [Threads.@spawn run(peaks) for peaks in clusters]
+    while !all(istaskdone, tasks)
+        progress[] = (done[], n)
+        sleep(0.05)
+    end
+    progress[] = (done[], n)
+    return fetch.(tasks)
 end

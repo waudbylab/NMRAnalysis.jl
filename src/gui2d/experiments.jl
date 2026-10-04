@@ -272,8 +272,6 @@ function fit!(expt::Experiment; warm=false)
     budget = warm ? CONTINUE_TIME_BUDGET : FIT_TIME_BUDGET
     clusters = [peaks[cluster] for cluster in todo]
 
-    # Off the GUI's critical path: a background thread when there is one, or else a task
-    # that yields from inside the fit so the window can still register a cancellation.
     runfit = function ()
         current() = state[:fit_generation][] == mygen
         try
@@ -299,8 +297,9 @@ function fit!(expt::Experiment; warm=false)
         return nothing
     end
 
-    task = Threads.nthreads() > 1 ? Threads.@spawn(runfit()) : @async(runfit())
-    return state[:fit_task][] = task
+    # A task on the main thread, since it updates observables and so plots; the clusters
+    # themselves are fitted on worker threads where there are any (see fitclusters!)
+    return state[:fit_task][] = @async runfit()
 end
 
 """
