@@ -93,6 +93,14 @@ peaks only the positions and linewidths are optimised, however many planes there
 With more than one Julia thread (start Julia with `julia -t auto`), clusters are fitted in
 parallel. The label beside the **Fitting** toggle shows progress through the clusters.
 
+In a series of fixed peaks, each amplitude's uncertainty is the noise in its own plane,
+with the positions and linewidths held at their fitted values. An error in those shared
+shapes would scale every amplitude by the same factor, which cancels in a relaxation rate,
+a heteronuclear NOE, a CCR ratio or a CEST profile, so it isn't added to each plane. It
+does affect an absolute amplitude, or a fitted prefactor such as `A`, which can therefore
+be slightly underestimated where a linewidth is poorly determined; a `bound` status on
+the peak shows when that is likely.
+
 A fit that doesn't reach a converged optimum is flagged, and its peaks turn orange:
 
 - a fit that runs past 30 seconds is stopped, leaving the previous values in place;

@@ -272,10 +272,15 @@ Standard errors of the shapes and of every plane's amplitudes, from the covarian
 full problem, σ²(JᵀJ)⁻¹ with σ² estimated from the residuals. The amplitude blocks of JᵀJ
 are small and independent, so the shape covariance is the inverse of their Schur
 complement, S = Σᵢ Dᵢᵀ(I − A(AᵀA)⁻¹Aᵀ)Dᵢ over the active planes, where Dᵢ is the derivative
-of A·aᵢ with respect to the shapes. Each amplitude's covariance is then
-σ²[(AᵀA)⁻¹ + (AᵀA)⁻¹AᵀDᵢS⁻¹DᵢᵀA(AᵀA)⁻¹], its own noise plus that carried from the shapes,
-which also holds for a skipped plane. `amps` and `σamps` map each plane to one value per
-peak. Errors are `NaN` where the data do not determine them.
+of A·aᵢ with respect to the shapes.
+
+An amplitude's error is its own noise, σ²(AᵀA)⁻¹, plus that carried from the shapes,
+σ²(AᵀA)⁻¹AᵀDᵢS⁻¹DᵢᵀA(AᵀA)⁻¹. Where several planes share the shapes, the second is left out:
+since Dᵢ ∝ aᵢ it is an error in scale common to every plane, proportional to each amplitude,
+which cancels in a ratio or a rate fitted across the series, and which a fit treating the
+amplitudes as independent would otherwise count once per plane. Where a plane has shapes of
+its own (a moving peak, or a single spectrum) both are kept. `amps` and `σamps` map each
+plane to one value per peak. Errors are `NaN` where the data do not determine them.
 """
 function uncertainties(groups, f::ShapeFit, θ, radii)
     nθ = length(θ)
@@ -315,12 +320,13 @@ function uncertainties(groups, f::ShapeFit, θ, radii)
     Sinv = covinverse(S)
     σθ = sqrt.(max.(mse .* diag(Sinv), 0.0))
 
+    shared = sum(g -> length(g.planes), groups) > 1
     amps = Dict{Int,Vector{Float64}}()
     σamps = Dict{Int,Vector{Float64}}()
     for (g, (A, a, Ginv, Ds)) in zip(groups, cached)
         for (k, i) in enumerate(g.planes)
             B = Ginv * (A' * Ds[k])
-            C = Ginv .+ B * Sinv * B'
+            C = shared ? Ginv : Ginv .+ B * Sinv * B'
             amps[i] = a[:, k]
             σamps[i] = sqrt.(max.(mse .* diag(C), 0.0))
         end
