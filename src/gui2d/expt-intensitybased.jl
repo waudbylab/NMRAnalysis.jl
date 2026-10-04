@@ -45,6 +45,8 @@ struct IntensityExperiment <: FixedPeakExperiment
 end
 
 visualisationtype(expt::IntensityExperiment) = expt.visualisation
+initialslice(expt::IntensityExperiment) = initialslice(expt, expt.model)
+initialslice(expt::IntensityExperiment, ::FittingModel) = 1
 
 # Primary derived parameter: amplitude when no model is fitted, the relaxation
 # rate :R for exponential/recovery fits, otherwise the first model parameter.

@@ -159,6 +159,7 @@ function gui!(expt::Experiment)
 
     @debug "Adding handlers"
     addhanders!(g, state, expt)
+    set_close_to!(g[:sliderslice], initialslice(expt))
 
     display(g[:fig])
     while isopen(g[:fig].scene)

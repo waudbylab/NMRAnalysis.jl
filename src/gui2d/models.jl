@@ -40,6 +40,10 @@ function ExponentialModel()
                             "Time / s")
 end
 
+# A recovery experiment opens on its longest delay, where the peaks have recovered; at the
+# shortest they are saturated or nulled and there is nothing to pick
+initialslice(expt::IntensityExperiment, ::RecoveryModel) = argmax(expt.x)
+
 function RecoveryModel()
     return RecoveryModel((x, p) -> (@. p[1] * (1 - p[2] * exp(-p[3] * x))),
                          ["A", "C", "R"],

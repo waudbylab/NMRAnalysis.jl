@@ -35,7 +35,9 @@ function preparestate(expt::Experiment)
         # axis against a new-size matrix ("Incompatible input axes").
         state[:current_mask_x][] = expt.specdata.x[idx]
         state[:current_mask_y][] = expt.specdata.y[idx]
-        return state[:current_mask_z][] = m[idx]
+        # a copy, since the masks are updated in place and the plot is not redrawn when
+        # handed the same array again
+        return state[:current_mask_z][] = copy(m[idx])
     end
 
     state[:current_spec_x] = Observable(expt.specdata.x[1])
@@ -53,7 +55,7 @@ function preparestate(expt::Experiment)
     onany(expt.specdata.zfit, state[:current_slice]) do zfit, idx
         state[:current_fit_x][] = expt.specdata.x[idx]
         state[:current_fit_y][] = expt.specdata.y[idx]
-        return state[:current_fit_z][] = zfit[idx]
+        return state[:current_fit_z][] = copy(zfit[idx])
     end
 
     state[:current_peak_idx] = Observable(0)
@@ -177,6 +179,13 @@ function statusnote(expt, idx)
     return iscontinuable(expt.peaks[][idx]) ? note * "\nPress (C) to continue fitting." :
            note
 end
+
+"""
+    initialslice(expt) -> Int
+
+The plane the window opens on: the first, unless the experiment says otherwise.
+"""
+initialslice(::Experiment) = 1
 
 "Generic label for spectum slices"
 slicelabel(expt::Experiment, idx) = "Slice $idx of $(nslices(expt))"
