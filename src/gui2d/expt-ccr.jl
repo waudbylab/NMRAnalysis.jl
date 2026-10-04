@@ -35,12 +35,12 @@ measurement with a plane skipped is reduced to the ratio of the mean intensities
 blocks until it is closed, and the analysis is returned (see [`results`](@ref)).
 """
 function ccr2d(decay_expts::AbstractVector, buildup_expts::AbstractVector, T=nothing;
-               skipplanes=nothing, prompt::Bool=isinteractive())
+               skipplanes=nothing, peaklist=nothing, prompt::Bool=isinteractive())
     T = @something(T, ask("relaxation time T"; unit="s", prompt))
     skip = checkskipplanes(skipplanes, 2 * length(decay_expts))
     expt = CCRExperiment(asexptpath(decay_expts), asexptpath(buildup_expts), T;
                          skipplanes=skip)
-    return gui!(expt)
+    return gui!(expt; peaklist)
 end
 
 function ccr2d(decay_expt::String, buildup_expt::String, T=nothing; kwargs...)

@@ -28,7 +28,8 @@ results when the window closes.
 
 Each opens a window to place and fit peaks, and returns the analysis when the window
 closes: `results(expt)` gives one row per peak and `planeresults(expt)` one per peak per
-plane. All take `skipplanes` to leave planes out of the fitting.
+plane. All take `skipplanes` to leave planes out of the fitting, and `peaklist` to load a
+saved peak list as the window opens.
 
 - `fit2d(files)`: positions, linewidths and amplitudes, with no model
 - `relaxation2d(files)`: R₁ or R₂ from an exponential decay

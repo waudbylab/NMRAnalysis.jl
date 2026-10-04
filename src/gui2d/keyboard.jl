@@ -158,4 +158,4 @@ function process_unicode_input(expt, state, character)
 end
 
 "Whether one of the window's text boxes has the keyboard, so keys are text, not commands."
-istyping(g) = g[:toutput].focused[] || g[:tpeaklist].focused[]
+istyping(g) = g[:toutput].focused[]

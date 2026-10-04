@@ -34,7 +34,7 @@ cpmg2d("path/to/expno"; Trelax=0.04)
 ```
 """
 function cpmg2d(inputfilename; Trelax=nothing, vCPMG=nothing, ncyc=nothing,
-                skipplanes=nothing, prompt::Bool=isinteractive())
+                skipplanes=nothing, peaklist=nothing, prompt::Bool=isinteractive())
     isnothing(vCPMG) || isnothing(ncyc) ||
         throw(ArgumentError("Cannot specify both vCPMG and ncyc"))
     inputfilename = asexptpath(inputfilename)
@@ -49,7 +49,7 @@ function cpmg2d(inputfilename; Trelax=nothing, vCPMG=nothing, ncyc=nothing,
                        askvector("CPMG cycle numbers", n; prompt) ./ Trelax)
     expt = CPMGExperiment(inputfilename, Trelax, vCPMG;
                           skipplanes=checkskipplanes(skipplanes, n))
-    return gui!(expt)
+    return gui!(expt; peaklist)
 end
 
 """

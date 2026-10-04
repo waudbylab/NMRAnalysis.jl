@@ -5,16 +5,20 @@
 # Hand-made lists may instead be a bare, header-less `label x y` per line.
 
 """
-    choosepeaklist(typed) -> String
+    choosepeaklist() -> String
 
-The peak list to load: `typed` if it names a file, else one chosen in a file dialog, or
-`""` for none. Not on Linux, where the GTK file dialog can abort Julia when the system's
-GTK settings schema lacks a key the bundled GTK expects (`show-type-column`).
+A peak list chosen in a file dialog, or `""` for none. On Linux the dialog is not opened:
+the GTK it uses can abort Julia when the system's GTK settings schema lacks a key it expects
+(`show-type-column`), so a warning says how to load a list instead.
 """
-function choosepeaklist(typed::AbstractString)
-    isfile(typed) && return String(typed)
+function choosepeaklist()
     if Sys.islinux()
-        @warn "No peak list at \"$typed\": type its path in the box beside Load peak list"
+        @warn """The file dialog is unavailable on Linux, where it can crash Julia. Pass the \
+                 peak list when you start the analysis instead, e.g.
+                     relaxation2d("11/pdata/1"; peaklist="out/peaklist.csv")
+                 The crash comes from GTK settings schemas older than the GTK that Julia \
+                 bundles; updating the system's GTK 3 package (libgtk-3-common on \
+                 Debian/Ubuntu, gtk3 on Fedora) may fix the dialog."""
         return ""
     end
     return pick_file(; filterlist="csv;list;peaks;txt;bak")
@@ -22,6 +26,7 @@ end
 
 function loadpeaks!(expt, file::AbstractString)
     file == "" && return
+    isfile(file) || throw(ArgumentError("no peak list at $file"))
 
     @info "Loading peak file $file"
     return batchupdate(expt) do

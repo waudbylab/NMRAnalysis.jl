@@ -84,12 +84,12 @@ fit2d("109/pdata/1")
 fit2d(["11/pdata/1", "12/pdata/1", "13/pdata/1"])
 ```
 """
-function fit2d(inputfilenames; skipplanes=nothing)
+function fit2d(inputfilenames; skipplanes=nothing, peaklist=nothing)
     specdata = preparespecdata(asexptpath(inputfilenames), IntensityExperiment)
     skip = checkskipplanes(skipplanes, length(specdata.z))
     expt = IntensityExperiment(specdata, Observable(Vector{Peak}()), NoFitting();
                                skipplanes=skip)
-    return gui!(expt)
+    return gui!(expt; peaklist)
 end
 
 """
@@ -127,6 +127,8 @@ available you are asked for them, as you are for a `cycletime` that is needed an
   and displayed; skipped planes appear as open grey markers in the peak plot and are not
   used when fitting R or A. The full list of relaxation times must still be provided,
   including those for skipped planes.
+- `peaklist`: A peak list to load as the window opens, such as a saved `peaklist.csv`.
+  Every 2D routine takes this.
 - `prompt`: Whether to ask for anything that cannot be found (default: when interactive).
 
 # Example
@@ -145,14 +147,15 @@ relaxation2d("11/pdata/1"; skipplanes=[3])
 ```
 """
 function relaxation2d(inputfilenames; relaxationtimes=nothing, ncyc=nothing,
-                      cycletime=nothing, skipplanes=nothing, prompt::Bool=isinteractive())
+                      cycletime=nothing, skipplanes=nothing, peaklist=nothing,
+                      prompt::Bool=isinteractive())
     specdata = preparespecdata(asexptpath(inputfilenames), IntensityExperiment)
     tau = relaxationdelays(specdata; relaxationtimes, ncyc, cycletime, prompt)
     skip = checkskipplanes(skipplanes, length(tau))
     model = ExponentialModel()
     expt = IntensityExperiment(specdata, Observable(Vector{Peak}()), model, tau,
                                ModelFitVisualisation(); skipplanes=skip)
-    return gui!(expt)
+    return gui!(expt; peaklist)
 end
 
 function relaxation2d(inputfilenames, relaxationtimes; kwargs...)
@@ -188,13 +191,14 @@ recovery2d("33/pdata/1"; relaxationtimes="vdlist.txt")
 ```
 """
 function recovery2d(inputfilenames; relaxationtimes=nothing, ncyc=nothing,
-                    cycletime=nothing, skipplanes=nothing, prompt::Bool=isinteractive())
+                    cycletime=nothing, skipplanes=nothing, peaklist=nothing,
+                    prompt::Bool=isinteractive())
     specdata = preparespecdata(asexptpath(inputfilenames), IntensityExperiment)
     tau = relaxationdelays(specdata; relaxationtimes, ncyc, cycletime, prompt)
     skip = checkskipplanes(skipplanes, length(tau))
     expt = IntensityExperiment(specdata, Observable(Vector{Peak}()), RecoveryModel(), tau,
                                ModelFitVisualisation(); skipplanes=skip)
-    return gui!(expt)
+    return gui!(expt; peaklist)
 end
 
 function recovery2d(inputfilenames, relaxationtimes; kwargs...)
@@ -227,7 +231,7 @@ modelfit2d(["112","113","114","115"],
 """
 function modelfit2d(inputfilenames, xvalues, modelfunction::String,
                     parameters::Vector{Pair{String,Float64}}, xlabel="x";
-                    skipplanes=nothing, prompt::Bool=isinteractive())
+                    skipplanes=nothing, peaklist=nothing, prompt::Bool=isinteractive())
     specdata = preparespecdata(asexptpath(inputfilenames), IntensityExperiment)
     n = length(specdata.z)
     xval = isnothing(xvalues) ? askvector("x values", n; prompt) : readvalues(xvalues)
@@ -236,7 +240,7 @@ function modelfit2d(inputfilenames, xvalues, modelfunction::String,
     model = CustomModel(modelfunction, parameters, xlabel)
     expt = IntensityExperiment(specdata, Observable(Vector{Peak}()), model, xval,
                                ModelFitVisualisation(); skipplanes=skip)
-    return gui!(expt)
+    return gui!(expt; peaklist)
 end
 
 # load the NMR data and prepare the SpecData object

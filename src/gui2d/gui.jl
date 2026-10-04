@@ -1,10 +1,11 @@
 """
-    gui!(expt) -> expt
+    gui!(expt; peaklist=nothing) -> expt
 
-Open the analysis window for `expt` and wait until it is closed, returning `expt` with its
-fitted peaks (see [`results`](@ref) and [`planeresults`](@ref)).
+Open the analysis window for `expt`, loading the peaks in the file `peaklist` if one is
+given, and wait until it is closed, returning `expt` with its fitted peaks (see
+[`results`](@ref) and [`planeresults`](@ref)).
 """
-function gui!(expt::Experiment)
+function gui!(expt::Experiment; peaklist=nothing)
     GLMakie.activate!(; title="NMRAnalysis.jl (v$(string(pkgversion(GUI2D))))",
                       focus_on_show=true)
     # No gridlines anywhere (interactive or exported plots use the same Makie theme); axes
@@ -122,16 +123,7 @@ function gui!(expt::Experiment)
     # peak info
     Label(g[:panelinfo][1, 1:2], "Working directory:\n$(pwd())"; word_wrap=true,
           tellwidth=false, halign=:left)
-    # The peak list is typed, as the output folder is, with a file dialog where the path
-    # names no file (see choosepeaklist)
-    loadrow = g[:panelinfo][2, 1] = GridLayout()
-    g[:tpeaklist] = Textbox(g[:fig]; width=150,
-                            stored_string=joinpath(expt.state[][:outputdir][],
-                                                   "peaklist.csv"))
-    loadrow[1, 1] = g[:tpeaklist]
-    commitondefocus!(g[:tpeaklist])
-    g[:cmdload] = Button(g[:fig]; label="Load peak list")
-    loadrow[1, 2] = g[:cmdload]
+    g[:cmdload] = Button(g[:panelinfo][2, 1]; label="Load peak list")
     # Output folder typed rather than chosen from a native dialog: the dialog cannot create
     # a folder on every platform, and a typed name is what makes a save repeatable.
     outputrow = g[:panelinfo][2, 2] = GridLayout()
@@ -169,6 +161,7 @@ function gui!(expt::Experiment)
     @debug "Adding handlers"
     addhanders!(g, state, expt)
     set_close_to!(g[:sliderslice], initialslice(expt))
+    isnothing(peaklist) || loadpeaks!(expt, peaklist)
 
     display(g[:fig])
     while isopen(g[:fig].scene)
@@ -279,7 +272,7 @@ function addhanders!(g, state, expt::Experiment)
 
     # load peak list
     on(g[:cmdload].clicks) do _
-        return loadpeaks!(expt, choosepeaklist(strip(g[:tpeaklist].stored_string[])))
+        return loadpeaks!(expt, choosepeaklist())
     end
 
     # save peak list

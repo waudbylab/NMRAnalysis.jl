@@ -25,10 +25,10 @@ cest2d("path/to/expno/pdata/1"; B1=15, Tsat=0.3)
 ```
 """
 function cest2d(inputfilename; B1=nothing, Tsat=nothing, offsets=nothing,
-                skipplanes=nothing, prompt::Bool=isinteractive())
+                skipplanes=nothing, peaklist=nothing, prompt::Bool=isinteractive())
     expt = CESTExperiment(asexptpath(inputfilename); B1, Tsat, offsets, skipplanes,
                           prompt)
-    return gui!(expt)
+    return gui!(expt; peaklist)
 end
 
 """

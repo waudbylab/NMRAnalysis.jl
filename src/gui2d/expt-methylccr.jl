@@ -104,7 +104,7 @@ methylccr2d("11/pdata/1", "12/pdata/1", "vdlist.txt"; C=1/2)
 ```
 """
 function methylccr2d(buildupexpt, decayexpt, T=nothing; C=3 / 4, skipplanes=nothing,
-                     prompt::Bool=isinteractive())
+                     peaklist=nothing, prompt::Bool=isinteractive())
     buildupexpt = asexptpath(buildupexpt)
     decayexpt = asexptpath(decayexpt)
 
@@ -127,7 +127,7 @@ function methylccr2d(buildupexpt, decayexpt, T=nothing; C=3 / 4, skipplanes=noth
     expt = IntensityExperiment(specdata, peaks, model, [tau; tau],
                                ModelFitVisualisation(); skipplanes=[skip; skip .+ N])
 
-    return gui!(expt)
+    return gui!(expt; peaklist)
 end
 
 # Load one buildup/decay series (pseudo-3D path or vector of 2D paths) into flat

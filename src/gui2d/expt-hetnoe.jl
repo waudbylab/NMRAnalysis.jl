@@ -39,10 +39,11 @@ function hetnoe2d(reference::AbstractVector{String}, saturated::AbstractVector{S
     return hetnoe2d(planefilenames, saturationlist; kwargs...)
 end
 
-function hetnoe2d(planefilenames, saturationlist::AbstractVector{Bool}; skipplanes=nothing)
+function hetnoe2d(planefilenames, saturationlist::AbstractVector{Bool}; skipplanes=nothing,
+                  peaklist=nothing)
     skip = checkskipplanes(skipplanes, length(saturationlist))
     expt = HetNOEExperiment(asexptpath(planefilenames), saturationlist; skipplanes=skip)
-    return gui!(expt)
+    return gui!(expt; peaklist)
 end
 
 # Bool <: Integer, so plane numbers with a saturation list need a method of their own

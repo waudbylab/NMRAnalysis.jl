@@ -151,12 +151,12 @@ peaktrack2d(1:11)
 
 See also [`titration2d`](@ref) for fitting binding isotherms to a titration series.
 """
-function peaktrack2d(inputfilenames; skipplanes=nothing)
+function peaktrack2d(inputfilenames; skipplanes=nothing, peaklist=nothing)
     specdata = preparespecdata(asexptpath(inputfilenames), MovingExperiment)
     skip = checkskipplanes(skipplanes, length(specdata.z))
     expt = MovingExperiment(specdata, Observable(Vector{Peak}()), NoFitting(), nothing;
                             skipplanes=skip)
-    return gui!(expt)
+    return gui!(expt; peaklist)
 end
 
 """Add peak to experiment, setting up per-plane position, linewidth and amplitude parameters."""
@@ -532,7 +532,8 @@ heteronuclear dimension, and the sign is flipped automatically for ¹⁵N (so J 
 the two components in the same order for both conditions; if J comes out with the wrong sign,
 swap the pair. Each component can also be given as a Bruker experiment number.
 """
-function rdc2d(; isotropic, aligned, components=("a", "b"), coupling=nothing, scale=1.0)
+function rdc2d(; isotropic, aligned, components=("a", "b"), coupling=nothing, scale=1.0,
+               peaklist=nothing)
     length(isotropic) == 2 ||
         error("`isotropic` must be two component spectra, e.g. [A, B]")
     length(aligned) == 2 || error("`aligned` must be two component spectra, e.g. [A, B]")
@@ -550,7 +551,7 @@ function rdc2d(; isotropic, aligned, components=("a", "b"), coupling=nothing, sc
 
     peaks = Observable(Vector{Peak}())
     expt = MovingExperiment(specdata, peaks, model, nothing, CrossSectionVisualisation())
-    return gui!(expt)
+    return gui!(expt; peaklist)
 end
 
 # Coupling dimension: :F1/:F2 (or :x/:y); default is the non-¹H (heteronuclear) dimension.
@@ -786,7 +787,7 @@ titration2d(1:11)                                     # Bruker experiment number
 ```
 """
 function titration2d(inputfilenames; L0=nothing, P0=nothing, weights=(1.0, 0.14),
-                     skipplanes=nothing, prompt::Bool=isinteractive())
+                     skipplanes=nothing, peaklist=nothing, prompt::Bool=isinteractive())
     specdata = preparespecdata(asexptpath(inputfilenames), MovingExperiment)
 
     if isnothing(L0)
@@ -810,7 +811,7 @@ function titration2d(inputfilenames; L0=nothing, P0=nothing, weights=(1.0, 0.14)
     peaks = Observable(Vector{Peak}())
     expt = MovingExperiment(specdata, peaks, model, ligand, TitrationVisualisation();
                             skipplanes=skip)
-    return gui!(expt)
+    return gui!(expt; peaklist)
 end
 
 # Fraction of protein bound for total protein `Pt` (or `nothing`) and total ligand `L`. With a
