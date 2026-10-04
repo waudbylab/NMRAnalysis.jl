@@ -28,14 +28,17 @@ function preparestate(expt::Experiment)
 
     state[:current_mask_x] = Observable(expt.specdata.x[1])
     state[:current_mask_y] = Observable(expt.specdata.y[1])
-    state[:current_mask_z] = Observable(expt.specdata.mask[][1])
+    # The displayed mask and fit are copies, never the live planes. A plot input given a new
+    # array is compared with the last by value (ComputePipeline's is_same), so an input that
+    # aliased a live plane, updated in place, would always compare equal and never redraw.
+    state[:current_mask_z] = Observable(copy(expt.specdata.mask[][1]))
     onany(expt.specdata.mask, state[:current_slice]) do m, idx
         # Notify x/y as well as z: planes may have different axis sizes (e.g. rdc2d's separate
         # spectra), so the contour/heatmap must resolve all three together or it sees a stale
         # axis against a new-size matrix ("Incompatible input axes").
         state[:current_mask_x][] = expt.specdata.x[idx]
         state[:current_mask_y][] = expt.specdata.y[idx]
-        return state[:current_mask_z][] = m[idx]
+        return state[:current_mask_z][] = copy(m[idx])
     end
 
     state[:current_spec_x] = Observable(expt.specdata.x[1])
@@ -49,11 +52,11 @@ function preparestate(expt::Experiment)
 
     state[:current_fit_x] = Observable(expt.specdata.x[1])
     state[:current_fit_y] = Observable(expt.specdata.y[1])
-    state[:current_fit_z] = Observable(expt.specdata.zfit[][1])
+    state[:current_fit_z] = Observable(copy(expt.specdata.zfit[][1]))
     onany(expt.specdata.zfit, state[:current_slice]) do zfit, idx
         state[:current_fit_x][] = expt.specdata.x[idx]
         state[:current_fit_y][] = expt.specdata.y[idx]
-        return state[:current_fit_z][] = zfit[idx]
+        return state[:current_fit_z][] = copy(zfit[idx])
     end
 
     state[:current_peak_idx] = Observable(0)
@@ -174,7 +177,8 @@ function statusnote(expt, idx)
     (idx > 0 && isunfinished(expt.peaks[][idx])) || return ""
     status = fitstatus(expt.peaks[][idx])
     note = "\n\nFit unfinished: $(STATUS_NOTES[status])."
-    return iscontinuable(expt.peaks[][idx]) ? note * "\nPress (C) to continue fitting." :
+    return iscontinuable(expt.peaks[][idx]) ?
+           note * "\nPress (C) to continue fitting, or Shift+C until it converges." :
            note
 end
 

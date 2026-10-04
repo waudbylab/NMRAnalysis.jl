@@ -59,7 +59,9 @@ function process_keyboardbutton(expt, state, event)
                 set_close_to!(state[:gui][][:sliderslice], i)
             end
         elseif ispressed(g[:fig], Keyboard.c)
-            continuefit!(expt)
+            # Shift+C fits until convergence, C for one more stretch
+            ispressed(g[:fig], Keyboard.left_shift | Keyboard.right_shift) ?
+            convergefit!(expt) : continuefit!(expt)
         elseif ispressed(g[:fig], Keyboard.equal)
             idx = state[:current_peak_idx][]
             idx > 0 && resetradius!(expt, idx)

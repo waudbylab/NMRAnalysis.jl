@@ -262,14 +262,14 @@ this one: it stops at its next step and commits nothing. A cluster that runs pas
 budget keeps its previous values and is marked `:timeout`; `warm=true` continues such
 clusters from their last values with a longer budget (see [`continuefit!`](@ref)).
 """
-function fit!(expt::Experiment; warm=false)
+function fit!(expt::Experiment; warm=false,
+              budget=warm ? CONTINUE_TIME_BUDGET : FIT_TIME_BUDGET)
     state = expt.state[]
     peaks = copy(expt.peaks[])
     todo = [cluster for (cluster, t) in zip(expt.clusters[], expt.touched[]) if t]
     isempty(todo) && return nothing
 
     mygen = (state[:fit_generation][] += 1)
-    budget = warm ? CONTINUE_TIME_BUDGET : FIT_TIME_BUDGET
     clusters = [peaks[cluster] for cluster in todo]
 
     runfit = function ()
@@ -303,17 +303,38 @@ function fit!(expt::Experiment; warm=false)
 end
 
 """
-    continuefit!(expt)
+    continuefit!(expt; budget=CONTINUE_TIME_BUDGET)
 
 Refit the peaks whose last fit was stopped before it finished (see
-[`iscontinuable`](@ref)), starting from where it stopped and with a longer time budget.
+[`iscontinuable`](@ref)), starting from where it stopped, with `budget` seconds per cluster.
 """
-function continuefit!(expt::Experiment)
+function continuefit!(expt::Experiment; budget=CONTINUE_TIME_BUDGET)
     unfinished = filter(iscontinuable, expt.peaks[])
     isempty(unfinished) && return nothing
     foreach(peak -> peak.touched.val = true, unfinished)
     expt.touched.val = map(c -> any(j -> expt.peaks[][j].touched[], c), expt.clusters[])
-    return fit!(expt; warm=true)
+    return fit!(expt; warm=true, budget)
+end
+
+"""
+    convergefit!(expt)
+
+Continue the stopped fits without a time limit, round after round, until none is left
+stopped short, or a round leaves the same peaks unfinished as the one before. Cancelling
+with Esc leaves them unchanged, and so ends it.
+"""
+function convergefit!(expt::Experiment)
+    return @async begin
+        previous = Peak[]
+        while true
+            unfinished = filter(iscontinuable, expt.peaks[])
+            isempty(unfinished) && break
+            length(unfinished) == length(previous) && all(unfinished .=== previous) && break
+            previous = unfinished
+            task = continuefit!(expt; budget=Inf)
+            isnothing(task) || wait(task)
+        end
+    end
 end
 
 # Additional fitting of a peak following the spectrum fit - by default, none.

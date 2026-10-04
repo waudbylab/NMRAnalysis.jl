@@ -42,6 +42,7 @@ in the contour plot to work with it.
 | Widen or narrow the selected peak's fitting radii | `Shift` + `←` / `→` (x), `Shift` + `↑` / `↓` (y) |
 | Return the selected peak to the default radii | `=` |
 | Continue fits that stopped at the time or iteration limit | `C` |
+| Continue them, without a time limit, until they converge | `Shift` + `C` |
 | Cancel the fit in progress | `Esc` |
 | Delete the selected peak | `D` or **Delete peak** button |
 | Rename the selected peak | `R` or **Rename peak** button |
@@ -100,7 +101,8 @@ A fit that doesn't reach a converged optimum is flagged, and its peaks turn oran
 
 The info panel says which applies to the selected peak, and the label beside the
 **Fitting** toggle counts the unfinished peaks. Press `C` to continue the stopped fits from
-where they got to, with five minutes each. A position at its limit usually means the peak
+where they got to, with five minutes each, or `Shift` + `C` to keep continuing them, with no
+time limit, until they converge or stop improving. `Esc` cancels either. A position at its limit usually means the peak
 needs moving or its radius widening. The status of each peak is saved in the `fitstatus`
 column of `results.csv` and `series.csv`, and `summary.txt` lists any unfinished peaks.
 
