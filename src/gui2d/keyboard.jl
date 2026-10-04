@@ -83,8 +83,11 @@ function process_keyboardbutton(expt, state, event)
         end
         return Consume(false)
     elseif state[:mode][] == :line
-        # the line follows the cursor while L is held, and is finished on its release
-        if event.action == Keyboard.release && event.key == Keyboard.l
+        # The line follows the cursor from where L was pressed. Releasing L finishes it if
+        # it was dragged out; if not, the line stays and a second press of L finishes it.
+        if event.key == Keyboard.l &&
+           (event.action == Keyboard.press ||
+            event.action == Keyboard.release && isdragged(expt, state))
             finishline!(expt, state, mouseposition(g[:axcontour]))
             return Consume()
         elseif event.action == Keyboard.press && event.key == Keyboard.escape

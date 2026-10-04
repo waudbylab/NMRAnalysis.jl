@@ -36,10 +36,11 @@ plane does not disturb the others.
 - **(T) — add and track.** Drops a peak and follows the intensity maximum across the planes
   automatically (anchored at the current plane, propagated outwards). Best for well-resolved
   peaks; not available for RDC experiments.
-- **(L) — add along a line.** Hold `l` with the cursor at one end of the path a peak follows
-  across the planes, move to the other end, and release. The peak is placed in each plane at
-  the most intense point along that line, and the fit then refines it within the radius.
-  `esc` cancels the line before you release.
+- **(L) — add along a line.** Press `l` with the cursor at one end of the path a peak follows
+  across the planes. The line then follows the cursor: either keep `l` held, drag to the
+  other end and release, or release it straight away, move to the other end and press `l`
+  again. The peak is placed in each plane at the most intense point along that line, and the
+  fit then refines it within the radius. `esc` cancels the line.
   Suited to fast-exchange titrations; not available for RDC experiments.
 - **Drag** a peak's handle to correct its position in the current plane. The handle enlarges
   when hovered. Dragging re-estimates that plane's amplitude.

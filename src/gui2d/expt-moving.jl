@@ -404,9 +404,10 @@ function addandtrackpeak!(expt::MovingPeakExperiment, initialposition, label="")
 end
 
 # --- line add (L) ------------------------------------------------------------
-# For a titration whose peaks walk along straight lines: holding (L) drags out a line from
-# the cursor, and releasing it adds a peak placed, in every plane, at the most intense point
-# along that line. The line is held in state[:line].
+# For a titration whose peaks walk along straight lines: (L) starts a line at the cursor,
+# which then follows it. Releasing (L) after dragging, or pressing it again otherwise, adds a
+# peak placed, in every plane, at the most intense point along that line. The line is held
+# in state[:line].
 
 """Begin marking a line at `pos`."""
 function beginline!(expt::MovingPeakExperiment, state, pos)
@@ -418,6 +419,12 @@ end
 function dragline!(state, pos)
     line = state[:line][]
     return state[:line][] = [line[1], Point2f(pos)]
+end
+
+"""Whether the line has been dragged out further than half a fitting radius."""
+function isdragged(expt::MovingPeakExperiment, state)
+    a, b = state[:line][]
+    return abs(b[1] - a[1]) > expt.xradius[] / 2 || abs(b[2] - a[2]) > expt.yradius[] / 2
 end
 
 """Finish the line at `pos` and add a peak along it."""
@@ -956,8 +963,9 @@ end
 function addpeakhint(expt::MovingPeakExperiment)
     s = "Press (A) to add a peak, marking its position in each plane"
     cantrack(expt) &&
-        (s *= ", (T) to add and auto-track across planes, or hold (L) to drag a line " *
-              "and place it at the maximum along the line")
+        (s *= ", (T) to add and auto-track across planes, or (L) to mark a line, by " *
+              "dragging with L held or pressing L at each end, and place it at the " *
+              "maximum along the line")
     return s
 end
 
