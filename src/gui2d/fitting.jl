@@ -216,8 +216,10 @@ function ShapeFit(peaks, i, grid::PlaneGrid)
                  peak.parameters[:R2y].minvalue[]))
         append!(upper,
                 (1.0, 1.0,
-                 max(peak.parameters[:R2x].maxvalue[], maxR2(grid.xaxis, x0, peak.xradius[])),
-                 max(peak.parameters[:R2y].maxvalue[], maxR2(grid.yaxis, y0, peak.yradius[]))))
+                 max(peak.parameters[:R2x].maxvalue[],
+                     maxR2(grid.xaxis, x0, peak.xradius[])),
+                 max(peak.parameters[:R2y].maxvalue[],
+                     maxR2(grid.yaxis, y0, peak.yradius[]))))
     end
     return ShapeFit(origin, scale, lower, upper)
 end

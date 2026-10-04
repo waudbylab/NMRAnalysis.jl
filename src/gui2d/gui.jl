@@ -126,7 +126,8 @@ function gui!(expt::Experiment)
     # names no file (see choosepeaklist)
     loadrow = g[:panelinfo][2, 1] = GridLayout()
     g[:tpeaklist] = Textbox(g[:fig]; width=150,
-                            stored_string=joinpath(expt.state[][:outputdir][], "peaklist.csv"))
+                            stored_string=joinpath(expt.state[][:outputdir][],
+                                                   "peaklist.csv"))
     loadrow[1, 1] = g[:tpeaklist]
     commitondefocus!(g[:tpeaklist])
     g[:cmdload] = Button(g[:fig]; label="Load peak list")
