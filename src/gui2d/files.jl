@@ -406,10 +406,10 @@ function save_cluster_plots!(expt, folder)
                  colormap=[:white, :lightgoldenrod1], colorrange=(0, 1))
         contour!(ax, expt.specdata.x[1], expt.specdata.y[1],
                  expt.specdata.z[1];
-                 levels=contourlevels, color=bicolours(:grey50, :lightblue))
+                 levels=contourlevels, signcolours(:grey50, :lightblue)...)
         contour!(ax, expt.specdata.x[1], expt.specdata.y[1],
                  expt.specdata.zfit[][1];
-                 levels=contourlevels, color=bicolours(:orangered, :dodgerblue))
+                 levels=contourlevels, signcolours(:orangered, :dodgerblue)...)
         for peak in cluster
             pt = Point2f(peak.parameters[:x].value[][1],
                          peak.parameters[:y].value[][1])

@@ -69,13 +69,13 @@ function gui!(expt::Experiment)
                               state[:current_spec_y],
                               state[:current_spec_z];
                               levels=g[:contourlevels],
-                              color=bicolours(:grey50, :lightblue))
+                              signcolours(:grey50, :lightblue)...)
     g[:pltfit] = contour!(g[:axcontour],
                           state[:current_fit_x],
                           state[:current_fit_y],
                           state[:current_fit_z];
                           levels=g[:contourlevels],
-                          color=bicolours(:orangered, :dodgerblue))
+                          signcolours(:orangered, :dodgerblue)...)
 
     # # create 3D plot
     # g[:ax3d] = Axis3(g[:panel3d][1,1], xlabel="δX / ppm", ylabel="δy / ppm", zlabel="Intensity",
@@ -356,4 +356,6 @@ function quit!()
     end
 end
 
-bicolours(c1, c2) = [fill(c1, 11); fill(c2, 11)]
+# Colour contours by sign of level. Makie drops levels outside the data range,
+# so a per-level colour vector no longer matches the number of levels.
+signcolours(pos, neg) = (colormap=[neg, pos], colorrange=(-1.0f-12, 1.0f-12), lowclip=neg, highclip=pos)
