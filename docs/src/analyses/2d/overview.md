@@ -93,8 +93,10 @@ peaks only the positions and linewidths are optimised, however many planes there
 With more than one Julia thread (start Julia with `julia -t auto`), clusters are fitted in
 parallel. The label beside the **Fitting** toggle shows progress through the clusters.
 
-In a series of fixed peaks, each amplitude's uncertainty is the noise in its own plane,
-with the positions and linewidths held at their fitted values. An error in those shared
+In a series of fixed peaks, each amplitude's uncertainty is that of the linear
+least-squares fit of the amplitudes, with the positions and linewidths held at their fitted
+values. It depends on the peak's shape, on its overlap with neighbouring peaks and on the
+residual of the fit, not on the spectrum's noise level alone. An error in those shared
 shapes would scale every amplitude by the same factor, which cancels in a relaxation rate,
 a heteronuclear NOE, a CCR ratio or a CEST profile, so it isn't added to each plane. It
 does affect an absolute amplitude, or a fitted prefactor such as `A`, which can therefore

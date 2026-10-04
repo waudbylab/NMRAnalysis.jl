@@ -274,8 +274,9 @@ are small and independent, so the shape covariance is the inverse of their Schur
 complement, S = Σᵢ Dᵢᵀ(I − A(AᵀA)⁻¹Aᵀ)Dᵢ over the active planes, where Dᵢ is the derivative
 of A·aᵢ with respect to the shapes.
 
-An amplitude's error is its own noise, σ²(AᵀA)⁻¹, plus that carried from the shapes,
-σ²(AᵀA)⁻¹AᵀDᵢS⁻¹DᵢᵀA(AᵀA)⁻¹. Where several planes share the shapes, the second is left out:
+An amplitude's error has two parts: that of the linear least-squares step at the fitted
+shapes, σ²(AᵀA)⁻¹, which reflects the peak's shape, its overlap with its neighbours and the
+residual σ²; and that carried from the shapes, σ²(AᵀA)⁻¹AᵀDᵢS⁻¹DᵢᵀA(AᵀA)⁻¹. Where several planes share the shapes, the second is left out:
 since Dᵢ ∝ aᵢ it is an error in scale common to every plane, proportional to each amplitude,
 which cancels in a ratio or a rate fitted across the series, and which a fit treating the
 amplitudes as independent would otherwise count once per plane. Where a plane has shapes of
