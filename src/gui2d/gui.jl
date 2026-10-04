@@ -384,4 +384,6 @@ end
 
 # Colour contours by sign of level. Makie drops levels outside the data range,
 # so a per-level colour vector no longer matches the number of levels.
-signcolours(pos, neg) = (colormap=[neg, pos], colorrange=(-1.0f-12, 1.0f-12), lowclip=neg, highclip=pos)
+function signcolours(pos, neg)
+    return (colormap=[neg, pos], colorrange=(-1.0f-12, 1.0f-12), lowclip=neg, highclip=pos)
+end

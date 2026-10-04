@@ -153,10 +153,12 @@ function peakcolour(peak::Peak)
 end
 
 const STATUS_NOTES = Dict(:maxiter => "it stopped at the iteration limit",
-                          :timeout => "it stopped at the time limit, so the values shown " *
-                                      "are from before it",
-                          :bound => "a position or linewidth is at its limit. Move the " *
-                                    "peak, or widen its radius with Shift+arrows")
+                          :timeout =>
+                              "it stopped at the time limit, so the values shown " *
+                              "are from before it",
+                          :bound =>
+                              "a position or linewidth is at its limit. Move the " *
+                              "peak, or widen its radius with Shift+arrows")
 
 "The radii of peak `idx` for the info panel, where it has radii of its own."
 function radiusnote(expt, idx)

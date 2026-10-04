@@ -392,6 +392,7 @@ function Base.show(io::IO, mime::MIME"text/plain", expt::Experiment)
     println(io, "  $(length(expt.clusters[])) clusters")
     unfinished = count(isunfinished, expt.peaks[])
     unfinished > 0 && println(io, "  $unfinished unfinished fits")
-    return print(io, "Use results(expt) for one row per peak, planeresults(expt) for one " *
-                     "per plane")
+    return print(io,
+                 "Use results(expt) for one row per peak, planeresults(expt) for one " *
+                 "per plane")
 end

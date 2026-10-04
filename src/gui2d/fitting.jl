@@ -202,10 +202,12 @@ function ShapeFit(peaks, i)
         x0, y0, _, _ = shapeparams(peak, i, :initial)
         append!(origin, (x0, y0, 0.0, 0.0))
         append!(scale, (peak.xradius[], peak.yradius[], 1.0, 1.0))
-        append!(lower, (-1.0, -1.0, peak.parameters[:R2x].minvalue[],
-                        peak.parameters[:R2y].minvalue[]))
-        append!(upper, (1.0, 1.0, peak.parameters[:R2x].maxvalue[],
-                        peak.parameters[:R2y].maxvalue[]))
+        append!(lower,
+                (-1.0, -1.0, peak.parameters[:R2x].minvalue[],
+                 peak.parameters[:R2y].minvalue[]))
+        append!(upper,
+                (1.0, 1.0, peak.parameters[:R2x].maxvalue[],
+                 peak.parameters[:R2y].maxvalue[]))
     end
     return ShapeFit(origin, scale, lower, upper)
 end
@@ -245,7 +247,7 @@ function fitshapes(peaks, groups, i, check; warm=false)
     σθ, amps, σamps = uncertainties(groups, f, θ, radii)
 
     atbound = any(j -> θ[j] ≤ f.lower[j] + 1e-6 * abs(f.lower[j]) + 1e-9 ||
-                           θ[j] ≥ f.upper[j] - 1e-6 * abs(f.upper[j]) - 1e-9,
+                       θ[j] ≥ f.upper[j] - 1e-6 * abs(f.upper[j]) - 1e-9,
                   eachindex(θ))
     status = !sol.converged ? :maxiter : atbound ? :bound : :converged
     return (; φ, σφ=f.scale .* σθ, amps, σamps, status)

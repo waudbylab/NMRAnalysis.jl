@@ -106,7 +106,6 @@ function postfit!(peak::Peak, expt::IntensityExperiment, model::ParametricModel)
     return peak.postfitted[] = true
 end
 
-
 _empty_errorbars() = Tuple{Float64,Float64,Float64}[]
 
 # Default - just return amplitudes, separating active and skipped points
