@@ -159,6 +159,12 @@ then the only thing telling two rows apart.
 residuals are a subtraction. It is `NA` where nothing was fitted. A smooth curve for a
 figure is recoverable from the parameters.
 
+2D adds `fitstatus`, how the lineshape fit of that peak ended: `converged`, `maxiter`
+(stopped at the iteration limit), `bound` (a position or linewidth ended at its limit),
+`timeout` (stopped at the time limit, the previous values kept) or `unfitted`. It is a key,
+repeated down a peak's rows, and so that a file is never silently unfinished it is written
+in `results.csv` too.
+
 ## `results.csv`
 
 One row per entity, wide, because this is the table you sort by residue number and plot
@@ -175,7 +181,8 @@ That is what lets a quantity combining conditions, like TRACT's τc, sit beside 
 it came from with nothing left blank. The experiment's headline parameter
 (`primaryparam`) comes first.
 
-2D adds `resnum`, `resname` and `atom`, derived from the label. The region or peak
+2D adds `resnum`, `resname` and `atom`, derived from the label, and `fitstatus` (see
+`series.csv` above). The region or peak
 *positions* are not here: where an entity sits is something the user chose, and it lives in
 `regionlist.csv` or `peaklist.csv`.
 
@@ -235,6 +242,19 @@ Reproduce:
                  integration=(peakppm=8.21, noiseppm=-1.00, ppmwidth=0.60))
 
 tau from vdlist; model from annotation relaxation.model; region selected interactively.
+
+A 2D analysis records its call the same way, with the parameters as resolved, and adds the
+`peaklist.csv` saved beside it, which restores the peaks and their radii when the window
+opens, so the fit repeats:
+
+```
+Reproduce:
+    relaxation2d("11/pdata/1";
+                 relaxationtimes=[0.01, 0.03, 0.06, 0.1, 0.2, 0.4],
+                 peaklist="out/peaklist.csv")
+```
+
+`AnalysisCall`, `analysiscall` and `callstring` live in `src/calls.jl`, shared by both.
 ```
 
 ## Entry points
@@ -267,10 +287,12 @@ what the experiment was.
 | Exchange1D | yes | yes | yes | yes | yes |
 | R1rho | old format | no | no | no | no |
 
+Every 2D routine now resolves its parameters through the same chain as the 1D routines,
+from the helpers in `src/prompts.jl`, and returns the analysis when its window closes
+(`results(expt)` and `planeresults(expt)` give the two tables as value ± error).
+
 Still outstanding:
 
-- GUI2D has no `Reproduce:` block, and no equivalent of `AnalysisCall` to record what each
-  routine was given.
 - Analysis1D has no `global.csv` because no 1D analysis currently fits anything across
   regions. `postfitglobal!` exists and will need somewhere to put its results when one does.
 - The `Reproduce:` line records the resolved arguments but not *where* each came from (an

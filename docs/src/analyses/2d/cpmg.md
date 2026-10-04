@@ -30,7 +30,14 @@ cpmg2d("11"; Trelax=0.04, vCPMG=[0, 25, 50, 75, 100, 200, 500])
 # Alternatively, specify the number of CPMG cycles per plane (vCPMG = ncyc / Trelax)
 ncyc = [0, 1, 2, 3, 4, 8, 20]
 cpmg2d("11"; Trelax=0.04, ncyc=ncyc)
+
+# Or read the cycle numbers from the vclist
+cpmg2d("11"; Trelax=0.04)
 ```
+
+If neither `vCPMG` nor `ncyc` is given, the cycle numbers are read from the `vclist`, and
+if `Trelax` or the cycle numbers can't be found you are asked for them. `skipplanes` leaves
+planes out of the fit, as long as at least one reference plane remains.
 
 !!! note
     When using `ncyc`, `vCPMG` is calculated automatically as `ncyc / Trelax`. The

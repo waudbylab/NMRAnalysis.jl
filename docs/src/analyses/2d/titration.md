@@ -49,7 +49,7 @@ how the roles are inferred, and what happens when they can't be.
   relative to the working directory.
 - `L0`: total **ligand** concentration in each plane (one value per plane). If omitted, it is
   read from each plane's NMR sample metadata (see [Concentrations from sample metadata](#Concentrations-from-sample-metadata)
-  below); an error is raised if that metadata isn't available either.
+  below), and if that metadata isn't available either you are asked for it.
 - `P0`: total **protein** concentration in each plane (one value per plane), or omitted. When
   supplied (explicitly, or found in sample metadata), the exact 1:1 binding equation is used,
   which accounts for the protein concentration and any dilution during the titration.
@@ -119,6 +119,9 @@ Peaks are added and positioned exactly as in [peak tracking](peaktracking.md):
 
 - **(T) — add and track** drops a peak and follows the intensity maximum across the planes
   automatically. Best for well-resolved titrations.
+- **(L) — add along a line** places the peak in every plane at the most intense point along a
+  line you mark: hold **L** at one end of the peak's path, drag to the other and release, or
+  press **L** at each end. Suited to fast-exchange titrations, where each peak moves along a straight line.
 - **(A) — add** walks through the planes so you mark the peak in each one by hand, for crowded
   regions.
 - **Drag** a peak's handle to correct its position in the current plane; **(D)** deletes and

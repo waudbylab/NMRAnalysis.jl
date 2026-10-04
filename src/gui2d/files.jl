@@ -4,24 +4,45 @@
 #   - on read, only the label, x and y columns are used
 # Hand-made lists may instead be a bare, header-less `label x y` per line.
 
-function loadpeaks!(expt)
-    file = pick_file(; filterlist="csv;list;peaks;txt;bak")
+"""
+    choosepeaklist() -> String
+
+A peak list chosen in a file dialog, or `""` for none. On Linux the dialog is not opened:
+the GTK it uses can abort Julia when the system's GTK settings schema lacks a key it expects
+(`show-type-column`), so a warning says how to load a list instead.
+"""
+function choosepeaklist()
+    if Sys.islinux()
+        @warn """The file dialog is unavailable on Linux, where it can crash Julia. Pass the \
+                 peak list when you start the analysis instead, e.g.
+                     relaxation2d("11/pdata/1"; peaklist="out/peaklist.csv")
+                 The crash comes from GTK settings schemas older than the GTK that Julia \
+                 bundles; updating the system's GTK 3 package (libgtk-3-common on \
+                 Debian/Ubuntu, gtk3 on Fedora) may fix the dialog."""
+        return ""
+    end
+    return pick_file(; filterlist="csv;list;peaks;txt;bak")
+end
+
+function loadpeaks!(expt, file::AbstractString)
     file == "" && return
+    isfile(file) || throw(ArgumentError("no peak list at $file"))
 
     @info "Loading peak file $file"
-    isfitting = expt.isfitting[]
-    if isfitting
-        expt.isfitting[] = false
+    return batchupdate(expt) do
+        deleteallpeaks!(expt)
+        return readpeaklist!(expt, file)
     end
-    deleteallpeaks!(expt)
-    readpeaklist!(expt, file)
-    return expt.isfitting[] = isfitting
 end
 
 function saveresults!(expt)
     folder = joinpath(pwd(), expt.state[][:outputdir][])
 
     @info "Saving results to $folder"
+    unfinished = count(isunfinished, expt.peaks[])
+    unfinished > 0 &&
+        @warn "$unfinished peak fit(s) unfinished: see the fitstatus column, or press C " *
+              "to continue fitting before saving"
     @async begin
         expt.state[][:mode][] = :saving
         sleep(0.1) # allow time for mode change to be processed
@@ -91,19 +112,22 @@ end
     parse_radius_comment!(expt, line)
 
 If `line` records an X/Y fitting radius (as written by [`writeresults!`](@ref), e.g.
-`# X radius / ppm: 0.04`), apply it to the experiment. Generic to all 2D experiments.
+`# X radius / ppm: 0.04`), apply it to the experiment, and return what it recorded as
+`(x, y)`, each `nothing` where absent. Generic to all 2D experiments.
 """
 function parse_radius_comment!(expt, line)
     mx = match(r"x\s*radius[^0-9]*([0-9]*\.?[0-9]+)"i, line)
-    isnothing(mx) || setradius!(expt, :x, parse(Float64, mx.captures[1]))
+    x = isnothing(mx) ? nothing : parse(Float64, mx.captures[1])
+    isnothing(x) || setdefaultradius!(expt, :x, x)
     my = match(r"y\s*radius[^0-9]*([0-9]*\.?[0-9]+)"i, line)
-    isnothing(my) || setradius!(expt, :y, parse(Float64, my.captures[1]))
-    return
+    y = isnothing(my) ? nothing : parse(Float64, my.captures[1])
+    isnothing(y) || setdefaultradius!(expt, :y, y)
+    return (; x, y)
 end
 
 # Set a fitting radius. When the GUI is up, drive the slider (which keeps the display in sync
 # via connect!); otherwise set the experiment observable directly.
-function setradius!(expt, dim, value)
+function setdefaultradius!(expt, dim, value)
     g = get(expt.state[], :gui, nothing)
     g = g isa Observable ? g[] : g
     if g isa AbstractDict && haskey(g, :sgradiix)
@@ -225,6 +249,9 @@ whole trajectory is then set on it, so hand-tracking survives a save and reload.
 A `peaklist.csv` row whose `plane` is blank means one position for every plane, so such a
 peak is added with a single position rather than a trajectory; that is also what a
 hand-made list or an imported Sparky list produces.
+
+A peak whose `xradius` and `yradius` differ from the default radii recorded in the file's
+comments keeps them as radii of its own.
 """
 function readtrackedpeaks!(expt, filepath::AbstractString, columns=headercolumns(filepath))
     (isnothing(columns) || !haskey(columns, "x") || !haskey(columns, "y")) &&
@@ -233,11 +260,16 @@ function readtrackedpeaks!(expt, filepath::AbstractString, columns=headercolumns
     labels = String[]
     planes = Dict{String,Vector{Union{Nothing,Int}}}()
     positions = Dict{String,Vector{NTuple{4,Union{Nothing,Float64}}}}()
+    radii = Dict{String,NTuple{2,Union{Nothing,Float64}}}()
+    defaultx = nothing
+    defaulty = nothing
     for line in eachline(filepath)
         sline = strip(line)
         isempty(sline) && continue
         if startswith(sline, '#')
-            parse_radius_comment!(expt, sline)
+            recorded = parse_radius_comment!(expt, sline)
+            defaultx = something(recorded.x, defaultx, Some(nothing))
+            defaulty = something(recorded.y, defaulty, Some(nothing))
             continue
         end
         fields = splitfields(sline)
@@ -248,6 +280,7 @@ function readtrackedpeaks!(expt, filepath::AbstractString, columns=headercolumns
         label in labels || push!(labels, label)
         push!(get!(positions, label, NTuple{4,Union{Nothing,Float64}}[]),
               (cell("x"), cell("y"), cell("r2x"), cell("r2y")))
+        radii[label] = (cell("xradius"), cell("yradius"))
         push!(get!(planes, label, Union{Nothing,Int}[]),
               haskey(columns, "plane") && columns["plane"] ≤ length(fields) ?
               tryparse(Int, fields[columns["plane"]]) : nothing)
@@ -270,6 +303,13 @@ function readtrackedpeaks!(expt, filepath::AbstractString, columns=headercolumns
         (isempty(xs) || any(isnothing, xs) || any(isnothing, ys)) && continue
         addpeak!(expt, Point2f(xs[1], ys[1]), label)
         peak = expt.peaks[][end]
+        rx, ry = radii[label]
+        isdefault(r, d) = round(r; digits=4) == round(d; digits=4)
+        if !isnothing(rx) && !isnothing(ry) &&
+           !(isdefault(rx, something(defaultx, expt.xradius[])) &&
+             isdefault(ry, something(defaulty, expt.yradius[])))
+            setradius!(peak, rx, ry)
+        end
         # One row means one position for every plane, which `addpeak!` has already set.
         # A full trajectory is only restored when it matches this experiment's plane count;
         # a list carried over from a series of a different length seeds the first position
@@ -378,7 +418,7 @@ function save_cluster_plots!(expt, folder)
         all_x = Float64[]
         all_y = Float64[]
         for peak in cluster
-            pos = initialposition(peak)[]
+            pos = initialposition(peak)
             pts = pos isa AbstractVector ? pos : [pos]
             for p in pts
                 push!(all_x, p[1])

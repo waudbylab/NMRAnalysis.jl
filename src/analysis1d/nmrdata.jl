@@ -6,31 +6,6 @@ loadspec(x::AbstractString) = loadnmr(String(x))
 loadspec(x::Integer) = loadnmr(string(x))
 loadspec(x) = x
 
-"""Annotation lookup returning `nothing` rather than throwing when absent."""
-function annotation(spec, keys...)
-    try
-        return annotations(spec, keys...)
-    catch
-        return nothing
-    end
-end
-
-"""
-    acqusvalue(spec, keys...) -> value or nothing
-
-Acquisition-parameter lookup returning `nothing` rather than throwing when the parameter
-is absent, or present but empty. The counterpart of [`annotation`](@ref).
-"""
-function acqusvalue(spec, keys...)
-    value = try
-        acqus(spec, keys...)
-    catch
-        nothing
-    end
-    (isnothing(value) || ismissing(value)) && return nothing
-    return (value isa AbstractVector && isempty(value)) ? nothing : value
-end
-
 """
     nplanesfromspec(spec) -> Int
 

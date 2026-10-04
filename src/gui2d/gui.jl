@@ -1,4 +1,12 @@
-function gui!(expt::Experiment)
+"""
+    gui!(expt; peaklist=nothing, call=nothing) -> expt
+
+Open the analysis window for `expt`, loading the peaks in the file `peaklist` if one is
+given, and wait until it is closed, returning `expt` with its fitted peaks (see
+[`results`](@ref) and [`planeresults`](@ref)). `call` is the [`AnalysisCall`](@ref) the
+entry point recorded, written to `summary.txt` so the analysis can be repeated.
+"""
+function gui!(expt::Experiment; peaklist=nothing, call=nothing)
     GLMakie.activate!(; title="NMRAnalysis.jl (v$(string(pkgversion(GUI2D))))",
                       focus_on_show=true)
     # No gridlines anywhere (interactive or exported plots use the same Makie theme); axes
@@ -8,6 +16,7 @@ function gui!(expt::Experiment)
                            xminorgridvisible=false, yminorgridvisible=false)))
 
     state = expt.state[]
+    state[:call] = Observable{Union{AnalysisCall,Nothing}}(call)
 
     g = Dict{Symbol,Any}() # GUI state
     state[:gui] = g
@@ -45,8 +54,9 @@ function gui!(expt::Experiment)
     end
     Label(g[:paneltop][1, col], "Fitting")
     g[:togglefit] = Toggle(g[:paneltop][1, col + 1]; active=true)
-    g[:cmdsummary] = Button(g[:paneltop][1, col + 2]; label="Summary plot")
-    g[:cmdquit] = Button(g[:paneltop][1, col + 3]; label="(Q)uit")
+    g[:fitstatus] = Label(g[:paneltop][1, col + 2], fitstatustext(expt); width=140)
+    g[:cmdsummary] = Button(g[:paneltop][1, col + 3]; label="Summary plot")
+    g[:cmdquit] = Button(g[:paneltop][1, col + 4]; label="(Q)uit")
 
     # create contour plot
     g[:basecontour] = Observable(10.0)
@@ -128,7 +138,9 @@ function gui!(expt::Experiment)
     commitondefocus!(g[:toutput])
     g[:cmdsave] = Button(g[:fig]; label="Save")
     outputrow[1, 2] = g[:cmdsave]
-    Label(g[:panelinfo][3, 1:2], addpeakhint(expt); word_wrap=true)
+    Label(g[:panelinfo][3, 1:2],
+          addpeakhint(expt) * ". Shift+arrows set the selected peak's own radii.";
+          word_wrap=true)
     g[:cmdrename] = Button(g[:panelinfo][4, 1]; label="(R)ename peak")
     g[:cmddelete] = Button(g[:panelinfo][4, 2]; label="(D)elete peak")
     # A SliderGrid's slider column only expands into space its container already has, so
@@ -150,9 +162,28 @@ function gui!(expt::Experiment)
 
     @debug "Adding handlers"
     addhanders!(g, state, expt)
+    set_close_to!(g[:sliderslice], initialslice(expt))
+    isnothing(peaklist) || loadpeaks!(expt, peaklist)
 
-    @debug "Showing figure"
-    return g[:fig]
+    display(g[:fig])
+    while isopen(g[:fig].scene)
+        sleep(0.1)
+    end
+    return expt
+end
+
+"""
+    fitstatustext(expt) -> Observable{String}
+
+Progress through a fit while it runs, and afterwards how many peaks it left unfinished.
+"""
+function fitstatustext(expt::Experiment)
+    state = expt.state[]
+    return lift(state[:mode], state[:fitprogress], expt.peaks) do mode, progress, peaks
+        mode == :fitting && return "Fitting $(progress[1])/$(progress[2])"
+        n = count(isunfinished, peaks)
+        return n == 0 ? "" : "$n unfinished"
+    end
 end
 
 # Hook for experiment-specific contour-panel overlays; specialised for moving-peak
@@ -170,7 +201,7 @@ function addhanders!(g, state, expt::Experiment)
             RGBAf(0.75, 0.94, 1.0, 1.0)     # :lightblue
         elseif mode == :moving
             RGBAf(0.6, 0.98, 0.6, 1.0)      # :palegreen
-        elseif mode == :adding
+        elseif mode == :adding || mode == :line
             RGBAf(1.0, 0.95, 0.7, 1.0)      # light yellow
         elseif mode == :saving
             RGBAf(0.8, 0.8, 0.8, 1.0)       # :grey80, busy signal while writing results
@@ -243,7 +274,7 @@ function addhanders!(g, state, expt::Experiment)
 
     # load peak list
     on(g[:cmdload].clicks) do _
-        return loadpeaks!(expt)
+        return loadpeaks!(expt, choosepeaklist())
     end
 
     # save peak list
@@ -358,4 +389,6 @@ end
 
 # Colour contours by sign of level. Makie drops levels outside the data range,
 # so a per-level colour vector no longer matches the number of levels.
-signcolours(pos, neg) = (colormap=[neg, pos], colorrange=(-1.0f-12, 1.0f-12), lowclip=neg, highclip=pos)
+function signcolours(pos, neg)
+    return (colormap=[neg, pos], colorrange=(-1.0f-12, 1.0f-12), lowclip=neg, highclip=pos)
+end

@@ -91,7 +91,8 @@ annotation saves the user from being asked; it is never the only way in. That ma
 because annotations exist only in pulse sequences written for them, and most of the data
 these routines will see was recorded on somebody else's sequence.
 
-The prompting helpers live in `prompts.jl` and know nothing about NMR: which parameters an
+The prompting helpers live in `src/prompts.jl`, shared with the 2D analyses, and know
+nothing about NMR: which parameters an
 experiment needs, and what they mean, stays in that experiment's own file. Each takes a
 `prompt` flag which defaults to `isinteractive()`, so a script, a test or a Documenter
 build never blocks on stdin: with `prompt=false` a question becomes either its stated

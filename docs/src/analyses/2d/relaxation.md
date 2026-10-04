@@ -19,24 +19,42 @@ experiment used to collect the data.
 ```julia
 using NMRAnalysis
 
-# Pseudo3D data (experiment 20) with a list of relaxation times (in seconds)
-relaxation2d("20", "20/relaxation-times.txt")
+# Pseudo3D data (experiment 20) whose delays are in its vdlist or annotations
+relaxation2d("20")
+
+# Pseudo3D data with a list of relaxation times (in seconds)
+relaxation2d("20"; relaxationtimes="20/relaxation-times.txt")
 
 # Or provide a list of 2D planes and associated relaxation times
-relaxation2d(
-    ["11", "12", "13", "14", "15"],
-    [0.010, 0.030, 0.060, 0.100, 0.200]
-)
+relaxation2d(["11", "12", "13", "14", "15"];
+             relaxationtimes=[0.010, 0.030, 0.060, 0.100, 0.200])
+
+# A delay counted in loops of a vclist, each loop 16 ms long
+relaxation2d("21"; cycletime=0.016)
+
+# Or loop counts given directly
+relaxation2d("21"; ncyc=[0, 2, 4, 8, 16], cycletime=0.016)
 ```
 
-The number of input planes must match the number of relaxation delays.
+The number of input planes must match the number of relaxation delays. The delays are
+looked for in this order:
+
+1. `relaxationtimes`, a vector or the path of a file holding one per line
+2. `ncyc` multiplied by `cycletime`, for delays counted in loops
+3. the pulse-sequence annotation `relaxation.duration`
+4. the `vdlist`
+5. the `vclist` multiplied by `cycletime`
+6. a question, before the window opens
+
+Where a loop count is used and `cycletime` isn't given, you are asked for it. The second
+argument may still be given positionally, as `relaxation2d("20", delays)`.
 
 ## Excluding planes from the fit
 
 If one or more planes in the series should not contribute to the fitted rate — pass their 1-based indices via `skipplanes`:
 
 ```julia
-relaxation2d(files, delays; skipplanes=[1, 5])
+relaxation2d(files; relaxationtimes=delays, skipplanes=[1, 5])
 ```
 
 All spectra are still loaded and displayed. Skipped planes appear as open grey markers

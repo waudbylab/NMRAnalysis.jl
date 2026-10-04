@@ -3,7 +3,23 @@
 NMRAnalysis.jl provides interactive GUIs for analysing 2D NMR experiments, including
 relaxation, exchange, and NOE measurements. All functions follow the same pattern: they
 load one or more processed 2D spectra, open an interactive window for peak picking and
-fitting, and export results to a folder of your choice.
+fitting, and export results to a folder of your choice. When you close the window, the
+function returns the analysis, so you can carry on with it in Julia:
+
+```julia
+expt = relaxation2d("11/pdata/1")
+r = results(expt)           # one row per peak, each parameter as value ± error
+[row.R for row in r]
+planeresults(expt)          # one row per peak per plane
+```
+
+Any parameter you don't give is read from the pulse-sequence annotations or the acquisition
+parameters where possible, and otherwise you are asked for it before the window opens. Pass
+`prompt=false` to raise an error instead, for example in a script.
+
+Every routine takes `skipplanes`, a list of planes to leave out of the fitting. Skipped
+planes are still loaded and displayed, and their amplitudes are still measured, at the
+lineshapes the other planes determine.
 
 The [experiment-specific pages](fit.md) describe the available functions
 and the theory behind each analysis. This page covers the shared GUI features common to
@@ -21,7 +37,13 @@ in the contour plot to work with it.
 | Action | Key / Button |
 |--------|--------------|
 | Add peak at cursor position | `A` |
-| Track peak from cursor position | `T` |
+| Track peak from cursor position (moving-peak experiments) | `T` |
+| Place a peak at the maximum along a line in every plane (moving-peak experiments) | Hold `L` at one end, drag to the other, and release; or press `L` at each end |
+| Widen or narrow the selected peak's fitting radii | `Shift` + `←` / `→` (x), `Shift` + `↑` / `↓` (y) |
+| Return the selected peak to the default radii | `=` |
+| Continue fits that stopped at the time or iteration limit | `C` |
+| Continue them, without a time limit, until they converge | `Shift` + `C` |
+| Cancel the fit in progress | `Esc` |
 | Delete the selected peak | `D` or **Delete peak** button |
 | Rename the selected peak | `R` or **Rename peak** button |
 | Navigate to previous spectrum slice | `←` or **←** button |
@@ -32,7 +54,7 @@ in the contour plot to work with it.
 | Show or hide the fitted lineshape overlay | **Fitting** toggle |
 | Show or hide other spectra (moving-peak experiments, e.g. titrations, RDCs) | `S` or **(S)how all** toggle |
 | Open a summary plot of the current results | **Summary plot** button (enabled once peaks are present) |
-| Load a previously saved peak list | **Load peak list** button |
+| Load a previously saved peak list | **Load peak list** button, or `peaklist=` when you start (see below) |
 | Save all results to a folder | **Save to folder** button |
 | Close the GUI window | `Q` or **(Q)uit** button |
 
@@ -48,6 +70,7 @@ The window background changes colour to indicate the current interaction mode:
 |------------|------|
 | White | Normal |
 | Salmon / orange | Fitting in progress |
+| Light yellow | Adding a peak plane by plane, or marking a line |
 | Light blue | Renaming a peak |
 | Pale green | Moving a peak |
 | Grey | Saving results to folder |
@@ -56,9 +79,49 @@ Peak markers are colour-coded:
 
 | Colour | Meaning |
 |--------|---------|
-| Blue | Unmodified peak |
-| Red | Manually moved or adjusted peak |
+| Blue | Fitted peak |
+| Red | Peak waiting to be fitted |
+| Orange | Peak whose last fit didn't converge (see below) |
 | Green | Currently selected peak |
+
+## How peaks are fitted
+
+Overlapping peaks are fitted together, as a cluster. Each peak is a 2D lineshape with a
+position and linewidth in each dimension, truncated at its fitting radius. Its amplitude
+in each plane is solved for exactly at every step of the fit, so for a series of fixed
+peaks only the positions and linewidths are optimised, however many planes there are.
+With more than one Julia thread (start Julia with `julia -t auto`), clusters are fitted in
+parallel. The label beside the **Fitting** toggle shows progress through the clusters.
+
+In a series of fixed peaks, each amplitude's uncertainty is that of the linear
+least-squares fit of the amplitudes, with the positions and linewidths held at their fitted
+values. It depends on the peak's shape, on its overlap with neighbouring peaks and on the
+residual of the fit, not on the spectrum's noise level alone. An error in those shared
+shapes would scale every amplitude by the same factor, which cancels in a relaxation rate,
+a heteronuclear NOE, a CCR ratio or a CEST profile, so it isn't added to each plane. It
+does affect an absolute amplitude, or a fitted prefactor such as `A`, which can therefore
+be slightly underestimated where a linewidth is poorly determined; a `bound` status on
+the peak shows when that is likely.
+
+A fit that doesn't reach a converged optimum is flagged, and its peaks turn orange:
+
+- a fit that runs past 30 seconds is stopped, leaving the previous values in place;
+- a fit that reaches the iteration limit stops where it got to;
+- a fit that ends with a position or linewidth at its limit is reported as such.
+
+The info panel says which applies to the selected peak, and the label beside the
+**Fitting** toggle counts the unfinished peaks. Press `C` to continue the stopped fits from
+where they got to, with five minutes each, or `Shift` + `C` to keep continuing them, with no
+time limit, round after round, until they converge or a round no longer moves them. The
+REPL reports each round. `Esc` cancels either.
+
+Positions are bounded to within the peak's radius of where you placed it. Linewidths are
+bounded between 1 s⁻¹ and the broadest line the fitting window can determine, one whose full
+width at half height spans twice the window (four radii), or 100 s⁻¹ if that is larger. For
+a 0.04 ppm ¹H radius at 600 MHz that is about 300 s⁻¹. To fit broader peaks, widen their
+radius. A position at its limit usually means the peak
+needs moving or its radius widening. The status of each peak is saved in the `fitstatus`
+column of `results.csv` and `series.csv`, and `summary.txt` lists any unfinished peaks.
 
 ## Recommended Workflow
 
@@ -113,8 +176,25 @@ since the last one does not leave its plot behind. See
 The **Load peak list** button restores peak positions and labels from a saved
 `peaklist.csv`, a Sparky peak list, or a simple `label x y` text file, so you can resume
 work later or seed a new analysis from existing positions. Where peaks were tracked plane
-by plane, the whole trajectory is restored. See
+by plane, the whole trajectory is restored, as are any radii you set for individual peaks.
+The whole list is fitted once, after it has loaded. See
 [Peak Lists and Output Files](peaklistformats.md).
+
+`summary.txt` ends with a `Reproduce:` block: the call that produced the analysis, with
+every parameter as it was resolved and `peaklist=` pointing at the saved peak list. Paste it
+into Julia to reopen the window with the same peaks and radii, and the fit repeats.
+
+You can also load a list as the window opens, by passing it to any 2D routine:
+
+```julia
+relaxation2d("11/pdata/1"; peaklist="out/peaklist.csv")
+```
+
+On Linux, the **Load peak list** button doesn't open a file dialog, because the GTK file
+dialog can crash Julia there; it prints a warning instead. Pass `peaklist` when you start
+the analysis. The crash comes from GTK settings schemas older than the GTK that Julia
+bundles, so updating your system's GTK 3 package (`libgtk-3-common` on Debian or Ubuntu,
+`gtk3` on Fedora) may fix the dialog.
 
 ## Summary plots
 
@@ -124,6 +204,11 @@ from a live experiment or one or more saved `results.csv` files. See the
 
 ## Adjusting the Fitting Region
 
-The X and Y radius sliders in the peak info panel control the size of the region around
-each peak used for lineshape fitting. Smaller radii are appropriate for crowded spectra;
-larger radii improve the fit for broad peaks.
+The X and Y radius sliders in the peak info panel set the default size of the region
+around each peak used for lineshape fitting. Smaller radii are appropriate for crowded
+spectra; larger radii improve the fit for broad peaks.
+
+To give one peak radii of its own, select it and press `Shift` with the arrow keys:
+left and right narrow and widen the x radius, down and up the y radius. A peak with its own
+radii keeps them when you change the sliders, and the info panel shows them. Press `=` to
+return it to the defaults.

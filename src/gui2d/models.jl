@@ -17,17 +17,34 @@ struct RecoveryModel <: ParametricModel
     xlabel::String
 end
 
+# I(τ) = A(1 - C exp(-Rτ)): A from the most recovered point, C from the first (y₀ = A(1 - C),
+# so C ≈ 1 for saturation and 2 for inversion), and R from the time to recover half way,
+# where exp(-Rτ) = 1/2
 function estimate_parameters(x::AbstractVector, y::AbstractVector, ::RecoveryModel)
+    order = sortperm(x)
+    x, y = x[order], y[order]
     A = maximum(y)
-    C = 1.0
-    R = 3.0 / maximum(x)
+    A > 0 || (A = maximum(abs, y))
+    C = clamp(1 - first(y) / A, 0.5, 2.5)
+    R = halftimerate(x, y, A * (1 - C / 2), ≥)
     return Dict("A" => A, "C" => C, "R" => R)
 end
 
+# I(τ) = A exp(-Rτ): A from the first point, R from the time to fall to half of it
 function estimate_parameters(x::AbstractVector, y::AbstractVector, ::ExponentialModel)
-    A = maximum(abs.(y))
-    R = 3.0 / maximum(x)  # Different heuristic for T1
+    order = sortperm(x)
+    x, y = x[order], y[order]
+    A = first(y)
+    R = halftimerate(x, abs.(y), abs(A) / 2, ≤)
     return Dict("A" => A, "R" => R)
+end
+
+# ln 2 over the first delay at which `y` passes `target` (in the sense of `past`), or a
+# rate of 3/τmax where it never does
+function halftimerate(x, y, target, past)
+    i = findfirst(v -> past(v, target), y)
+    (isnothing(i) || x[i] ≤ 0) && return 3.0 / maximum(x)
+    return log(2) / x[i]
 end
 
 function estimate_parameters(x::AbstractVector, y::AbstractVector, model::CustomModel)
@@ -39,6 +56,10 @@ function ExponentialModel()
                             ["A", "R"],
                             "Time / s")
 end
+
+# A recovery experiment opens on its longest delay, where the peaks have recovered; at the
+# shortest they are saturated or nulled and there is nothing to pick
+initialslice(expt::IntensityExperiment, ::RecoveryModel) = argmax(expt.x)
 
 function RecoveryModel()
     return RecoveryModel((x, p) -> (@. p[1] * (1 - p[2] * exp(-p[3] * x))),
@@ -91,7 +112,9 @@ function postfit!(peak::Peak, expt::IntensityExperiment, model::ParametricModel)
     x_fit = x[keep]
     y_fit = y[keep]
 
-    p0 = collect(values(estimate_parameters(x_fit, y_fit, model)))
+    # by name: a Dict's values come in no particular order
+    estimates = estimate_parameters(x_fit, y_fit, model)
+    p0 = [estimates[name] for name in model.param_names]
     fit = curve_fit(model.func, x_fit, y_fit, p0)
     pfit = coef(fit)
     perr = stderrors(fit)
@@ -106,10 +129,6 @@ function postfit!(peak::Peak, expt::IntensityExperiment, model::ParametricModel)
     return peak.postfitted[] = true
 end
 
-# Helper: plane indices to skip (empty for experiments that don't support skipplanes)
-_skipset(::Experiment) = Set{Int}()
-_skipset(expt::IntensityExperiment) = Set{Int}(expt.skipplanes)
-
 _empty_errorbars() = Tuple{Float64,Float64,Float64}[]
 
 # Default - just return amplitudes, separating active and skipped points
@@ -120,7 +139,7 @@ function get_model_data(peak, expt::Experiment, ::NoFitting)
     x = expt.x
     y = peak.parameters[:amp].value[]
     err = peak.parameters[:amp].uncertainty[]
-    skip = _skipset(expt)
+    skip = skipset(expt)
 
     active = [i for i in eachindex(x) if i ∉ skip]
     skipped = [i for i in eachindex(x) if i ∈ skip]
@@ -151,7 +170,7 @@ function get_model_data(peak, expt::Experiment, model::ParametricModel)
     x = expt.x
     y = peak.parameters[:amp].value[]
     err = peak.parameters[:amp].uncertainty[]
-    skip = _skipset(expt)
+    skip = skipset(expt)
 
     active = [i for i in eachindex(x) if i ∉ skip]
     skipped = [i for i in eachindex(x) if i ∈ skip]

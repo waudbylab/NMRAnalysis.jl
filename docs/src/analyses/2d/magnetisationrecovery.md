@@ -31,6 +31,9 @@ When the experiment is stored as a pseudo-3D dataset in a single processed direc
 single path string is passed; when each delay is a separate experiment, pass a vector of
 paths alongside the corresponding delay values.
 
+The window opens on the plane with the longest delay, where the peaks have recovered and
+can be picked; at the shortest delay they are saturated or nulled.
+
 ## Output
 
 Clicking **Save to folder** writes all results to `results.csv`. Alongside peak

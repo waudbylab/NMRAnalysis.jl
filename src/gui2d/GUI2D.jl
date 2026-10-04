@@ -4,6 +4,7 @@ using CairoMakie
 using DelimitedFiles
 using GLMakie
 using Graphs
+using LinearAlgebra: ColumnNorm, Symmetric, cholesky, diag, issuccess, qr
 using LsqFit
 using Measurements
 using NativeFileDialog
@@ -17,6 +18,11 @@ using ..MaybeVectorModule
 using ..NMRAnalysis: stderrors   # standard errors that survive a singular covariance
 using ..NMRAnalysis: csvcolumn, csvcolumns, csvvalue, safename, sanitizelabel, backupfile,
                      backupfolder, writetable
+# parameter resolution: argument, then annotation/acqus, then ask - see src/prompts.jl
+using ..NMRAnalysis: annotation, acqusvalue, ask, askvector
+using ..NMRAnalysis: B1Calibration
+# the call that produced an analysis, for summary.txt - see src/calls.jl
+using ..NMRAnalysis: AnalysisCall, analysiscall, callstring
 
 include("util.jl")
 include("types.jl")
@@ -24,6 +30,7 @@ include("parameters.jl")
 include("specdata.jl")
 include("peaks.jl")
 include("experiments.jl")
+include("fitting.jl")
 include("models.jl")
 include("clustering.jl")
 include("state.jl")
@@ -66,5 +73,8 @@ export methylccr2d
 
 # results-summary plotting
 export summaryplot
+
+# what an analysis returns when its window closes
+export results, planeresults
 
 end
