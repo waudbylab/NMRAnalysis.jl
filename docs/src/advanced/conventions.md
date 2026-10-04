@@ -159,6 +159,12 @@ then the only thing telling two rows apart.
 residuals are a subtraction. It is `NA` where nothing was fitted. A smooth curve for a
 figure is recoverable from the parameters.
 
+2D adds `fitstatus`, how the lineshape fit of that peak ended: `converged`, `maxiter`
+(stopped at the iteration limit), `bound` (a position or linewidth ended at its limit),
+`timeout` (stopped at the time limit, the previous values kept) or `unfitted`. It is a key,
+repeated down a peak's rows, and so that a file is never silently unfinished it is written
+in `results.csv` too.
+
 ## `results.csv`
 
 One row per entity, wide, because this is the table you sort by residue number and plot
@@ -175,7 +181,8 @@ That is what lets a quantity combining conditions, like TRACT's τc, sit beside 
 it came from with nothing left blank. The experiment's headline parameter
 (`primaryparam`) comes first.
 
-2D adds `resnum`, `resname` and `atom`, derived from the label. The region or peak
+2D adds `resnum`, `resname` and `atom`, derived from the label, and `fitstatus` (see
+`series.csv` above). The region or peak
 *positions* are not here: where an entity sits is something the user chose, and it lives in
 `regionlist.csv` or `peaklist.csv`.
 
@@ -266,6 +273,10 @@ what the experiment was.
 | GUI2D | yes | yes | yes | yes | yes |
 | Exchange1D | yes | yes | yes | yes | yes |
 | R1rho | old format | no | no | no | no |
+
+Every 2D routine now resolves its parameters through the same chain as the 1D routines,
+from the helpers in `src/prompts.jl`, and returns the analysis when its window closes
+(`results(expt)` and `planeresults(expt)` give the two tables as value ± error).
 
 Still outstanding:
 

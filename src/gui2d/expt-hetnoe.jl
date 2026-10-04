@@ -1,5 +1,5 @@
 """
-    hetnoe2d(reference, saturated)
+    hetnoe2d(reference, saturated; skipplanes=nothing) -> HetNOEExperiment
 
 Start interactive GUI for analysing 2D heteronuclear NOE data.
 
@@ -21,34 +21,42 @@ hetnoe2d(
 # Bruker experiment numbers
 hetnoe2d(1, 2)
 ```
+
+`skipplanes` lists planes (1-based, counting reference and saturated planes in the order
+they are interleaved) left out of the averages; at least one of each must remain. The
+window blocks until it is closed, and the analysis is returned (see [`results`](@ref)).
 """
-function hetnoe2d(reference::AbstractString, saturated::AbstractString)
-    return hetnoe2d([reference, saturated], [false, true])
+function hetnoe2d(reference::AbstractString, saturated::AbstractString; kwargs...)
+    return hetnoe2d([reference, saturated], [false, true]; kwargs...)
 end
 
-function hetnoe2d(reference::AbstractVector{String}, saturated::AbstractVector{String})
+function hetnoe2d(reference::AbstractVector{String}, saturated::AbstractVector{String};
+                  kwargs...)
     length(reference) == length(saturated) ||
         throw(ArgumentError("reference and saturated lists must have equal length"))
     planefilenames = collect(Iterators.flatten(zip(reference, saturated)))
     saturationlist = repeat([false, true], length(reference))
-    return hetnoe2d(planefilenames, saturationlist)
+    return hetnoe2d(planefilenames, saturationlist; kwargs...)
 end
 
-function hetnoe2d(planefilenames, saturationlist::AbstractVector{Bool})
-    expt = HetNOEExperiment(planefilenames, saturationlist)
+function hetnoe2d(planefilenames, saturationlist::AbstractVector{Bool}; skipplanes=nothing)
+    skip = checkskipplanes(skipplanes, length(saturationlist))
+    expt = HetNOEExperiment(asexptpath(planefilenames), saturationlist; skipplanes=skip)
     return gui!(expt)
 end
 
-function hetnoe2d(planeexptnos::AbstractVector{<:Integer}, saturationlist)
-    return hetnoe2d(string.(planeexptnos), saturationlist)
+# Bool <: Integer, so plane numbers with a saturation list need a method of their own
+function hetnoe2d(planes::AbstractVector{<:Integer}, saturationlist::AbstractVector{Bool};
+                  kwargs...)
+    return hetnoe2d(string.(planes), saturationlist; kwargs...)
 end
 
-function hetnoe2d(reference::Integer, saturated::Integer)
-    return hetnoe2d(string(reference), string(saturated))
+function hetnoe2d(reference::Integer, saturated::Integer; kwargs...)
+    return hetnoe2d(string(reference), string(saturated); kwargs...)
 end
 function hetnoe2d(reference::AbstractVector{<:Integer},
-                  saturated::AbstractVector{<:Integer})
-    return hetnoe2d(string.(reference), string.(saturated))
+                  saturated::AbstractVector{<:Integer}; kwargs...)
+    return hetnoe2d(string.(reference), string.(saturated); kwargs...)
 end
 
 """
@@ -73,15 +81,20 @@ struct HetNOEExperiment <: FixedPeakExperiment
     xradius::Any
     yradius::Any
     state::Any
+    skipplanes::Vector{Int}
 
-    function HetNOEExperiment(specdata, peaks, saturation)
+    function HetNOEExperiment(specdata, peaks, saturation; skipplanes=Int[])
+        used = [i ∉ skipplanes for i in eachindex(saturation)]
+        any(saturation .& used) && any(.!saturation .& used) ||
+            throw(ArgumentError("skipplanes must leave a reference and a saturated plane"))
         expt = new(specdata, peaks, saturation,
                    Observable(Vector{Vector{Int}}()), # clusters
                    Observable(Vector{Bool}()), # touched
                    Observable(true), # isfitting
                    Observable(0.03; ignore_equal_values=true), # xradius
                    Observable(0.2; ignore_equal_values=true), # yradius
-                   Observable{Dict}())
+                   Observable{Dict}(),
+                   collect(Int, skipplanes))
         setupexptobservables!(expt)
         expt.state[] = preparestate(expt)
         return expt
@@ -98,11 +111,12 @@ primaryparam(::HetNOEExperiment) = :hetnoe
 Create hetNOE experiment from a list of input planes and a list of
 true/false values indicating where saturation has been applied.
 """
-function HetNOEExperiment(planefilenames, saturation::Vector{Bool})
+function HetNOEExperiment(planefilenames, saturation::AbstractVector{Bool};
+                          skipplanes=Int[])
     specdata = preparespecdata(planefilenames, saturation, HetNOEExperiment)
     peaks = Observable(Vector{Peak}())
 
-    return HetNOEExperiment(specdata, peaks, saturation)
+    return HetNOEExperiment(specdata, peaks, collect(saturation); skipplanes)
 end
 
 # load the NMR data and prepare the SpecData object
@@ -155,45 +169,15 @@ function addpeak!(expt::HetNOEExperiment, initialposition::Point2f, label="",
     return notify(expt.peaks)
 end
 
-"""Simulate single peak according to experiment type."""
-function simulate!(z, peak::Peak, expt::HetNOEExperiment, xbounds=nothing, ybounds=nothing)
-    n = length(z)
-    for i in 1:n
-        # get axis references for window functions
-        xaxis = dims(expt.specdata.nmrdata[i], F1Dim)
-        yaxis = dims(expt.specdata.nmrdata[i], F2Dim)
-        # get axis shift values
-        x = isnothing(xbounds) ? expt.specdata.x[i] : expt.specdata.x[i][xbounds[i]]
-        y = isnothing(ybounds) ? expt.specdata.y[i] : expt.specdata.y[i][ybounds[i]]
-
-        x0 = peak.parameters[:x].value[][i]
-        y0 = peak.parameters[:y].value[][i]
-        R2x = peak.parameters[:R2x].value[][i]
-        R2y = peak.parameters[:R2y].value[][i]
-        amp = peak.parameters[:amp].value[][i]
-        # find indices of x and y axes within peak radius of peak position
-        xi = x0 .- peak.xradius[] .≤ x .≤ x0 .+ peak.xradius[]
-        yi = y0 .- peak.yradius[] .≤ y .≤ y0 .+ peak.yradius[]
-        xs = x[xi]
-        ys = y[yi]
-        # NB. scale intensities by R2x and R2y to decouple amplitude estimation from linewidth
-        zx = NMRTools.NMRBase._lineshape(2π * hz(x0, xaxis), R2x, 2π * hz(xs, xaxis),
-                                         xaxis[:window], RealLineshape())
-        zy = (π^2 * amp * R2x * R2y) *
-             NMRTools.NMRBase._lineshape(2π * hz(y0, yaxis), R2y, 2π * hz(ys, yaxis),
-                                         yaxis[:window], RealLineshape())
-        z[i][xi, yi] .+= zx .* zy'
-    end
-end
-
 """Calculate final parameters after fitting."""
 function postfit!(peak::Peak, expt::HetNOEExperiment)
     @debug "Post-fitting peak $(peak.label)" maxlog = 10
     sat = expt.saturation
+    used = [i ∉ skipset(expt) for i in eachindex(sat)]
     A = peak.parameters[:amp].value[] .± peak.parameters[:amp].uncertainty[]
 
-    Iref = A[sat .== false]
-    Isat = A[sat .== true]
+    Iref = A[.!sat .& used]
+    Isat = A[sat .& used]
     Iref = sum(Iref) / length(Iref)
     Isat = sum(Isat) / length(Isat)
     hetNOE = Isat / Iref

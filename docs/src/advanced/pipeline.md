@@ -64,7 +64,7 @@ these files.
 
 | stage | `Analysis1D` | `GUI2D` |
 |---|---|---|
-| 1, measure | `integrate(region, expt)` | `fit!(cluster, expt)` |
+| 1, measure | `integrate(region, expt)` | `fitcluster!(peaks, expt, check)` |
 | 2, fit | `postfit!(results, expt)` | `postfit!(peak, expt)` |
 | 3, global fit | `postfitglobal!(results, expt)` | `postfitglobal!(expt)` |
 

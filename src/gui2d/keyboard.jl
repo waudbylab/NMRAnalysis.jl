@@ -2,7 +2,14 @@ function process_keyboardbutton(expt, state, event)
     @debug "keyboard event: $event"
     g = state[:gui][]
     g[:toutput].focused[] && return Consume(false)
-    if state[:mode][] == :normal && event.action == Keyboard.press
+    if state[:mode][] == :normal && event.action in (Keyboard.press, Keyboard.repeat) &&
+       event.key in (Keyboard.up, Keyboard.down, Keyboard.left, Keyboard.right) &&
+       ispressed(g[:fig], Keyboard.left_shift | Keyboard.right_shift)
+        # Shift+arrows: the selected peak's own radii, x with left/right and y with up/down
+        idx = state[:current_peak_idx][]
+        idx > 0 && bumpradius!(expt, idx, event.key)
+        return Consume()
+    elseif state[:mode][] == :normal && event.action == Keyboard.press
         if ispressed(g[:fig], Keyboard.a)
             pos = mouseposition(g[:axcontour])
             if hasfixedpositions(expt)
@@ -16,6 +23,8 @@ function process_keyboardbutton(expt, state, event)
                 addpeak!(expt, Point2f(pos))
                 state[:current_peak_idx][] = length(expt.peaks[])
             end
+        elseif ispressed(g[:fig], Keyboard.l) && cantrack(expt)
+            beginline!(expt, state, mouseposition(g[:axcontour]))
         elseif ispressed(g[:fig], Keyboard.t) && cantrack(expt)
             # add a peak and track it across all planes (moving-peak experiments only)
             pos = mouseposition(g[:axcontour])
@@ -49,6 +58,11 @@ function process_keyboardbutton(expt, state, event)
                 i += 1
                 set_close_to!(state[:gui][][:sliderslice], i)
             end
+        elseif ispressed(g[:fig], Keyboard.c)
+            continuefit!(expt)
+        elseif ispressed(g[:fig], Keyboard.equal)
+            idx = state[:current_peak_idx][]
+            idx > 0 && resetradius!(expt, idx)
         elseif ispressed(g[:fig], Keyboard.s) && haskey(g, :toggleother)
             g[:toggleother].active[] = !g[:toggleother].active[]
         elseif ispressed(g[:fig], Keyboard.q)
@@ -64,6 +78,17 @@ function process_keyboardbutton(expt, state, event)
                 return Consume()
             elseif event.key == Keyboard.escape
                 cancel_add!(expt, state)
+                return Consume()
+            end
+        end
+        return Consume(false)
+    elseif state[:mode][] == :line
+        if event.action == Keyboard.press
+            if event.key == Keyboard.l
+                finishline!(expt, state, mouseposition(g[:axcontour]))
+                return Consume()
+            elseif event.key == Keyboard.escape
+                cancelline!(state)
                 return Consume()
             end
         end

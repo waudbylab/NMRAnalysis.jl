@@ -65,7 +65,8 @@ function MethylCCRModel(C, times)
 end
 
 """
-    methylccr2d(buildupexpt, decayexpt, T; C=3/4, skipplanes=nothing)
+    methylccr2d(buildupexpt, decayexpt, T=nothing; C=3/4, skipplanes=nothing,
+                prompt=isinteractive()) -> IntensityExperiment
 
 Start an interactive GUI for methyl ¹H–¹H cross-correlated relaxation analysis.
 
@@ -73,7 +74,8 @@ For each peak, the ratio of buildup to decay intensities |Iₐ/I_b| is measured 
 series of relaxation delays `T` and fitted to eq 7 with two parameters: the
 cross-correlated relaxation rate `η` (s⁻¹) and a coupling term `δ` (< 0). The fitted
 `η` is converted to the methyl order parameter × tumbling time `S²τc` (ns) via eq 1
-(ideal methyl geometry), which is the parameter shown in the summary plot.
+(ideal methyl geometry), which is the parameter shown in the summary plot. The window
+blocks until it is closed, and the analysis is returned (see [`results`](@ref)).
 
 # Arguments
 - `buildupexpt`: buildup series (Iₐ) — a single pseudo-3D path string, or a
@@ -82,13 +84,15 @@ cross-correlated relaxation rate `η` (s⁻¹) and a coupling term `δ` (< 0). T
 - `decayexpt`: decay series (I_b), in the same form as `buildupexpt`.
 - `T`: vector of relaxation delays in **seconds**, or a path string to a text file of
   delays (one per line; lines beginning with `#` are ignored). Each series must have one
-  plane per delay.
+  plane per delay. If omitted, the delays are read from the buildup series' annotations or
+  `vdlist`, or asked for.
 
 # Keyword Arguments
 - `C`: fixed prefactor in eq 7. `3/4` (default) for triple-quantum (TQ); `1/2` for
   double-quantum (DQ).
 - `skipplanes`: optional list of delay indices (1-based, into `T`) to exclude from the
-  eq 7 fit. Skipped points appear as open grey markers.
+  fitting, in both series. Skipped points appear as open grey markers.
+- `prompt`: Whether to ask for delays that cannot be found (default: when interactive).
 
 # Example
 ```julia
@@ -99,43 +103,29 @@ methylccr2d("11/pdata/1", "12/pdata/1", [0.001, 0.002, 0.004, 0.006, 0.010])
 methylccr2d("11/pdata/1", "12/pdata/1", "vdlist.txt"; C=1/2)
 ```
 """
-function methylccr2d(buildupexpt, decayexpt, T; C=3 / 4, skipplanes=nothing)
+function methylccr2d(buildupexpt, decayexpt, T=nothing; C=3 / 4, skipplanes=nothing,
+                     prompt::Bool=isinteractive())
     buildupexpt = asexptpath(buildupexpt)
     decayexpt = asexptpath(decayexpt)
 
-    # Parse the relaxation delays (vector, file path, or scalar)
-    tau = Float64[]
-    if T isa AbstractString
-        append!(tau, vec(readdlm(T; comments=true)))
-    elseif T isa AbstractVector
-        for t in T
-            if t isa AbstractString
-                append!(tau, vec(readdlm(t; comments=true)))
-            else
-                append!(tau, t)
-            end
-        end
+    tau = if isnothing(T)
+        buildup = preparespecdata(buildupexpt, IntensityExperiment)
+        relaxationdelays(buildup; prompt)
     else
-        push!(tau, Float64(T))
+        readvalues(T)
     end
     N = length(tau)
     N > 0 || error("No relaxation delays provided")
-
-    skip = isnothing(skipplanes) ? Int[] : collect(Int, skipplanes)
-    if !isempty(skip)
-        bad = filter(i -> i < 1 || i > N, skip)
-        isempty(bad) ||
-            error("skipplanes indices out of range (got $bad for $N delays)")
-    end
+    skip = checkskipplanes(skipplanes, N)
 
     specdata = preparespecdata_methylccr(buildupexpt, decayexpt, N)
     peaks = Observable(Vector{Peak}())
 
     model = MethylCCRModel(C, tau)
     # x = [T; T] keeps the generic per-plane bookkeeping consistent; the CCR model
-    # only ever uses its own `times`.
+    # only ever uses its own `times`. A skipped delay skips its plane in both series.
     expt = IntensityExperiment(specdata, peaks, model, [tau; tau],
-                               ModelFitVisualisation(); skipplanes=skip)
+                               ModelFitVisualisation(); skipplanes=[skip; skip .+ N])
 
     return gui!(expt)
 end
@@ -275,7 +265,7 @@ function get_model_data(peak, expt::IntensityExperiment, model::MethylCCRModel)
     rval = Measurements.value.(ratio)
     rerr = Measurements.uncertainty.(ratio)
 
-    skip = _skipset(expt)
+    skip = skipset(expt)
     active = [i for i in 1:N if i ∉ skip]
     skipped = [i for i in 1:N if i ∈ skip]
 

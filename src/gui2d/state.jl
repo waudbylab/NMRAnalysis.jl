@@ -2,13 +2,18 @@ function preparestate(expt::Experiment)
     @debug "Preparing state"
     state = Dict{Symbol,Observable}()
 
-    state[:mode] = Observable(:normal) # options = :normal, :renaming, :renamingstart, :moving, :fitting, :saving
+    # :normal, :renaming, :renamingstart, :moving, :adding, :line, :fitting or :saving
+    state[:mode] = Observable(:normal)
 
     # Background-fit control. :fit_generation is bumped whenever the fit inputs change (peaks,
     # radii, fitting toggled off, window closed); an in-flight fit checks it and aborts if it no
     # longer matches the generation it started with. :fit_task holds the current fit task.
     state[:fit_generation] = Observable(0)
     state[:fit_task] = Observable{Union{Task,Nothing}}(nothing)
+    # clusters fitted of those in the current fit
+    state[:fitprogress] = Observable((0, 0))
+    # true while a batch of changes is made (see batchupdate)
+    state[:deferupdates] = Observable(false)
 
     state[:total_peaks] = Observable(length(expt.peaks[]))
 
@@ -17,7 +22,9 @@ function preparestate(expt::Experiment)
 
     state[:current_slice] = Observable(1)
 
-    state[:current_slice_label] = lift(idx -> slicelabel(expt, idx), state[:current_slice])
+    state[:current_slice_label] = lift(state[:current_slice]) do idx
+        return slicelabel(expt, idx) * (idx in skipset(expt) ? " [skipped]" : "")
+    end
 
     state[:current_mask_x] = Observable(expt.specdata.x[1])
     state[:current_mask_y] = Observable(expt.specdata.y[1])
@@ -60,14 +67,14 @@ function preparestate(expt::Experiment)
     end
 
     state[:current_peaks] = lift(expt.peaks, state[:current_slice]) do expt, idx
-        initialpositions = [initialposition(peak)[][idx] for peak in expt]
-        positions = [position(peak)[][idx] for peak in expt]
+        initialpositions = [initialposition(peak)[idx] for peak in expt]
+        positions = [position(peak)[idx] for peak in expt]
         labels = [peak.label[] for peak in expt]
-        touched = [peak.touched[] for peak in expt]
+        colours = [peakcolour(peak) for peak in expt]
         d = Dict(:initialpositions => initialpositions,
                  :positions => positions,
                  :labels => labels,
-                 :touched => touched)
+                 :colours => colours)
         @debug "current_peaks lift" d maxlog = 10
         return d
     end
@@ -83,7 +90,7 @@ function preparestate(expt::Experiment)
         # onany(state[:current_peaks], state[:current_peak_idx]) do d, idx
         @debug "current peaks changed"
         idx = state[:current_peak_idx][]
-        cols = map(t -> t ? :red : :blue, d[:touched])
+        cols = copy(d[:colours])
         sizes = fill(15.0, length(cols))
         if idx > 0
             cols[idx] = :lime
@@ -102,7 +109,7 @@ function preparestate(expt::Experiment)
     on(state[:current_peak_idx]) do idx
         @debug "current peak index changed to $idx - updating colours"
         d = state[:current_peaks][]
-        cols = map(t -> t ? :red : :blue, d[:touched])
+        cols = copy(d[:colours])
         sizes = fill(15.0, length(cols))
         if idx > 0
             cols[idx] = :lime
@@ -120,14 +127,52 @@ function preparestate(expt::Experiment)
                                      expt.peaks) do idx, mode, _peaks
         if mode == :adding
             "Adding peak\n\n(a) mark this plane\n(space) fill remaining planes\n(esc) cancel"
+        elseif mode == :line
+            "Marking a line\n\nMove to its other end, then click or press (L)\n(esc) cancel"
         else
-            peakinfotext(expt, idx)
+            peakinfotext(expt, idx) * radiusnote(expt, idx) * statusnote(expt, idx)
         end
     end
 
     completestate!(state, expt)
 
     return state
+end
+
+"""
+    peakcolour(peak) -> Symbol
+
+Red while a peak awaits fitting, orange where its last fit stopped short of a converged
+optimum, blue once fitted.
+"""
+function peakcolour(peak::Peak)
+    peak.touched[] && return :red
+    isunfinished(peak) && return :darkorange
+    return :blue
+end
+
+const STATUS_NOTES = Dict(:maxiter => "it stopped at the iteration limit",
+                          :timeout => "it stopped at the time limit, so the values shown " *
+                                      "are from before it",
+                          :bound => "a position or linewidth is at its limit. Move the " *
+                                    "peak, or widen its radius with Shift+arrows")
+
+"The radii of peak `idx` for the info panel, where it has radii of its own."
+function radiusnote(expt, idx)
+    (idx > 0 && expt.peaks[][idx].customradius[]) || return ""
+    peak = expt.peaks[][idx]
+    rx = round(peak.xradius[]; digits=3)
+    ry = round(peak.yradius[]; digits=2)
+    return "\n\nOwn radii: $rx × $ry ppm (press = to reset)"
+end
+
+"A warning for the info panel where peak `idx`'s last fit did not converge."
+function statusnote(expt, idx)
+    (idx > 0 && isunfinished(expt.peaks[][idx])) || return ""
+    status = fitstatus(expt.peaks[][idx])
+    note = "\n\nFit unfinished: $(STATUS_NOTES[status])."
+    return iscontinuable(expt.peaks[][idx]) ? note * "\nPress (C) to continue fitting." :
+           note
 end
 
 "Generic label for spectum slices"

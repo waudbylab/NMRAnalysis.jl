@@ -1,5 +1,6 @@
 """
-    ccr2d(decay_expts, buildup_expts, T)
+    ccr2d(decay_expts, buildup_expts, T; skipplanes=nothing, prompt=isinteractive())
+        -> CCRExperiment
 
 Start interactive GUI for analysing 2D measurements of cross-correlated relaxation data.
 
@@ -26,16 +27,27 @@ ccr2d(["decay_expt1", "decay_expt2"],        # symmetric reconversion experiment
 ```
 
 Experiments can also be given as Bruker experiment numbers, individually or as a list/range
-(e.g. `1:3`).
+(e.g. `1:3`). If `T` is omitted you are asked for it.
+
+`skipplanes` lists planes (1-based, decay and buildup interleaved in the order given) left
+out of the ratio; at least one decay and one buildup plane must remain, and a symmetric
+measurement with a plane skipped is reduced to the ratio of the mean intensities. The window
+blocks until it is closed, and the analysis is returned (see [`results`](@ref)).
 """
-function ccr2d(decay_expts::AbstractVector, buildup_expts::AbstractVector, T)
-    expt = CCRExperiment(asexptpath(decay_expts), asexptpath(buildup_expts), T)
+function ccr2d(decay_expts::AbstractVector, buildup_expts::AbstractVector, T=nothing;
+               skipplanes=nothing, prompt::Bool=isinteractive())
+    T = @something(T, ask("relaxation time T"; unit="s", prompt))
+    skip = checkskipplanes(skipplanes, 2 * length(decay_expts))
+    expt = CCRExperiment(asexptpath(decay_expts), asexptpath(buildup_expts), T;
+                         skipplanes=skip)
     return gui!(expt)
 end
 
-ccr2d(decay_expt::String, buildup_expt::String, T) = ccr2d([decay_expt], [buildup_expt], T)
-function ccr2d(decay_expt::Integer, buildup_expt::Integer, T)
-    return ccr2d(string(decay_expt), string(buildup_expt), T)
+function ccr2d(decay_expt::String, buildup_expt::String, T=nothing; kwargs...)
+    return ccr2d([decay_expt], [buildup_expt], T; kwargs...)
+end
+function ccr2d(decay_expt::Integer, buildup_expt::Integer, T=nothing; kwargs...)
+    return ccr2d(string(decay_expt), string(buildup_expt), T; kwargs...)
 end
 
 """
@@ -64,15 +76,20 @@ struct CCRExperiment <: FixedPeakExperiment
     xradius::Any
     yradius::Any
     state::Any
+    skipplanes::Vector{Int}
 
-    function CCRExperiment(specdata, peaks, isbuildup, T, issymmetric)
+    function CCRExperiment(specdata, peaks, isbuildup, T, issymmetric; skipplanes=Int[])
+        used = [i ∉ skipplanes for i in eachindex(isbuildup)]
+        any(isbuildup .& used) && any(.!isbuildup .& used) ||
+            throw(ArgumentError("skipplanes must leave a decay and a buildup plane"))
         expt = new(specdata, peaks, isbuildup, T, issymmetric,
                    Observable(Vector{Vector{Int}}()), # clusters
                    Observable(Vector{Bool}()), # touched
                    Observable(true), # isfitting
                    Observable(0.03; ignore_equal_values=true), # xradius
                    Observable(0.2; ignore_equal_values=true), # yradius
-                   Observable{Dict}())
+                   Observable{Dict}(),
+                   collect(Int, skipplanes))
         setupexptobservables!(expt)
         expt.state[] = preparestate(expt)
         return expt
@@ -96,7 +113,7 @@ Create CCR experiment from lists of decay and buildup experiment files.
 For symmetric reconversion, provide pairs of experiments (2 decay + 2 buildup).
 For standard CCR, provide single experiments (1 decay + 1 buildup).
 """
-function CCRExperiment(decay_expts::Vector, buildup_expts::Vector, T)
+function CCRExperiment(decay_expts::Vector, buildup_expts::Vector, T; skipplanes=Int[])
     # Validate input
     length(decay_expts) == length(buildup_expts) ||
         throw(ArgumentError("Number of decay and buildup experiments must match"))
@@ -118,7 +135,7 @@ function CCRExperiment(decay_expts::Vector, buildup_expts::Vector, T)
     specdata = preparespecdata(planefilenames, isbuildup, CCRExperiment)
     peaks = Observable(Vector{Peak}())
 
-    return CCRExperiment(specdata, peaks, isbuildup, T, issymmetric)
+    return CCRExperiment(specdata, peaks, isbuildup, T, issymmetric; skipplanes)
 end
 
 # load the NMR data and prepare the SpecData object
@@ -171,37 +188,6 @@ function addpeak!(expt::CCRExperiment, initialposition::Point2f, label="",
     return notify(expt.peaks)
 end
 
-"""Simulate single peak according to experiment type."""
-function simulate!(z, peak::Peak, expt::CCRExperiment, xbounds=nothing, ybounds=nothing)
-    n = length(z)
-    for i in 1:n
-        # get axis references for window functions
-        xaxis = dims(expt.specdata.nmrdata[i], F1Dim)
-        yaxis = dims(expt.specdata.nmrdata[i], F2Dim)
-        # get axis shift values
-        x = isnothing(xbounds) ? expt.specdata.x[i] : expt.specdata.x[i][xbounds[i]]
-        y = isnothing(ybounds) ? expt.specdata.y[i] : expt.specdata.y[i][ybounds[i]]
-
-        x0 = peak.parameters[:x].value[][i]
-        y0 = peak.parameters[:y].value[][i]
-        R2x = peak.parameters[:R2x].value[][i]
-        R2y = peak.parameters[:R2y].value[][i]
-        amp = peak.parameters[:amp].value[][i]
-        # find indices of x and y axes within peak radius of peak position
-        xi = x0 .- peak.xradius[] .≤ x .≤ x0 .+ peak.xradius[]
-        yi = y0 .- peak.yradius[] .≤ y .≤ y0 .+ peak.yradius[]
-        xs = x[xi]
-        ys = y[yi]
-        # NB. scale intensities by R2x and R2y to decouple amplitude estimation from linewidth
-        zx = NMRTools.NMRBase._lineshape(2π * hz(x0, xaxis), R2x, 2π * hz(xs, xaxis),
-                                         xaxis[:window], RealLineshape())
-        zy = (π^2 * amp * R2x * R2y) *
-             NMRTools.NMRBase._lineshape(2π * hz(y0, yaxis), R2y, 2π * hz(ys, yaxis),
-                                         yaxis[:window], RealLineshape())
-        z[i][xi, yi] .+= zx .* zy'
-    end
-end
-
 """Calculate final parameters after fitting.
 
 Computes CCR rate η from the model:
@@ -215,16 +201,17 @@ function postfit!(peak::Peak, expt::CCRExperiment)
     A = peak.parameters[:amp].value[] .± peak.parameters[:amp].uncertainty[]
 
     # Separate buildup and decay intensities
-    Idecay = A[expt.isbuildup .== false]
-    Ibuildup = A[expt.isbuildup .== true]
+    used = [i ∉ skipset(expt) for i in eachindex(expt.isbuildup)]
+    Idecay = A[.!expt.isbuildup .& used]
+    Ibuildup = A[expt.isbuildup .& used]
 
     # Calculate ratio depending on symmetric or standard CCR
-    if expt.issymmetric
+    if expt.issymmetric && all(used)
         # Symmetric reconversion: sqrt((I_buildup1 * I_buildup2) / (I_decay1 * I_decay2))
         ratio = sqrt((Ibuildup[1] * Ibuildup[2]) / (Idecay[1] * Idecay[2]))
     else
-        # Standard CCR: I_buildup / I_decay
-        ratio = Ibuildup[1] / Idecay[1]
+        # Standard CCR: I_buildup / I_decay, from the means where planes were skipped
+        ratio = (sum(Ibuildup) / length(Ibuildup)) / (sum(Idecay) / length(Idecay))
     end
 
     # Calculate eta: tanh(η * T) = ratio → η = atanh(ratio) / T

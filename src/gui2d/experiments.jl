@@ -8,8 +8,6 @@ An abstract type representing a type of experimental analysis.
 Concrete subtypes must implement:
 - `hasfixedpositions(expt)`: Check if the experiment has fixed peak positions between spectra
 - `addpeak!(expt, position)`: Add a peak to the experiment
-- `simulate!(z, peak, expt)`: Simulate a single peak
-- `mask!(z, peak, expt)`: Get the mask for a single peak
 
 Expected fields:
 - `peaks`: A list of peaks in the experiment
@@ -17,14 +15,15 @@ Expected fields:
 - `clusters`: An Observable list of clusters of peaks
 - `touched`: An Observable list of touched clusters
 - `isfitting`: An Observable boolean indicating if real-time fitting is active
+- `skipplanes`: Planes excluded from fitting
 
 # Functions handled by the abstract type
 
 - `nslices(expt)`: Get the number of slices in the experiment
 - `npeaks(expt)`: Get the number of peaks in the experiment
-- `mask!([z], [peaks], expt)`: Calculate peak masks and update internal specdata
+- `mask!(expt)`, `mask(peaks, expt)`: Calculate peak masks
 - `simulate!([z], [peaks], expt)`: Simulate the experiment and update internal specdata
-- `fit!(expt)`: Fit the peaks in the experiment
+- `fit!(expt)`: Fit the peaks in the experiment (see `fitting.jl`)
 
 """
 
@@ -38,18 +37,6 @@ include("expt-ccr.jl")
 include("expt-methylccr.jl")
 
 # generic functions
-
-"""Maximum wall-clock time (seconds) allowed for a single cluster fit before it is aborted.
-
-Interactive fitting re-runs on every peak move, so a hard cap keeps the GUI responsive even
-if convergence is slow. The residual function checks elapsed time on every iteration.
-The budget is applied per-cluster so that a spectrum with many peaks does not exhaust the
-budget on early clusters and cancel later ones."""
-const FIT_TIME_BUDGET = 30.0
-
-"""Thrown from within a fit's residual function to abort an in-flight fit (because the inputs
-changed, the time budget was exceeded, or the user cancelled). Caught silently in `fit!(expt)`."""
-struct FitCancelled <: Exception end
 
 """
     nslices(expt::Experiment)
@@ -85,6 +72,7 @@ function setupexptobservables!(expt)
     expt.yradius[] = clamp(4 * yres, 0.1, 0.8)
     on(expt.peaks) do _
         @debug "Peaks changed"
+        expt.state[][:deferupdates][] && return
         # N.B. do NOT bump :fit_generation here - this observer also fires on the
         # fit's own completion notify(expt.peaks). Genuine user changes reach
         # fit!(expt) (via the touched chain), which bumps the generation itself and
@@ -122,25 +110,33 @@ function setupexptobservables!(expt)
             expt.state[][:mode][] = :normal
         end
     end
-    on(expt.xradius) do _
-        @debug "X radius changed"
-        # update xradius for all peaks (notify reaches fit!, which supersedes any
-        # in-flight fit)
+    # A change of default radius reaches every peak but those given radii of their own
+    # (notify reaches fit!, which supersedes any in-flight fit)
+    on(expt.xradius) do r
         for peak in expt.peaks[]
-            peak.xradius.val = expt.xradius[]
+            peak.customradius[] && continue
+            peak.xradius.val = r
             peak.touched.val = true
         end
         return notify(expt.peaks)
     end
-    on(expt.yradius) do _
-        @debug "Y radius changed"
-        # update yradius for all peaks (notify reaches fit!, which supersedes any
-        # in-flight fit)
+    on(expt.yradius) do r
         for peak in expt.peaks[]
-            peak.yradius.val = expt.yradius[]
+            peak.customradius[] && continue
+            peak.yradius.val = r
             peak.touched.val = true
         end
         return notify(expt.peaks)
+    end
+    return expt
+end
+
+"Mark peak `idx` and the rest of its cluster as needing a refit."
+function touchcluster!(expt, idx)
+    cluster = findfirst(c -> idx in c, expt.clusters[])
+    members = isnothing(cluster) ? [idx] : expt.clusters[][cluster]
+    for i in members
+        expt.peaks[][i].touched.val = true
     end
     return expt
 end
@@ -151,13 +147,7 @@ end
 Move peak `idx` to `newpos`. Updates clusters automatically.
 """
 function movepeak!(expt, idx, newpos)
-    # touch other peaks in the same cluster before moving and notifying
-    clusteridx = findfirst(i -> idx in i, expt.clusters[])
-    cluster = expt.clusters[][clusteridx]
-    for i in cluster
-        # this will touch the moved peak as well as any in the same cluster
-        expt.peaks[][i].touched.val = true
-    end
+    touchcluster!(expt, idx)
     slice = expt.state[][:current_slice][]
     peak = expt.peaks[][idx]
     peak.parameters[:x].initialvalue[][slice] = newpos[1]
@@ -178,13 +168,38 @@ reinitialise_amplitude!(::Experiment, peak, slice) = nothing
 Delete peak `idx`. Updates clusters automatically.
 """
 function deletepeak!(expt, idx)
-    # touch other peaks in the same cluster before deleting and notifying
-    clusteridx = findfirst(i -> idx in i, expt.clusters[])
-    cluster = expt.clusters[][clusteridx]
-    for i in cluster
-        expt.peaks[][i].touched[] = true
-    end
+    touchcluster!(expt, idx)
     deleteat!(expt.peaks[], idx)
+    return notify(expt.peaks)
+end
+
+# Steps for the Shift+arrow keys, matching the radius sliders
+const XRADIUS_STEP = 0.005
+const YRADIUS_STEP = 0.02
+
+"""
+    bumpradius!(expt, idx, key)
+
+Widen or narrow peak `idx`'s radii by one step, x with the left and right arrows and y with
+up and down, giving it radii of its own.
+"""
+function bumpradius!(expt, idx, key)
+    peak = expt.peaks[][idx]
+    dx = key == Keyboard.right ? XRADIUS_STEP : key == Keyboard.left ? -XRADIUS_STEP : 0.0
+    dy = key == Keyboard.up ? YRADIUS_STEP : key == Keyboard.down ? -YRADIUS_STEP : 0.0
+    touchcluster!(expt, idx)
+    setradius!(peak, max(peak.xradius[] + dx, XRADIUS_STEP),
+               max(peak.yradius[] + dy, YRADIUS_STEP))
+    return notify(expt.peaks)
+end
+
+"Return peak `idx` to the experiment's default radii."
+function resetradius!(expt, idx)
+    peak = expt.peaks[][idx]
+    peak.customradius[] || return nothing
+    touchcluster!(expt, idx)
+    setradius!(peak, expt.xradius[], expt.yradius[])
+    peak.customradius.val = false
     return notify(expt.peaks)
 end
 
@@ -195,10 +210,26 @@ Remove all peaks from the experiment.
 """
 function deleteallpeaks!(expt)
     expt.state[][:current_peak_idx][] = 0
-    # delete any existing peaks
-    for i in length(expt.peaks[]):-1:1
-        deletepeak!(expt, i)
+    empty!(expt.peaks[])
+    return notify(expt.peaks)
+end
+
+"""
+    batchupdate(f, expt)
+
+Call `f()` with the masking, clustering and fitting that follow each change to the peaks
+held back, then do them once. Adding a peak list one peak at a time would otherwise redo
+all three, and start and abandon a fit, for every peak.
+"""
+function batchupdate(f, expt::Experiment)
+    deferring = expt.state[][:deferupdates]
+    deferring[] = true
+    try
+        f()
+    finally
+        deferring[] = false
     end
+    return notify(expt.peaks)
 end
 
 """
@@ -207,161 +238,90 @@ end
 Update which clusters have been modified.
 """
 function checktouched!(expt)
-    @debug "Checking touched clusters" #maxlog=10
     touched = map(expt.clusters[]) do cluster
-        return any([expt.peaks[][j].touched[] for j in cluster])
+        return any(j -> expt.peaks[][j].touched[], cluster)
     end
     return expt.touched[] = touched
 end
 
 """
-    fit!(expt::Experiment)
+    skipset(expt) -> Set{Int}
 
-Fit all touched peaks/clusters in the experiment.
+Planes excluded from fitting the lineshapes and from the model fitted after them. They are
+still displayed, and their amplitudes still measured.
 """
-function fit!(expt::Experiment)
-    @debug "Fitting experiment" #maxlog=10
-    anythingchanged = false
-    # first check if anything has been touched and needs fitting
-    for i in 1:length(expt.clusters[])
-        if expt.touched[][i]
-            anythingchanged = true
-        end
-    end
-    anythingchanged || return
+skipset(expt::Experiment) = Set{Int}(expt.skipplanes)
 
-    # Bump the fit generation. This supersedes any fit already running: that task's residual
-    # function will see the new generation on its next iteration and abort via FitCancelled,
-    # and its results will not be committed (the notify below is generation-guarded).
-    mygen = (expt.state[][:fit_generation][] += 1)
+"""
+    fit!(expt; warm=false)
 
-    # Run the fit off the GUI's critical path. With multiple threads we use a real background
-    # thread (Threads.@spawn) so the GUI stays fully responsive; single-threaded we fall back to
-    # @async, relying on the yield() inside the residual to give the event loop cycles so the fit
-    # can still be cancelled. The fitting code only writes peak parameter arrays in place (without
-    # notify), so the only visible update is the generation-guarded notify(expt.peaks) at the end.
+Fit every touched cluster in the background, then the post-fits, then notify the peaks once.
+
+A newer fit, a change to the peaks, switching fitting off or closing the window supersedes
+this one: it stops at its next step and commits nothing. A cluster that runs past its time
+budget keeps its previous values and is marked `:timeout`; `warm=true` continues such
+clusters from their last values with a longer budget (see [`continuefit!`](@ref)).
+"""
+function fit!(expt::Experiment; warm=false)
+    state = expt.state[]
+    peaks = copy(expt.peaks[])
+    todo = [cluster for (cluster, t) in zip(expt.clusters[], expt.touched[]) if t]
+    isempty(todo) && return nothing
+
+    mygen = (state[:fit_generation][] += 1)
+    budget = warm ? CONTINUE_TIME_BUDGET : FIT_TIME_BUDGET
+    clusters = [peaks[cluster] for cluster in todo]
+
+    # Off the GUI's critical path: a background thread when there is one, or else a task
+    # that yields from inside the fit so the window can still register a cancellation.
     runfit = function ()
+        current() = state[:fit_generation][] == mygen
         try
-            expt.state[][:mode][] = :fitting
-            # iterate over touched clusters and fit; t0 is reset per-cluster so each gets
-            # its own FIT_TIME_BUDGET rather than sharing one budget across the whole spectrum.
-            for i in 1:length(expt.clusters[])
-                if expt.touched[][i]
-                    fit!(expt.clusters[][i], expt, mygen, time())
-                    postfit!(expt.clusters[][i], expt)
+            state[:mode][] = :fitting
+            state[:fitprogress][] = (0, length(clusters))
+            statuses = fitclusters!(expt, clusters, mygen, budget; warm)
+            (current() && :cancelled ∉ statuses) || return nothing
+            for (cluster, status) in zip(clusters, statuses)
+                for peak in cluster
+                    peak.touched.val = false
+                    peak.fitstatus.val = status
+                    status == :timeout || postfit!(peak, expt)
                 end
             end
             postfitglobal!(expt)
-            @debug "Fit finished - notifying peaks" #maxlog=10
-            # Only commit results if this fit is still the current one - a superseded fit must
-            # not push stale results to the display.
-            if expt.state[][:fit_generation][] == mygen
-                notify(expt.peaks)
-            end
+            current() && notify(expt.peaks)
         catch e
-            e isa FitCancelled || rethrow()
-            @debug "Fit cancelled (generation $mygen superseded)"
+            # a background task's error is otherwise never seen
+            @error "Fitting failed" exception = (e, catch_backtrace())
         finally
-            # Reset the status background only if we are still the current fit; a newer fit will
-            # manage its own mode. Guarantees the mode resets even on cancellation/error.
-            if expt.state[][:fit_generation][] == mygen
-                expt.state[][:mode][] = :normal
-            end
+            current() && (state[:mode][] = :normal)
         end
+        return nothing
     end
 
-    if Threads.nthreads() > 1
-        expt.state[][:fit_task][] = Threads.@spawn runfit()
-    else
-        expt.state[][:fit_task][] = @async runfit()
-    end
-    return expt.state[][:fit_task][]
+    task = Threads.nthreads() > 1 ? Threads.@spawn(runfit()) : @async(runfit())
+    return state[:fit_task][] = task
 end
 
-# placeholder functions for additional fitting following spectrum fit
-function postfit!(cluster::Vector{Int}, expt::Experiment)
-    @debug "Post-fitting cluster $cluster" #maxlog=10
-    for i in cluster
-        postfit!(expt.peaks[][i], expt)
-    end
+"""
+    continuefit!(expt)
+
+Refit the peaks whose last fit was stopped before it finished (see
+[`iscontinuable`](@ref)), starting from where it stopped and with a longer time budget.
+"""
+function continuefit!(expt::Experiment)
+    unfinished = filter(iscontinuable, expt.peaks[])
+    isempty(unfinished) && return nothing
+    foreach(peak -> peak.touched.val = true, unfinished)
+    expt.touched.val = map(c -> any(j -> expt.peaks[][j].touched[], c), expt.clusters[])
+    return fit!(expt; warm=true)
 end
 
-"""Additional fitting of peak following spectrum fit - defaults to no action"""
-function postfit!(peak::Peak, expt::Experiment)
-    return peak.postfitted[] = true
-end
+# Additional fitting of a peak following the spectrum fit - by default, none.
+postfit!(peak::Peak, expt::Experiment) = (peak.postfitted[] = true)
 
-"""Global fitting of entire experiment following spectrum fit - defaults to no action"""
+# Global fitting across every peak following the spectrum fit - by default, none.
 postfitglobal!(expt::Experiment) = nothing
-
-function fit!(cluster::Vector{Int}, expt::Experiment, mygen=expt.state[][:fit_generation][],
-              t0=time())
-    @debug "Fitting cluster $cluster" #maxlog=10
-    peaks = [expt.peaks[][i] for i in cluster]
-
-    # initial parameters
-    p0 = pack(peaks, :initial)
-    pmin = pack(peaks, :min)
-    pmax = pack(peaks, :max)
-    # lmfit (levenberg_marquardt) throws if p0 lies outside the bounds, so clamp first
-    p0 = clamp.(p0, pmin, pmax)
-
-    # get mask and bounds
-    m = mask(cluster, expt)
-    xbounds, ybounds = bounds(m)
-    smallmask = [m[i][xbounds[i], ybounds[i]] for i in 1:length(m)]
-    bigmask = reduce(vcat, vec.(m))
-    smallmask = reduce(vcat, vec.(smallmask))
-    zobs = reduce(vcat, vec.(expt.specdata.z))[bigmask]
-    @debug "zobs" zobs maxlog = 10
-
-    @debug "pre-allocating zsim" maxlog = 10
-    zsim = map(1:nslices(expt)) do i
-        return similar(expt.specdata.z[i][xbounds[i], ybounds[i]])
-    end
-    @debug "zsim" zsim maxlog = 10
-    zsimm = similar(zobs)
-    # create residual function
-    function resid(p)
-        @debug "resid (start)" maxlog = 10
-        # Abort if this fit has been superseded (peaks/radii changed, fitting toggled off, or
-        # window closed) or if it has exceeded its time budget. The residual is evaluated every
-        # LM iteration, so it is the natural place to hook cancellation.
-        (expt.state[][:fit_generation][] != mygen) && throw(FitCancelled())
-        (time() - t0 > FIT_TIME_BUDGET) && throw(FitCancelled())
-        # Single-threaded: yield so the GUI event loop gets a chance to run (and register a
-        # cancellation) between iterations. Harmless under multithreading.
-        Threads.nthreads() == 1 && yield()
-        unpack!(copy(p), peaks, :value)
-        for i in 1:nslices(expt)
-            fill!(zsim[i], 0.0)
-        end
-        simulate!(zsim, cluster, expt, xbounds, ybounds)
-        zsimm .= reduce(vcat, vec.(zsim))[smallmask]
-        return zobs - zsimm
-    end
-    @debug "running fit" maxlog = 10
-    # Box-constrained, runtime-bounded fit. Bounds keep peak positions within their radius and
-    # R2 within sensible limits. Loose tolerances + maxIter are appropriate for interactive
-    # re-fitting; :finite (the default) matches the Float64-routed residual - a ForwardDiff
-    # Jacobian would be identically zero here. The wall-clock cap is enforced inside `resid` via
-    # FIT_TIME_BUDGET.
-    sol = LsqFit.lmfit(resid, p0, Float64[];
-                       lower=pmin, upper=pmax,
-                       autodiff=:finite,
-                       maxIter=200, x_tol=1e-4, g_tol=1e-6)
-    pfit = coef(sol)
-    perr = stderrors(sol)
-    @debug "fit complete" pfit maxlog = 10
-    unpack!(pfit, peaks, :value)
-    unpack!(perr, peaks, :uncertainty)
-
-    # untouch peaks in the cluster
-    for peak in peaks
-        peak.touched.val = false
-    end
-    # N.B. the update to peaks[] will be notified in parent function once all fitting is complete
-end
 
 """
     simulate!(expt::Experiment)
@@ -369,28 +329,12 @@ end
 Simulate all peaks in the experiment and update specdata.
 """
 function simulate!(expt::Experiment)
-    @debug "Simulating experiment" #maxlog=10
     z = expt.specdata.zfit.val
-    for zi in z
-        fill!(zi, 0)
+    foreach(zi -> fill!(zi, 0), z)
+    for peak in expt.peaks[]
+        simulate!(z, peak, expt)
     end
-    simulate!(z, expt)
     return notify(expt.specdata.zfit)
-end
-
-function simulate!(z, expt::Experiment)
-    @debug "Simulating experiment with z" maxlog = 10
-    for cluster in expt.clusters[]
-        simulate!(z, cluster, expt)
-    end
-end
-
-function simulate!(z, cluster::Vector{Int}, expt::Experiment, xbounds=nothing,
-                   ybounds=nothing)
-    @debug "Simulating cluster $cluster" maxlog = 10
-    for i in cluster
-        simulate!(z, expt.peaks[][i], expt, xbounds, ybounds)
-    end
 end
 
 """
@@ -399,63 +343,42 @@ end
 Calculate masks for all peaks and update specdata.
 """
 function mask!(expt::Experiment)
-    @debug "Masking experiment" #maxlog=10
     z = expt.specdata.mask.val
-    for zi in z
-        fill!(zi, false)
+    for i in eachindex(z)
+        if i > 1 && hasfixedpositions(expt) && samegrid(expt, i, i - 1)
+            z[i] .= z[i - 1]
+        else
+            fill!(z[i], false)
+            foreach(peak -> maskplane!(z[i], peak, expt, i), expt.peaks[])
+        end
     end
-    mask!(z, expt)
     return notify(expt.specdata.mask)
 end
 
-function mask!(z, expt::Experiment)
-    @debug "Masking experiment with z" maxlog = 10
-    for peak in expt.peaks[]
-        mask!(z, peak, expt)
-    end
-end
+"""
+    mask(peaks, expt) -> Vector{BitMatrix}
 
-function mask(cluster::Vector{Int}, expt::Experiment)
-    @debug "Generating cluster mask" maxlog = 10
-    z = [similar(zi) for zi in expt.specdata.mask[]]
-    for zi in z
-        fill!(zi, false)
-    end
-    for i in cluster
-        mask!(z, expt.peaks[][i], expt)
+The mask of a cluster of peaks, one matrix per plane. Planes sharing a grid in a
+fixed-peak experiment share one matrix.
+"""
+function mask(peaks::AbstractVector{Peak}, expt::Experiment)
+    z = Vector{BitMatrix}(undef, nslices(expt))
+    for i in eachindex(z)
+        if i > 1 && hasfixedpositions(expt) && samegrid(expt, i, i - 1)
+            z[i] = z[i - 1]
+        else
+            z[i] = falses(size(expt.specdata.z[i]))
+            foreach(peak -> maskplane!(z[i], peak, expt, i), peaks)
+        end
     end
     return z
 end
 
-function bounds(mask)
-    @debug "Generating cluster bounds from mask" maxlog = 10
-    b = map(mask) do m
-        # m is a matrix of booleans
-        # get projections ix and iy where any value is true
-        ix = vec(any(m; dims=2))
-        iy = vec(any(m; dims=1))
-        return [ix, iy]
-    end
-    # reshape into list of ix, and list of iy
-    ix = [b[i][1] for i in 1:length(b)]
-    iy = [b[i][2] for i in 1:length(b)]
-    @debug "bounds" sum.(ix) sum.(iy) maxlog = 10
-
-    return ix, iy
-end
-
-# generic masking method - can be specialised if needed
-function mask!(z, peak::Peak, expt::Experiment)
-    @debug "masking peak $(peak.label)" maxlog = 10
-    n = length(z)
-    for i in 1:n
-        x = expt.specdata.x[i]
-        y = expt.specdata.y[i]
-        maskellipse!(z[i], x, y,
-                     initialposition(peak)[][i][1],
-                     initialposition(peak)[][i][2],
-                     peak.xradius[], peak.yradius[])
-    end
+# The fitting region of `peak` in plane `i`: an ellipse of its radii about where it was
+# placed. Specialise this for a different shape of region.
+function maskplane!(m, peak::Peak, expt::Experiment, i)
+    return maskellipse!(m, expt.specdata.x[i], expt.specdata.y[i],
+                        initialposition(peak)[i]..., peak.xradius[], peak.yradius[])
 end
 
 function Base.show(io::IO, expt::Experiment)
@@ -467,5 +390,8 @@ function Base.show(io::IO, mime::MIME"text/plain", expt::Experiment)
     println(io, "  $(npeaks(expt)) peaks")
     println(io, "  $(nslices(expt)) slices")
     println(io, "  $(length(expt.clusters[])) clusters")
-    return println(io, "  fitting: $(expt.isfitting[])")
+    unfinished = count(isunfinished, expt.peaks[])
+    unfinished > 0 && println(io, "  $unfinished unfinished fits")
+    return print(io, "Use results(expt) for one row per peak, planeresults(expt) for one " *
+                     "per plane")
 end

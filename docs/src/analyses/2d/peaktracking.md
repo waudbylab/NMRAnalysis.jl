@@ -36,6 +36,10 @@ plane does not disturb the others.
 - **(T) — add and track.** Drops a peak and follows the intensity maximum across the planes
   automatically (anchored at the current plane, propagated outwards). Best for well-resolved
   peaks; not available for RDC experiments.
+- **(L) — add along a line.** Press `l` at one end of the path a peak follows across the
+  planes, and click (or press `l` again) at the other. The peak is placed in each plane at
+  the most intense point along that line, and the fit then refines it within the radius.
+  Suited to fast-exchange titrations; not available for RDC experiments.
 - **Drag** a peak's handle to correct its position in the current plane. The handle enlarges
   when hovered. Dragging re-estimates that plane's amplitude.
 - **(D)** deletes and **(R)** renames the selected peak, as elsewhere.
@@ -43,7 +47,7 @@ plane does not disturb the others.
 ## Visualisation
 
 - Each peak's **trajectory** across the planes is drawn as a coloured polyline (red = needs
-  fitting, blue = fitted, green = selected).
+  fitting, blue = fitted, orange = fit unfinished, green = selected).
 - The **(S)how all** toggle (also bound to `s`) overlays every plane's contours faintly, for
   context when a peak moves a long way.
 

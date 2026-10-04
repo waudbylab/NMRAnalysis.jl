@@ -106,9 +106,6 @@ function postfit!(peak::Peak, expt::IntensityExperiment, model::ParametricModel)
     return peak.postfitted[] = true
 end
 
-# Helper: plane indices to skip (empty for experiments that don't support skipplanes)
-_skipset(::Experiment) = Set{Int}()
-_skipset(expt::IntensityExperiment) = Set{Int}(expt.skipplanes)
 
 _empty_errorbars() = Tuple{Float64,Float64,Float64}[]
 
@@ -120,7 +117,7 @@ function get_model_data(peak, expt::Experiment, ::NoFitting)
     x = expt.x
     y = peak.parameters[:amp].value[]
     err = peak.parameters[:amp].uncertainty[]
-    skip = _skipset(expt)
+    skip = skipset(expt)
 
     active = [i for i in eachindex(x) if i ∉ skip]
     skipped = [i for i in eachindex(x) if i ∈ skip]
@@ -151,7 +148,7 @@ function get_model_data(peak, expt::Experiment, model::ParametricModel)
     x = expt.x
     y = peak.parameters[:amp].value[]
     err = peak.parameters[:amp].uncertainty[]
-    skip = _skipset(expt)
+    skip = skipset(expt)
 
     active = [i for i in eachindex(x) if i ∉ skip]
     skipped = [i for i in eachindex(x) if i ∈ skip]

@@ -157,3 +157,80 @@ extract_residue_number(label) = parse_label(label).resnum
 `"I13CD1"`), used to decide between scatter and bar summary plots.
 """
 has_atom_labels(labels) = any(!isempty(parse_label(l).atom) for l in labels)
+
+# ---- arguments ----------------------------------------------------------------------
+
+"""
+    readvalues(x) -> Vector{Float64}
+
+Values given as a vector, a number, or the path of a file holding one per line (lines
+beginning with `#` are comments), or a vector mixing these.
+"""
+readvalues(x::Real) = [Float64(x)]
+readvalues(x::AbstractString) = Float64.(vec(readdlm(x; comments=true)))
+readvalues(x::AbstractVector) = reduce(vcat, (readvalues(v) for v in x); init=Float64[])
+
+"""
+    checkskipplanes(skipplanes, n) -> Vector{Int}
+
+The planes to skip, checked to lie within `1:n`. `nothing` skips none.
+"""
+function checkskipplanes(skipplanes, n)
+    skip = isnothing(skipplanes) ? Int[] : collect(Int, skipplanes)
+    bad = filter(i -> !(1 ≤ i ≤ n), skip)
+    isempty(bad) ||
+        throw(ArgumentError("skipplanes out of range: $bad (there are $n planes)"))
+    return skip
+end
+
+"""
+    checklength(values, n, name) -> values
+
+`values`, checked to give one per plane.
+"""
+function checklength(values, n, name)
+    length(values) == n ||
+        throw(ArgumentError("got $(length(values)) $name for $n planes"))
+    return values
+end
+
+"The distinct spectra behind the planes of `specdata`, in order."
+sourcespectra(specdata) = unique(objectid, collect(specdata.nmrdata))
+
+"""
+    planevalues(f, specdata) -> Vector or nothing
+
+`f(spec)` for each spectrum behind `specdata`, concatenated into one value per plane, or
+`nothing` if any spectrum has none.
+"""
+function planevalues(f, specdata)
+    values = [f(spec) for spec in sourcespectra(specdata)]
+    any(isnothing, values) && return nothing
+    return reduce(vcat, (vec(collect(Float64, v)) for v in values))
+end
+
+"""
+    relaxationdelays(specdata; relaxationtimes, ncyc, cycletime, prompt) -> Vector{Float64}
+
+One relaxation delay per plane, in seconds: `relaxationtimes` if given; else the loop counts
+`ncyc` times the duration of one loop, `cycletime`; else the `relaxation.duration`
+annotation; else the `vdlist`; else the `vclist` times `cycletime`; else asked for. Where a
+loop duration is needed and not given, it is asked for.
+"""
+function relaxationdelays(specdata; relaxationtimes=nothing, ncyc=nothing,
+                          cycletime=nothing, prompt::Bool=isinteractive())
+    n = length(specdata.z)
+    looptime() = isnothing(cycletime) ?
+                 ask("duration of one loop of the vclist"; unit="s", prompt) :
+                 Float64(cycletime)
+    loops = isnothing(ncyc) ? nothing : readvalues(ncyc)
+    delays = @something(isnothing(relaxationtimes) ? nothing : readvalues(relaxationtimes),
+                        isnothing(loops) ? nothing : loops .* looptime(),
+                        planevalues(s -> annotation(s, :relaxation, :duration), specdata),
+                        planevalues(s -> acqusvalue(s, :vdlist), specdata),
+                        let c = planevalues(s -> acqusvalue(s, :vclist), specdata)
+                            isnothing(c) ? nothing : c .* looptime()
+                        end,
+                        askvector("relaxation delays", n; unit="s", prompt))
+    return checklength(delays, n, "relaxation delays")
+end

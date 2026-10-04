@@ -39,8 +39,10 @@ struct Peak
     touched::Observable{Bool}
     xradius::Observable{Float64}
     yradius::Observable{Float64}
+    customradius::Observable{Bool}  # radii of its own, kept when the defaults change
     postparameters::OrderedDict{Symbol,Parameter}
     postfitted::Observable{Bool}
+    fitstatus::Observable{Symbol}   # see `fitstatus`
 end
 
 abstract type VisualisationStrategy end

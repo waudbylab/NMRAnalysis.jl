@@ -30,9 +30,10 @@ struct MovingExperiment <: MovingPeakExperiment
     x::Vector{Float64}
     model::FittingModel
     visualisation::VisualisationStrategy
+    skipplanes::Vector{Int}
 
     function MovingExperiment(specdata, peaks, model=NoFitting(), xvalues=nothing,
-                              visualisation=CrossSectionVisualisation())
+                              visualisation=CrossSectionVisualisation(); skipplanes=Int[])
         if isnothing(xvalues)
             xvalues = 1.0 * collect(1:length(specdata.z))
         end
@@ -43,7 +44,7 @@ struct MovingExperiment <: MovingPeakExperiment
                    Observable(0.03; ignore_equal_values=true), # xradius
                    Observable(0.2; ignore_equal_values=true), # yradius
                    Observable{Dict}(),
-                   xvalues, model, visualisation)
+                   xvalues, model, visualisation, collect(Int, skipplanes))
         setupexptobservables!(expt)
         expt.state[] = preparestate(expt)
         return expt
@@ -122,7 +123,7 @@ function preparespecdata(inputfilenames, ::Type{MovingExperiment})
 end
 
 """
-    peaktrack2d(inputfilenames)
+    peaktrack2d(inputfilenames; skipplanes=nothing) -> MovingExperiment
 
 Start an interactive GUI for analysing a series of 2D spectra in which **peak positions
 change** from plane to plane (e.g. a titration, or a coupling-constant / RDC measurement).
@@ -132,11 +133,15 @@ position and linewidth are free to move; no physical model is applied to the tra
 Use this to measure how peak positions and linewidths evolve across a series for downstream
 analysis, or as the basis for the position-based physical models (titration, coupling).
 
+The window blocks until it is closed, and the analysis is returned (see
+[`results`](@ref)).
+
 # Arguments
 - `inputfilenames`: A single path string (pseudo-3D dataset) or a vector of path strings
   (one file per plane) pointing to processed Bruker data directories. Bruker experiment
   numbers work too, individually or as a list/range (e.g. `1:11`), resolved relative to the
   working directory.
+- `skipplanes`: Planes (1-based) marked as skipped. They are still fitted and displayed.
 
 # Example
 ```julia
@@ -146,13 +151,11 @@ peaktrack2d(1:11)
 
 See also [`titration2d`](@ref) for fitting binding isotherms to a titration series.
 """
-function peaktrack2d(inputfilenames)
-    inputfilenames = asexptpath(inputfilenames)
-    specdata = preparespecdata(inputfilenames, MovingExperiment)
-    peaks = Observable(Vector{Peak}())
-
-    expt = MovingExperiment(specdata, peaks, NoFitting(), nothing)
-
+function peaktrack2d(inputfilenames; skipplanes=nothing)
+    specdata = preparespecdata(asexptpath(inputfilenames), MovingExperiment)
+    skip = checkskipplanes(skipplanes, length(specdata.z))
+    expt = MovingExperiment(specdata, Observable(Vector{Peak}()), NoFitting(), nothing;
+                            skipplanes=skip)
     return gui!(expt)
 end
 
@@ -324,14 +327,15 @@ function finish_add!(expt::MovingPeakExperiment, state)
     positions = state[:add_positions][]
     anchor = state[:add_anchor][]
     fallback = positions[anchor]
-    addpeak!(expt, Point2f(fallback))
-    peak = expt.peaks[][end]
-    for i in eachindex(positions)
-        p = isnan(positions[i][1]) ? fallback : positions[i]
-        setpeakposition!(expt, peak, i, p[1], p[2])
+    batchupdate(expt) do
+        addpeak!(expt, Point2f(fallback))
+        peak = expt.peaks[][end]
+        for i in eachindex(positions)
+            p = isnan(positions[i][1]) ? fallback : positions[i]
+            setpeakposition!(expt, peak, i, p[1], p[2])
+        end
+        return peak.touched.val = true
     end
-    peak.touched[] = true
-    notify(expt.peaks)
     show_add_marks!(state, Point2f[])
     state[:current_peak_idx][] = length(expt.peaks[])
     state[:mode][] = :normal
@@ -353,9 +357,8 @@ function r2_from_radius(axis, radius, pos)
     return clamp(π * Δhz / 2, 1.0, 100.0)
 end
 
-# Resample plane `i`'s amplitude from the spectrum at the peak's current initial position. After
-# the per-plane R2 scaling in simulatepeakplane!, the fitted amplitude is the peak height, so the
-# nearest grid intensity is a good seed - kept current whenever the position moves.
+# Resample plane `i`'s amplitude from the spectrum at the peak's current initial position, so
+# the peak displays sensibly before it is fitted. The amplitude is the peak height.
 function reinitialise_amplitude!(expt::MovingPeakExperiment, peak::Peak, i)
     x0 = peak.parameters[:x].initialvalue[][i]
     y0 = peak.parameters[:y].initialvalue[][i]
@@ -377,173 +380,95 @@ refines each plane within its radius. Good for non-crowded series (titrations); 
 regions, add with `A` and adjust planes by hand instead.
 """
 function addandtrackpeak!(expt::MovingPeakExperiment, initialposition, label="")
-    addpeak!(expt, initialposition, label)
-    peak = expt.peaks[][end]
-    s = expt.state[][:current_slice][]
+    batchupdate(expt) do
+        addpeak!(expt, initialposition, label)
+        peak = expt.peaks[][end]
+        s = expt.state[][:current_slice][]
 
-    # Anchor at the current plane (refine the click to the local maximum), then propagate.
-    xc, yc = trackmaximum(expt, s, initialposition[1], initialposition[2])
-    setpeakposition!(expt, peak, s, xc, yc)
-    px, py = xc, yc
-    for i in (s + 1):nslices(expt)
-        px, py = trackmaximum(expt, i, px, py)
-        setpeakposition!(expt, peak, i, px, py)
+        # Anchor at the current plane (the click refined to the local maximum), then propagate
+        xc, yc = trackmaximum(expt, s, initialposition[1], initialposition[2])
+        setpeakposition!(expt, peak, s, xc, yc)
+        px, py = xc, yc
+        for i in (s + 1):nslices(expt)
+            px, py = trackmaximum(expt, i, px, py)
+            setpeakposition!(expt, peak, i, px, py)
+        end
+        px, py = xc, yc
+        for i in (s - 1):-1:1
+            px, py = trackmaximum(expt, i, px, py)
+            setpeakposition!(expt, peak, i, px, py)
+        end
+        return peak.touched.val = true
     end
-    px, py = xc, yc
-    for i in (s - 1):-1:1
-        px, py = trackmaximum(expt, i, px, py)
-        setpeakposition!(expt, peak, i, px, py)
-    end
-
-    peak.touched[] = true
-    notify(expt.peaks)
     return length(expt.peaks[])
 end
 
-"""Simulate single peak across all planes (used for the displayed fit spectrum)."""
-function simulate!(z, peak::Peak, expt::MovingExperiment, xbounds=nothing, ybounds=nothing)
-    for i in 1:nslices(expt)
-        xb = isnothing(xbounds) ? nothing : xbounds[i]
-        yb = isnothing(ybounds) ? nothing : ybounds[i]
-        simulatepeakplane!(z[i], peak, expt, i, xb, yb)
-    end
+# --- line add (L) ------------------------------------------------------------
+# For a titration whose peaks walk along straight lines: (L) marks one end of the line under
+# the cursor, and a click or a second (L) the other. The peak is then placed, in every
+# plane, at the most intense point along that line. The line is held in state[:line].
+
+"""Begin marking a line at `pos`."""
+function beginline!(expt::MovingPeakExperiment, state, pos)
+    state[:line][] = [Point2f(pos), Point2f(pos)]
+    return state[:mode][] = :line
 end
 
-"""Simulate a single peak into one plane `i`. `xbounds`/`ybounds`, if given, are the boolean
-masks restricting `z` to that plane's fit window."""
-function simulatepeakplane!(z, peak::Peak, expt::MovingPeakExperiment, i,
-                            xbounds=nothing, ybounds=nothing)
-    xaxis = dims(expt.specdata.nmrdata[i], F1Dim)
-    yaxis = dims(expt.specdata.nmrdata[i], F2Dim)
-    x = isnothing(xbounds) ? expt.specdata.x[i] : expt.specdata.x[i][xbounds]
-    y = isnothing(ybounds) ? expt.specdata.y[i] : expt.specdata.y[i][ybounds]
-
-    x0 = peak.parameters[:x].value[][i]
-    y0 = peak.parameters[:y].value[][i]
-    R2x = peak.parameters[:R2x].value[][i]
-    R2y = peak.parameters[:R2y].value[][i]
-    amp = peak.parameters[:amp].value[][i]
-
-    # find indices of x and y axes within peak radius of peak position
-    xi = x0 .- peak.xradius[] .≤ x .≤ x0 .+ peak.xradius[]
-    yi = y0 .- peak.yradius[] .≤ y .≤ y0 .+ peak.yradius[]
-    xs = x[xi]
-    ys = y[yi]
-    # Scale by this plane's OWN R2x/R2y so the fitted amplitude is the peak height, decoupled
-    # from linewidth. Unlike fixed-peak experiments (where linewidths are shared), each plane
-    # must use its own linewidths - otherwise plane 1's linewidth scales every plane's amplitude.
-    zx = NMRTools.NMRBase._lineshape(2π * hz(x0, xaxis), R2x, 2π * hz(xs, xaxis),
-                                     xaxis[:window], RealLineshape())
-    zy = (π^2 * amp * R2x * R2y) *
-         NMRTools.NMRBase._lineshape(2π * hz(y0, yaxis), R2y, 2π * hz(ys, yaxis),
-                                     yaxis[:window], RealLineshape())
-    z[xi, yi] .+= zx .* zy'
-    return z
+"""Follow the cursor with the free end of the line being marked."""
+function dragline!(state, pos)
+    line = state[:line][]
+    return state[:line][] = [line[1], Point2f(pos)]
 end
 
-# --- per-plane fitting -------------------------------------------------------
-# The per-plane lineshape model is separable across planes, so a moving-peak cluster is fitted
-# one plane at a time rather than as one joint optimisation over all 5×nplanes parameters. This
-# is both better-conditioned (≈5 params/peak per fit) and fully decoupled: adjusting one plane's
-# position cannot disturb another plane's fit. A single joint Levenberg–Marquardt fit couples
-# the planes through its shared damping parameter and finite iteration/time budget, so an
-# under-converged plane drags the others.
-
-function fit!(cluster::Vector{Int}, expt::MovingPeakExperiment,
-              mygen=expt.state[][:fit_generation][], t0=time())
-    peaks = [expt.peaks[][i] for i in cluster]
-    m = mask(cluster, expt)
-    xbounds, ybounds = bounds(m)
-    for i in 1:nslices(expt)
-        fitplane!(peaks, expt, i, m[i], xbounds[i], ybounds[i], mygen, t0)
-    end
-    for peak in peaks
-        peak.touched.val = false
-    end
+"""Finish the line at `pos` and add a peak along it."""
+function finishline!(expt::MovingPeakExperiment, state, pos)
+    a = state[:line][][1]
+    state[:line][] = Point2f[]
+    state[:mode][] = :normal
+    addlinepeak!(expt, a, Point2f(pos))
+    return state[:current_peak_idx][] = length(expt.peaks[])
 end
 
-function fitplane!(peaks, expt::MovingPeakExperiment, i, mi, xbi, ybi, mygen, t0)
-    p0 = packplane(peaks, i, :initial)
-    pmin = packplane(peaks, i, :min)
-    pmax = packplane(peaks, i, :max)
-    p0 = clamp.(p0, pmin, pmax)
+"""Abandon the line being marked."""
+function cancelline!(state)
+    state[:line][] = Point2f[]
+    return state[:mode][] = :normal
+end
 
-    bigmask = vec(mi)
-    smallmask = vec(mi[xbi, ybi])
-    zobs = vec(expt.specdata.z[i])[bigmask]
-    zbuf = similar(expt.specdata.z[i][xbi, ybi])
-    zsimm = similar(zobs)
+"""
+    linemaximum(expt, i, a, b) -> (x, y)
 
-    function resid(p)
-        (expt.state[][:fit_generation][] != mygen) && throw(FitCancelled())
-        (time() - t0 > FIT_TIME_BUDGET) && throw(FitCancelled())
-        Threads.nthreads() == 1 && yield()
-        unpackplane!(copy(p), peaks, i, :value)
-        fill!(zbuf, 0.0)
-        for peak in peaks
-            simulatepeakplane!(zbuf, peak, expt, i, xbi, ybi)
+The most intense grid point of plane `i` along the line from `a` to `b`, sampled finely
+enough to visit every grid point the line crosses.
+"""
+function linemaximum(expt::MovingPeakExperiment, i, a, b)
+    x = expt.specdata.x[i]
+    y = expt.specdata.y[i]
+    z = expt.specdata.z[i]
+    steps = abs(b[1] - a[1]) / abs(x[2] - x[1]) + abs(b[2] - a[2]) / abs(y[2] - y[1])
+    n = max(2, 2 * ceil(Int, steps))
+    points = unique((findnearest(x, a[1] + t * (b[1] - a[1])),
+                     findnearest(y, a[2] + t * (b[2] - a[2]))) for t in range(0, 1, n))
+    ix, iy = points[argmax([z[p...] for p in points])]
+    return (x[ix], y[iy])
+end
+
+"""
+    addlinepeak!(expt, a, b, label="")
+
+Add a peak placed, in each plane, at the maximum along the line from `a` to `b` (see
+[`linemaximum`](@ref)). The fit then refines each plane within its radius.
+"""
+function addlinepeak!(expt::MovingPeakExperiment, a, b, label="")
+    batchupdate(expt) do
+        addpeak!(expt, Point2f(a), label)
+        peak = expt.peaks[][end]
+        for i in 1:nslices(expt)
+            setpeakposition!(expt, peak, i, linemaximum(expt, i, a, b)...)
         end
-        zsimm .= vec(zbuf)[smallmask]
-        return zobs - zsimm
+        return peak.touched.val = true
     end
-
-    sol = LsqFit.lmfit(resid, p0, Float64[]; lower=pmin, upper=pmax, autodiff=:finite,
-                       maxIter=50, x_tol=1e-4, g_tol=1e-6)
-    unpackplane!(coef(sol), peaks, i, :value)
-    return unpackplane!(stderrors(sol), peaks, i, :uncertainty)
-end
-
-# Pack/unpack just plane `i`'s parameters (in OrderedDict order: x, y, R2x, R2y, amp).
-function packplane(peaks, i, quantity=:value)
-    p = Float64[]
-    for peak in peaks
-        packplane!(p, peak, i, quantity)
-    end
-    return p
-end
-
-function packplane!(p, peak::Peak, i, quantity)
-    for (sym, par) in peak.parameters
-        v = if quantity == :initial
-            par.initialvalue[][i]
-        elseif quantity == :min
-            planebound(peak, sym, par, i, :min)
-        elseif quantity == :max
-            planebound(peak, sym, par, i, :max)
-        else
-            par.value[][i]
-        end
-        push!(p, v)
-    end
-    return p
-end
-
-# Position (:x/:y) is bounded within ±radius of this plane's own initial value; other
-# parameters keep their fixed scalar bounds (R2: 1–100 s⁻¹; amplitude: unbounded).
-function planebound(peak, sym, par, i, which)
-    if sym === :x || sym === :y
-        r = sym === :x ? peak.xradius[] : peak.yradius[]
-        return which === :min ? par.initialvalue[][i] - r : par.initialvalue[][i] + r
-    end
-    b = which === :min ? par.minvalue[] : par.maxvalue[]
-    return b isa AbstractVector ? b[i] : b
-end
-
-function unpackplane!(v, peaks, i, quantity=:value)
-    for peak in peaks
-        unpackplane!(v, peak, i, quantity)
-    end
-end
-
-function unpackplane!(v, peak::Peak, i, quantity)
-    for (_, par) in peak.parameters
-        val = popfirst!(v)
-        if quantity == :value
-            par.value[][i] = val
-        elseif quantity == :uncertainty
-            par.uncertainty[][i] = val
-        end
-    end
+    return length(expt.peaks[])
 end
 
 # --- postfit ----------------------------------------------------------------
@@ -808,7 +733,8 @@ function titrationconcentrations(nmrdata)
 end
 
 """
-    titration2d(inputfilenames; L0=nothing, P0=nothing, weights=(1.0, 0.14))
+    titration2d(inputfilenames; L0=nothing, P0=nothing, weights=(1.0, 0.14),
+                skipplanes=nothing, prompt=isinteractive()) -> MovingExperiment
 
 Interactive analysis of a 2D titration series, fitting a global binding isotherm to the
 chemical-shift perturbations. Built on [`peaktrack2d`](@ref): track each residue's peak across
@@ -821,14 +747,20 @@ all residues plus per-residue free/bound shifts in each dimension.
   work too, individually or as a list/range (e.g. `1:11`), resolved relative to the working
   directory.
 - `L0`: Total **ligand** concentration in each plane (one per plane). If omitted, it is read
-  from each plane's NMR sample metadata (see [`titrationconcentrations`](@ref)); an error is
-  raised if that metadata isn't available either.
+  from each plane's NMR sample metadata (see [`titrationconcentrations`](@ref)), and if that
+  metadata isn't available either you are asked for it.
 - `P0`: Total **protein** concentration in each plane (one per plane), or `nothing`. When given
   (explicitly, or found in sample metadata), the exact 1:1 binding equation is used, accounting
   for protein concentration and dilution; otherwise the hyperbolic (ligand ≈ free) approximation
   is used. `Kd` is reported in the same concentration units as `L0`/`P0`.
 - `weights`: `(wx, wy)` weighting of the two dimensions for the combined CSP `|Δδ|`; the default
   assumes ¹H (x) / ¹⁵N (y).
+- `skipplanes`: Planes (1-based) left out of the binding isotherm fit. They are still fitted
+  and displayed.
+- `prompt`: Whether to ask for concentrations that cannot be found (default: when
+  interactive).
+
+The window blocks until it is closed, and the analysis is returned (see [`results`](@ref)).
 
 # Results
 - The per-residue panel shows ΔδX and ΔδY together on a single axis (referenced to the fitted
@@ -846,14 +778,14 @@ titration2d(files; L0=ligand_concs, P0=protein_concs) # exact 1:1, accounts for 
 titration2d(1:11)                                     # Bruker experiment numbers
 ```
 """
-function titration2d(inputfilenames; L0=nothing, P0=nothing, weights=(1.0, 0.14))
+function titration2d(inputfilenames; L0=nothing, P0=nothing, weights=(1.0, 0.14),
+                     skipplanes=nothing, prompt::Bool=isinteractive())
     specdata = preparespecdata(asexptpath(inputfilenames), MovingExperiment)
 
     if isnothing(L0)
         L0, autoP0 = titrationconcentrations(specdata.nmrdata)
         isnothing(L0) &&
-            error("No `L0` given, and no sample concentration metadata found — pass `L0` " *
-                  "(and optionally `P0`) explicitly")
+            (L0 = askvector("ligand concentrations", length(specdata.z); prompt))
         isnothing(P0) && (P0 = autoP0)
     end
 
@@ -866,9 +798,11 @@ function titration2d(inputfilenames; L0=nothing, P0=nothing, weights=(1.0, 0.14)
     isnothing(protein) || length(protein) == length(ligand) ||
         error("got $(length(protein)) protein concentrations (P0) for $(length(ligand)) ligand concentrations (L0)")
 
+    skip = checkskipplanes(skipplanes, length(ligand))
     model = TitrationModel(protein, (Float64(weights[1]), Float64(weights[2])))
     peaks = Observable(Vector{Peak}())
-    expt = MovingExperiment(specdata, peaks, model, ligand, TitrationVisualisation())
+    expt = MovingExperiment(specdata, peaks, model, ligand, TitrationVisualisation();
+                            skipplanes=skip)
     return gui!(expt)
 end
 
@@ -948,17 +882,17 @@ function postfitglobal!(expt::MovingExperiment, model::TitrationModel)
     peaks = [p for p in expt.peaks[] if p.postfitted[]]
     isempty(peaks) && return
     Lt = expt.x
-    n = nslices(expt)
+    keep = [i for i in 1:nslices(expt) if i ∉ skipset(expt)]
 
-    # one (measured, weights) series per residue per dimension
+    # one (measured, weights) series per residue per dimension, over the planes not skipped
     series = NamedTuple{(:y, :w),Tuple{Vector{Float64},Vector{Float64}}}[]
     for peak in peaks, sym in (:x, :y)
-        y = Float64.(peak.parameters[sym].value[])
-        w = _seriesweights(peak.parameters[sym].uncertainty[])
+        y = Float64.(peak.parameters[sym].value[][keep])
+        w = _seriesweights(peak.parameters[sym].uncertainty[][keep])
         push!(series, (y=y, w=w))
     end
 
-    fractions(Kd) = [boundfraction(model, Lt, i, Kd) for i in 1:n]
+    fractions(Kd) = [boundfraction(model, Lt, i, Kd) for i in keep]
 
     # residual vector across all series at a given Kd (linear params projected out)
     function resid(p)
@@ -1021,7 +955,9 @@ end
 
 function addpeakhint(expt::MovingPeakExperiment)
     s = "Press (A) to add a peak, marking its position in each plane"
-    cantrack(expt) && (s *= ", or (T) to add and auto-track across planes")
+    cantrack(expt) &&
+        (s *= ", (T) to add and auto-track across planes, or (L) at each end of a line " *
+              "to place it at the maximum along the line")
     return s
 end
 
@@ -1119,16 +1055,17 @@ function add_moving_overlays!(g, state, expt::MovingPeakExperiment)
     # trajectories are drawn at reduced alpha so the selected peak's path stands out and a busy
     # peak list doesn't turn into a solid tangle. Concrete RGBAf values are used (a Vector{Symbol}
     # colour is not honoured by lines!).
-    statuscolour(j, sel, touched) = j == sel ? RGBAf(0, 1, 0, 1) :
-                                    touched ? RGBAf(1, 0, 0, 0.45) :
-                                    RGBAf(0.7, 0.8, 1, 0.45)
+    statuscolour(j, sel, peak) = j == sel ? RGBAf(0, 1, 0, 1) :
+                                 peak.touched[] ? RGBAf(1, 0, 0, 0.45) :
+                                 isunfinished(peak) ? RGBAf(1, 0.55, 0, 0.45) :
+                                 RGBAf(0.7, 0.8, 1, 0.45)
     # Single source of truth, recomputed whenever the peaks (positions/fit status) or the
     # selection change; the points and colours derive from it so they stay length-consistent.
     state[:trajectorydata] = lift(expt.peaks, state[:current_peak_idx]) do peaks, sel
         pts = Point2f[]
         cols = RGBAf[]
         for (j, peak) in enumerate(peaks)
-            c = statuscolour(j, sel, peak.touched[])
+            c = statuscolour(j, sel, peak)
             xs = peak.parameters[:x].value[]
             ys = peak.parameters[:y].value[]
             for i in 1:length(xs)
@@ -1152,6 +1089,12 @@ function add_moving_overlays!(g, state, expt::MovingPeakExperiment)
     # Above the contours/context, but below the drag handle (z=10) so the handle stays pickable.
     translate!(g[:plttrajectories], 0, 0, 2)
     translate!(g[:plttrajectorypts], 0, 0, 2)
+
+    # The line being marked with (L)
+    state[:line] = Observable(Point2f[])
+    g[:pltline] = lines!(ax, state[:line]; color=:darkorange, linewidth=2,
+                         linestyle=:dash)
+    translate!(g[:pltline], 0, 0, 11)
 
     # In-progress guided-add marks: orange crosses at the positions marked so far.
     state[:add_marks] = Observable(Point2f[])

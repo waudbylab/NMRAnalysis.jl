@@ -167,7 +167,7 @@ they move, and the layout is the same either way.
 function resultstable(expt)
     derived = derivedkeys(expt)
 
-    header = ["label", "resnum", "resname", "atom"]
+    header = ["label", "resnum", "resname", "atom", "fitstatus"]
     for k in derived
         append!(header, collect(csvcolumns(k, paramunit(expt, k))))
     end
@@ -176,7 +176,8 @@ function resultstable(expt)
     for peak in sortedpeaks(expt)
         lbl = parse_label(peak.label[])
         row = [peak.label[], string(lbl.resnum),
-               lbl.onelettercode == '?' ? "" : string(lbl.onelettercode), lbl.atom]
+               lbl.onelettercode == '?' ? "" : string(lbl.onelettercode), lbl.atom,
+               string(fitstatus(peak))]
         for k in derived
             push!(row, format_post(peak, k, :value))
             push!(row, format_post(peak, k, :uncertainty))
@@ -245,7 +246,7 @@ function seriestable(expt)
     n = nslices(expt)
     coords = seriescoordinates(expt)
 
-    header = ["source", "label", "plane"]
+    header = ["source", "label", "plane", "fitstatus"]
     append!(header, [csvcolumn(name, coordinateunit(name)) for (name, _) in coords])
     append!(header, collect(csvcolumns(:amp, paramunit(expt, :amp))))
     push!(header, csvcolumn("amp_fit", paramunit(expt, :amp)))
@@ -257,7 +258,7 @@ function seriestable(expt)
     for peak in sortedpeaks(expt)
         ampfit = fittedamplitudes(peak, expt)
         for i in 1:n
-            row = [planesource(expt, i), peak.label[], string(i)]
+            row = [planesource(expt, i), peak.label[], string(i), string(fitstatus(peak))]
             for (_, value) in coords
                 push!(row, csvvalue(value isa AbstractVector ? value[i] : value))
             end
@@ -349,6 +350,14 @@ function writesummary(filepath, expt)
             println(f, line)
         end
         println(f)
+        unfinished = filter(isunfinished, peaks)
+        if !isempty(unfinished)
+            println(f, "Unfinished fits (see the fitstatus column of series.csv):")
+            for peak in unfinished
+                println(f, "  $(rpad(peak.label[], 12)) $(fitstatus(peak))")
+            end
+            println(f)
+        end
         gheader, grows = globaltable(expt)
         if !isempty(grows)
             println(f, "Global parameters:")
@@ -379,4 +388,53 @@ function writesummary(filepath, expt)
         return nothing
     end
     return filepath
+end
+
+# ---- returned to the caller ---------------------------------------------------
+
+"Value and error of `par` in plane `i`, as a `Measurement`."
+valueerror(par::Parameter, i=1) = par.value[][i] ± par.uncertainty[][i]
+
+"""
+    results(expt) -> Vector{NamedTuple}
+
+One row per peak, sorted by residue number: its `label`, `resnum` and `fitstatus`, and every
+parameter derived from it, each as a value ± error. The per-peak counterpart of
+`results.csv`, as returned by every 2D analysis when its window closes.
+
+# Example
+```julia
+expt = relaxation2d("11/pdata/1")
+r = results(expt)
+[row.R for row in r]          # relaxation rates, with their errors
+```
+"""
+function results(expt::Experiment)
+    return map(sortedpeaks(expt)) do peak
+        names = Tuple(keys(peak.postparameters))
+        estimates = Tuple(valueerror(p) for p in values(peak.postparameters))
+        derived = NamedTuple{names}(estimates)
+        return merge((; label=peak.label[], resnum=parse_label(peak.label[]).resnum,
+                      fitstatus=fitstatus(peak)), derived)
+    end
+end
+
+"""
+    planeresults(expt) -> Vector{NamedTuple}
+
+One row per peak per plane: its `label`, the `plane`, the `fitstatus`, the plane's
+coordinates (a delay, an offset, a concentration...) and the fitted amplitude, position and
+linewidths there, each as a value ± error. The counterpart of `series.csv`.
+"""
+function planeresults(expt::Experiment)
+    coords = seriescoordinates(expt)
+    coordnames = Tuple(first.(coords))
+    paramnames = (:amp, POSITION_PARAMS...)
+    function row(peak, i)
+        c = Tuple(v isa AbstractVector ? v[i] : v for (_, v) in coords)
+        p = Tuple(valueerror(peak.parameters[k], i) for k in paramnames)
+        return merge((; label=peak.label[], plane=i, fitstatus=fitstatus(peak)),
+                     NamedTuple{coordnames}(c), NamedTuple{paramnames}(p))
+    end
+    return [row(peak, i) for peak in sortedpeaks(expt) for i in 1:nslices(expt)]
 end
