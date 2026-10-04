@@ -38,7 +38,7 @@ in the contour plot to work with it.
 |--------|--------------|
 | Add peak at cursor position | `A` |
 | Track peak from cursor position (moving-peak experiments) | `T` |
-| Place a peak at the maximum along a line in every plane (moving-peak experiments) | `L` at one end, then click or `L` at the other |
+| Place a peak at the maximum along a line in every plane (moving-peak experiments) | Hold `L` at one end, drag to the other, and release |
 | Widen or narrow the selected peak's fitting radii | `Shift` + `←` / `→` (x), `Shift` + `↑` / `↓` (y) |
 | Return the selected peak to the default radii | `=` |
 | Continue fits that stopped at the time or iteration limit | `C` |

@@ -128,7 +128,7 @@ function preparestate(expt::Experiment)
         if mode == :adding
             "Adding peak\n\n(a) mark this plane\n(space) fill remaining planes\n(esc) cancel"
         elseif mode == :line
-            "Marking a line\n\nMove to its other end, then click or press (L)\n(esc) cancel"
+            "Marking a line\n\nMove to its other end, then release (L)\n(esc) cancel"
         else
             peakinfotext(expt, idx) * radiusnote(expt, idx) * statusnote(expt, idx)
         end

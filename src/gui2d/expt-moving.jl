@@ -404,9 +404,9 @@ function addandtrackpeak!(expt::MovingPeakExperiment, initialposition, label="")
 end
 
 # --- line add (L) ------------------------------------------------------------
-# For a titration whose peaks walk along straight lines: (L) marks one end of the line under
-# the cursor, and a click or a second (L) the other. The peak is then placed, in every
-# plane, at the most intense point along that line. The line is held in state[:line].
+# For a titration whose peaks walk along straight lines: holding (L) drags out a line from
+# the cursor, and releasing it adds a peak placed, in every plane, at the most intense point
+# along that line. The line is held in state[:line].
 
 """Begin marking a line at `pos`."""
 function beginline!(expt::MovingPeakExperiment, state, pos)
@@ -956,8 +956,8 @@ end
 function addpeakhint(expt::MovingPeakExperiment)
     s = "Press (A) to add a peak, marking its position in each plane"
     cantrack(expt) &&
-        (s *= ", (T) to add and auto-track across planes, or (L) at each end of a line " *
-              "to place it at the maximum along the line")
+        (s *= ", (T) to add and auto-track across planes, or hold (L) to drag a line " *
+              "and place it at the maximum along the line")
     return s
 end
 

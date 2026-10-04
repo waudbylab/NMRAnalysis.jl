@@ -10,10 +10,6 @@ function process_mousebutton(expt, state, event)
             state[:mode][] = :moving
             return Consume(true)
         end
-    elseif state[:mode][] == :line && event.button == Mouse.left &&
-           event.action == Mouse.press
-        finishline!(expt, state, mouseposition(state[:gui][][:axcontour]))
-        return Consume(true)
     elseif state[:mode][] == :moving && event.button == Mouse.left &&
            event.action == Mouse.release
         @debug "event: stop dragging"

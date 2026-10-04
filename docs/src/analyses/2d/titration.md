@@ -120,8 +120,7 @@ Peaks are added and positioned exactly as in [peak tracking](peaktracking.md):
 - **(T) — add and track** drops a peak and follows the intensity maximum across the planes
   automatically. Best for well-resolved titrations.
 - **(L) — add along a line** places the peak in every plane at the most intense point along a
-  line you mark: press **L** at one end of the peak's path and click, or press **L** again, at
-  the other. Suited to fast-exchange titrations, where each peak moves along a straight line.
+  line you mark: hold **L** at one end of the peak's path, move to the other, and release. Suited to fast-exchange titrations, where each peak moves along a straight line.
 - **(A) — add** walks through the planes so you mark the peak in each one by hand, for crowded
   regions.
 - **Drag** a peak's handle to correct its position in the current plane; **(D)** deletes and

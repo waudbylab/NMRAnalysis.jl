@@ -83,14 +83,13 @@ function process_keyboardbutton(expt, state, event)
         end
         return Consume(false)
     elseif state[:mode][] == :line
-        if event.action == Keyboard.press
-            if event.key == Keyboard.l
-                finishline!(expt, state, mouseposition(g[:axcontour]))
-                return Consume()
-            elseif event.key == Keyboard.escape
-                cancelline!(state)
-                return Consume()
-            end
+        # the line follows the cursor while L is held, and is finished on its release
+        if event.action == Keyboard.release && event.key == Keyboard.l
+            finishline!(expt, state, mouseposition(g[:axcontour]))
+            return Consume()
+        elseif event.action == Keyboard.press && event.key == Keyboard.escape
+            cancelline!(state)
+            return Consume()
         end
         return Consume(false)
     elseif state[:mode][] == :renaming || state[:mode][] == :renamingstart
