@@ -22,7 +22,10 @@ function process_mousebutton(expt, state, event)
 end
 
 function process_mouseposition(expt, state, mousepos)
-    if state[:mode][] == :moving
+    if state[:mode][] == :line
+        dragline!(state, mouseposition(state[:gui][][:axcontour]))
+        return Consume(false)
+    elseif state[:mode][] == :moving
         newpos = mouseposition(state[:gui][][:axcontour])
         state[:initialpositions][][state[:current_peak_idx][]] = Point2f(newpos)
         notify(state[:initialpositions])

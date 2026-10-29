@@ -1,3 +1,55 @@
+"""
+    NMRAnalysis
+
+Interactive analysis of NMR relaxation, diffusion, exchange and 2D peak series. Set your
+working directory to the folder holding your experiments, call one of the routines below,
+and use `?name` for help on any of them. Bruker experiment numbers work wherever a path
+does, and any parameter that is not given is read from the pulse-sequence annotations or
+acquisition parameters where possible, and otherwise asked for.
+
+# Automatic analysis
+
+- `analyse(filename)`, `analyse([filenames...])`: choose a routine from the annotations
+
+# 1D experiments
+
+Each opens a window to pick integration and noise regions, fits live, and returns the
+results when the window closes.
+
+- `relaxation1d(filename)`: R₁, R₂ and inversion recovery
+- `diffusion1d(filename)`: diffusion coefficient and hydrodynamic radius
+- `tract(trosy, antitrosy)`: rotational correlation time from TRACT
+- `calibration1d(filename)`: pulse-length calibration from a nutation experiment
+- `kinetics1d(filename, times)`: intensities of named regions against time
+- `r1rho([directory])`: R₁ρ relaxation dispersion
+- `exchange1d([filenames])`: CEST and R₁ρ fitted by Bloch-McConnell simulation
+
+# 2D experiments
+
+Each opens a window to place and fit peaks, and returns the analysis when the window
+closes: `results(expt)` gives one row per peak and `planeresults(expt)` one per peak per
+plane. All take `skipplanes` to leave planes out of the fitting, and `peaklist` to load a
+saved peak list as the window opens.
+
+- `fit2d(files)`: positions, linewidths and amplitudes, with no model
+- `relaxation2d(files)`: R₁ or R₂ from an exponential decay
+- `recovery2d(files)`: inversion or saturation recovery
+- `modelfit2d(files, x, equation, parameters)`: a model of your own
+- `hetnoe2d(reference, saturated)`: heteronuclear NOE
+- `ccr2d(decay, buildup, T)`: cross-correlated relaxation rates
+- `methylccr2d(buildup, decay, T)`: methyl S²τc
+- `cest2d(file)`: CEST profiles
+- `cpmg2d(file)`: CPMG relaxation dispersion
+- `peaktrack2d(files)`: peaks that move from plane to plane
+- `titration2d(files)`: binding isotherms and a global Kd
+- `rdc2d(; isotropic, aligned)`: one-bond couplings and RDCs
+- `summaryplot(expt)`: a fitted parameter against residue number
+
+# Other tools
+
+- `viscosity(solvent, T)`: solvent viscosity
+- `B1Calibration`: B₁ calibrations, from `calibration1d` or a reference pulse
+"""
 module NMRAnalysis
 
 using LinearAlgebra: LAPACKException, PosDefException, SingularException
@@ -15,6 +67,8 @@ include("viscosity.jl")
 include("output.jl")   # shared CSV column/value rules - see docs/src/advanced/conventions.md
 include("fitting.jl")  # shared fitting utilities
 include("b1.jl")       # B₁ calibration and inhomogeneity, shared by Analysis1D and Exchange1D
+include("prompts.jl")  # parameter resolution, shared by Analysis1D and GUI2D
+include("calls.jl")    # the call that produced an analysis, for summary.txt
 
 include("maybevector/MaybeVector.jl")
 using .MaybeVectorModule
@@ -51,7 +105,7 @@ using .Exchange1D
 @reexport using .GUI2D: cpmg2d # CPMGExperiment
 @reexport using .GUI2D: ccr2d # CCRExperiment
 @reexport using .GUI2D: methylccr2d # methyl CCR (buildup/decay ratio)
-@reexport using .GUI2D: summaryplot
+@reexport using .GUI2D: summaryplot, results, planeresults
 
 @reexport using .R1rho: r1rho, setupR1rhopowers
 
@@ -69,46 +123,6 @@ using .Exchange1D
 @reexport using .Analysis1D: RegionResult, param
 @reexport using .Analysis1D: SeriesModel, CurveFitModel, NoFitting, ExponentialModel
 
-@info """
-NMRAnalysis.jl (v$(pkgversion(NMRAnalysis)))
-
-1. set your working directory to a convenient location, e.g.
-   cd("/Users/chris/NMR/crick-702/my_experiment_directory")
-2. call the desired analysis routine
-3. use `?function_name` to get help on any function
-
-# Generic Analysis (alpha)
-
-- analyse(filename)
-- analyse([filename1, filename2, ...])
-
-# 1D Experiment Analysis Routines (interactive)
-
-Each asks for any experiment parameters it can't read from the data, then opens a window
-to pick the integration and noise regions and fits live.
-Pass `integration=(; peakppm, noiseppm, ppmwidth)` to skip the GUI and analyse directly.
-
-- relaxation1d(filename)
-- tract(trosy_filename, antitrosy_filename)
-- calibration1d(filename)
-- diffusion1d(filename)
-- kinetics1d(filename, times)
-- r1rho([directory_path]; minvSL=250, maxvSL=1e6, scalefactor=:automatic)
-- exchange1d([filenames]) - CEST / R1ρ chemical exchange analysis
-
-# 2D Experiment Analysis Routines
-
-- fit2d(inputfilenames)
-- relaxation2d(inputfilenames, relaxationtimes | taufilename)
-- recovery2d(inputfilenames, relaxationtimes | taufilename)
-- modelfit2d(inputfilenames, xvalues, equation, parameters)
-- hetnoe2d(inputfilenames, saturationlist)
-- ccr2d(decay_experiments, buildup_experiments, Trelax)
-- methylccr2d(buildup_experiment, decay_experiment, T; C=3/4)
-- cest2d(inputfilenames; B1, Tsat)
-- cpmg2d(inputfilename; Trelax, vCPMG | ncyc)
-
-Current working directory: $(pwd())
-"""
+@info "NMRAnalysis.jl v$(pkgversion(NMRAnalysis)): type ?NMRAnalysis for a list of analyses"
 
 end

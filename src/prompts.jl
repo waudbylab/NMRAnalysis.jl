@@ -1,9 +1,34 @@
-# Interactive parameter entry: the last step of the resolution chain each entry point
-# follows, expressed as `@something(explicit, annotation(...), acqusvalue(...), ask(...))`.
-# Because `@something` short-circuits, a question is only printed for a value that could
-# not be found. `prompt=false` (the default outside an interactive session) turns each
-# question into its stated default or an informative error, so a script never blocks on
-# stdin. Which parameters an experiment needs stays in its own `expt-*.jl`.
+# Parameter resolution, shared by Analysis1D and GUI2D: each entry point resolves a value
+# from `@something(explicit, annotation(...), acqusvalue(...), ask(...))`. Because
+# `@something` short-circuits, a question is only printed for a value that could not be
+# found. `prompt=false` (the default outside an interactive session) turns each question
+# into its stated default or an informative error, so a script never blocks on stdin. Which
+# parameters an experiment needs stays in its own `expt-*.jl`.
+
+"""Annotation lookup returning `nothing` rather than throwing when absent."""
+function annotation(spec, keys...)
+    try
+        return annotations(spec, keys...)
+    catch
+        return nothing
+    end
+end
+
+"""
+    acqusvalue(spec, keys...) -> value or nothing
+
+Acquisition-parameter lookup returning `nothing` rather than throwing when the parameter
+is absent, or present but empty. The counterpart of [`annotation`](@ref).
+"""
+function acqusvalue(spec, keys...)
+    value = try
+        acqus(spec, keys...)
+    catch
+        nothing
+    end
+    (isnothing(value) || ismissing(value)) && return nothing
+    return (value isa AbstractVector && isempty(value)) ? nothing : value
+end
 
 """
     ask(label, default; unit="", note="", type=Float64, prompt=true) -> value

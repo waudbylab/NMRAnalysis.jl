@@ -1,8 +1,15 @@
 function process_keyboardbutton(expt, state, event)
     @debug "keyboard event: $event"
     g = state[:gui][]
-    g[:toutput].focused[] && return Consume(false)
-    if state[:mode][] == :normal && event.action == Keyboard.press
+    istyping(g) && return Consume(false)
+    if state[:mode][] == :normal && event.action in (Keyboard.press, Keyboard.repeat) &&
+       event.key in (Keyboard.up, Keyboard.down, Keyboard.left, Keyboard.right) &&
+       ispressed(g[:fig], Keyboard.left_shift | Keyboard.right_shift)
+        # Shift+arrows: the selected peak's own radii, x with left/right and y with up/down
+        idx = state[:current_peak_idx][]
+        idx > 0 && bumpradius!(expt, idx, event.key)
+        return Consume()
+    elseif state[:mode][] == :normal && event.action == Keyboard.press
         if ispressed(g[:fig], Keyboard.a)
             pos = mouseposition(g[:axcontour])
             if hasfixedpositions(expt)
@@ -16,6 +23,8 @@ function process_keyboardbutton(expt, state, event)
                 addpeak!(expt, Point2f(pos))
                 state[:current_peak_idx][] = length(expt.peaks[])
             end
+        elseif ispressed(g[:fig], Keyboard.l) && cantrack(expt)
+            beginline!(expt, state, mouseposition(g[:axcontour]))
         elseif ispressed(g[:fig], Keyboard.t) && cantrack(expt)
             # add a peak and track it across all planes (moving-peak experiments only)
             pos = mouseposition(g[:axcontour])
@@ -49,6 +58,13 @@ function process_keyboardbutton(expt, state, event)
                 i += 1
                 set_close_to!(state[:gui][][:sliderslice], i)
             end
+        elseif ispressed(g[:fig], Keyboard.c)
+            # Shift+C fits until convergence, C for one more stretch
+            ispressed(g[:fig], Keyboard.left_shift | Keyboard.right_shift) ?
+            convergefit!(expt) : continuefit!(expt)
+        elseif ispressed(g[:fig], Keyboard.equal)
+            idx = state[:current_peak_idx][]
+            idx > 0 && resetradius!(expt, idx)
         elseif ispressed(g[:fig], Keyboard.s) && haskey(g, :toggleother)
             g[:toggleother].active[] = !g[:toggleother].active[]
         elseif ispressed(g[:fig], Keyboard.q)
@@ -66,6 +82,19 @@ function process_keyboardbutton(expt, state, event)
                 cancel_add!(expt, state)
                 return Consume()
             end
+        end
+        return Consume(false)
+    elseif state[:mode][] == :line
+        # The line follows the cursor from where L was pressed. Releasing L finishes it if
+        # it was dragged out; if not, the line stays and a second press of L finishes it.
+        if event.key == Keyboard.l &&
+           (event.action == Keyboard.press ||
+            event.action == Keyboard.release && isdragged(expt, state))
+            finishline!(expt, state, mouseposition(g[:axcontour]))
+            return Consume()
+        elseif event.action == Keyboard.press && event.key == Keyboard.escape
+            cancelline!(state)
+            return Consume()
         end
         return Consume(false)
     elseif state[:mode][] == :renaming || state[:mode][] == :renamingstart
@@ -109,7 +138,7 @@ end
 
 function process_unicode_input(expt, state, character)
     @debug "Processing unicode input: $character"
-    state[:gui][][:toutput].focused[] && return Consume(false)
+    istyping(state[:gui][]) && return Consume(false)
     if state[:mode][] == :renamingstart
         state[:mode][] = :renaming
         if character == 'r'
@@ -127,3 +156,6 @@ function process_unicode_input(expt, state, character)
     end
     return Consume(false)
 end
+
+"Whether one of the window's text boxes has the keyboard, so keys are text, not commands."
+istyping(g) = g[:toutput].focused[]

@@ -1,26 +1,37 @@
 """
-    cest2d(inputfilename; B1, Tsat)
+    cest2d(inputfilename; B1, Tsat, offsets, skipplanes=nothing, prompt=isinteractive())
+        -> CESTExperiment
 
 Start interactive GUI for analysing 2D CEST (Chemical Exchange Saturation Transfer) data.
+The window blocks until it is closed, and the analysis is returned (see [`results`](@ref)).
+
+Each parameter is taken from its keyword if given, else from the pulse-sequence
+annotations (`cest.power` with the reference pulse of `cest.channel`, `cest.duration`,
+`cest.offset`), else for the offsets from the `fq3list`, and otherwise you are asked for it.
 
 # Arguments
 - `inputfilename`: NMR data file as a processed data directory containing pseudo-3D data
                    where the first plane is the reference spectrum and subsequent planes
                    are the saturation spectra
-- `B1`: Saturation power in Hz
+- `B1`: Saturation field strength in Hz
 - `Tsat`: Saturation time in seconds
+- `offsets`: Saturation offsets in ppm, one per plane including the reference
+- `skipplanes`: Planes (1-based) left out of the fitting. The reference, plane 1, cannot be
+  skipped.
 
 # Example:
 ```julia
 cest2d("path/to/expno/pdata/1"; B1=15, Tsat=0.3)
 ```
 """
-function cest2d(inputfilename; B1, Tsat)
-    expt = CESTExperiment(inputfilename, B1, Tsat)
-    return gui!(expt)
+function cest2d(inputfilename; B1=nothing, Tsat=nothing, offsets=nothing,
+                skipplanes=nothing, peaklist=nothing, prompt::Bool=isinteractive())
+    expt = CESTExperiment(asexptpath(inputfilename); B1, Tsat, offsets, skipplanes,
+                          prompt)
+    call = analysiscall("cest2d", inputfilename; B1=expt.B1, Tsat=expt.Tsat,
+                        offsets=expt.frequencies, skipplanes=nonempty(expt.skipplanes))
+    return gui!(expt; peaklist, call)
 end
-
-cest2d(exptno::Integer; B1, Tsat) = cest2d(string(exptno); B1=B1, Tsat=Tsat)
 
 """
     CESTExperiment <: FixedPeakExperiment
@@ -46,15 +57,18 @@ struct CESTExperiment <: FixedPeakExperiment
     xradius::Any
     yradius::Any
     state::Any
+    skipplanes::Vector{Int}
 
-    function CESTExperiment(specdata, peaks, frequencies, B1, Tsat)
+    function CESTExperiment(specdata, peaks, frequencies, B1, Tsat; skipplanes=Int[])
+        1 in skipplanes && throw(ArgumentError("the reference plane cannot be skipped"))
         expt = new(specdata, peaks, frequencies, B1, Tsat,
                    Observable(Vector{Vector{Int}}()), # clusters
                    Observable(Vector{Bool}()), # touched
                    Observable(true), # isfitting
                    Observable(0.03; ignore_equal_values=true), # xradius
                    Observable(0.2; ignore_equal_values=true), # yradius
-                   Observable{Dict}())
+                   Observable{Dict}(),
+                   collect(Int, skipplanes))
         setupexptobservables!(expt)
         expt.state[] = preparestate(expt)
         return expt
@@ -66,30 +80,40 @@ visualisationtype(::CESTExperiment) = CESTVisualisation()
 primaryparam(::CESTExperiment) = :R1
 
 """
-    CESTExperiment(inputfilename)
+    CESTExperiment(inputfilename; B1, Tsat, offsets, skipplanes, prompt)
 
 Create CEST experiment from a pseudo-3D input file where the first plane is the reference
 and the remaining planes are saturation spectra at different frequencies.
 """
-function CESTExperiment(inputfilename, B1, Tsat)
-    @debug "Creating CEST experiment from $inputfilename with B1=$B1 Hz and Tsat=$Tsat s"
+function CESTExperiment(inputfilename; B1=nothing, Tsat=nothing, offsets=nothing,
+                        skipplanes=nothing, prompt::Bool=isinteractive())
     spec = loadnmr(inputfilename)
+    n = size(spec, 3)
+    frequencies = @something(isnothing(offsets) ? nothing : readvalues(offsets),
+                             cestoffsets(spec, annotation(spec, :cest, :offset)),
+                             cestoffsets(spec, acqusvalue(spec, :fq3list)),
+                             askvector("saturation offsets", n; unit="ppm", prompt))
+    checklength(frequencies, n, "saturation offsets")
+    B1 = @something(B1, cestfield(spec), ask("saturation field B1"; unit="Hz", prompt))
+    Tsat = @something(Tsat, annotation(spec, :cest, :duration),
+                      ask("saturation time"; unit="s", prompt))
 
-    # Extract saturation frequencies from fq3list using proper NMRTools methods
-    frequencies = if haskey(acqus(spec), :fq3list)
-        fq_list = acqus(spec, :fq3list)
-        # Get frequencies in ppm
-        ppm(fq_list, dims(spec, F2Dim))
-    else
-        # Fallback if fq3list is not available
-        collect(range(-10.0, 10.0; length=ndims(spec, 3)))
-    end
-
-    # Prepare specdata
     specdata = preparespecdata(inputfilename, frequencies, CESTExperiment)
-    peaks = Observable(Vector{Peak}())
+    return CESTExperiment(specdata, Observable(Vector{Peak}()), frequencies, B1, Tsat;
+                          skipplanes=checkskipplanes(skipplanes, n))
+end
 
-    return CESTExperiment(specdata, peaks, frequencies, B1, Tsat)
+# Saturation offsets in ppm on the saturated (y) axis, from an annotation or fq3list
+cestoffsets(spec, ::Nothing) = nothing
+cestoffsets(spec, fqlist) = collect(Float64, ppm(fqlist, dims(spec, F2Dim)))
+
+# The saturation field in Hz from the annotated power, calibrated against the reference
+# pulse of the annotated channel; `nothing` without the annotations
+function cestfield(spec)
+    power = annotation(spec, :cest, :power)
+    channel = annotation(spec, :cest, :channel)
+    (isnothing(power) || isnothing(channel)) && return nothing
+    return hz(power, B1Calibration(spec, nucleus(channel)))
 end
 
 # Load the NMR data and prepare the SpecData object
@@ -157,42 +181,12 @@ function addpeak!(expt::CESTExperiment, initialposition::Point2f, label="",
     return notify(expt.peaks)
 end
 
-"""Simulate single peak according to experiment type."""
-function simulate!(z, peak::Peak, expt::CESTExperiment, xbounds=nothing, ybounds=nothing)
-    n = length(z)
-    for i in 1:n
-        # get axis references for window functions
-        xaxis = dims(expt.specdata.nmrdata[i], F1Dim)
-        yaxis = dims(expt.specdata.nmrdata[i], F2Dim)
-        # get axis shift values
-        x = isnothing(xbounds) ? expt.specdata.x[i] : expt.specdata.x[i][xbounds[i]]
-        y = isnothing(ybounds) ? expt.specdata.y[i] : expt.specdata.y[i][ybounds[i]]
-
-        x0 = peak.parameters[:x].value[][i]
-        y0 = peak.parameters[:y].value[][i]
-        R2x = peak.parameters[:R2x].value[][i]
-        R2y = peak.parameters[:R2y].value[][i]
-        amp = peak.parameters[:amp].value[][i]
-        # find indices of x and y axes within peak radius of peak position
-        xi = x0 .- peak.xradius[] .≤ x .≤ x0 .+ peak.xradius[]
-        yi = y0 .- peak.yradius[] .≤ y .≤ y0 .+ peak.yradius[]
-        xs = x[xi]
-        ys = y[yi]
-        # NB. scale intensities by R2x and R2y to decouple amplitude estimation from linewidth
-        zx = NMRTools.NMRBase._lineshape(2π * hz(x0, xaxis), R2x, 2π * hz(xs, xaxis),
-                                         xaxis[:window], RealLineshape())
-        zy = (π^2 * amp * R2x * R2y) *
-             NMRTools.NMRBase._lineshape(2π * hz(y0, yaxis), R2y, 2π * hz(ys, yaxis),
-                                         yaxis[:window], RealLineshape())
-        z[i][xi, yi] .+= zx .* zy'
-    end
-end
-
 """Calculate final parameters after fitting."""
 function postfit!(peak::Peak, expt::CESTExperiment)
     @debug "Post-fitting peak $(peak.label)" maxlog = 10
 
-    δsat = expt.frequencies[2:end]
+    keep = [i for i in 2:nslices(expt) if i ∉ skipset(expt)]
+    δsat = expt.frequencies[keep]
     δ0 = peak.parameters[:y].value[][1]
     R20 = peak.parameters[:R2y].value[][1]
     v0 = 1e-6 * δ0 * expt.specdata.nmrdata[1][2, :bf]
@@ -200,7 +194,7 @@ function postfit!(peak::Peak, expt::CESTExperiment)
     Tsat = expt.Tsat
     v1 = expt.B1
 
-    zspecobs = peak.parameters[:amp].value[][2:end] ./ peak.parameters[:amp].value[][1]
+    zspecobs = peak.parameters[:amp].value[][keep] ./ peak.parameters[:amp].value[][1]
     p0 = [1.5, R20] # R1, R2 
 
     # Fit the model
@@ -267,7 +261,8 @@ function get_cest_data(peak, expt::CESTExperiment)
     isnothing(peak) && return (Point2f[], [(0.0, 0.0, 0.0)], 0.0, Point2f[])
 
     # X-axis will be frequency values
-    x = expt.frequencies[2:end]
+    keep = [i for i in 2:nslices(expt) if i ∉ skipset(expt)]
+    x = expt.frequencies[keep]
 
     # Get amplitudes and reference amplitude
     amp = peak.parameters[:amp].value[]
@@ -276,8 +271,8 @@ function get_cest_data(peak, expt::CESTExperiment)
     ref_err = amp[1] > 0 ? amp_err[1] / amp[1] : 0.1
 
     # Calculate relative intensities
-    y = amp[2:end] ./ amp[1]
-    yerr = amp_err[2:end] ./ amp[1]
+    y = amp[keep] ./ amp[1]
+    yerr = amp_err[keep] ./ amp[1]
     # if error > 100% set to 100%
     yerr = min.(yerr, 1.0)
 

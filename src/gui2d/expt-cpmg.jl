@@ -1,8 +1,13 @@
 """
-    cpmg2d(inputfilename; Trelax, vCPMG)
-    cpmg2d(inputfilename; Trelax, ncyc)
+    cpmg2d(inputfilename; Trelax, vCPMG, skipplanes=nothing, prompt=isinteractive())
+    cpmg2d(inputfilename; Trelax, ncyc, skipplanes=nothing, prompt=isinteractive())
+        -> CPMGExperiment
 
-Start interactive GUI for analysing 2D CPMG relaxation dispersion data.
+Start interactive GUI for analysing 2D CPMG relaxation dispersion data. The window blocks
+until it is closed, and the analysis is returned (see [`results`](@ref)).
+
+The CPMG frequencies are taken from `vCPMG`, else from `ncyc`, else from the cycle numbers
+in the `vclist`; `Trelax` is taken from its keyword. Anything missing is asked for.
 
 # Arguments
 - `inputfilename`: NMR data file as a processed data directory containing pseudo-3D data
@@ -10,8 +15,10 @@ Start interactive GUI for analysing 2D CPMG relaxation dispersion data.
                    are the saturation spectra
 - `Trelax`: Relaxation time in seconds
 - `vCPMG`: list of CPMG frequencies in Hz, use zero for reference spectrum
-- `ncyc`: list of CPMG cycle numbers, use zero for reference spectrum. 
+- `ncyc`: list of CPMG cycle numbers, use zero for reference spectrum.
           When provided, vCPMG is calculated as ncyc/Trelax
+- `skipplanes`: Planes (1-based) left out of the fitting. At least one reference plane must
+  remain.
 
 # Examples:
 ```julia
@@ -21,23 +28,31 @@ cpmg2d("path/to/expno"; Trelax=0.04, vCPMG=[0, 25, 50, 75, 100])
 # Using cycle numbers (vCPMG calculated automatically)
 ncyc = [0, 1, 2, 3, 4]
 cpmg2d("path/to/expno"; Trelax=0.04, ncyc=ncyc)
+
+# Cycle numbers from the vclist
+cpmg2d("path/to/expno"; Trelax=0.04)
 ```
 """
-function cpmg2d(inputfilename; Trelax, vCPMG=nothing, ncyc=nothing)
-    if !isnothing(vCPMG) && !isnothing(ncyc)
+function cpmg2d(inputfilename; Trelax=nothing, vCPMG=nothing, ncyc=nothing,
+                skipplanes=nothing, peaklist=nothing, prompt::Bool=isinteractive())
+    isnothing(vCPMG) || isnothing(ncyc) ||
         throw(ArgumentError("Cannot specify both vCPMG and ncyc"))
-    elseif !isnothing(ncyc)
-        vCPMG = ncyc ./ Trelax
-    elseif isnothing(vCPMG)
-        throw(ArgumentError("Must specify either vCPMG or ncyc"))
-    end
-
-    expt = CPMGExperiment(inputfilename, Trelax, vCPMG)
-    return gui!(expt)
-end
-
-function cpmg2d(exptno::Integer; Trelax, vCPMG=nothing, ncyc=nothing)
-    return cpmg2d(string(exptno); Trelax=Trelax, vCPMG=vCPMG, ncyc=ncyc)
+    given = inputfilename
+    inputfilename = asexptpath(inputfilename)
+    spec = loadnmr(inputfilename)
+    n = size(spec, 3)
+    Trelax = @something(Trelax, ask("CPMG relaxation time Trelax"; unit="s", prompt))
+    vCPMG = @something(isnothing(vCPMG) ? nothing : readvalues(vCPMG),
+                       isnothing(ncyc) ? nothing : readvalues(ncyc) ./ Trelax,
+                       let c = acqusvalue(spec, :vclist)
+                           isnothing(c) ? nothing : collect(Float64, c) ./ Trelax
+                       end,
+                       askvector("CPMG cycle numbers", n; prompt) ./ Trelax)
+    expt = CPMGExperiment(inputfilename, Trelax, vCPMG;
+                          skipplanes=checkskipplanes(skipplanes, n))
+    call = analysiscall("cpmg2d", given; Trelax, vCPMG,
+                        skipplanes=nonempty(expt.skipplanes))
+    return gui!(expt; peaklist, call)
 end
 
 """
@@ -64,15 +79,19 @@ struct CPMGExperiment <: FixedPeakExperiment
     xradius::Any
     yradius::Any
     state::Any
+    skipplanes::Vector{Int}
 
-    function CPMGExperiment(specdata, peaks, Trelax, vCPMG)
+    function CPMGExperiment(specdata, peaks, Trelax, vCPMG; skipplanes=Int[])
+        any(i -> vCPMG[i] ≈ 0 && i ∉ skipplanes, eachindex(vCPMG)) ||
+            throw(ArgumentError("no reference plane (vCPMG = 0) is left unskipped"))
         expt = new(specdata, peaks, Trelax, vCPMG,
                    Observable(Vector{Vector{Int}}()), # clusters
                    Observable(Vector{Bool}()), # touched
                    Observable(true), # isfitting
                    Observable(0.03; ignore_equal_values=true), # xradius
                    Observable(0.2; ignore_equal_values=true), # yradius
-                   Observable{Dict}())
+                   Observable{Dict}(),
+                   collect(Int, skipplanes))
         setupexptobservables!(expt)
         expt.state[] = preparestate(expt)
         return expt
@@ -84,11 +103,11 @@ visualisationtype(::CPMGExperiment) = CPMGVisualisation()
 primaryparam(::CPMGExperiment) = :R20
 
 """
-    CPMGExperiment(inputfilename, Trelax, vCPMG)
+    CPMGExperiment(inputfilename, Trelax, vCPMG; skipplanes=Int[])
 
 Create CPMG experiment from a pseudo-3D input file. Zero frequency in `vCPMG` indicates the reference plane.
 """
-function CPMGExperiment(inputfilename, Trelax, vCPMG)
+function CPMGExperiment(inputfilename, Trelax, vCPMG; skipplanes=Int[])
     @debug "Creating CPMG experiment from $inputfilename with Trelax=$Trelax s and vCPMG=$vCPMG Hz"
     spec = loadnmr(inputfilename)
 
@@ -101,7 +120,7 @@ function CPMGExperiment(inputfilename, Trelax, vCPMG)
     specdata = preparespecdata(inputfilename, vCPMG, CPMGExperiment)
     peaks = Observable(Vector{Peak}())
 
-    return CPMGExperiment(specdata, peaks, Trelax, vCPMG)
+    return CPMGExperiment(specdata, peaks, Trelax, vCPMG; skipplanes)
 end
 
 # Load the NMR data and prepare the SpecData object
@@ -165,53 +184,24 @@ function addpeak!(expt::CPMGExperiment, initialposition::Point2f, label="",
     return notify(expt.peaks)
 end
 
-"""Simulate single peak according to experiment type."""
-function simulate!(z, peak::Peak, expt::CPMGExperiment, xbounds=nothing, ybounds=nothing)
-    n = length(z)
-    for i in 1:n
-        # get axis references for window functions
-        xaxis = dims(expt.specdata.nmrdata[i], F1Dim)
-        yaxis = dims(expt.specdata.nmrdata[i], F2Dim)
-        # get axis shift values
-        x = isnothing(xbounds) ? expt.specdata.x[i] : expt.specdata.x[i][xbounds[i]]
-        y = isnothing(ybounds) ? expt.specdata.y[i] : expt.specdata.y[i][ybounds[i]]
-
-        x0 = peak.parameters[:x].value[][i]
-        y0 = peak.parameters[:y].value[][i]
-        R2x = peak.parameters[:R2x].value[][i]
-        R2y = peak.parameters[:R2y].value[][i]
-        amp = peak.parameters[:amp].value[][i]
-        # find indices of x and y axes within peak radius of peak position
-        xi = x0 .- peak.xradius[] .≤ x .≤ x0 .+ peak.xradius[]
-        yi = y0 .- peak.yradius[] .≤ y .≤ y0 .+ peak.yradius[]
-        xs = x[xi]
-        ys = y[yi]
-        # NB. scale intensities by R2x and R2y to decouple amplitude estimation from linewidth
-        zx = NMRTools.NMRBase._lineshape(2π * hz(x0, xaxis), R2x, 2π * hz(xs, xaxis),
-                                         xaxis[:window], RealLineshape())
-        zy = (π^2 * amp * R2x * R2y) *
-             NMRTools.NMRBase._lineshape(2π * hz(y0, yaxis), R2y, 2π * hz(ys, yaxis),
-                                         yaxis[:window], RealLineshape())
-        z[i][xi, yi] .+= zx .* zy'
-    end
-end
-
 """Calculate final parameters after fitting."""
 function postfit!(peak::Peak, expt::CPMGExperiment)
     @debug "Post-fitting peak $(peak.label)" #maxlog = 10
 
     vCPMG = expt.vCPMG
     Trelax = expt.Trelax
-    refidx = vCPMG .≈ 0
-    cpmglist = vCPMG[.!refidx]
+    used = [i ∉ skipset(expt) for i in eachindex(vCPMG)]
+    refidx = (vCPMG .≈ 0) .& used
+    cpmgidx = .!(vCPMG .≈ 0) .& used
+    cpmglist = vCPMG[cpmgidx]
     R20 = peak.parameters[:R2y].value[][1]
 
     Aref = peak.parameters[:amp].value[][refidx] .±
            peak.parameters[:amp].uncertainty[][refidx]
     Aref = sum(Aref) / length(Aref) # average reference amplitude
 
-    Acpmg = peak.parameters[:amp].value[][.!refidx] .±
-            peak.parameters[:amp].uncertainty[][.!refidx]
+    Acpmg = peak.parameters[:amp].value[][cpmgidx] .±
+            peak.parameters[:amp].uncertainty[][cpmgidx]
     R2effobs = @. log(Acpmg / Aref) / (-Trelax) # effective R2 from CPMG amplitudes
     y = Measurements.value.(R2effobs) # convert to Float64 for fitting
     yerr = Measurements.uncertainty.(R2effobs) # uncertainties in R2eff
@@ -283,16 +273,17 @@ function get_cpmg_data(peak, expt::CPMGExperiment)
 
     vCPMG = expt.vCPMG
     Trelax = expt.Trelax
-    refidx = vCPMG .≈ 0
-    x = vCPMG[.!refidx]
-    # @debug "CPMG frequencies (Hz)" x
+    used = [i ∉ skipset(expt) for i in eachindex(vCPMG)]
+    refidx = (vCPMG .≈ 0) .& used
+    cpmgidx = .!(vCPMG .≈ 0) .& used
+    x = vCPMG[cpmgidx]
 
     Aref = peak.parameters[:amp].value[][refidx] .±
            peak.parameters[:amp].uncertainty[][refidx]
     Aref = sum(Aref) / length(Aref) # average reference amplitude
 
-    Acpmg = peak.parameters[:amp].value[][.!refidx] .±
-            peak.parameters[:amp].uncertainty[][.!refidx]
+    Acpmg = peak.parameters[:amp].value[][cpmgidx] .±
+            peak.parameters[:amp].uncertainty[][cpmgidx]
     R2effobs = @. log(Acpmg / Aref) / (-Trelax) # effective R2 from CPMG amplitudes
     y = Measurements.value.(R2effobs) # convert to Float64 for plotting
     yerr = Measurements.uncertainty.(R2effobs) # uncertainties in R2eff

@@ -34,6 +34,11 @@ using ..NMRAnalysis: refpower, ν1ref, linearity, inhomogeneity, powers, fields
 # shared output rules - see src/output.jl and docs/src/advanced/conventions.md
 using ..NMRAnalysis: csvcolumn, csvcolumns, csvvalue, safename, sanitizelabel, backupfile,
                      backupfolder, writetable, shortpath
+# parameter resolution: argument, then annotation/acqus, then ask - see src/prompts.jl
+using ..NMRAnalysis: annotation, acqusvalue, ask, askchoice, askvector, askpath, parsevector
+# the call that produced an analysis - see src/calls.jl
+using ..NMRAnalysis: AnalysisCall, analysiscall, callvalue
+import ..NMRAnalysis: callstring
 
 # the analysis core: no Makie in the computational path. (An experiment that saves a
 # figure of its own draws it in its `expt-*.jl`, as Exchange1D's experiments do, so that
@@ -42,7 +47,6 @@ include("types.jl")
 include("integration.jl")
 include("seriesmodels.jl")
 include("nmrdata.jl")
-include("prompts.jl")   # parameter resolution: argument, then annotation/acqus, then ask
 include("experiments.jl")   # interface + pipeline; includes one expt-*.jl per experiment
 include("files.jl")
 
