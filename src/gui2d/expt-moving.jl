@@ -667,7 +667,7 @@ function sampleconcentrations(spec::NMRData)
 end
 
 """
-    titrationconcentrations(nmrdata) -> (L0, P0)
+    titrationconcentrations(nmrdata; prompt=true) -> (L0, P0)
 
 Derive per-plane ligand (`L0`) and protein (`P0`) concentration vectors from each plane's
 sample metadata (see above for the inference rule). Returns `(nothing, nothing)` when no plane
@@ -677,8 +677,9 @@ used instead of the exact 1:1 equation) — as with exchange1d's `_prompt_concen
 molecule missing from only *some* planes' sample metadata is warned about rather than silently
 treated as zero or silently dropped. The resolved per-plane concentrations are printed as a
 table (in the same style as exchange1d's parameter tables) so they can be checked at a glance.
+Where the roles are ambiguous, the user is asked, or with `prompt=false` an error is raised.
 """
-function titrationconcentrations(nmrdata)
+function titrationconcentrations(nmrdata; prompt::Bool=true)
     concs = [sampleconcentrations(nmrdata[i]) for i in eachindex(nmrdata)]
     names = unique(String[k for c in concs for k in keys(c)])
     isempty(names) && return (nothing, nothing)
@@ -687,6 +688,10 @@ function titrationconcentrations(nmrdata)
     protein, ligand = if length(names) == 2 && singleton !== nothing
         only(keys(concs[singleton])), only(setdiff(names, keys(concs[singleton])))
     else
+        prompt ||
+            throw(ArgumentError("the sample defines $(join(names, ", ")); cannot tell " *
+                                "which is the observed molecule and which the titrant " *
+                                "- please supply L0 (and P0) explicitly"))
         options = [names; "Cancel"]
         pchoice = request("Sample defines $(join(names, ", ")) — which is the observed molecule?",
                           RadioMenu(options))
@@ -793,7 +798,7 @@ function titration2d(inputfilenames; L0=nothing, P0=nothing, weights=(1.0, 0.14)
     specdata = preparespecdata(asexptpath(inputfilenames), MovingExperiment)
 
     if isnothing(L0)
-        L0, autoP0 = titrationconcentrations(specdata.nmrdata)
+        L0, autoP0 = titrationconcentrations(specdata.nmrdata; prompt)
         isnothing(L0) &&
             (L0 = askvector("ligand concentrations", length(specdata.z); prompt))
         isnothing(P0) && (P0 = autoP0)
@@ -966,12 +971,11 @@ function primaryparam(expt::MovingExperiment)
 end
 
 function addpeakhint(expt::MovingPeakExperiment)
-    s = "Press (A) to add a peak, marking its position in each plane"
+    s = "(A) add a peak, marking its position in each plane"
     cantrack(expt) &&
-        (s *= ", (T) to add and auto-track across planes, or (L) to mark a line, by " *
-              "dragging with L held or pressing L at each end, and place it at the " *
-              "maximum along the line")
-    return s
+        (s *= "\n(T) add a peak and auto-track it across planes\n" *
+              "(L) mark a line (hold L and drag, or press L at each end)")
+    return s * "\n" * RADIUSHINT
 end
 
 function peakinfotext(expt::MovingExperiment, idx)

@@ -280,12 +280,14 @@ function fit!(expt::Experiment; warm=false,
             statuses = fitclusters!(expt, clusters, mygen, budget; warm)
             (current() && :cancelled ∉ statuses) || return nothing
             for (cluster, status) in zip(clusters, statuses)
+                current() || return nothing
                 for peak in cluster
                     peak.touched.val = false
                     peak.fitstatus.val = status
                     status == :timeout || postfit!(peak, expt)
                 end
             end
+            current() || return nothing
             postfitglobal!(expt)
             current() && notify(expt.peaks)
         catch e

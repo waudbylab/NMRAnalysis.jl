@@ -54,9 +54,8 @@ function gui!(expt::Experiment; peaklist=nothing, call=nothing)
     end
     Label(g[:paneltop][1, col], "Fitting")
     g[:togglefit] = Toggle(g[:paneltop][1, col + 1]; active=true)
-    g[:fitstatus] = Label(g[:paneltop][1, col + 2], fitstatustext(expt); width=140)
-    g[:cmdsummary] = Button(g[:paneltop][1, col + 3]; label="Summary plot")
-    g[:cmdquit] = Button(g[:paneltop][1, col + 4]; label="(Q)uit")
+    g[:cmdsummary] = Button(g[:paneltop][1, col + 2]; label="Summary plot")
+    g[:cmdquit] = Button(g[:paneltop][1, col + 3]; label="(Q)uit")
 
     # create contour plot
     g[:basecontour] = Observable(10.0)
@@ -125,7 +124,7 @@ function gui!(expt::Experiment; peaklist=nothing, call=nothing)
     # peak info
     Label(g[:panelinfo][1, 1:2], "Working directory:\n$(pwd())"; word_wrap=true,
           tellwidth=false, halign=:left)
-    g[:cmdload] = Button(g[:panelinfo][2, 1]; label="Load peak list")
+    g[:cmdload] = Button(g[:panelinfo][2, 1]; label="Load peak list...")
     # Output folder typed rather than chosen from a native dialog: the dialog cannot create
     # a folder on every platform, and a typed name is what makes a save repeatable.
     outputrow = g[:panelinfo][2, 2] = GridLayout()
@@ -138,9 +137,8 @@ function gui!(expt::Experiment; peaklist=nothing, call=nothing)
     commitondefocus!(g[:toutput])
     g[:cmdsave] = Button(g[:fig]; label="Save")
     outputrow[1, 2] = g[:cmdsave]
-    Label(g[:panelinfo][3, 1:2],
-          addpeakhint(expt) * ". Shift+arrows set the selected peak's own radii.";
-          word_wrap=true)
+    Label(g[:panelinfo][3, 1:2], addpeakhint(expt); fontsize=14, halign=:left,
+          justification=:left, tellwidth=false)
     g[:cmdrename] = Button(g[:panelinfo][4, 1]; label="(R)ename peak")
     g[:cmddelete] = Button(g[:panelinfo][4, 2]; label="(D)elete peak")
     # A SliderGrid's slider column only expands into space its container already has, so
@@ -148,14 +146,15 @@ function gui!(expt::Experiment; peaklist=nothing, call=nothing)
     # makes the track usable.
     g[:sgradiix] = SliderGrid(g[:panelinfo][5, 1],
                               (label="X radius", range=0.02:0.005:0.1, format="{:.3f} ppm",
-                               startvalue=expt.xradius[]); width=210)
+                               startvalue=expt.xradius[]); width=190)
     g[:sgradiiy] = SliderGrid(g[:panelinfo][5, 2],
                               (label="Y radius", range=0.1:0.02:0.8, format="{:.2f} ppm",
-                               startvalue=expt.yradius[]); width=210)
+                               startvalue=expt.yradius[]); width=190)
     g[:sliderxradius] = g[:sgradiix].sliders[1].value
     g[:slideryradius] = g[:sgradiiy].sliders[1].value
 
     g[:infotext] = Label(g[:panelinfo][6, 1:2], state[:current_peak_info])
+    g[:fitstatus] = Label(g[:panelinfo][7, 1:2], fitstatustext(expt); tellwidth=false)
 
     # peak plot panel
     makepeakplot!(g, state, expt)
@@ -190,8 +189,11 @@ end
 # experiments in expt-moving.jl. No-op for fixed-position experiments.
 add_moving_overlays!(g, state, ::Experiment) = nothing
 
-# Hint shown in the peak-info panel; moving-peak experiments also advertise (T)rack.
-addpeakhint(::Experiment) = "Press (A) to add new peak under mouse cursor"
+# Shortcuts shown above the peak-info panel, one per line; moving-peak experiments also
+# advertise (T)rack and (L)ine.
+addpeakhint(::Experiment) = "(A) add a peak under the cursor\n" * RADIUSHINT
+
+const RADIUSHINT = "⇧←↑↓→ set the selected peak's own radii"
 
 function addhanders!(g, state, expt::Experiment)
     g[:fig].scene.backgroundcolor = lift(state[:mode]) do mode

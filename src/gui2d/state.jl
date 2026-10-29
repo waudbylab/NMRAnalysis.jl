@@ -161,7 +161,7 @@ const STATUS_NOTES = Dict(:maxiter => "it stopped at the iteration limit",
                               "are from before it",
                           :bound =>
                               "a position or linewidth is at its limit. Move the " *
-                              "peak, or widen its radius with Shift+arrows")
+                              "peak, or widen its radius with ⇧←↑↓→")
 
 "The radii of peak `idx` for the info panel, where it has radii of its own."
 function radiusnote(expt, idx)
@@ -178,7 +178,7 @@ function statusnote(expt, idx)
     status = fitstatus(expt.peaks[][idx])
     note = "\n\nFit unfinished: $(STATUS_NOTES[status])."
     return iscontinuable(expt.peaks[][idx]) ?
-           note * "\nPress (C) to continue fitting, or Shift+C until it converges." :
+           note * "\nPress (C) to continue fitting, or ⇧C until it converges." :
            note
 end
 

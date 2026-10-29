@@ -173,13 +173,16 @@ readvalues(x::AbstractVector) = reduce(vcat, (readvalues(v) for v in x); init=Fl
 """
     checkskipplanes(skipplanes, n) -> Vector{Int}
 
-The planes to skip, checked to lie within `1:n`. `nothing` skips none.
+The planes to skip, checked to lie within `1:n` and to leave at least one plane to fit.
+`nothing` skips none.
 """
 function checkskipplanes(skipplanes, n)
     skip = isnothing(skipplanes) ? Int[] : collect(Int, skipplanes)
     bad = filter(i -> !(1 ≤ i ≤ n), skip)
     isempty(bad) ||
         throw(ArgumentError("skipplanes out of range: $bad (there are $n planes)"))
+    length(unique(skip)) < n ||
+        throw(ArgumentError("skipplanes would leave no plane to fit"))
     return skip
 end
 
@@ -209,7 +212,7 @@ sourcespectra(specdata) = unique(objectid, collect(specdata.nmrdata))
 function planevalues(f, specdata)
     values = [f(spec) for spec in sourcespectra(specdata)]
     any(isnothing, values) && return nothing
-    return reduce(vcat, (vec(collect(Float64, v)) for v in values))
+    return reduce(vcat, readvalues.(values))
 end
 
 """

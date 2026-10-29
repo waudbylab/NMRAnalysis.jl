@@ -56,6 +56,6 @@ plane does not disturb the others.
 ## Output
 
 **Save to folder** writes `results.csv` with each peak's per-plane positions (`x[1]`, `x[2]`,
-…), linewidths and amplitudes, and any model-derived parameters. **Load peak list** restores
+…), linewidths and amplitudes, and any model-derived parameters. **Load peak list...** restores
 them, including the fitting radii. The default summary plot shows the combined chemical-shift
 perturbation Δδ against residue number, one series per plane.

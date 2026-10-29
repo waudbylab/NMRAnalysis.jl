@@ -131,10 +131,8 @@ end
     fitgroups(expt, masks, planes; skip=Set{Int}()) -> Vector{FitGroup}
 
 Gather `planes` into groups sharing a grid and a mask, given each plane's cluster mask.
-Every plane is active if `skip` would otherwise leave none.
 """
 function fitgroups(expt::Experiment, masks, planes; skip=Set{Int}())
-    all(in(skip), planes) && (skip = Set{Int}())
     reps = Int[]
     members = Vector{Int}[]
     for i in planes
@@ -256,7 +254,7 @@ function fitshapes(peaks, groups, i, check; warm=false)
     θ = coef(sol)
     check()
     φ = physical(f, θ)
-    σθ, amps, σamps = uncertainties(groups, f, θ, radii)
+    σθ, amps, σamps = uncertainties(groups, f, θ, radii, check)
 
     atbound = any(j -> θ[j] ≤ f.lower[j] + 1e-6 * abs(f.lower[j]) + 1e-9 ||
                        θ[j] ≥ f.upper[j] - 1e-6 * abs(f.upper[j]) - 1e-9,
@@ -266,7 +264,7 @@ function fitshapes(peaks, groups, i, check; warm=false)
 end
 
 """
-    uncertainties(groups, f, θ, radii) -> (σθ, amps, σamps)
+    uncertainties(groups, f, θ, radii, check) -> (σθ, amps, σamps)
 
 Standard errors of the shapes and of every plane's amplitudes, from the covariance of the
 full problem, σ²(JᵀJ)⁻¹ with σ² estimated from the residuals. The amplitude blocks of JᵀJ
@@ -281,9 +279,10 @@ since Dᵢ ∝ aᵢ it is an error in scale common to every plane, proportional 
 which cancels in a ratio or a rate fitted across the series, and which a fit treating the
 amplitudes as independent would otherwise count once per plane. Where a plane has shapes of
 its own (a moving peak, or a single spectrum) both are kept. `amps` and `σamps` map each
-plane to one value per peak. Errors are `NaN` where the data do not determine them.
+plane to one value per peak. Errors are `NaN` where the data do not determine them. `check`
+is called as in [`fitshapes`](@ref), so that this phase can also be stopped.
 """
-function uncertainties(groups, f::ShapeFit, θ, radii)
+function uncertainties(groups, f::ShapeFit, θ, radii, check)
     nθ = length(θ)
     φ = physical(f, θ)
     S = zeros(nθ, nθ)
@@ -295,6 +294,7 @@ function uncertainties(groups, f::ShapeFit, θ, radii)
         a = amplitudes(A, g.z)
         # dA[j] is the derivative of the one column of A that shape parameter j changes
         dA = map(1:nθ) do j
+            check()
             h = 1e-6 * max(abs(θ[j]), 1.0)
             θp = copy(θ)
             θm = copy(θ)

@@ -17,9 +17,10 @@ Any parameter you don't give is read from the pulse-sequence annotations or the 
 parameters where possible, and otherwise you are asked for it before the window opens. Pass
 `prompt=false` to raise an error instead, for example in a script.
 
-Every routine takes `skipplanes`, a list of planes to leave out of the fitting. Skipped
-planes are still loaded and displayed, and their amplitudes are still measured, at the
-lineshapes the other planes determine.
+Every routine except `rdc2d`, which needs all four of its planes, takes `skipplanes`, a
+list of planes to leave out of the fitting. At least one plane must be left. Skipped planes
+are still loaded and displayed, and their amplitudes are still measured, at the lineshapes
+the other planes determine.
 
 The [experiment-specific pages](fit.md) describe the available functions
 and the theory behind each analysis. This page covers the shared GUI features common to
@@ -54,7 +55,7 @@ in the contour plot to work with it.
 | Show or hide the fitted lineshape overlay | **Fitting** toggle |
 | Show or hide other spectra (moving-peak experiments, e.g. titrations, RDCs) | `S` or **(S)how all** toggle |
 | Open a summary plot of the current results | **Summary plot** button (enabled once peaks are present) |
-| Load a previously saved peak list | **Load peak list** button, or `peaklist=` when you start (see below) |
+| Load a previously saved peak list | **Load peak list...** button, or `peaklist=` when you start (see below) |
 | Save all results to a folder | **Save to folder** button |
 | Close the GUI window | `Q` or **(Q)uit** button |
 
@@ -173,7 +174,7 @@ since the last one does not leave its plot behind. See
 
 ## Loading and Resuming Analysis
 
-The **Load peak list** button restores peak positions and labels from a saved
+The **Load peak list...** button restores peak positions and labels from a saved
 `peaklist.csv`, a Sparky peak list, or a simple `label x y` text file, so you can resume
 work later or seed a new analysis from existing positions. Where peaks were tracked plane
 by plane, the whole trajectory is restored, as are any radii you set for individual peaks.
@@ -190,7 +191,7 @@ You can also load a list as the window opens, by passing it to any 2D routine:
 relaxation2d("11/pdata/1"; peaklist="out/peaklist.csv")
 ```
 
-On Linux, the **Load peak list** button doesn't open a file dialog, because the GTK file
+On Linux, the **Load peak list...** button doesn't open a file dialog, because the GTK file
 dialog can crash Julia there; it prints a warning instead. Pass `peaklist` when you start
 the analysis. The crash comes from GTK settings schemas older than the GTK that Julia
 bundles, so updating your system's GTK 3 package (`libgtk-3-common` on Debian or Ubuntu,

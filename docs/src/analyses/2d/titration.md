@@ -184,7 +184,7 @@ obtained by the delta method.
   concentration units as `L0`/`P0`.
 - **Save to folder** writes `results.csv` with each peak's per-plane positions, linewidths and
   amplitudes, plus the derived ``\delta_\text{free}``/``\delta_\text{bound}`` shifts and the
-  global ``K_\text{d}``. **Load peak list** restores them.
+  global ``K_\text{d}``. **Load peak list...** restores them.
 - The **summary plot** shows ΔδX, ΔδN and the combined `|Δδ|` (saturation CSP =
   ``\delta_\text{bound} - \delta_\text{free}``) against residue number.
 
