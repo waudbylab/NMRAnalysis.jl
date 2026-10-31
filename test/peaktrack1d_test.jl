@@ -293,6 +293,15 @@ end
     @test size(cells) == (4, 5)
     @test cells[3, 5] == ""   # no centre where a line is missing
 
+    # without coordinates there is no column for them, not an empty one
+    bare = tracker(s, tracks(p); coordinates=nothing)
+    header, cells = widetable(bare)
+    @test header == ["plane", "DSS (reference)", "MES", "MOPS"]
+    @test size(cells) == (4, 4)
+    @test occursin("DSS (reference)", sprint(show, MIME"text/plain"(), bare))
+    @test startswith(sprint(show, MIME"text/tab-separated-values"(), bare),
+                     "plane\tDSS (reference)\tMES\tMOPS\n")
+
     rows = planeresults(p)
     @test length(rows) == 16
     @test keys(first(rows)) ==

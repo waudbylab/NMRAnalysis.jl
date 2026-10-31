@@ -162,7 +162,7 @@ than for computing with.
 """
 function widetable(p::PeakTracker; digits=4)
     t, n = tracks(p), nplanes(p)
-    header = ["plane"; string.(keys(p.coordinates))]
+    header = String["plane"; [string(k) for k in keys(p.coordinates)]]
     columns = Vector{String}[string.(1:n)]
     for v in values(p.coordinates)
         push!(columns, [roundcell(x; digits) for x in v])
