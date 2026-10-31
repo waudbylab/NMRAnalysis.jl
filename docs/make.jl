@@ -19,7 +19,8 @@ makedocs(;
                                      "Diffusion" => "analyses/1d/diffusion.md",
                                      "TRACT" => "analyses/1d/tract.md",
                                      "Pulse Calibration" => "analyses/1d/calibration.md",
-                                     "Kinetics" => "analyses/1d/kinetics.md"],
+                                     "Kinetics" => "analyses/1d/kinetics.md",
+                                     "Peak Tracking" => "analyses/1d/peaktracking.md"],
                 "1D Chemical Exchange" =>
                     ["R1ρ Relaxation Dispersion" => "analyses/r1rho.md",
                      "Exchange Fitting (CEST, R1ρ, R1)" =>
@@ -55,6 +56,7 @@ makedocs(;
                                          "GUI2D" => "api/gui2d.md",
                                          "R1ρ" => "api/r1rho.md",
                                          "Exchange1D" => "api/exchange1d.md",
+                                         "PeakTrack1D" => "api/peaktrack1d.md",
                                          "MaybeVector" => "api/maybevector.md"],
                                "Index" => "indexes.md"]],
          sitename="NMRAnalysis.jl",

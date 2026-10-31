@@ -21,6 +21,7 @@ results when the window closes.
 - `tract(trosy, antitrosy)`: rotational correlation time from TRACT
 - `calibration1d(filename)`: pulse-length calibration from a nutation experiment
 - `kinetics1d(filename, times)`: intensities of named regions against time
+- `peaktrack1d(filenames)`: positions of peaks and multiplets across a series of spectra
 - `r1rho([directory])`: R₁ρ relaxation dispersion
 - `exchange1d([filenames])`: CEST and R₁ρ fitted by Bloch-McConnell simulation
 
@@ -97,6 +98,9 @@ using .R1rho
 include("exchange1d/Exchange1D.jl")
 using .Exchange1D
 
+include("peaktrack1d/PeakTrack1D.jl")
+using .PeakTrack1D
+
 @reexport using .MaybeVectorModule: MaybeVector, SingleElementVector, StandardVector
 @reexport using .GUI2D: fit2d, relaxation2d, recovery2d, modelfit2d # IntensityExperiment
 @reexport using .GUI2D: peaktrack2d, rdc2d, titration2d # MovingExperiment
@@ -110,6 +114,8 @@ using .Exchange1D
 @reexport using .R1rho: r1rho, setupR1rhopowers
 
 @reexport using .Exchange1D: exchange1d
+
+@reexport using .PeakTrack1D: peaktrack1d, PeakTracker, stackplot
 
 # 1D analysis framework (Analysis1D) - the interactive replacements for the former
 # readline-driven 1D routines. `analyse` is not re-exported (it would collide with the

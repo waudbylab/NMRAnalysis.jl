@@ -18,6 +18,10 @@ end
     include("analysis1d_test.jl")
 end
 
+@safetestset "PeakTrack1D" begin
+    include("peaktrack1d_test.jl")
+end
+
 @safetestset "Residue Label Parser Tests" begin
     # # Standard format tests
     # @test NMRAnalysis.GUI2D.extract_residue_number("A7") == 7

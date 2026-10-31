@@ -159,6 +159,15 @@ then the only thing telling two rows apart.
 residuals are a subtraction. It is `NA` where nothing was fitted. A smooth curve for a
 figure is recoverable from the parameters.
 
+1D peak tracking (`peaktrack1d`) measures positions rather than integrals, and its entity is
+a multiplet made of one or more lines. Its rows are keyed by `label`, `line` (numbered from
+the highest shift) and `plane`, with the line's `shift (ppm)`, `height` and `snr`. The
+multiplet's own `centre (ppm)` and `referenced (ppm)` describe the multiplet in that plane
+rather than the line, so they are repeated down its lines, as `fitstatus` is in 2D. Nothing
+is fitted, so there is no `results.csv`; the picks go in `peaklist.csv` (keyed by `label`,
+`reference`, `line` and `plane`), and the processing of time-domain data, phases included,
+in `processing.csv`, which can be passed back as `phase` to repeat it.
+
 2D adds `fitstatus`, how the lineshape fit of that peak ended: `converged`, `maxiter`
 (stopped at the iteration limit), `bound` (a position or linewidth ended at its limit),
 `timeout` (stopped at the time limit, the previous values kept) or `unfitted`. It is a key,
@@ -285,6 +294,7 @@ what the experiment was.
 | Analysis1D | yes | yes | yes | nothing global yet | yes |
 | GUI2D | yes | yes | yes | yes | yes |
 | Exchange1D | yes | yes | yes | yes | yes |
+| PeakTrack1D | yes | nothing fitted | yes | nothing global | yes |
 | R1rho | old format | no | no | no | no |
 
 Every 2D routine now resolves its parameters through the same chain as the 1D routines,
