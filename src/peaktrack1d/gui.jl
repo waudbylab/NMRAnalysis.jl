@@ -138,11 +138,7 @@ function broadeningcontrol!(position, p::PeakTracker)
         proc.lb[] = lb
         process!(p.series, proc, lb)
         notify(p.view.revision)
-        t = tracks(p)
-        for k in collect(keys(t.picks))
-            q = t.picks[k]
-            t.picks[k] = exact(p.series, q.plane, q.shift)
-        end
+        reheight!(tracks(p), p.series)
         return notify(p.tracks)
     end
     return grid
@@ -235,6 +231,8 @@ function attach!(p::PeakTracker, textbox; radius=8, snr=5)
     snapping = Observable(true)
     moving = Ref{Union{Nothing,Tuple{Int,Int}}}(nothing)
     history = Tracks[]
+    # undo must not bring back heights read from the spectra as processed before
+    on(_ -> foreach(h -> reheight!(h, s), history), v.revision)
 
     # every line in the order left and right step through them, then the vacant slot
     slots() = [[l for m in eachindex(multiplets(found[])) for l in navorder(found[], m)]; 0]

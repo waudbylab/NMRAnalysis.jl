@@ -19,11 +19,15 @@ end
     vertex(x, y, k) -> (shift, height)
 
 The maximum near index `k` by parabolic interpolation through it and its two neighbours.
+Where the three points are flat or not concave there is no parabolic maximum, and the point
+itself is returned.
 """
 function vertex(x, y, k)
     (k == firstindex(y) || k == lastindex(y)) && return x[k], y[k]
     a, b, c = y[k - 1], y[k], y[k + 1]
-    d = (a - c) / (2 * (a - 2b + c))
+    curvature = a - 2b + c
+    curvature < 0 || return x[k], b
+    d = (a - c) / 2curvature
     return x[k] + d * (x[k + 1] - x[k - 1]) / 2, b - (a - c) * d / 4
 end
 
@@ -40,6 +44,15 @@ end
 function exact(s::SpectrumSeries, i, x)
     k = argmin(abs.(shifts(s) .- x))
     return Pick(i, x, intensities(s, i)[k])
+end
+
+"Read the height of every pick in `t` again from `s`, after the spectra are reprocessed."
+function reheight!(t::Tracks, s::SpectrumSeries)
+    for k in collect(keys(t.picks))
+        q = t.picks[k]
+        t.picks[k] = exact(s, q.plane, q.shift)
+    end
+    return t
 end
 
 "Signal-to-noise ratio of a pick."

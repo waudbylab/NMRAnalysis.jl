@@ -6,7 +6,7 @@
 using NMRAnalysis
 using NMRAnalysis.PeakTrack1D: SpectrumSeries, Pick, Multiplet, Tracks, REF, StackView,
                                PeakTracker
-using NMRAnalysis.PeakTrack1D: climb, vertex, snap, exact, snr, noiselevel, displayscale,
+using NMRAnalysis.PeakTrack1D: climb, vertex, snap, exact, reheight!, snr, noiselevel, displayscale,
                                sameaxis, planesfrom
 using NMRAnalysis.PeakTrack1D: cleanlabel, multipletof, multipletlabels, linesof,
                                orderedlines, navorder,
@@ -98,6 +98,7 @@ end
     y = @. 5 - (x - 2.3)^2
     @test all(vertex(x, y, 2) .≈ (2.3, 5.0))
     @test vertex(x, y, 1) == (1.0, y[1])   # no neighbour to interpolate with at an end
+    @test vertex(x, [2.0, 2.0, 2.0], 2) == (2.0, 2.0)   # a flat top, not 0/0
 
     s = makeseries()
     q = snap(s, 2, singlet(2) + 0.008, 0.01)
@@ -109,6 +110,15 @@ end
     @test q.shift == 3.0123
     @test q.height == s.intensities[argmin(abs.(δaxis .- 3.0123)), 1]
     @test snr(s, Pick(1, 3.0, 42.0)) == 42.0
+
+    # heights follow the data when it is reprocessed, shifts stay where they were placed
+    t = Tracks(["DSS"])
+    setpick!(t, 1, snap(s, 1, dss(1), 0.01))
+    q = pickat(t, 1, 1)
+    scaled = SpectrumSeries(δaxis, 2 .* s.intensities, ones(4), fill("synthetic", 4), 1:4)
+    reheight!(t, scaled)
+    @test pickat(t, 1, 1).shift == q.shift
+    @test pickat(t, 1, 1).height ≈ 2 * exact(s, 1, q.shift).height
 end
 
 # ---- the picking model ----------------------------------------------------------
