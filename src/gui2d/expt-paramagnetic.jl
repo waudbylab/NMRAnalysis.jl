@@ -185,9 +185,8 @@ end
 function simulate!(z, peak::Peak, expt::ParamagneticExperiment)
     amp = peak.parameters[:ampfit].value[]
     for i in 1:nslices(expt)
-        xi, yi, block = peakshape(PlaneGrid(expt, i), shapeparams(peak, i)...,
-                                  peak.xradius[], peak.yradius[])
-        z[i][xi, yi] .+= amp[i] .* block
+        xi, yi, grid = displaygrid(peak, expt, i)
+        z[i][xi, yi] .+= amp[i] .* peakshape(grid, shapeparams(peak, i)...)
     end
     return z
 end
@@ -231,30 +230,22 @@ function modelshapefit(peaks, expt::ParamagneticExperiment, grid)
 end
 
 """
-    planedesign(expt, group, i, φ, radii; scaled=true) -> Matrix
+    planedesign(expt, group, i, φ; scaled=true) -> Matrix
 
 The design matrix of plane `i` of `group`: column `p` is peak `p` with the linewidths it has
 in that plane, at its diamagnetic height (`scaled`) or at unit height.
 """
-function planedesign(expt::ParamagneticExperiment, g, i, φ, radii; scaled=true)
-    k = npeakparams(expt)
-    A = zeros(count(g.mask), length(radii))
-    block = zeros(length(g.grid.x), length(g.grid.y))
-    for p in eachindex(radii)
-        φp = φ[(k * (p - 1) + 1):(k * p)]
+function planedesign(expt::ParamagneticExperiment, g, i, φ; scaled=true)
+    return stack(Iterators.partition(φ, npeakparams(expt))) do φp
         R2x, R2y, s = planeshape(expt, i, φp)
-        xi, yi, b = peakshape(g.grid, φp[1], φp[2], R2x, R2y, radii[p]...)
-        fill!(block, 0.0)
-        block[xi, yi] .= (scaled ? s : 1.0) .* b
-        A[:, p] .= view(vec(block), g.mask)
+        return (scaled ? s : 1.0) .* designcolumn(g, (φp[1], φp[2], R2x, R2y))
     end
-    return A
 end
 
 # the planes of `fitted` ((group, positions in group) pairs) stacked in turn
-function modeldesign(expt, fitted, φ, radii)
+function modeldesign(expt, fitted, φ)
     return reduce(vcat,
-                  [planedesign(expt, g, g.planes[k], φ, radii)
+                  [planedesign(expt, g, g.planes[k], φ)
                    for (g, ks) in fitted for k in ks])
 end
 observed(fitted) = reduce(vcat, [vec(g.z[:, ks]) for (g, ks) in fitted])
@@ -271,7 +262,6 @@ amplitudes included, σ²(JᵀJ)⁻¹.
 function fitmodel(peaks, groups, expt::ParamagneticExperiment, check; warm=false)
     k = npeakparams(expt)
     f = modelshapefit(peaks, expt, first(groups).grid)
-    radii = [(p.xradius[], p.yradius[]) for p in peaks]
     names = fitparamnames(expt)
     φ0 = reduce(vcat,
                 [[(warm ? p.parameters[s].value[] : p.parameters[s].initialvalue[])[1]
@@ -282,7 +272,7 @@ function fitmodel(peaks, groups, expt::ParamagneticExperiment, check; warm=false
 
     function resid(θ)
         check()
-        A = modeldesign(expt, fitted, physical(f, θ), radii)
+        A = modeldesign(expt, fitted, physical(f, θ))
         return z .- A * amplitudes(A, z)
     end
 
@@ -291,7 +281,7 @@ function fitmodel(peaks, groups, expt::ParamagneticExperiment, check; warm=false
     θ = coef(sol)
     check()
     φ = physical(f, θ)
-    A = modeldesign(expt, fitted, φ, radii)
+    A = modeldesign(expt, fitted, φ)
     a = amplitudes(A, z)
 
     # Jacobian of the model A(θ)a in θ and a, for the covariance of both
@@ -303,8 +293,8 @@ function fitmodel(peaks, groups, expt::ParamagneticExperiment, check; warm=false
         θp, θm = copy(θ), copy(θ)
         θp[j] += h
         θm[j] -= h
-        J[:, j] .= (modeldesign(expt, fitted, physical(f, θp), radii) * a .-
-                    modeldesign(expt, fitted, physical(f, θm), radii) * a) ./ (2h)
+        J[:, j] .= (modeldesign(expt, fitted, physical(f, θp)) * a .-
+                    modeldesign(expt, fitted, physical(f, θm)) * a) ./ (2h)
     end
     J[:, (nθ + 1):end] .= A
     mse = sum(abs2, z .- A * a) / max(length(z) - size(J, 2), 1)
@@ -341,7 +331,7 @@ function fitmodel(peaks, groups, expt::ParamagneticExperiment, check; warm=false
     # each plane's own heights, measured at the linewidths the model gives it
     amp, σamp = zeros(np, n), zeros(np, n)
     for g in groups, (j, i) in enumerate(g.planes)
-        Ai = planedesign(expt, g, i, φ, radii; scaled=false)
+        Ai = planedesign(expt, g, i, φ; scaled=false)
         amp[:, i] .= amplitudes(Ai, g.z[:, j])
         σamp[:, i] .= sqrt.(max.(mse .* diag(covinverse(Ai' * Ai)), 0.0))
     end
