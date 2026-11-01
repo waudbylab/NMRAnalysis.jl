@@ -8,7 +8,7 @@ using NMRAnalysis.PeakTrack1D: SpectrumSeries, Pick, Multiplet, Tracks, REF, Sta
                                PeakTracker
 using NMRAnalysis.PeakTrack1D: climb, vertex, snap, exact, snr, noiselevel, displayscale,
                                sameaxis, planesfrom
-using NMRAnalysis.PeakTrack1D: multipletof, multipletlabels, linesof, orderedlines, navorder,
+using NMRAnalysis.PeakTrack1D: cleanlabel, multipletof, multipletlabels, linesof, orderedlines, navorder,
                                centre, linecentre, referenceshifts, vacantname, addmultiplet!,
                                setpick!, erase!, group!, ungroup!, deleteline!, relabel!,
                                haspicks, picksof, npicks, pickat, tracks
@@ -115,6 +115,7 @@ end
     @test t.nextline == 3
     @test vacantname(multipletlabels(t)) == "peak1"
     @test vacantname(["peak1", "peak3"]) == "peak2"
+    @test cleanlabel(" a_b,c ") == "a-bc"
     l = addmultiplet!(t, "peak1")
     @test l == 3 && multipletof(t, 3) == 3
 
@@ -135,6 +136,9 @@ end
 
     @test relabel!(t, 2, " MO,PS ")
     @test multipletlabels(t)[2] == "MOPS"
+    @test relabel!(t, 2, "Tris_HCl")
+    @test multipletlabels(t)[2] == "Tris-HCl"   # an underscore would split a CSV header
+    @test relabel!(t, 2, "MOPS")
     @test !relabel!(t, 2, "DSS")
     @test !relabel!(t, 2, "  ")
 

@@ -20,7 +20,7 @@ function keychar(key::Keyboard.Button, upper::Bool)
     elseif length(name) == 2 && name[1] == '_' && isdigit(name[2])
         name[2]
     elseif key == Keyboard.minus
-        upper ? '_' : '-'
+        '-'
     elseif key == Keyboard.period
         '.'
     elseif key == Keyboard.space
@@ -67,7 +67,7 @@ function openwindow(s::SpectrumSeries, processing; labels=String[], reference="r
                 gain=2, colormap=nothing, size=(1200, 850), call=nothing,
                 outputdir="out")
     coords = coordinatetable(coordinates, length(s))
-    t = initialtracks(s, peaklist, sanitizelabel(reference), sanitizelabel.(labels))
+    t = initialtracks(s, peaklist, cleanlabel(reference), String[cleanlabel(l) for l in labels])
 
     GLMakie.activate!()   # CairoMakie, loaded for saving figures, would otherwise take over
     fig = Figure(; size)
@@ -328,7 +328,7 @@ function attach!(p::PeakTracker, textbox; radius=8, snr=5)
     function rename!(name)
         t = found[]
         if current[] == 0
-            name = sanitizelabel(strip(name))
+            name = cleanlabel(name)
             isempty(name) && return
             if name in multipletlabels(t)
                 @warn "A multiplet called $name already exists"

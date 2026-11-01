@@ -41,12 +41,12 @@ function restore(s::SpectrumSeries, header, rows; reference="reference",
     labels = String[]
     reflabel = nothing
     for row in rows
-        lbl = sanitizelabel(row[jl])
+        lbl = cleanlabel(row[jl])
         lbl in labels || push!(labels, lbl)
         lowercase(row[jr]) == "true" && isnothing(reflabel) && (reflabel = lbl)
     end
     if isnothing(reflabel)
-        reflabel = sanitizelabel(reference)
+        reflabel = cleanlabel(reference)
         reflabel in labels && throw(ArgumentError("$path marks no reference, and has a " *
                                                   "multiplet called $reflabel"))
     end
@@ -55,7 +55,7 @@ function restore(s::SpectrumSeries, header, rows; reference="reference",
 
     linenumbers = Dict{Tuple{String,String},Int}()
     for row in rows
-        lbl = sanitizelabel(row[jl])
+        lbl = cleanlabel(row[jl])
         m = findfirst(==(lbl), multipletlabels(t))
         key = (lbl, row[jn])
         l = get!(linenumbers, key) do

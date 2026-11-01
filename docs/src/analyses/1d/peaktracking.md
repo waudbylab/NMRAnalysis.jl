@@ -72,7 +72,8 @@ reference comes first, and a `+` at the end is the vacant slot for a new peak.
 3. Correct individual spectra: click to pick the spectrum under the cursor, drag a marker
    to move it, or right-click a marker to delete it. Shift-drag erases picks under the
    stroke.
-4. Press `r`, type a name and press enter.
+4. Press `r`, type a name and press enter. A name can't contain an underscore or a comma: an
+   underscore becomes a hyphen, and a comma is dropped.
 
 If a strong neighbour is picked instead of your peak, narrow the brush with `[`. If two
 lines overlap so that no maximum separates them, press `m` to turn snapping off and place

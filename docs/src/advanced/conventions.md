@@ -171,11 +171,10 @@ in `processing.csv`, which can be passed back as `phase` to repeat it.
 Peak tracking also writes three **wide** files, `shifts.csv`, `referencedshifts.csv` and
 `heights.csv`, for opening in a spreadsheet: one row per plane, keyed by `plane` and the
 coordinates, and one value column per line of every multiplet, named by the multiplet's
-label (`MES (ppm)`) or by its label and line number (`MOPS[1] (ppm)`). Their headers are
-built from labels the user typed, so they are the one exception to the reading rule above:
-a label may contain an underscore, which here is part of the name rather than a separator.
-Read them by position: the key columns come first, and every column after the coordinates
-is a value. They repeat what is in `series.csv`, which remains the complete record.
+label (`MES (ppm)`) or by its label and line number (`MOPS[1] (ppm)`). Since their headers
+are built from labels the user typed, labels never contain an underscore: one typed or read
+from a peak list becomes a hyphen. The wide files repeat what is in `series.csv`, which
+remains the complete record.
 
 2D adds `fitstatus`, how the lineshape fit of that peak ended: `converged`, `maxiter`
 (stopped at the iteration limit), `bound` (a position or linewidth ended at its limit),

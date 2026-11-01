@@ -192,13 +192,22 @@ function deleteline!(t::Tracks, l)
 end
 
 """
+    cleanlabel(name) -> String
+
+A multiplet label as it is stored: trimmed, without commas, since labels are written
+unquoted to CSV, and with underscores replaced by hyphens, since in a CSV header an
+underscore separates a quantity from a tag (see `docs/src/advanced/conventions.md`).
+"""
+cleanlabel(name::AbstractString) = replace(sanitizelabel(strip(name)), '_' => '-')
+
+"""
     relabel!(t, m, name) -> Bool
 
-Rename multiplet `m`. Returns `false`, changing nothing, if `name` is blank or already
-taken by another multiplet. Commas are removed, since labels are written unquoted to CSV.
+Rename multiplet `m`, cleaning the name with [`cleanlabel`](@ref). Returns `false`,
+changing nothing, if the name is blank or already taken by another multiplet.
 """
 function relabel!(t::Tracks, m, name)
-    name = sanitizelabel(strip(name))
+    name = cleanlabel(name)
     isempty(name) && return false
     name != t.multiplets[m].label && name in multipletlabels(t) && return false
     t.multiplets[m] = Multiplet(name, t.multiplets[m].lines)
