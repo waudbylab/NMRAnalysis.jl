@@ -9,10 +9,7 @@ peak serves as the chemical shift reference.
 Unlike the other 1D routines, `peaktrack1d` measures positions rather than integrals, and
 fits nothing: the shifts are the result.
 
-<!-- TODO screenshot: docs/src/assets/peaktrack1d-window.png
-     The peaktrack1d window on a pH series: a stack of about twenty spectra, the reference
-     picked in black, two singlets and one doublet picked in colour, the doublet's bars and
-     dashed centre path visible, and the status line above the plot. -->
+![The peaktrack1d window: a ¹H pH series aligned on DSS, with maleate selected and a doublet grouped, and the summary panel on the right](../../assets/peaktrack1d-window.png)
 
 ## Run the analysis
 
@@ -159,6 +156,8 @@ if a spectrum was recorded at a different field from its ¹H partner. In the win
 reference is shown greyed and marked external: it can't be selected or picked, since DSS
 comes from the ¹H analysis, but `a` aligns the stack and the summary panel shows referenced
 shifts as usual.
+
+![A ³¹P series referenced to DSS from the ¹H analysis, with the reference shown as external](../../assets/peaktrack1d-hetero.png)
 
 ## Save and reload
 
