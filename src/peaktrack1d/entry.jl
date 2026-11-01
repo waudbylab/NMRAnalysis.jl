@@ -84,12 +84,12 @@ snapping off (for overlapped peaks), and holding shift does the opposite of the 
 
 # Examples
 ```julia
-p = peaktrack1d(11:42; coordinates="pH" => pH, reference="DSS")
+p = peaktrack1d(11:42)
 p = peaktrack1d(11:42; process=false)               # the processed spectra instead
 p = peaktrack1d(11:42; peaklist="out/peaklist.csv") # carry on from a saved analysis
 p = peaktrack1d(p)                                  # reopen
 
-h = peaktrack1d(11:42; reference="DSS")             # ¹H, with DSS picked
+h = peaktrack1d(11:42)                              # ¹H, with DSS picked as the reference
 f = peaktrack1d(51:82; reference=h)                 # ¹⁹F of the same samples, on DSS
 clipboard(p)
 ```

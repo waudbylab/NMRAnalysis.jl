@@ -103,6 +103,9 @@ function openwindow(s::SpectrumSeries, processing; labels=String[], reference=DE
     coords = coordinatetable(coordinates, length(s))
     reflabel, ref = referencing(reference, refshift, s)
     t = initialtracks(s, peaklist, reflabel, String[cleanlabel(l) for l in labels])
+    # an external reference is named by the analysis it comes from, whatever a peak list says
+    ref isa IndirectReference && !(reflabel in multipletlabels(t)) &&
+        relabel!(t, REF, reflabel)
 
     # CairoMakie, loaded for saving figures, would otherwise take over
     GLMakie.activate!(; focus_on_show=true, title=windowname("1D peak tracking"))
@@ -121,6 +124,10 @@ function openwindow(s::SpectrumSeries, processing; labels=String[], reference=DE
     p = PeakTracker(s, coords, Observable(t), processing, ref, Observable(false), v, fig, ax,
                     call, Observable(String(outputdir)))
     session = Session()
+    pickhint = "drag along a peak to pick it in every spectrum, or click to pick it in one"
+    session.notice[] = ref isa IndirectReference ?
+                       ("Shifts are referenced to $reflabel in the 1H analysis: $pickhint", false) :
+                       (uppercasefirst(pickhint), false)
     controls = GridLayout(fig[4, 1:2]; tellwidth=false)
     isnothing(processing) || broadeningcontrol!(controls[1, 1], p, session)
     textbox = outputcontrols!(controls[1, 2], p, session)

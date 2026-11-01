@@ -306,8 +306,10 @@ function summaryseries(p::PeakTracker, line)
     t, n = tracks(p), nplanes(p)
     x, xlabel = xcoordinate(p)
     isref = allreferenced(p)
-    ylabel = isref ? "shift referenced to $(multiplets(t)[REF].label) (ppm)" :
-             "shift as measured (ppm)"
+    name = referencename(t)
+    ylabel = !isref ? "shift as measured (ppm)" :
+             name == "the reference peak" ? "referenced shift (ppm)" :
+             "shift referenced to $name (ppm)"
     m = something(multipletof(t, line), 0)
     if m == 0
         return (; xlabel, ylabel, m, label="", lines=Point2f[], centre=Point2f[],

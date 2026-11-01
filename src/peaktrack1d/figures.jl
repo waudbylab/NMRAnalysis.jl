@@ -75,26 +75,17 @@ end
 """
     multipletplot(p, m) -> Figure
 
-Multiplet `m` against the first numeric coordinate, or against plane number where there is
-none: each line's shift as an open marker, and the centre filled.
+Multiplet `m` as the summary panel shows it: each line's shift as a faint point and the
+centre joined up, against the first numeric coordinate or the spectrum number, referenced
+where the reference is available in every spectrum. See [`summaryseries`](@ref).
 """
 function multipletplot(p::PeakTracker, m; size=(340, 250), fontsize=10)
-    t, s = tracks(p), p.series
-    x, xlabel = xcoordinate(p)
+    d = summaryseries(p, first(navorder(tracks(p), m)))
+    colour = multipletcolour(m)
     fig = Figure(; size, fontsize)
-    ax = Axis(fig[1, 1]; xlabel,
-              ylabel=shiftlabel(s.nucleus), title=multiplets(t)[m].label)
-    ls = orderedlines(t, m)
-    if length(ls) > 1
-        for l in ls
-            qs = picksof(t, l)
-            scatter!(ax, x[[q.plane for q in qs]], [q.shift for q in qs];
-                     color=:transparent, strokecolor=multipletcolour(m), strokewidth=1,
-                     markersize=6)
-        end
-    end
-    planes = [i for i in eachindex(s) if !isnothing(linecentre(t, ls, i))]
-    scatter!(ax, x[planes], [linecentre(t, ls, i) for i in planes];
-             color=multipletcolour(m), markersize=8)
+    ax = Axis(fig[1, 1]; xlabel=d.xlabel, ylabel=d.ylabel, title=d.label)
+    length(orderedlines(tracks(p), m)) > 1 &&
+        scatter!(ax, d.lines; color=(colour, 0.4), markersize=4)
+    scatterlines!(ax, d.centre; color=colour, markersize=6, linewidth=1)
     return fig
 end

@@ -16,14 +16,11 @@ fits nothing: the shifts are the result.
 
 ## Run the analysis
 
-Call `peaktrack1d` with your experiments. Name the planes with `coordinates`, so that the
-output says what distinguishes them, and name the reference:
+Call `peaktrack1d` with your experiment numbers:
 
 ```julia
 using NMRAnalysis
-
-pH = [5.5, 6.0, 6.5, 7.0, 7.5, 8.0]
-p = peaktrack1d(11:16; coordinates="pH" => pH, reference="DSS")
+p = peaktrack1d(11:16)
 ```
 
 The window stays open until you close it, and `peaktrack1d` then returns the analysis. A
@@ -103,6 +100,15 @@ one, and it updates as you edit. Shifts are referenced once the reference is pic
 spectrum and shown as measured until then; the axis label says which. A spectrum with a
 missing pick shows as a gap.
 
+## Say what the spectra are
+
+Spectra are numbered 1, 2, 3 and so on. To have the summary panel and the output files use
+what distinguishes them instead, such as pH, pass one value per spectrum:
+
+```julia
+p = peaktrack1d(11:16; coordinates="pH" => [5.5, 6.0, 6.5, 7.0, 7.5, 8.0])
+```
+
 ## Pick a multiplet
 
 Pick each line of the multiplet as a separate peak, then group them:
@@ -122,8 +128,9 @@ The left and right keys step through every line of a multiplet in turn.
 
 ## Reference the shifts
 
-Pick the reference like any other peak. Once it is picked in every spectrum, press `a` to
-align the spectra so that the reference sits at `refshift` (0 ppm by default). Alignment
+The first peak, shown in black, is the reference. Select it with `0`, pick it like any
+other peak, and press `r` to give it its name, such as DSS. Once it is picked in every
+spectrum, press `a` to align the spectra so that the reference sits at 0 ppm. Alignment
 changes only the display. The shifts are always stored as measured, and the output gives
 each centre referenced as well.
 
@@ -135,7 +142,7 @@ To put ¹⁹F or ³¹P shifts on the same footing as ¹H, analyse the ¹H spectr
 picked, then pass that analysis as the reference for the other nucleus:
 
 ```julia
-h = peaktrack1d(11:30; reference="DSS")
+h = peaktrack1d(11:30)
 f = peaktrack1d(31:50; reference=h)   # ¹⁹F
 p = peaktrack1d(51:70; reference=h)   # ³¹P
 ```
