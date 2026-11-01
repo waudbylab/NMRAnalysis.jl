@@ -123,7 +123,7 @@ vary per dataset (e.g. kinetics' runs, when several are present).
 seriesnames(::Experiment1D) = nothing
 
 "analysis-type name shown in the GUI's bold in-panel title, e.g. \"NMRAnalysis: Relaxation\""
-windowtitle(::Experiment1D) = "1D analysis"
+windowtitle(::Experiment1D) = "Analysis"
 
 """
     spectruminfo(expt, vars) -> String

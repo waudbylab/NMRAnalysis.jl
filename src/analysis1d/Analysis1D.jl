@@ -38,6 +38,7 @@ using ..NMRAnalysis: csvcolumn, csvcolumns, csvvalue, safename, sanitizelabel, b
 using ..NMRAnalysis: annotation, acqusvalue, ask, askchoice, askvector, askpath, parsevector
 # the call that produced an analysis - see src/calls.jl
 using ..NMRAnalysis: AnalysisCall, analysiscall, callvalue
+using ..NMRAnalysis: windowname, midsentence
 import ..NMRAnalysis: callstring
 
 # the analysis core: no Makie in the computational path. (An experiment that saves a

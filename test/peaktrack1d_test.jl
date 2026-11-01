@@ -18,10 +18,15 @@ using NMRAnalysis.PeakTrack1D: cleanlabel, multipletof, multipletlabels, linesof
 using NMRAnalysis.PeakTrack1D: densify, painted, track, overlay, hit, nearestrow, location
 using NMRAnalysis.PeakTrack1D: coordinatetable, seriestable, peaklisttable, clipboardtext,
                                isreferenced, widetable,
-                               linetable, referencedshift,
+                               linetable, referencedshift, summaryseries,
                                restore, readtable, saveanalysis, exptfolder,
                                callcoordinates,
-                               p1outliers, P1TOLERANCE
+                               p1outliers, P1TOLERANCE, neighbourphase, p0outliers,
+                               wrap180, fixphases!, makeexternal!
+using NMRAnalysis.PeakTrack1D: PickedReference, IndirectReference, referencing, alignment,
+                               allreferenced, hertz, xiratio, referencename, spectralist,
+                               ppmtext
+using NMRTools: F19, P31, H1
 using NMRAnalysis: writetable
 using CairoMakie: Figure, Axis, Observable, Point2f, Vec2f
 using Test
@@ -65,11 +70,12 @@ function picked(s; group=true)
     return t
 end
 
-function tracker(s, t; coordinates="pH" => [6.0, 6.5, 7.0, 7.5][1:length(s)], refshift=0.0)
+function tracker(s, t; coordinates="pH" => [6.0, 6.5, 7.0, 7.5][1:length(s)], refshift=0.0,
+                 reference=PickedReference(refshift))
     fig = Figure()
     ax = Axis(fig[1, 1])
     return PeakTracker(s, coordinatetable(coordinates, length(s)), Observable(t), nothing,
-                       refshift, Observable(false), StackView(s), fig, ax, nothing,
+                       reference, Observable(false), StackView(s), fig, ax, nothing,
                        Observable("out"))
 end
 
@@ -85,9 +91,7 @@ end
     @test sameaxis(δaxis, copy(δaxis))
     @test !sameaxis(δaxis, δaxis .+ 0.001)
     @test !sameaxis(δaxis, δaxis[1:(end - 1)])
-    # the 90th percentile of the peak heights: between the doublet lines and the singlet,
-    # and nowhere near a single dominant line
-    @test 50 < displayscale(s) ≤ 101
+    @test displayscale(s) == maximum(abs, s.intensities)
     @test_throws DimensionMismatch SpectrumSeries(δaxis, zeros(10, 2), ones(2), ["a", "b"],
                                                   [1, 1])
 end
@@ -214,6 +218,36 @@ end
     @test isempty(p1outliers([0.0, 0.0, 0.0, P1TOLERANCE - 1])[2])
     # a series that genuinely scatters widens the tolerance
     @test isempty(p1outliers([0.0, 30.0, -30.0, 60.0, -60.0])[2])
+
+    # a spectrum that couldn't be phased takes its neighbours' zero-order phase, averaged
+    # round the circle
+    phases = Any[(10.0, 0.0), nothing, (30.0, 0.0), nothing, (350.0, 0.0)]
+    @test neighbourphase(phases, [1, 3, 5], 2) ≈ 20
+    @test neighbourphase(phases, [1, 3, 5], 4) ≈ 10 atol = 1e-9
+    @test neighbourphase(phases, [1, 3, 5], 6) ≈ -10
+
+    # zero-order phases from a real ³¹P series, one of which settled ~150° from the rest
+    p0 = [-155.0, -150.4, -155.8, -149.8, -156.9, -156.5, -161.8, -156.6, -157.5, -153.4,
+          -161.4, -146.4, -158.3, -150.2, -163.2, -157.9, -156.6, -158.4, -156.7, -154.5,
+          -160.3, -163.1, -158.2, -160.6, -160.8, 52.3, -155.2, -161.6, -163.9, -162.3,
+          -161.4, -161.3]
+    centre, ks = p0outliers(p0)
+    @test ks == [26]
+    @test -160 < centre < -155
+    # deviations are measured round the circle, so phases either side of ±180° agree
+    @test isempty(p0outliers([179.0, -179.0, 178.0, -178.0, 180.0])[2])
+    @test p0outliers([179.0, -179.0, 178.0, -178.0, 0.0])[2] == [5]
+    @test isempty(p0outliers([0.0, 90.0])[2])   # too few to judge
+    @test wrap180(190.0) ≈ -170 && wrap180(-190.0) ≈ 170
+
+    # outliers are repaired before a failed experiment borrows its neighbours' phase, so it
+    # can't inherit an outlier's
+    phases = Any[(0.0, 0.0), (2.0, 0.0), (-1.0, 0.0), (160.0, 0.0), nothing]
+    phasing = [:auto, :auto, :auto, :auto, :failed]
+    fixed, how = fixphases!(phases, phasing, fill(nothing, 5);
+                            refit=(fid, p1; kw...) -> nothing)
+    @test all(abs(wrap180(p[1])) < 5 for p in fixed)
+    @test how == [:auto, :auto, :auto, :neighbours, :neighbours]
 end
 
 # ---- the brush ------------------------------------------------------------------
@@ -280,6 +314,141 @@ end
     @test exptfolder("11") == "11"
 end
 
+@testset "indirect referencing" begin
+    s = makeseries()
+    ΞF = 0.94094011
+    bfH = 600.13e6
+    @test xiratio(F19) == ΞF && xiratio(H1) == 1.0 && xiratio(P31) ≈ 0.40480742
+    @test isnan(xiratio(nothing))
+    @test hertz(600.13) == 600.13e6 && hertz(600.13e6) == 600.13e6 && isnan(hertz(nothing))
+
+    # a 1H analysis with DSS picked exactly where it is in each plane
+    hs = SpectrumSeries(δaxis, s.intensities, ones(4), fill("h", 4), 1:4; bf=bfH, xi=1.0)
+    t = Tracks(["DSS"])
+    foreach(i -> setpick!(t, 1, exact(hs, i, dss(i))), 1:4)
+    h = tracker(hs, t)
+    @test alignment(h) ≈ -dss.(1:4)
+    @test referencedshift(h, 1, 3.0) ≈ 3.0 - dss(1)
+
+    # a 19F series of the same samples whose axis is 3 ppm off the unified scale
+    fs = SpectrumSeries(δaxis, s.intensities, ones(4), fill("f", 4), 1:4; nucleus="19F",
+                        bf=ΞF * bfH * (1 + 3e-6), xi=ΞF)
+    r = IndirectReference(h, fs)
+    @test r.label == "DSS"
+    @test r.frequencies ≈ [bfH * (1 + 1e-6dss(i)) for i in 1:4]
+    f = tracker(fs, Tracks(["DSS"]); reference=r)
+    δ′ = -60.0
+    exact19F(i) = 1e6 * ((1 + 3e-6) * (1 + 1e-6δ′) / (1 + 1e-6dss(i)) - 1)
+    # (ν/ν₀ − 1) × 10⁶ loses about six digits to cancellation, leaving ~1e-10 ppm
+    @test referencedshift(f, 2, δ′) ≈ exact19F(2) atol = 1e-8
+    @test referencedshift(f, 2, δ′) ≈ δ′ + 3 - dss(2) atol = 1e-3   # to first order
+    @test allreferenced(f) && isreferenced(f)
+    @test alignment(f) ≈ [referencedshift(f, i, 5.0) - 5.0 for i in 1:4]
+
+    # a plane without DSS in the 1H analysis is not referenced in the 19F one
+    t2 = copy(t)
+    delete!(t2.picks, (1, 3))
+    r2 = @test_logs (:warn,) match_mode = :any IndirectReference(tracker(hs, t2), fs)
+    @test isnan(r2.frequencies[3])
+    f2 = tracker(fs, Tracks(["DSS"]); reference=r2)
+    @test isnothing(referencedshift(f2, 3, 1.0)) && !allreferenced(f2)
+    @test isnothing(alignment(f2))
+
+    # spectra that don't match one to one, or differ in field, are refused
+    three = SpectrumSeries(δaxis, s.intensities[:, 1:3], ones(3), fill("f", 3), 1:3;
+                           bf=ΞF * bfH, xi=ΞF)
+    @test_throws DimensionMismatch IndirectReference(h, three)
+    @test_throws DimensionMismatch SpectrumSeries(δaxis, s.intensities, ones(4),
+                                                  fill("f", 4),
+                                                  1:4; bf=[bfH], xi=ΞF)
+
+    # the field is judged from BF1, so an axis re-referenced by 300 ppm still matches
+    h1 = tracker(SpectrumSeries(δaxis, s.intensities, ones(4), fill("h", 4), 1:4; bf=bfH,
+                                bf1=bfH, xi=1.0), t)
+    shifted = SpectrumSeries(δaxis, s.intensities, ones(4), fill("f", 4), 1:4;
+                             bf=ΞF * bfH * (1 + 300e-6), bf1=ΞF * bfH, xi=ΞF)
+    @test IndirectReference(h1, shifted) isa IndirectReference
+    elsewhere = SpectrumSeries(δaxis, s.intensities, ones(4), fill("f", 4), 1:4;
+                               bf=ΞF * bfH, bf1=ΞF * 500.13e6, xi=ΞF)
+    @test_throws ArgumentError IndirectReference(h1, elsewhere)
+    otherfield = SpectrumSeries(δaxis, s.intensities, ones(4), fill("f", 4), 1:4;
+                                bf=ΞF * 500.13e6, xi=ΞF)
+    @test_throws ArgumentError IndirectReference(h, otherfield)
+    @test_throws ArgumentError IndirectReference(f, fs)                         # not picked
+    @test_throws ArgumentError IndirectReference(tracker(fs, Tracks(["X"])), fs) # not 1H
+    @test_throws ArgumentError IndirectReference(h, makeseries())               # no Ξ
+
+    # a reference picked in an earlier peak list stays a peak of its own when the reference
+    # comes from elsewhere, rather than having its picks relabelled
+    local3 = Tracks(["TFA"])
+    setpick!(local3, 1, Pick(1, -76.5, 1.0))
+    addmultiplet!(local3, "peak1")
+    makeexternal!(local3, "DSS")
+    @test multipletlabels(local3) == ["DSS", "TFA", "peak1"]
+    @test !haspicks(local3, only(linesof(local3, REF)))
+    @test pickat(local3, 1, 1).shift == -76.5 && multipletof(local3, 1) == 2
+    empty3 = makeexternal!(Tracks(["reference"]), "DSS")
+    @test multipletlabels(empty3) == ["DSS"]
+
+    # the reference keyword
+    @test referencing("D_SS", 0.5, fs) == ("D-SS", PickedReference(0.5))
+    @test first(referencing(h, 0.0, fs)) == "DSS"
+    @test referencing(("DSS", r), 0.0, fs) == ("DSS", r)
+
+    # saved output says how it was referenced
+    t3 = Tracks(["DSS"])
+    setpick!(t3, addmultiplet!(t3, "TFA"), exact(fs, 1, δ′))
+    mktempdir() do dir
+        folder = saveanalysis(tracker(fs, t3; reference=r), joinpath(dir, "out"))
+        text = read(joinpath(folder, "referencedshifts.csv"), String)
+        @test occursin("indirectly", text) && occursin("TFA (ppm)", text)
+        @test occursin("indirectly", read(joinpath(folder, "summary.txt"), String))
+    end
+end
+
+@testset "message wording" begin
+    @test referencename(Tracks(["reference"])) == "the reference peak"
+    @test referencename(Tracks(["DSS"])) == "DSS"
+    @test spectralist([3], 32) == "spectrum 3"
+    @test spectralist([3, 7, 12], 32) == "spectra 3, 7 and 12"
+    @test spectralist(1:20, 32) == "20 of the 32 spectra"
+    @test ppmtext(0.0) == "0 ppm" && ppmtext(4.7) == "4.7 ppm"
+end
+
+@testset "summary panel" begin
+    s = makeseries()
+    p = tracker(s, picked(s))
+    d = summaryseries(p, 3)                        # a line of the doublet
+    @test d.m == 3 && d.label == "MOPS"
+    @test d.xlabel == "pH"
+    @test startswith(d.ylabel, "shift referenced to DSS")
+    @test length(d.centre) == 4
+    @test d.centre[2][2] ≈ doublet(2) - dss(2) atol = 2e-3
+    @test length(d.lines) == 2 * (4 + 1)           # two lines, each ending in a gap
+    @test isnan(d.lines[5][1])
+    @test d.heights[1][2] ≈ 80 atol = 6
+
+    # a missing pick leaves a gap rather than joining its neighbours
+    delete!(tracks(p).picks, (4, 3))
+    d = summaryseries(p, 3)
+    @test isnan(d.centre[3][2]) && isnan(d.lines[8][2])
+
+    # without the reference in every plane, shifts are as measured
+    delete!(tracks(p).picks, (1, 2))
+    d = summaryseries(p, 2)
+    @test startswith(d.ylabel, "shift as measured")
+    @test d.centre[1][2] ≈ singlet(1) atol = 1e-3
+
+    # the vacant slot shows nothing, with the same fields
+    e = summaryseries(p, 0)
+    @test e.m == 0 && isempty(e.centre) && keys(e) == keys(d)
+
+    # points run in order of the coordinate, not of the planes
+    q = tracker(s, tracks(p); coordinates="T" => [310, 300, 290, 280])
+    @test issorted(first.(summaryseries(q, 2).centre))
+    @test summaryseries(tracker(s, tracks(p); coordinates=nothing), 2).xlabel == "spectrum"
+end
+
 @testset "tables" begin
     s = makeseries()
     p = tracker(s, picked(s))
@@ -311,14 +480,14 @@ end
     @test all(r -> (r[2] == "true") == (r[1] == "DSS"), rows)
 
     header, cells = widetable(p)
-    @test header == ["plane", "pH", "DSS (reference)", "MES", "MOPS"]
+    @test header == ["spectrum", "pH", "DSS (reference)", "MES", "MOPS"]
     @test size(cells) == (4, 5)
     @test cells[3, 5] == ""   # no centre where a line is missing
 
     # without coordinates there is no column for them, not an empty one
     bare = tracker(s, tracks(p); coordinates=nothing)
     header, cells = widetable(bare)
-    @test header == ["plane", "DSS (reference)", "MES", "MOPS"]
+    @test header == ["spectrum", "DSS (reference)", "MES", "MOPS"]
     @test size(cells) == (4, 4)
     @test occursin("DSS (reference)", sprint(show, MIME"text/plain"(), bare))
 
@@ -414,8 +583,12 @@ end
         @test occursin("MOPS", summary) && occursin("2 lines", summary)
         @test !occursin("Reproduce", summary)   # no call was recorded
         @test occursin("not integrals", read(joinpath(folder, "heights.csv"), String))
+        touch(joinpath(folder, "figure-20261101-120000.pdf"))
         saveanalysis(p, joinpath(dir, "out"))
         @test isdir(joinpath(dir, "out_previous"))
+        # figures saved with f are copied into the new folder, and kept in the old one
+        @test isfile(joinpath(dir, "out", "figure-20261101-120000.pdf"))
+        @test isfile(joinpath(dir, "out_previous", "figure-20261101-120000.pdf"))
 
         # without a reference there is nothing to reference to
         erase!(_ -> true, tracks(p), 1)

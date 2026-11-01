@@ -51,6 +51,9 @@ end
 "Index of the reference multiplet, shown to the user as 0."
 const REF = 1
 
+"The reference multiplet's name unless another is given."
+const DEFAULTREFERENCE = "reference"
+
 multiplets(t::Tracks) = t.multiplets
 nmultiplets(t::Tracks) = length(t.multiplets)
 multipletlabels(t::Tracks) = [m.label for m in t.multiplets]
@@ -199,6 +202,28 @@ unquoted to CSV, and with underscores replaced by hyphens, since in a CSV header
 underscore separates a quantity from a tag (see `docs/src/advanced/conventions.md`).
 """
 cleanlabel(name::AbstractString) = replace(sanitizelabel(strip(name)), '_' => '-')
+
+"""
+    makeexternal!(t, label) -> Tracks
+
+Make the reference an empty slot called `label`, for a reference taken from another
+analysis. A reference already picked in `t`, as an earlier peak list may hold, becomes an
+ordinary multiplet after it, so that its picks keep their own name rather than being
+relabelled.
+"""
+function makeexternal!(t::Tracks, label)
+    old = t.multiplets[REF]
+    if any(l -> haspicks(t, l), old.lines)
+        name = old.label in (label, DEFAULTREFERENCE) ? vacantname(multipletlabels(t)) :
+               old.label
+        insert!(t.multiplets, REF + 1, Multiplet(name, old.lines))
+        t.multiplets[REF] = Multiplet(cleanlabel(label), [t.nextline])
+        t.nextline += 1
+    else
+        relabel!(t, REF, label)
+    end
+    return t
+end
 
 """
     relabel!(t, m, name) -> Bool

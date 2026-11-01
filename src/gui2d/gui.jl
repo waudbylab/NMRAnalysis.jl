@@ -7,8 +7,7 @@ given, and wait until it is closed, returning `expt` with its fitted peaks (see
 entry point recorded, written to `summary.txt` so the analysis can be repeated.
 """
 function gui!(expt::Experiment; peaklist=nothing, call=nothing)
-    GLMakie.activate!(; title="NMRAnalysis.jl (v$(string(pkgversion(GUI2D))))",
-                      focus_on_show=true)
+    GLMakie.activate!(; title=windowname("2D " * analysisname(expt)), focus_on_show=true)
     # No gridlines anywhere (interactive or exported plots use the same Makie theme); axes
     # still show a visible zero line where one is drawn explicitly.
     set_theme!(Theme(;

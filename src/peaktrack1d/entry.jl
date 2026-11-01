@@ -36,10 +36,14 @@ plot, and **Load** restores the picks saved there.
   take PHC0 and PHC1 from its processed data, a vector of `(p0, p1)` pairs in degrees, or
   the path of a `processing.csv` saved earlier. In a series of three or more, a first-order
   phase far from the series median is set to the median and the zero-order phase fitted
-  again.
+  again, and a zero-order phase far from the rest of the series takes its neighbours'.
 - `labels`: names of multiplets to create before picking; more are created as you pick.
-- `reference`: the name of the reference multiplet.
-- `refshift`: the shift (ppm) at which the reference is placed when aligning and
+- `reference`: the name of the reference multiplet, picked in this analysis. Or, for ¹⁹F,
+  ³¹P or another nucleus, a ¹H `PeakTracker` of the same samples with DSS picked: the
+  shifts are then referenced indirectly to it on the IUPAC unified scale, using NMRTools'
+  Ξ ratios, matching spectra one to one in order (see [`IndirectReference`](@ref)). The
+  two must have the same number of spectra, recorded at the same field.
+- `refshift`: the shift (ppm) at which a picked reference is placed when aligning and
   referencing.
 - `coordinates`: what distinguishes the planes, one value per plane: a vector, a pair such
   as `"pH" => pH`, or a `NamedTuple` of vectors such as `(; pH, T)`. Written beside every
@@ -66,21 +70,27 @@ snapping off (for overlapped peaks), and holding shift does the opposite of the 
 
 # Keys
 - `←` `→`: step through the lines, multiplet by multiplet, to the vacant slot at the end,
-  where picking creates a new multiplet. `0`-`9`: select a multiplet; `0` is the reference.
+  where picking creates a new multiplet. `0`-`9`: select a multiplet; `0` is the reference,
+  which can't be selected when it comes from a ¹H analysis.
 - `r`: rename the current multiplet (type, then enter; escape cancels).
 - `g`, then click a marker: join that line's multiplet to the current one. `u`: move the
   current line out into a multiplet of its own. `d`: delete the current line.
 - `a`: align the spectra to the reference, once it is picked in every plane. This changes
   only the display; shifts are always stored as measured.
 - `↑` `↓`: vertical scale. `[` `]`: search radius. `m`: snapping. `backspace`: undo.
-- `s`: save a figure of the region shown in the output folder. `q`: quit.
+- `s`: save the analysis to the output folder. `f`: save a figure of the region shown
+  there, saving the analysis first if it hasn't been saved there from this window.
+  `q`: quit.
 
 # Examples
 ```julia
-p = peaktrack1d(11:42; coordinates="pH" => pH, reference="DSS")
+p = peaktrack1d(11:42)
 p = peaktrack1d(11:42; process=false)               # the processed spectra instead
 p = peaktrack1d(11:42; peaklist="out/peaklist.csv") # carry on from a saved analysis
 p = peaktrack1d(p)                                  # reopen
+
+h = peaktrack1d(11:42)                              # ¹H, with DSS picked as the reference
+f = peaktrack1d(51:82; reference=h)                 # ¹⁹F of the same samples, on DSS
 clipboard(p)
 ```
 
@@ -90,7 +100,7 @@ function peaktrack1d end
 
 function peaktrack1d(expts::AbstractVector{<:Union{Integer,AbstractString}};
                      process::Bool=true, zerofill=2, solvent=:auto, coordinates=nothing,
-                     reference="reference", refshift=0.0, kwargs...)
+                     reference=DEFAULTREFERENCE, refshift=0.0, kwargs...)
     isempty(expts) && throw(ArgumentError("no experiments to track peaks in"))
     call = analysiscall("peaktrack1d", expts; process, zerofill, solvent,
                         coordinates=callcoordinates(coordinates), reference,
@@ -121,7 +131,7 @@ end
 
 function peaktrack1d(p::PeakTracker; kwargs...)
     return openwindow(p.series, p.processing; coordinates=p.coordinates, peaklist=p,
-                      reference=multiplets(tracks(p))[REF].label, refshift=p.refshift,
+                      reference=(multiplets(tracks(p))[REF].label, p.reference),
                       gain=p.view.gain[], call=p.call, outputdir=p.outputdir[], kwargs...)
 end
 

@@ -9,9 +9,12 @@ solvent suppression as in `autoprocess`, and one `(p0, p1)` phase correction per
 experiment (degrees, TopSpin's convention) with where it came from:
 
 - `:auto`: `autoprocess`'s automatic phasing
-- `:refit`: automatic phasing whose first-order phase was an outlier from the series, so
-  its zero-order phase was fitted again with the first-order phase fixed (see
-  [`fixfirstorder!`](@ref))
+- `:refit`: the zero-order phase fitted with the first-order phase fixed at the series
+  median, where automatic phasing failed or gave an outlying first-order phase
+- `:neighbours`: the zero-order phase of the neighbouring experiments, where the refit
+  failed too, or where the zero-order phase was far from the rest of the series (see
+  [`fixphases!`](@ref))
+- `:none`: no phase could be found for any experiment in the series
 - `:pdata`: PHC0 and PHC1 from the experiment's processed data
 - `:given`: passed in, or read from a `processing.csv`
 
@@ -58,16 +61,18 @@ function autophases(fids; kw...)
         @info "Autophasing experiment $k of $(length(fids))"
         return autophase1(fid; kw...)
     end
-    phasing = fill(:auto, length(fids))
-    fixfirstorder!(phases, phasing, fids; kw...)
-    return phases, phasing
+    phasing = [isnothing(p) ? :failed : :auto for p in phases]
+    return fixphases!(phases, phasing, fids; kw...)
 end
 
-"The phases `autoprocess` settles on for one FID."
+"""
+The phases `autoprocess` settles on for one FID, or `nothing` where it finds no line to
+phase by and leaves the spectrum unphased.
+"""
 function autophase1(fid; window, zerofill, solvent)
     spec = autoprocess(fid; window, zerofill, solvent, phase=:auto)
-    ph = something(metadata(dims(spec, 1), :phase), (p0=0.0, p1=0.0))
-    return (Float64(ph.p0), Float64(ph.p1))
+    ph = metadata(dims(spec, 1), :phase)
+    return isnothing(ph) ? nothing : (Float64(ph.p0), Float64(ph.p1))
 end
 
 """
@@ -76,7 +81,7 @@ where there is none. They are checked like automatic phases, since a stored phas
 reliable than the processing that left it there.
 """
 function pdataphases(fids; kw...)
-    phases = NTuple{2,Float64}[]
+    phases = Union{Nothing,NTuple{2,Float64}}[]
     phasing = Symbol[]
     for (k, fid) in enumerate(fids)
         procs = joinpath(dirname(string(something(fid[:filename], ""))), "pdata", "1",
@@ -87,55 +92,117 @@ function pdataphases(fids; kw...)
             push!(phasing, :pdata)
         else
             @warn "No processed data for experiment $k, so it was phased automatically" procs
-            push!(phases, autophase1(fid; kw...))
-            push!(phasing, :auto)
+            ph = autophase1(fid; kw...)
+            push!(phases, ph)
+            push!(phasing, isnothing(ph) ? :failed : :auto)
         end
     end
-    fixfirstorder!(phases, phasing, fids; kw...)
-    return phases, phasing
+    return fixphases!(phases, phasing, fids; kw...)
 end
 
 "Smallest departure (degrees) from the series median that marks a first-order phase as wrong."
 const P1TOLERANCE = 15.0
 
-"""
-    fixfirstorder!(phases, phasing, fids; window, zerofill, solvent)
+"Smallest departure (degrees) from the rest of the series that marks a zero-order phase as wrong."
+const P0TOLERANCE = 45.0
 
-Correct first-order phases that are outliers from the series.
+"""
+    fixphases!(phases, phasing, fids; window, zerofill, solvent) -> (phases, phasing)
+
+Repair the phases of a series where automatic phasing failed (`nothing`) or went astray,
+using the rest of the series.
 
 Residual first-order phase comes from the acquisition (the digital filter's group delay,
 the pre-scan delay, the excitation pulse) and not from the sample, so across a series
 recorded with the same parameters it barely varies, while the zero-order phase follows the
 receiver, the tuning and the temperature. A phasing that has settled on a wrong first-order
-phase, getting one line right and another wrong, therefore stands out from the series
-median. Its zero-order phase is fitted again with the first-order phase fixed at the median.
+phase, getting one line right and another wrong, therefore stands out from the series median
+(see [`p1outliers`](@ref)), and its zero-order phase is fitted again with the first-order
+phase fixed at the median.
 
-Outliers are found by [`p1outliers`](@ref).
+The zero-order phase follows the sample, but within a series it varies by tens of degrees at
+most, so one far from the rest (see [`p0outliers`](@ref)) has been phased by the wrong
+feature, often settling near the opposite sign, when a single line is too broad or weak to
+dominate the fit. It takes the zero-order phase of its neighbours in the series, with the
+first-order phase at the median.
+
+Automatic phasing fails outright when a spectrum has no line strong enough to phase by,
+which happens to a single line broadened by exchange near a pKa or a binding midpoint. Its
+zero-order phase is then fitted the same way at a lower signal-to-noise threshold, and
+failing that taken from the neighbouring experiments in the series.
 """
-function fixfirstorder!(phases, phasing, fids; window, zerofill, solvent)
-    p1 = last.(phases)
-    med, outliers = p1outliers(p1)
-    for k in outliers
-        spec = autoprocess(fids[k]; window, zerofill, solvent, phase=nothing, real=false)
-        est = try
-            estimatephase(spec, 1; order=0, p1=med)
-        catch err
-            err isa NMRToolsError || rethrow()
-            nothing
-        end
-        if isnothing(est)
-            @warn "The first-order phase of experiment $k, $(round(p1[k]; digits=1))°, is " *
-                  "far from the series median of $(round(med; digits=1))°, but its " *
-                  "zero-order phase could not be fitted again, so it was left as it was"
+function fixphases!(phases, phasing, fids; refit=refitzero, kw...)
+    ok = findall(!isnothing, phases)
+    if isempty(ok)
+        @warn "No experiment could be phased automatically; pass phase= to set the phases"
+        return fill((0.0, 0.0), length(phases)), fill(:none, length(phases))
+    end
+    med, outliers = p1outliers([phases[k][2] for k in ok])
+    for k in ok[outliers]
+        p1 = phases[k][2]
+        p0 = refit(fids[k], med; kw...)
+        if isnothing(p0)
+            @warn "The first-order phase of experiment $k, $(round(p1; digits=1))°, is far " *
+                  "from the series median of $(round(med; digits=1))°, but its zero-order " *
+                  "phase could not be fitted again, so it was left as it was"
             continue
         end
-        @info "The first-order phase of experiment $k, $(round(p1[k]; digits=1))°, is far " *
+        @info "The first-order phase of experiment $k, $(round(p1; digits=1))°, is far " *
               "from the series median of $(round(med; digits=1))°, so it was set to the " *
               "median and the zero-order phase fitted again"
-        phases[k] = (Float64(est.p0), med)
+        phases[k] = (p0, med)
         phasing[k] = :refit
     end
-    return phases
+    for k in findall(isnothing, phases)
+        p0 = refit(fids[k], med; snr=5, kw...)
+        isnothing(p0) && continue
+        @info "Experiment $k could not be phased automatically, so its zero-order phase " *
+              "was fitted with the first-order phase fixed at the series median"
+        phases[k] = (p0, med)
+        phasing[k] = :refit
+    end
+    # outliers are repaired before any phase is borrowed, so none is borrowed from one
+    fitted = findall(!isnothing, phases)
+    centre, outliers = p0outliers([phases[k][1] for k in fitted])
+    good = setdiff(fitted, fitted[outliers])
+    for k in fitted[outliers]
+        p0 = neighbourphase(phases, good, k)
+        @warn "The zero-order phase of experiment $k, $(round(phases[k][1]; digits=1))°, is " *
+              "far from the rest of the series, around $(round(centre; digits=1))°, so it " *
+              "takes the zero-order phase of its neighbours, $(round(p0; digits=1))°"
+        phases[k] = (p0, med)
+        phasing[k] = :neighbours
+    end
+    for k in findall(isnothing, phases)
+        p0 = neighbourphase(phases, good, k)
+        @warn "Experiment $k could not be phased automatically, so it takes the zero-order " *
+              "phase of its neighbours in the series, $(round(p0; digits=1))°"
+        phases[k] = (p0, med)
+        phasing[k] = :neighbours
+    end
+    return collect(NTuple{2,Float64}, phases), phasing
+end
+
+"The zero-order phase of `fid` fitted with the first-order phase fixed at `p1`, or `nothing`."
+function refitzero(fid, p1; window, zerofill, solvent, snr=10)
+    spec = autoprocess(fid; window, zerofill, solvent, phase=nothing, real=false)
+    est = try
+        estimatephase(spec, 1; order=0, p1, snr)
+    catch err
+        err isa NMRToolsError || rethrow()
+        return nothing
+    end
+    return Float64(est.p0)
+end
+
+"""
+The circular mean zero-order phase (degrees) of the nearest experiments either side of `k`
+among those phased successfully, `ok`.
+"""
+function neighbourphase(phases, ok, k)
+    near = filter(!isnothing, [findlast(<(k), ok), findfirst(>(k), ok)])
+    p0 = [phases[ok[j]][1] for j in near]
+    return rad2deg(atan(sum(sind, p0), sum(cosd, p0)))
 end
 
 """
@@ -150,6 +217,26 @@ function p1outliers(p1)
     length(p1) < 3 && return med, Int[]
     tolerance = max(P1TOLERANCE, 5 * 1.4826 * median(abs.(p1 .- med)))
     return med, findall(x -> abs(x - med) > tolerance, p1)
+end
+
+"An angle in degrees wrapped into [-180, 180)."
+wrap180(x) = mod(x + 180, 360) - 180
+
+"""
+    p0outliers(p0) -> (centre, indices)
+
+The centre of the zero-order phases `p0` (degrees) and the indices of those departing from
+it, round the circle, by more than five robust standard deviations and by more than
+`P0TOLERANCE`. The centre is the circular mean moved to the median of the deviations from
+it, so that a single wild phase barely shifts it. None for fewer than three.
+"""
+function p0outliers(p0)
+    mean0 = rad2deg(atan(sum(sind, p0), sum(cosd, p0)))
+    centre = mean0 + median(wrap180.(p0 .- mean0))
+    length(p0) < 3 && return centre, Int[]
+    deviation = abs.(wrap180.(p0 .- centre))
+    tolerance = max(P0TOLERANCE, 5 * 1.4826 * median(deviation))
+    return centre, findall(>(tolerance), deviation)
 end
 
 "FID `k` processed with exponential line broadening `lb` and its stored phases."

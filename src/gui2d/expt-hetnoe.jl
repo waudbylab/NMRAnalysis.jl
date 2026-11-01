@@ -223,6 +223,8 @@ function peakinfotext(expt::HetNOEExperiment, idx)
 end
 
 """Return formatted text describing experiment."""
+analysisname(::HetNOEExperiment) = "heteronuclear NOE"
+
 function experimentinfo(expt::HetNOEExperiment)
     return "Analysis type: Heteronuclear NOE\n" *
            "Filename: $(expt.specdata.nmrdata[1][:filename])\n" *

@@ -397,6 +397,10 @@ function peakinfotext(expt::IntensityExperiment, idx)
     return join(info, "\n")
 end
 
+analysisname(expt::IntensityExperiment) = analysisname(expt.model)
+analysisname(::NoFitting) = "peak fitting"
+analysisname(::FittingModel) = "model fitting"
+
 function experimentinfo(expt::IntensityExperiment)
     info = ["Analysis type: Intensity",
             "Model: $(typeof(expt.model))",

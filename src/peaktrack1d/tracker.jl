@@ -5,8 +5,8 @@
 
 A peak-tracking analysis, returned by [`peaktrack1d`](@ref) when its window closes: the
 spectra, the coordinates distinguishing the planes, the multiplets and their picks, how the
-spectra were processed (for time-domain data), and the reference settings, along with the
-window it was picked in.
+spectra were processed (for time-domain data), and how the shifts are referenced (see
+[`Referencing`](@ref)), along with the window it was picked in.
 
 Show it in the REPL for a table of multiplet centres, copy every line's shifts with
 `clipboard(p)`, get every pick with `planeresults(p)`, draw the stack with `stackplot(p)`, or reopen the window with
@@ -17,7 +17,7 @@ struct PeakTracker
     coordinates::NamedTuple
     tracks::Observable{Tracks}
     processing::Union{Nothing,Processing}
-    refshift::Float64
+    reference::Referencing
     aligned::Observable{Bool}
     view::StackView
     figure::Figure
@@ -44,22 +44,126 @@ end
 function coordinatetable(nt::NamedTuple, n)
     for (name, v) in pairs(nt)
         isnothing(n) || length(v) == n ||
-            throw(DimensionMismatch("$(length(v)) values of $name for $n planes"))
+            throw(DimensionMismatch("$(length(v)) values of $name for $n spectra"))
     end
     return map(collect, nt)
 end
 
-"The reference shift in plane `i` (ppm), or `nothing`."
-refcentre(p::PeakTracker, i) = centre(tracks(p), REF, i)
+"""
+    referencedshift(p, i, δ) -> Union{Float64,Nothing}
+
+The measured shift `δ` (ppm) in plane `i`, referenced as `p.reference` says, or `nothing`
+where the reference is missing in that plane.
+"""
+referencedshift(p::PeakTracker, i, δ) = referencedshift(p.reference, p, i, δ)
+referencedshift(p::PeakTracker, q::Pick) = referencedshift(p, q.plane, q.shift)
+
+function referencedshift(r::PickedReference, p::PeakTracker, i, δ)
+    c = centre(tracks(p), REF, i)
+    return isnothing(c) ? nothing : δ - c + r.shift
+end
+
+function referencedshift(r::IndirectReference, p::PeakTracker, i, δ)
+    ν0 = r.frequencies[i]
+    isnan(ν0) && return nothing
+    s = p.series
+    return 1e6 * (s.bf[i] * (1 + 1e-6δ) / (s.xi * ν0) - 1)
+end
+
+"The centre of the multiplet made of `lines` in plane `i`, referenced; `nothing` where undefined."
+function referenced(p::PeakTracker, lines, i)
+    c = linecentre(tracks(p), lines, i)
+    return isnothing(c) ? nothing : referencedshift(p, i, c)
+end
+
+"Is the reference available in any plane, and in every plane?"
+function isreferenced(p::PeakTracker)
+    return any(i -> !isnothing(referencedshift(p, i, 0.0)), 1:nplanes(p))
+end
+function allreferenced(p::PeakTracker)
+    return all(i -> !isnothing(referencedshift(p, i, 0.0)), 1:nplanes(p))
+end
 
 """
-The centre of the multiplet made of `lines` in plane `i`, referenced to the reference
-multiplet placed at `refshift`; `nothing` where either is undefined.
+    alignment(p) -> Union{Vector{Float64},Nothing}
+
+How far to displace each plane of the stack so that referenced shifts line up, or `nothing`
+unless the reference is available in every plane. Taken at the middle of the axis, which for
+indirect referencing differs from anywhere else on it by parts in 10⁶ of the displacement.
 """
-function referenced(p::PeakTracker, lines, i)
-    c, r = linecentre(tracks(p), lines, i), refcentre(p, i)
-    (isnothing(c) || isnothing(r)) && return nothing
-    return c - r + p.refshift
+function alignment(p::PeakTracker)
+    δ = sum(extrema(shifts(p.series))) / 2
+    offsets = [referencedshift(p, i, δ) for i in 1:nplanes(p)]
+    return any(isnothing, offsets) ? nothing : Float64.(offsets) .- δ
+end
+
+"""
+    IndirectReference(source::PeakTracker, s::SpectrumSeries)
+
+Reference the spectra `s` indirectly to the reference picked in the ¹H analysis `source`,
+plane by plane. The two must have the same number of planes, matched in order, recorded at
+the same field, and `source` must have its own picked reference, normally DSS at 0 ppm.
+"""
+function IndirectReference(source::PeakTracker, s::SpectrumSeries)
+    h = source.series
+    source.reference isa PickedReference ||
+        throw(ArgumentError("the analysis to reference from must have a reference picked " *
+                            "in it, not one referenced indirectly itself"))
+    h.xi == 1 ||
+        throw(ArgumentError("indirect referencing needs a ¹H analysis with DSS picked, " *
+                            "not a $(h.nucleus) one"))
+    isfinite(s.xi) ||
+        throw(ArgumentError("NMRTools has no Ξ ratio for $(s.nucleus), so it can't be " *
+                            "referenced indirectly"))
+    length(h) == length(s) ||
+        throw(DimensionMismatch("the ¹H analysis has $(length(h)) spectra and this one " *
+                                "$(length(s)); they must match one to one, in order"))
+    for i in eachindex(s)
+        isfinite(h.bf[i]) && isfinite(s.bf[i]) ||
+            throw(ArgumentError("the base frequency of spectrum $i is not known"))
+        # the field is judged from the acquisition base frequencies, which the processing
+        # reference SR does not move, wherever both are recorded
+        fx, fh = isfinite(s.bf1[i]) && isfinite(h.bf1[i]) ? (s.bf1[i], h.bf1[i]) :
+                 (s.bf[i], h.bf[i])
+        abs(fx / (s.xi * fh) - 1) < FIELDTOLERANCE ||
+            throw(ArgumentError("spectrum $i was recorded at a different field from ¹H " *
+                                "spectrum $i: $(round(1e-6fx; digits=3)) MHz " *
+                                "$(s.nucleus) against $(round(1e-6fh; digits=3)) MHz ¹H"))
+    end
+    t = tracks(source)
+    r0 = source.reference.shift
+    frequencies = map(eachindex(h)) do i
+        c = centre(t, REF, i)
+        return isnothing(c) ? NaN : h.bf[i] * (1 + 1e-6c) / (1 + 1e-6r0)
+    end
+    missingspectra = findall(isnan, frequencies)
+    isempty(missingspectra) ||
+        @warn "The ¹H reference is not picked in every spectrum, so these are not " *
+              "referenced" missingspectra
+    return IndirectReference(frequencies, multiplets(t)[REF].label)
+end
+
+"""
+    referencing(reference, refshift, s) -> (label, Referencing)
+
+The reference multiplet's label and how shifts are referenced, from the `reference`
+keyword: a name picks the reference in this analysis, placed at `refshift`; a ¹H
+`PeakTracker` references indirectly to the reference picked in it.
+"""
+referencing(name::AbstractString, refshift, s) = cleanlabel(name), PickedReference(refshift)
+function referencing(source::PeakTracker, refshift, s)
+    r = IndirectReference(source, s)
+    return r.label, r
+end
+referencing(r::Tuple{AbstractString,Referencing}, refshift, s) = String(first(r)), last(r)
+
+"How the shifts are referenced, in words."
+function referencetext(p::PeakTracker)
+    label = multiplets(tracks(p))[REF].label
+    p.reference isa PickedReference &&
+        return "Referenced to $label, placed at $(p.reference.shift) ppm"
+    return "Referenced indirectly to $label in a 1H analysis of the same samples, on the " *
+           "IUPAC unified scale (Xi = $(p.series.xi))"
 end
 
 # ---------------------------------------------------------------- long tables
@@ -187,19 +291,79 @@ function linetable(p::PeakTracker, value, unit="")
     return header, rows
 end
 
+# ---------------------------------------------------------------- summary panel
+
+"The first numeric coordinate and its name, or the spectrum numbers and `\"spectrum\"`."
+function xcoordinate(p::PeakTracker)
+    name = findfirst(v -> eltype(v) <: Real, p.coordinates)
+    isnothing(name) && return collect(1.0:nplanes(p)), "spectrum"
+    return Float64.(p.coordinates[name]), string(name)
+end
+
 """
-The shift of pick `q` referenced to the reference multiplet placed at `refshift`, or
-`nothing` where the reference is not picked in that plane.
+    summaryseries(p, line) -> NamedTuple
+
+What the summary panel shows for the multiplet holding `line`, against the first numeric
+coordinate or the plane number: the shift of each line and the multiplet's centre, and the
+height of each line. Shifts are referenced where the reference is available in every plane,
+and as measured otherwise, so one panel never mixes the two. Points run in order of the
+coordinate, with `NaN` where a plane has no value and between lines, so the drawn lines
+break there. The vacant slot (`line` 0) gives empty series and `m == 0`.
 """
-function referencedshift(p::PeakTracker, q::Pick)
-    r = refcentre(p, q.plane)
-    return isnothing(r) ? nothing : q.shift - r + p.refshift
+function summaryseries(p::PeakTracker, line)
+    t, n = tracks(p), nplanes(p)
+    x, xlabel = xcoordinate(p)
+    isref = allreferenced(p)
+    name = referencename(t)
+    ylabel = !isref ? "shift as measured (ppm)" :
+             name == "the reference peak" ? "referenced shift (ppm)" :
+             "shift referenced to $name (ppm)"
+    m = something(multipletof(t, line), 0)
+    if m == 0
+        return (; xlabel, ylabel, m, label="", lines=Point2f[], centre=Point2f[],
+                heights=Point2f[])
+    end
+    order = sortperm(x)
+    ls = orderedlines(t, m)
+    shift(δ, i) = isref ? referencedshift(p, i, δ) : δ
+    gap = Point2f(NaN, NaN)
+    function perline(value)
+        # push! rather than [points; gap]: a Point2f is itself a vector, which vcat would
+        # splice in as two numbers
+        return reduce(vcat,
+                      [push!([Point2f(x[i], value(pickat(t, l, i), i)) for i in order],
+                             gap)
+                       for l in ls]; init=Point2f[])
+    end
+    lines = perline((q, i) -> isnothing(q) ? NaN : shift(q.shift, i))
+    heights = perline((q, i) -> isnothing(q) ? NaN : q.height)
+    centre = map(order) do i
+        c = linecentre(t, ls, i)
+        return Point2f(x[i], isnothing(c) ? NaN : shift(c, i))
+    end
+    return (; xlabel, ylabel, m, label=multiplets(t)[m].label, lines, centre, heights)
 end
 
 # ---------------------------------------------------------------- display and clipboard
 
-"Has the reference been picked in any plane?"
-isreferenced(p::PeakTracker) = any(i -> !isnothing(refcentre(p, i)), 1:nplanes(p))
+"""
+The reference as a sentence names it: by its own name, such as DSS, or as "the reference
+peak" while it keeps the default name.
+"""
+function referencename(t::Tracks)
+    label = multiplets(t)[REF].label
+    return label == DEFAULTREFERENCE ? "the reference peak" : label
+end
+
+"Spectra `ks` of `n`, as a sentence lists them: by number when there are a few, as a count otherwise."
+function spectralist(ks, n)
+    length(ks) == 1 && return "spectrum $(only(ks))"
+    length(ks) ≤ 6 && return "spectra $(join(ks, ", ", " and "))"
+    return "$(length(ks)) of the $n spectra"
+end
+
+"A shift as a sentence gives it: `0 ppm` rather than `0.0 ppm`."
+ppmtext(δ) = isinteger(δ) ? "$(Int(δ)) ppm" : "$δ ppm"
 
 """
     clipboardtext(p) -> String
@@ -251,7 +415,7 @@ is undefined, for reading rather than computing with.
 """
 function widetable(p::PeakTracker; digits=4)
     t, n = tracks(p), nplanes(p)
-    header = String["plane"; [string(k) for k in keys(p.coordinates)]]
+    header = String["spectrum"; [string(k) for k in keys(p.coordinates)]]
     columns = Vector{String}[string.(1:n)]
     for v in values(p.coordinates)
         push!(columns, [roundcell(x; digits) for x in v])

@@ -261,6 +261,8 @@ function peakinfotext(expt::CCRExperiment, idx)
 end
 
 """Return formatted text describing experiment."""
+analysisname(::CCRExperiment) = "CCR"
+
 function experimentinfo(expt::CCRExperiment)
     mode = expt.issymmetric ? "Symmetric reconversion" : "Standard"
     return "Analysis type: CCR ($mode)\n" *

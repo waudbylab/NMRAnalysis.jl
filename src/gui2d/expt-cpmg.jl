@@ -258,6 +258,8 @@ function peakinfotext(expt::CPMGExperiment, idx)
 end
 
 """Return formatted text describing experiment."""
+analysisname(::CPMGExperiment) = "CPMG"
+
 function experimentinfo(expt::CPMGExperiment)
     return "Analysis type: CPMG (relaxation dispersion)\n" *
            "Filename: $(expt.specdata.nmrdata[1][:filename])\n" *

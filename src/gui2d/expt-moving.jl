@@ -1023,6 +1023,12 @@ function peakinfotext(expt::MovingExperiment, idx)
     return join(info, "\n")
 end
 
+function analysisname(expt::MovingExperiment)
+    expt.model isa TitrationModel && return "titration"
+    expt.model isa RDCModel && return "RDC"
+    return "peak tracking"
+end
+
 function experimentinfo(expt::MovingExperiment)
     analysis = expt.model isa TitrationModel ? "Titration" :
                expt.model isa RDCModel ? "RDC / coupling" : "Peak tracking"

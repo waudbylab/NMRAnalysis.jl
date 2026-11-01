@@ -88,9 +88,8 @@ window closes.
 - `Q`: close the window.
 """
 function gui!(expt::Experiment1D; call=nothing)
-    # the analysis type is already shown as a large bold label inside the window, so the
-    # OS titlebar just carries the application identity rather than repeating it
-    GLMakie.activate!(; focus_on_show=true, title="NMRAnalysis.jl")
+    GLMakie.activate!(; focus_on_show=true,
+                      title=windowname("1D " * midsentence(windowtitle(expt))))
     state = preparestate(expt)
     state[:call] = call
     state[:gui] = Dict{Symbol,Any}()
@@ -618,7 +617,7 @@ heavy fitting lives elsewhere.
 """
 function pickregion(traces::AbstractVector{Trace}; peakppm=nothing, noiseppm=nothing,
                     ppmwidth=defaultregionwidth(first(traces).δ))
-    GLMakie.activate!(; focus_on_show=true, title="NMRAnalysis.jl")
+    GLMakie.activate!(; focus_on_show=true, title=windowname("region selection"))
 
     t1 = first(traces)
     peakppm = isnothing(peakppm) ? t1.δ[argmax(abs.(t1.y))] : peakppm

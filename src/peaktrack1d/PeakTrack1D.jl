@@ -26,6 +26,7 @@ using ..NMRAnalysis: csvcolumn, csvvalue, safename, sanitizelabel, backupfolder,
                      shortpath
 # the call that produced an analysis - see src/calls.jl
 using ..NMRAnalysis: AnalysisCall, analysiscall, callstring
+using ..NMRAnalysis: windowname
 # one table row per entity per plane, as for the 2D analyses
 import ..GUI2D: planeresults
 
@@ -33,6 +34,7 @@ export peaktrack1d, PeakTracker, stackplot
 
 include("series.jl")
 include("tracks.jl")
+include("referencing.jl")
 include("peaks.jl")
 include("processing.jl")
 include("view.jl")

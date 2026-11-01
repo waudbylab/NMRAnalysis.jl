@@ -13,7 +13,7 @@ using Random
 using Statistics
 
 export r1rho, setupR1rhopowers
-using ..NMRAnalysis: select_expts
+using ..NMRAnalysis: select_expts, windowname
 using ..NMRAnalysis: stderrors   # standard errors that survive a singular covariance
 using ..NMRAnalysis: register_analysis!, MultiFileRule
 # B₁ calibration (src/b1.jl), and the nutation analysis that measures one
@@ -76,9 +76,9 @@ end
 
 function r1rho(filenames::Vector{String}; minvSL=250, maxvSL=1e6, scalefactor=:automatic)
     if scalefactor == :automatic
-        GLMakie.activate!(; focus_on_show=true, title="NMRAnalysis.jl: R1rho fitting")
+        GLMakie.activate!(; focus_on_show=true, title=windowname("R1ρ fitting"))
     elseif scalefactor isa Number
-        GLMakie.activate!(; focus_on_show=true, title="NMRAnalysis.jl: R1rho fitting",
+        GLMakie.activate!(; focus_on_show=true, title=windowname("R1ρ fitting"),
                           scalefactor=scalefactor)
     else
         @error "scalefactor must be :auto or a number"

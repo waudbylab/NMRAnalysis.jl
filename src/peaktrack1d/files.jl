@@ -30,7 +30,7 @@ different data. Lines are numbered within their multiplet as they were saved. Th
 marked as the reference comes first; without one, an empty reference called `reference`
 is added.
 """
-function restore(s::SpectrumSeries, header, rows; reference="reference",
+function restore(s::SpectrumSeries, header, rows; reference=DEFAULTREFERENCE,
                  path="the peak list")
     jl = columnindex(header, "label", path)
     jr = columnindex(header, "reference", path)
@@ -67,7 +67,7 @@ function restore(s::SpectrumSeries, header, rows; reference="reference",
         i, δ = tryparse(Int, row[jp]), tryparse(Float64, row[js])
         (isnothing(i) || isnothing(δ)) && continue
         if !(1 ≤ i ≤ length(s))
-            @warn "Plane $i of $lbl in $path is not in the data, so it was skipped"
+            @warn "Spectrum $i of $lbl in $path is not in the data, so it was skipped"
             continue
         end
         setpick!(t, l, exact(s, i, δ))
@@ -120,7 +120,7 @@ function analysisinfo(p::PeakTracker)
     push!(lines, "Number of spectra: $(length(s))", "Nucleus: $(s.nucleus)")
     isempty(p.coordinates) ||
         push!(lines, "Coordinates: $(join(keys(p.coordinates), ", "))")
-    push!(lines, "Reference: $(multiplets(tracks(p))[REF].label) at $(p.refshift) ppm")
+    push!(lines, referencetext(p))
     return lines
 end
 
@@ -153,10 +153,9 @@ function writesummary(path::AbstractString, p::PeakTracker, folder)
             end
         end
         println(io)
-        ref = referenceshifts(t, n)
-        println(io,
-                "Reference $(multiplets(t)[REF].label), placed at $(p.refshift) ppm: " *
-                (isnothing(ref) ? "not picked in every plane" : "picked in every plane"))
+        println(io, referencetext(p), ": ",
+                allreferenced(p) ? "available in every spectrum" :
+                "missing in some spectra")
         p.aligned[] && println(io, "Spectra shown aligned to the reference")
         println(io)
         println(io, "Multiplets (centres as measured, ppm):")
@@ -167,7 +166,7 @@ function writesummary(path::AbstractString, p::PeakTracker, folder)
             span = isempty(cs) ? "no centre" : "$(fmt(minimum(cs))) to $(fmt(maximum(cs)))"
             println(io,
                     "  $(rpad(mp.label, 16)) $(length(ls)) line$(length(ls) == 1 ? "" : "s")" *
-                    "   $(length(cs)) of $n planes   $span")
+                    "   $(length(cs)) of $n spectra   $span")
         end
         isnothing(p.call) && return
         extra = [:peaklist => repr(joinpath(folder, "peaklist.csv"))]
@@ -179,9 +178,26 @@ function writesummary(path::AbstractString, p::PeakTracker, folder)
         isnothing(text) && return
         println(io)
         println(io, "Reproduce:")
-        return foreach(line -> println(io, "    ", line), split(text, '\n'))
+        foreach(line -> println(io, "    ", line), split(text, '\n'))
+        p.reference isa IndirectReference &&
+            println(io, "adding reference= the 1H analysis, to reference indirectly again.")
+        return
     end
     return path
+end
+
+"""
+Copy the figures saved with the `f` key (`figure-*.pdf`) from the earlier folder that
+`backupfolder` has just moved aside into the new one, so that they stay with the analysis.
+"""
+function copyfigures(dir)
+    previous = rstrip(abspath(dir), ['/', '\\']) * "_previous"
+    isdir(previous) || return dir
+    for name in readdir(previous)
+        occursin(r"^figure-.*\.pdf$", name) &&
+            cp(joinpath(previous, name), joinpath(dir, name))
+    end
+    return dir
 end
 
 "Heading `heights.csv`, since a height is easily mistaken for an integral or an amplitude."
@@ -197,10 +213,12 @@ reads back), `series.csv` (every line in every plane), the wide files `shifts.cs
 `referencedshifts.csv` (once the reference is picked anywhere) and `heights.csv` (see
 [`linetable`](@ref)), `processing.csv` for time-domain data, `stack.pdf` (the region shown
 in the window), and in `peaks/` one CSV and one plot per multiplet. An existing folder is
-moved aside first. Returns the folder.
+moved aside first, and the figures saved into it with the `f` key are copied across.
+Returns the folder.
 """
 function saveanalysis(p::PeakTracker, folder::AbstractString)
     dir = backupfolder(folder)
+    copyfigures(dir)
     comments = analysisinfo(p)
     writetable(joinpath(dir, "peaklist.csv"), comments, peaklisttable(p)...)
     header, rows = seriestable(p)
@@ -208,9 +226,7 @@ function saveanalysis(p::PeakTracker, folder::AbstractString)
     writetable(joinpath(dir, "shifts.csv"), [comments; "Shifts as measured"],
                linetable(p, q -> q.shift, "ppm")...)
     if isreferenced(p)
-        reference = multiplets(tracks(p))[REF].label
-        writetable(joinpath(dir, "referencedshifts.csv"),
-                   [comments; "Shifts referenced to $reference at $(p.refshift) ppm"],
+        writetable(joinpath(dir, "referencedshifts.csv"), [comments; referencetext(p)],
                    linetable(p, q -> referencedshift(p, q), "ppm")...)
     end
     writetable(joinpath(dir, "heights.csv"), [comments; HEIGHTNOTE],

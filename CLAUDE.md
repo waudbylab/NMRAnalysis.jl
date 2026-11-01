@@ -93,7 +93,8 @@ All 2D functions are provided by the GUI2D module:
   the NMRData adapters (`nmrdata.jl`), the parameter prompts (`prompts.jl`), one
   `expt-<name>.jl` per experiment, and the interactive window (`visualisation.jl`,
   `state.jl`, `gui.jl`)
-- `peaktrack1d/` contains the picking model (`tracks.jl`: lines, multiplets, picks), peak
+- `peaktrack1d/` contains the picking model (`tracks.jl`: lines, multiplets, picks), how
+  shifts are referenced (`referencing.jl`: picked, or indirectly to DSS through Ξ), peak
   finding (`peaks.jl`), the spectra and their processing (`series.jl`, `processing.jl`),
   the stack geometry and brush (`view.jl`), the tables and output folder (`tracker.jl`,
   `files.jl`, `figures.jl`) and the window (`gui.jl`); the first five need no window
