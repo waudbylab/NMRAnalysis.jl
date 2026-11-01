@@ -84,7 +84,7 @@ p = peaktrack1d(p)                                  # reopen
 clipboard(p)
 ```
 
-See also [`peaktrack2d`](@ref) for 2D spectra.
+See also [`peaktrack2d`](@ref NMRAnalysis.GUI2D.peaktrack2d) for 2D spectra.
 """
 function peaktrack1d end
 
