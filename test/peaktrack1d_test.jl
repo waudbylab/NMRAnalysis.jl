@@ -309,7 +309,8 @@ end
     f = tracker(fs, Tracks(["DSS"]); reference=r)
     δ′ = -60.0
     exact19F(i) = 1e6 * ((1 + 3e-6) * (1 + 1e-6δ′) / (1 + 1e-6dss(i)) - 1)
-    @test referencedshift(f, 2, δ′) ≈ exact19F(2) rtol = 1e-12
+    # (ν/ν₀ − 1) × 10⁶ loses about six digits to cancellation, leaving ~1e-10 ppm
+    @test referencedshift(f, 2, δ′) ≈ exact19F(2) atol = 1e-8
     @test referencedshift(f, 2, δ′) ≈ δ′ + 3 - dss(2) atol = 1e-3   # to first order
     @test allreferenced(f) && isreferenced(f)
     @test alignment(f) ≈ [referencedshift(f, i, 5.0) - 5.0 for i in 1:4]
