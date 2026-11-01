@@ -244,7 +244,8 @@ end
     # can't inherit an outlier's
     phases = Any[(0.0, 0.0), (2.0, 0.0), (-1.0, 0.0), (160.0, 0.0), nothing]
     phasing = [:auto, :auto, :auto, :auto, :failed]
-    fixed, how = fixphases!(phases, phasing, fill(nothing, 5); refit=(fid, p1; kw...) -> nothing)
+    fixed, how = fixphases!(phases, phasing, fill(nothing, 5);
+                            refit=(fid, p1; kw...) -> nothing)
     @test all(abs(wrap180(p[1])) < 5 for p in fixed)
     @test how == [:auto, :auto, :auto, :neighbours, :neighbours]
 end
@@ -357,7 +358,8 @@ end
     three = SpectrumSeries(δaxis, s.intensities[:, 1:3], ones(3), fill("f", 3), 1:3;
                            bf=ΞF * bfH, xi=ΞF)
     @test_throws DimensionMismatch IndirectReference(h, three)
-    @test_throws DimensionMismatch SpectrumSeries(δaxis, s.intensities, ones(4), fill("f", 4),
+    @test_throws DimensionMismatch SpectrumSeries(δaxis, s.intensities, ones(4),
+                                                  fill("f", 4),
                                                   1:4; bf=[bfH], xi=ΞF)
 
     # the field is judged from BF1, so an axis re-referenced by 300 ppm still matches
