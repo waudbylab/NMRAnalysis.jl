@@ -68,7 +68,8 @@ function planesof(spec::NMRData)
     y = Matrix{Float64}(reshape(real.(data(spec)), length(δ), :)) ./ f
     σ = spec[:noise]
     noise = isnothing(σ) ? map(noiselevel, eachcol(y)) : fill(Float64(σ / f), size(y, 2))
-    return (; shifts=δ, y, noise, source=string(something(spec[:filename], spec[:title], "")))
+    return (; shifts=δ, y, noise,
+            source=string(something(spec[:filename], spec[:title], "")))
 end
 
 frequencyfirst(spec) = frequencyfirst(spec, dims(spec, 1))

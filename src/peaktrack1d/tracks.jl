@@ -132,7 +132,7 @@ function addmultiplet!(t::Tracks, name)
 end
 
 "Place `q` on line `l`, replacing any earlier pick of that line in the same plane."
-setpick!(t::Tracks, l, q::Pick) = (t.picks[(l, q.plane)] = q; t)
+setpick!(t::Tracks, l, q::Pick) = (t.picks[(l, q.plane)]=q; t)
 setpick!(t::Tracks, l, ::Nothing) = t
 
 "Remove the picks of line `l` for which `f(pick)` is true."

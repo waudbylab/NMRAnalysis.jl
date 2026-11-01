@@ -38,7 +38,9 @@ the lengths are not checked.
 """
 coordinatetable(::Nothing, n) = NamedTuple()
 coordinatetable(v::AbstractVector, n) = coordinatetable((; x=v), n)
-coordinatetable(p::Pair, n) = coordinatetable(NamedTuple{(Symbol(first(p)),)}((last(p),)), n)
+function coordinatetable(p::Pair, n)
+    return coordinatetable(NamedTuple{(Symbol(first(p)),)}((last(p),)), n)
+end
 function coordinatetable(nt::NamedTuple, n)
     for (name, v) in pairs(nt)
         isnothing(n) || length(v) == n ||
@@ -79,8 +81,9 @@ function seriestable(p::PeakTracker)
     t, s = tracks(p), p.series
     header = ["source", "label", "line", "plane"]
     append!(header, string.(keys(p.coordinates)))
-    append!(header, [csvcolumn("shift", "ppm"), "height", "snr",
-                     csvcolumn("centre", "ppm"), csvcolumn("referenced", "ppm")])
+    append!(header,
+            [csvcolumn("shift", "ppm"), "height", "snr",
+             csvcolumn("centre", "ppm"), csvcolumn("referenced", "ppm")])
     rows = Vector{String}[]
     for (m, mp) in enumerate(multiplets(t))
         ls = orderedlines(t, m)
@@ -88,8 +91,9 @@ function seriestable(p::PeakTracker)
             q = pickat(t, l, i)
             row = [cellvalue(sources(s)[i]), mp.label, string(j), string(i)]
             append!(row, [cellvalue(v[i]) for v in values(p.coordinates)])
-            append!(row, isnothing(q) ? fill("NA", 3) :
-                         [csvvalue(q.shift), csvvalue(q.height), csvvalue(snr(s, q))])
+            append!(row,
+                    isnothing(q) ? fill("NA", 3) :
+                    [csvvalue(q.shift), csvvalue(q.height), csvvalue(snr(s, q))])
             push!(row, csvvalue(linecentre(t, ls, i)), csvvalue(referenced(p, ls, i)))
             push!(rows, row)
         end
@@ -218,7 +222,8 @@ spreadsheet: referenced to the reference multiplet once it has been picked, as i
 """
 function InteractiveUtils.clipboard(p::PeakTracker)
     clipboard(clipboardtext(p))
-    what = isreferenced(p) ? "referenced to $(multiplets(tracks(p))[REF].label)" : "as measured"
+    what = isreferenced(p) ? "referenced to $(multiplets(tracks(p))[REF].label)" :
+           "as measured"
     @info "Copied the shift of every line, $what, to the clipboard"
 end
 
@@ -232,7 +237,9 @@ function Base.show(io::IO, p::PeakTracker)
 end
 
 roundcell(::Nothing; digits) = ""
-roundcell(x::AbstractFloat; digits) = isinteger(x) ? string(Int(x)) : string(round(x; digits))
+function roundcell(x::AbstractFloat; digits)
+    return isinteger(x) ? string(Int(x)) : string(round(x; digits))
+end
 roundcell(x; digits) = string(x)
 
 """

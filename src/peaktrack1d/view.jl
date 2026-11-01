@@ -30,7 +30,9 @@ baseline(v::StackView, i) = (i - 1) * v.spacing
 shown(v::StackView, i, δ) = δ + v.offsets[][i]
 measured(v::StackView, i, x) = x - v.offsets[][i]
 
-location(v::StackView, q::Pick) = Point2f(shown(v, q.plane, q.shift), ypos(v, q.plane, q.height))
+function location(v::StackView, q::Pick)
+    return Point2f(shown(v, q.plane, q.shift), ypos(v, q.plane, q.height))
+end
 
 """
 The plane whose trace, within `w` ppm of `p` on screen, comes closest to `p` vertically:
@@ -138,7 +140,8 @@ function track(s::SpectrumSeries, v::StackView, pts, r, scale; snr=5)
         inside = d -> any(((lo, hi),) -> lo ≤ d + o ≤ hi, spans)
         y = intensities(s, i)
         threshold = snr * noiselevel(s, i)
-        ks = [k for k in 2:(length(y) - 1)
+        ks = [k
+              for k in 2:(length(y) - 1)
               if y[k] ≥ y[k - 1] && y[k] > y[k + 1] && y[k] ≥ threshold && inside(δ[k])]
         isempty(ks) && continue
         d, h = vertex(δ, y, ks[argmax(y[ks])])

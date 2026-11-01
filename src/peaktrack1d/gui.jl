@@ -44,7 +44,8 @@ function draw!(ax::Axis, s::SpectrumSeries, v::StackView; colormap=nothing,
         style = isnothing(colormap) ? (; color) :
                 (; color=i, colormap, colorrange=(1, max(n, 2)))
         trace = lift(v.offsets, v.gain, v.revision) do offsets, g, _
-            return Point2f.(x .+ offsets[i], ypos.(v.spacing, g, v.norm, i, intensities(s, i)))
+            return Point2f.(x .+ offsets[i],
+                            ypos.(v.spacing, g, v.norm, i, intensities(s, i)))
         end
         lines!(ax, trace; linewidth=1, style...)
     end
@@ -62,11 +63,12 @@ end
 Open the picking window on `s`, wait until it is closed, and return the analysis.
 """
 function openwindow(s::SpectrumSeries, processing; labels=String[], reference="reference",
-                refshift=0.0, coordinates=nothing, peaklist=nothing, radius=8, snr=5,
-                gain=2, colormap=nothing, size=(1200, 850), call=nothing,
-                outputdir="out")
+                    refshift=0.0, coordinates=nothing, peaklist=nothing, radius=8, snr=5,
+                    gain=2, colormap=nothing, size=(1200, 850), call=nothing,
+                    outputdir="out")
     coords = coordinatetable(coordinates, length(s))
-    t = initialtracks(s, peaklist, cleanlabel(reference), String[cleanlabel(l) for l in labels])
+    t = initialtracks(s, peaklist, cleanlabel(reference),
+                      String[cleanlabel(l) for l in labels])
 
     GLMakie.activate!()   # CairoMakie, loaded for saving figures, would otherwise take over
     fig = Figure(; size)
@@ -125,7 +127,8 @@ picks keep their shifts, and their heights are read from the new data.
 """
 function broadeningcontrol!(position, p::PeakTracker)
     proc = p.processing
-    lbs = sort!(unique([0.0, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 7.0, 10.0,
+    lbs = sort!(unique([0.0, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 7.0,
+                        10.0,
                         15.0, 20.0, proc.lb[]]))
     grid = SliderGrid(position,
                       (label="exponential line broadening", range=lbs, startvalue=proc.lb[],
@@ -140,7 +143,7 @@ function broadeningcontrol!(position, p::PeakTracker)
             q = t.picks[k]
             t.picks[k] = exact(p.series, q.plane, q.shift)
         end
-        notify(p.tracks)
+        return notify(p.tracks)
     end
     return grid
 end
@@ -155,7 +158,7 @@ function outputcontrols!(position, p::PeakTracker)
     end
     # Makie's Textbox commits only on enter; clicking away would otherwise lose the text
     on(box.focused) do focused
-        focused || (box.stored_string[] = box.displayed_string[])
+        return focused || (box.stored_string[] = box.displayed_string[])
     end
     savebutton = Button(row[1, 3]; label="Save")
     on(_ -> saveanalysis(p, joinpath(pwd(), p.outputdir[])), savebutton.clicks)
@@ -193,16 +196,19 @@ function statusline(t::Tracks, current, typed, joining, radius, aligned, snappin
               "   ")
     end
     vacant = current == 0
-    push!(parts, rich(vacant ? "[+ $(vacantname(multipletlabels(t)))]" : "+";
-                      color=multipletcolour(nmultiplets(t) + 1),
-                      font=vacant ? :bold : :regular))
+    push!(parts,
+          rich(vacant ? "[+ $(vacantname(multipletlabels(t)))]" : "+";
+               color=multipletcolour(nmultiplets(t) + 1),
+               font=vacant ? :bold : :regular))
     if !isnothing(typed)
         push!(parts, "      rename to: $(typed)▏  (enter to confirm, esc to cancel)")
     elseif joining
-        push!(parts, "      group: click a line to join it to $(t.multiplets[cm].label) " *
-                     "(esc to cancel)")
+        push!(parts,
+              "      group: click a line to join it to $(t.multiplets[cm].label) " *
+              "(esc to cancel)")
     else
-        push!(parts, "      search ±$(round(Int, radius)) px   snap $(snapping ? "on" : "off")")
+        push!(parts,
+              "      search ±$(round(Int, radius)) px   snap $(snapping ? "on" : "off")")
         aligned && push!(parts, "   aligned to $(t.multiplets[REF].label)")
     end
     return rich(parts...)
@@ -247,7 +253,7 @@ function attach!(p::PeakTracker, textbox; radius=8, snr=5)
     end
     # after an undo or a load, the current line may no longer exist
     function validate!()
-        current[] == 0 || hasline(found[], current[]) || (current[] = first(slots()))
+        return current[] == 0 || hasline(found[], current[]) || (current[] = first(slots()))
     end
     on(_ -> validate!(), found)
     checkpoint() = push!(history, copy(found[]))
@@ -290,7 +296,7 @@ function attach!(p::PeakTracker, textbox; radius=8, snr=5)
             @warn "Pick the reference in every plane before aligning" missingplanes
             return
         end
-        aligned[] = true
+        return aligned[] = true
     end
 
     # overlays are created up front so that editing never triggers a limit reset
@@ -305,7 +311,8 @@ function attach!(p::PeakTracker, textbox; radius=8, snr=5)
     end
     linesegments!(ax, @lift($bars.segments); color=@lift(multipletcolour.($bars.colours)),
                   linewidth=1.5)
-    linesegments!(ax, @lift($bars.path); color=@lift(multipletcolour.($bars.pathcolours, 0.7)),
+    linesegments!(ax, @lift($bars.path);
+                  color=@lift(multipletcolour.($bars.pathcolours, 0.7)),
                   linewidth=1, linestyle=:dash)
     linesegments!(ax, @lift($others.segments);
                   color=@lift(multipletcolour.($others.segcolours, 0.6)), linewidth=1.5)
@@ -343,7 +350,7 @@ function attach!(p::PeakTracker, textbox; radius=8, snr=5)
                 @warn "Can't rename to \"$name\": the name is blank or already taken"
             end
         end
-        notify(found)
+        return notify(found)
     end
 
     function joinline!(k)
@@ -354,7 +361,7 @@ function attach!(p::PeakTracker, textbox; radius=8, snr=5)
         multipletof(t, first(k)) == multipletof(t, current[]) && return
         checkpoint()
         group!(t, current[], first(k))
-        notify(found)
+        return notify(found)
     end
 
     deactivate_interaction!(ax, :rectanglezoom)

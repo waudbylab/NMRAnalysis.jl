@@ -80,7 +80,9 @@ function restore(s::SpectrumSeries, header, rows; reference="reference",
     return t
 end
 
-restore(s::SpectrumSeries, path::AbstractString; kw...) = restore(s, readtable(path)...; path, kw...)
+function restore(s::SpectrumSeries, path::AbstractString; kw...)
+    return restore(s, readtable(path)...; path, kw...)
+end
 
 "The `(p0, p1)` phases, in experiment order, from a `processing.csv`."
 function readphases(path::AbstractString)
@@ -139,19 +141,22 @@ function writesummary(path::AbstractString, p::PeakTracker, folder)
         if !isnothing(p.processing)
             proc = p.processing
             println(io)
-            println(io, "Processing: exponential line broadening $(proc.lb[]) Hz, " *
-                        "zero-filling ×$(proc.zerofill), solvent suppression $(proc.solvent)")
+            println(io,
+                    "Processing: exponential line broadening $(proc.lb[]) Hz, " *
+                    "zero-filling ×$(proc.zerofill), solvent suppression $(proc.solvent)")
             println(io, "Phases (degrees, p0 at the first point):")
             for k in eachindex(proc.fids)
                 p0, p1 = proc.phases[k]
-                println(io, "  $(rpad(shortpath(source(proc, k)), 30))  p0 $(lpad(fmt(p0; digits=1), 7))" *
-                            "  p1 $(lpad(fmt(p1; digits=1), 7))  ($(proc.phasing[k]))")
+                println(io,
+                        "  $(rpad(shortpath(source(proc, k)), 30))  p0 $(lpad(fmt(p0; digits=1), 7))" *
+                        "  p1 $(lpad(fmt(p1; digits=1), 7))  ($(proc.phasing[k]))")
             end
         end
         println(io)
         ref = referenceshifts(t, n)
-        println(io, "Reference $(multiplets(t)[REF].label), placed at $(p.refshift) ppm: " *
-                    (isnothing(ref) ? "not picked in every plane" : "picked in every plane"))
+        println(io,
+                "Reference $(multiplets(t)[REF].label), placed at $(p.refshift) ppm: " *
+                (isnothing(ref) ? "not picked in every plane" : "picked in every plane"))
         p.aligned[] && println(io, "Spectra shown aligned to the reference")
         println(io)
         println(io, "Multiplets (centres as measured, ppm):")
@@ -160,8 +165,9 @@ function writesummary(path::AbstractString, p::PeakTracker, folder)
             isempty(ls) && continue
             cs = filter(!isnothing, [linecentre(t, ls, i) for i in 1:n])
             span = isempty(cs) ? "no centre" : "$(fmt(minimum(cs))) to $(fmt(maximum(cs)))"
-            println(io, "  $(rpad(mp.label, 16)) $(length(ls)) line$(length(ls) == 1 ? "" : "s")" *
-                        "   $(length(cs)) of $n planes   $span")
+            println(io,
+                    "  $(rpad(mp.label, 16)) $(length(ls)) line$(length(ls) == 1 ? "" : "s")" *
+                    "   $(length(cs)) of $n planes   $span")
         end
         isnothing(p.call) && return
         extra = [:peaklist => repr(joinpath(folder, "peaklist.csv"))]
@@ -173,7 +179,7 @@ function writesummary(path::AbstractString, p::PeakTracker, folder)
         isnothing(text) && return
         println(io)
         println(io, "Reproduce:")
-        foreach(line -> println(io, "    ", line), split(text, '\n'))
+        return foreach(line -> println(io, "    ", line), split(text, '\n'))
     end
     return path
 end
@@ -210,7 +216,8 @@ function saveanalysis(p::PeakTracker, folder::AbstractString)
     writetable(joinpath(dir, "heights.csv"), [comments; HEIGHTNOTE],
                linetable(p, q -> q.height)...)
     isnothing(p.processing) ||
-        writetable(joinpath(dir, "processing.csv"), comments, processingtable(p.processing)...)
+        writetable(joinpath(dir, "processing.csv"), comments,
+                   processingtable(p.processing)...)
     save(joinpath(dir, "stack.pdf"), stackplot(p); backend=CairoMakie, pt_per_unit=1)
 
     t = tracks(p)

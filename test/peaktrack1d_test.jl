@@ -8,15 +8,18 @@ using NMRAnalysis.PeakTrack1D: SpectrumSeries, Pick, Multiplet, Tracks, REF, Sta
                                PeakTracker
 using NMRAnalysis.PeakTrack1D: climb, vertex, snap, exact, snr, noiselevel, displayscale,
                                sameaxis, planesfrom
-using NMRAnalysis.PeakTrack1D: cleanlabel, multipletof, multipletlabels, linesof, orderedlines, navorder,
-                               centre, linecentre, referenceshifts, vacantname, addmultiplet!,
+using NMRAnalysis.PeakTrack1D: cleanlabel, multipletof, multipletlabels, linesof,
+                               orderedlines, navorder,
+                               centre, linecentre, referenceshifts, vacantname,
+                               addmultiplet!,
                                setpick!, erase!, group!, ungroup!, deleteline!, relabel!,
                                haspicks, picksof, npicks, pickat, tracks
 using NMRAnalysis.PeakTrack1D: densify, painted, track, overlay, hit, nearestrow, location
 using NMRAnalysis.PeakTrack1D: coordinatetable, seriestable, peaklisttable, clipboardtext,
                                isreferenced, widetable,
                                linetable, referencedshift,
-                               restore, readtable, saveanalysis, exptfolder, callcoordinates,
+                               restore, readtable, saveanalysis, exptfolder,
+                               callcoordinates,
                                p1outliers, P1TOLERANCE
 using NMRAnalysis: writetable
 using CairoMakie: Figure, Axis, Observable, Point2f, Vec2f
@@ -37,7 +40,8 @@ doublet(i) = 7.0 - 0.03(i - 1)
 function makeseries(n=4)
     Y = reduce(hcat,
                [lorentz(50, dss(i)) .+ lorentz(100, singlet(i)) .+
-                lorentz(80, doublet(i) + 0.02) .+ lorentz(80, doublet(i) - 0.02) for i in 1:n])
+                lorentz(80, doublet(i) + 0.02) .+ lorentz(80, doublet(i) - 0.02)
+                for i in 1:n])
     return SpectrumSeries(δaxis, Y, ones(n), fill("synthetic", n), 1:n; nucleus="1H",
                           title="test")
 end
@@ -269,8 +273,9 @@ end
     s = makeseries()
     p = tracker(s, picked(s))
     header, rows = seriestable(p)
-    @test header == ["source", "label", "line", "plane", "pH", "shift (ppm)", "height", "snr",
-                     "centre (ppm)", "referenced (ppm)"]
+    @test header ==
+          ["source", "label", "line", "plane", "pH", "shift (ppm)", "height", "snr",
+           "centre (ppm)", "referenced (ppm)"]
     @test length(rows) == 4 + 4 + 2 * 4
     mops = filter(r -> r[2] == "MOPS", rows)
     @test [r[3] for r in mops] == [fill("1", 4); fill("2", 4)]
@@ -321,7 +326,8 @@ end
 
     # the wide files: one column per line, a multiplet's lines numbered from the highest shift
     header, rows = linetable(p, q -> q.shift, "ppm")
-    @test header == ["plane", "pH", "DSS (ppm)", "MES (ppm)", "MOPS[1] (ppm)", "MOPS[2] (ppm)"]
+    @test header ==
+          ["plane", "pH", "DSS (ppm)", "MES (ppm)", "MOPS[1] (ppm)", "MOPS[2] (ppm)"]
     @test length(rows) == 4 && all(length.(rows) .== 6)
     @test parse(Float64, rows[2][4]) ≈ singlet(2) atol = 1e-3
     @test parse(Float64, rows[1][5]) > parse(Float64, rows[1][6])

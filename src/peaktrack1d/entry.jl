@@ -128,7 +128,8 @@ end
 "The experiment folder holding `path`, which may name its processed data instead."
 function exptfolder(path::AbstractString)
     parts = splitpath(path)
-    length(parts) ≥ 3 && lowercase(parts[end - 1]) == "pdata" && return joinpath(parts[1:(end - 2)]...)
+    length(parts) ≥ 3 && lowercase(parts[end - 1]) == "pdata" &&
+        return joinpath(parts[1:(end - 2)]...)
     return path
 end
 

@@ -39,8 +39,8 @@ end
 function initialphases(fids, phase::Symbol; kw...)
     phase === :auto && return autophases(fids; kw...)
     phase === :pdata && return pdataphases(fids; kw...)
-    throw(ArgumentError("phase must be :auto, :pdata, a vector of (p0, p1) pairs or the " *
-                        "path of a processing.csv file, not :$phase"))
+    return throw(ArgumentError("phase must be :auto, :pdata, a vector of (p0, p1) pairs or the " *
+                               "path of a processing.csv file, not :$phase"))
 end
 
 function initialphases(fids, phases::AbstractVector; kw...)
@@ -49,7 +49,9 @@ function initialphases(fids, phases::AbstractVector; kw...)
     return [(Float64(p[1]), Float64(p[2])) for p in phases], fill(:given, length(fids))
 end
 
-initialphases(fids, path::AbstractString; kw...) = initialphases(fids, readphases(path); kw...)
+function initialphases(fids, path::AbstractString; kw...)
+    return initialphases(fids, readphases(path); kw...)
+end
 
 function autophases(fids; kw...)
     phases = map(enumerate(fids)) do (k, fid)
@@ -77,7 +79,8 @@ function pdataphases(fids; kw...)
     phases = NTuple{2,Float64}[]
     phasing = Symbol[]
     for (k, fid) in enumerate(fids)
-        procs = joinpath(dirname(string(something(fid[:filename], ""))), "pdata", "1", "procs")
+        procs = joinpath(dirname(string(something(fid[:filename], ""))), "pdata", "1",
+                         "procs")
         if isfile(procs)
             dic = loadjdx(procs)
             push!(phases, (Float64(dic[:phc0]), Float64(dic[:phc1])))
