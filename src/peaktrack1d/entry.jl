@@ -16,10 +16,10 @@ its lines' shifts. One multiplet, shown first, is the chemical shift reference: 
 picked in every plane, the spectra can be aligned to it, and every shift is also reported
 referenced to it.
 
-The window blocks until it is closed, and the analysis is returned. Show it for a table of
-multiplet centres, copy that table with `clipboard(p)`, get every pick with
-`planeresults(p)`, or reopen the window with `peaktrack1d(p)`. **Save** writes the output
-folder, and **Load** restores the picks saved there.
+The window blocks until it is closed, and the analysis is returned. Show it for a summary,
+copy every line's shifts with `clipboard(p)`, get every pick with `planeresults(p)`, or
+reopen the window with `peaktrack1d(p)`. **Save** writes the output folder named under the
+plot, and **Load** restores the picks saved there.
 
 # Arguments
 - `expts`: an experiment folder or number, or a list or range of them (e.g. `11:42`),
@@ -73,8 +73,7 @@ snapping off (for overlapped peaks), and holding shift does the opposite of the 
 - `a`: align the spectra to the reference, once it is picked in every plane. This changes
   only the display; shifts are always stored as measured.
 - `↑` `↓`: vertical scale. `[` `]`: search radius. `m`: snapping. `backspace`: undo.
-- `p`: print the table. `c`: copy it. `s`: save a figure of the region shown, in the
-  working directory. `q`: quit.
+- `s`: save a figure of the region shown in `figures/`, in the output folder. `q`: quit.
 
 # Examples
 ```julia

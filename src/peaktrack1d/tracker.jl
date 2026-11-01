@@ -8,9 +8,9 @@ spectra, the coordinates distinguishing the planes, the multiplets and their pic
 spectra were processed (for time-domain data), and the reference settings, along with the
 window it was picked in.
 
-Show it in the REPL for a table of multiplet centres, copy that table with `clipboard(p)`,
-get every pick with `planeresults(p)`, draw the stack with `stackplot(p)`, or reopen the
-window with `peaktrack1d(p)`.
+Show it in the REPL for a summary, copy every line's shifts with `clipboard(p)`, get every
+pick with `planeresults(p)`, draw the stack with `stackplot(p)`, or reopen the window with
+`peaktrack1d(p)`.
 """
 struct PeakTracker
     series::SpectrumSeries
@@ -192,43 +192,35 @@ function referencedshift(p::PeakTracker, q::Pick)
     return isnothing(r) ? nothing : q.shift - r + p.refshift
 end
 
-# ---------------------------------------------------------------- the wide table
+# ---------------------------------------------------------------- display and clipboard
 
-roundcell(::Nothing; digits) = ""
-roundcell(x::AbstractFloat; digits) = isinteger(x) ? string(Int(x)) : string(round(x; digits))
-roundcell(x; digits) = string(x)
+"Has the reference been picked in any plane?"
+isreferenced(p::PeakTracker) = any(i -> !isnothing(refcentre(p, i)), 1:nplanes(p))
 
 """
-    widetable(p; digits=4) -> (header, cells)
+    clipboardtext(p) -> String
 
-Multiplet centres as measured, one row per plane and one column per multiplet, the
-reference first: the table shown in the REPL and copied to the clipboard, rounded and with
-blank cells where a centre is undefined, for reading and pasting into a spreadsheet rather
-than for computing with.
+What `clipboard(p)` copies, tab-separated: the contents of `referencedshifts.csv` once the
+reference has been picked in any plane, and of `shifts.csv` before then.
 """
-function widetable(p::PeakTracker; digits=4)
-    t, n = tracks(p), nplanes(p)
-    header = String["plane"; [string(k) for k in keys(p.coordinates)]]
-    columns = Vector{String}[string.(1:n)]
-    for v in values(p.coordinates)
-        push!(columns, [roundcell(x; digits) for x in v])
-    end
-    for (m, mp) in enumerate(multiplets(t))
-        push!(header, m == REF ? "$(mp.label) (reference)" : mp.label)
-        push!(columns, [roundcell(centre(t, m, i); digits) for i in 1:n])
-    end
-    return header, reduce(hcat, columns)
+function clipboardtext(p::PeakTracker)
+    header, rows = isreferenced(p) ? linetable(p, q -> referencedshift(p, q), "ppm") :
+                   linetable(p, q -> q.shift, "ppm")
+    return join([join(header, '\t'); [join(r, '\t') for r in rows]], '\n') * '\n'
 end
 
-function delimited(io::IO, p::PeakTracker, delim)
-    header, cells = widetable(p)
-    println(io, join(header, delim))
-    for r in eachrow(cells)
-        println(io, join(r, delim))
-    end
-end
+"""
+    clipboard(p::PeakTracker)
 
-Base.show(io::IO, ::MIME"text/tab-separated-values", p::PeakTracker) = delimited(io, p, '\t')
+Copy the shift of every line in every plane to the clipboard, tab-separated, to paste into a
+spreadsheet: referenced to the reference multiplet once it has been picked, as in
+`referencedshifts.csv`, and as measured before then, as in `shifts.csv`.
+"""
+function InteractiveUtils.clipboard(p::PeakTracker)
+    clipboard(clipboardtext(p))
+    what = isreferenced(p) ? "referenced to $(multiplets(tracks(p))[REF].label)" : "as measured"
+    @info "Copied the shift of every line, $what, to the clipboard"
+end
 
 function Base.show(io::IO, p::PeakTracker)
     t = tracks(p)
@@ -240,18 +232,13 @@ function Base.show(io::IO, p::PeakTracker)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", p::PeakTracker)
-    show(io, p)
-    haspicks(tracks(p)) || return
-    println(io)
-    header, cells = widetable(p)
-    w = [maximum(textwidth, [header[j]; cells[:, j]]) for j in eachindex(header)]
-    print(io, join(lpad.(header, w), "  "))
-    for r in eachrow(cells)
-        print(io, "\n", join(lpad.(r, w), "  "))
+    t, n = tracks(p), nplanes(p)
+    print(io, "PeakTracker: $(npicks(t)) picks in $n planes")
+    for (m, mp) in enumerate(multiplets(t))
+        ls = orderedlines(t, m)
+        k = count(i -> !isnothing(linecentre(t, ls, i)), 1:n)
+        lines = length(ls) == 1 ? "1 line" : "$(length(ls)) lines"
+        print(io, "\n  ", rpad(mp.label, 16), rpad(lines, 10), "centre in $k of $n planes",
+              m == REF ? "  (reference)" : "")
     end
-end
-
-"Copy the table of multiplet centres to the clipboard, tab-separated, to paste into a spreadsheet."
-function InteractiveUtils.clipboard(p::PeakTracker)
-    return clipboard(sprint(show, MIME"text/tab-separated-values"(), p))
 end

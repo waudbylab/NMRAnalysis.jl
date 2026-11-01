@@ -123,18 +123,22 @@ p = peaktrack1d(p)
 
 ## Use the results
 
-Show `p` in the REPL for a table of the centre of every peak in every spectrum. To paste
-that table into a spreadsheet, press `c` in the window or run:
+Show `p` in the REPL for a summary of the peaks and how many spectra each is picked in. To
+paste the shift of every line into a spreadsheet, run:
 
 ```julia
 clipboard(p)
 ```
 
+This copies what `referencedshifts.csv` holds once the reference is picked, and what
+`shifts.csv` holds before then.
+
 `planeresults(p)` gives every line in every spectrum as a vector of named tuples, the same
 content as `series.csv`.
 
 Press `s` in the window to save a publication figure of the region currently shown, at a
-single journal column's width. For more control, draw it with `stackplot` and save it with
+single journal column's width, in `figures/` in the output folder. Figures saved this way
+are kept when you press **Save**. For more control, draw it with `stackplot` and save it with
 CairoMakie:
 
 ```julia
@@ -154,6 +158,7 @@ save("stack.pdf", stackplot(p; size=(500, 340)); backend=CairoMakie, pt_per_unit
 | `heights.csv` | the height of every line, in the same layout |
 | `processing.csv` | the phases, line broadening and zero-filling, when `peaktrack1d` processed the data |
 | `stack.pdf` | the region shown in the window |
+| `figures/` | the figures you saved with `s` |
 | `peaks/` | one CSV and one plot of shift against the first coordinate for each peak |
 
 In `series.csv`, each line is identified by its peak's `label`, its `line` number
@@ -186,9 +191,7 @@ been lost.
 | `↑` `↓` | vertical scale |
 | `[` `]` | brush and search radius |
 | `backspace` | undo |
-| `p` | print the table in the REPL |
-| `c` | copy the table |
-| `s` | save a figure of the region shown |
+| `s` | save a figure of the region shown, in `figures/` in the output folder |
 | `q` | quit |
 
 Scroll to zoom the chemical shift axis, right-drag to pan, and ctrl-click to reset the view.

@@ -4,8 +4,7 @@ const HELP = ("←→ / 0-9 select   r rename   d delete line   g group   u ungr
               "drag: trajectory   click: pick   drag marker: move   ⇧-drag: erase   " *
               "right-click: delete pick",
               "m snap on/off (⇧ inverts)   ↑↓ scale   [ ] radius   a align   ⌫ undo   " *
-              "p print   c copy   s save figure   q quit   scroll: zoom   right-drag: pan   " *
-              "ctrl-click: reset view")
+              "s save figure   q quit   scroll: zoom   right-drag: pan   ctrl-click: reset view")
 
 "Gain step for the up and down keys."
 const STEP = 2^(1 / 4)
@@ -501,15 +500,9 @@ function attach!(p::PeakTracker, textbox; radius=8, snr=5)
             r[] += 2
         elseif ev.key == Keyboard.backspace && !isempty(history)
             found[] = pop!(history)
-        elseif ev.key == Keyboard.p
-            println()
-            show(stdout, MIME"text/plain"(), p)
-            println()
-        elseif ev.key == Keyboard.c
-            clipboard(p)
-            @info "Copied the table of multiplet centres to the clipboard" picks = npicks(t)
         elseif ev.key == Keyboard.s
-            path = "peaktrack1d-$(Dates.format(now(), "yyyymmdd-HHMMSS")).pdf"
+            dir = mkpath(joinpath(pwd(), p.outputdir[], "figures"))
+            path = joinpath(dir, "stack-$(Dates.format(now(), "yyyymmdd-HHMMSS")).pdf")
             save(path, stackplot(p); backend=CairoMakie, pt_per_unit=1)
             @info "Saved a figure of the displayed region" path = abspath(path)
         elseif ev.key == Keyboard.q
