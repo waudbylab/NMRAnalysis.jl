@@ -27,6 +27,7 @@ folder. Every one of them works the same way:
 | [`tract`](tract.md) | TROSY and anti-TROSY pair | rotational correlation time `τc` |
 | [`calibration1d`](calibration.md) | nutation (pulse-length) calibration | 90° pulse length, ν₁, B₁ inhomogeneity |
 | [`kinetics1d`](kinetics.md) | any time series | intensity of each region against time |
+| [`peaktrack1d`](peaktracking.md) | any series in which peaks move | chemical shift of each peak and multiplet in every spectrum |
 
 Chemical exchange experiments have their own routines: see
 [R1ρ Relaxation Dispersion](../r1rho.md) and

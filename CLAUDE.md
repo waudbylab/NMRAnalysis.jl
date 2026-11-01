@@ -34,6 +34,9 @@ NMRAnalysis.jl is a Julia package for analysis of NMR experiments, specifically 
   TRACT, nutation calibration, kinetics), sharing one analysis window and one results pipeline.
   See `docs/src/advanced/pipeline.md` for the three stages every analysis shares and
   `docs/src/advanced/creating_1d_analyses.md` for how to add one
+- **PeakTrack1D module**: `src/peaktrack1d/` - interactive picking of peak and multiplet
+  positions across a stack of 1D spectra (`peaktrack1d`), with optional processing of the
+  raw data
 - **viscosity**: `src/viscosity.jl` - solvent viscosity from temperature, used by diffusion
 
 ### Core Components
@@ -48,6 +51,8 @@ question asked before the analysis window opens. No analysis depends on annotati
   TROSY/anti-TROSY pair
 - `calibration1d()` - Pulse-length calibration from a nutation experiment
 - `kinetics1d()` - Intensity of named regions against time
+- `peaktrack1d()` - Peak and multiplet positions across a series, picked on a stack of
+  spectra (PeakTrack1D module, not Analysis1D: it measures positions, not integrals)
 - `r1rho()` - R1ρ relaxation dispersion analysis
 - `exchange1d()` - Chemical exchange analysis (CEST / R1ρ) via Bloch-McConnell simulation
 - `viscosity` - Viscosity calculations
@@ -88,6 +93,10 @@ All 2D functions are provided by the GUI2D module:
   the NMRData adapters (`nmrdata.jl`), the parameter prompts (`prompts.jl`), one
   `expt-<name>.jl` per experiment, and the interactive window (`visualisation.jl`,
   `state.jl`, `gui.jl`)
+- `peaktrack1d/` contains the picking model (`tracks.jl`: lines, multiplets, picks), peak
+  finding (`peaks.jl`), the spectra and their processing (`series.jl`, `processing.jl`),
+  the stack geometry and brush (`view.jl`), the tables and output folder (`tracker.jl`,
+  `files.jl`, `figures.jl`) and the window (`gui.jl`); the first five need no window
 - `exchange1d/` contains the Bloch-McConnell simulation core, exchange models
   (no-exchange, two-state, two/three-state binding), and the CEST/R1ρ experiment
   types and fitting interface

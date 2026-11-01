@@ -53,7 +53,10 @@ describes rather than the stage that produced it.
 | shared by every region or peak | `global.csv` | a titration K_d, an exchange k_ex |
 
 Kinetics stops after stage 1: the intensity of each region against time is the answer, and
-there is no `results.csv`. A relaxation or diffusion measurement stops after stage 2 and
+there is no `results.csv`. Peak tracking (`peaktrack1d`) also stops after stage 1, but what
+it measures is a position: the chemical shift of each line of a multiplet in every plane,
+from which the multiplet's centre follows plane by plane. A fit of those shifts, a pKa or a
+binding isotherm, would be its stage 2. A relaxation or diffusion measurement stops after stage 2 and
 has no `global.csv`. A combined exchange analysis has a single region and nothing to fit
 per region, so its stage 2 is empty and everything is global.
 
