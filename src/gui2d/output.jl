@@ -44,6 +44,14 @@ end
 seriescoordinates(e::CPMGExperiment) = [:nu_CPMG => e.vCPMG, :Trelax => e.Trelax]
 seriescoordinates(e::HetNOEExperiment) = [:saturated => collect(e.saturation)]
 seriescoordinates(e::CCRExperiment) = [:buildup => collect(e.isbuildup), :Trelax => e.T]
+function seriescoordinates(e::PREExperiment)
+    samples = if e.paired
+        :paramagnetic => collect(e.concentrations .> 0)
+    else
+        :concentration => e.concentrations
+    end
+    return [samples, :Trelax => e.Trelax]
+end
 
 """
     coordinatename(model) -> Symbol
