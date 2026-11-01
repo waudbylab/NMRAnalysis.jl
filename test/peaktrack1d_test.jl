@@ -6,7 +6,8 @@
 using NMRAnalysis
 using NMRAnalysis.PeakTrack1D: SpectrumSeries, Pick, Multiplet, Tracks, REF, StackView,
                                PeakTracker
-using NMRAnalysis.PeakTrack1D: climb, vertex, snap, exact, reheight!, snr, noiselevel, displayscale,
+using NMRAnalysis.PeakTrack1D: climb, vertex, snap, exact, reheight!, snr, noiselevel,
+                               displayscale,
                                sameaxis, planesfrom
 using NMRAnalysis.PeakTrack1D: cleanlabel, multipletof, multipletlabels, linesof,
                                orderedlines, navorder,
