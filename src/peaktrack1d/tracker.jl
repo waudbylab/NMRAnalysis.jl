@@ -8,8 +8,8 @@ spectra, the coordinates distinguishing the planes, the multiplets and their pic
 spectra were processed (for time-domain data), and the reference settings, along with the
 window it was picked in.
 
-Show it in the REPL for a summary, copy every line's shifts with `clipboard(p)`, get every
-pick with `planeresults(p)`, draw the stack with `stackplot(p)`, or reopen the window with
+Show it in the REPL for a table of multiplet centres, copy every line's shifts with
+`clipboard(p)`, get every pick with `planeresults(p)`, draw the stack with `stackplot(p)`, or reopen the window with
 `peaktrack1d(p)`.
 """
 struct PeakTracker
@@ -231,14 +231,39 @@ function Base.show(io::IO, p::PeakTracker)
     return print(io, "PeakTracker(", join(names, ", "), "; $(npicks(t)) picks)")
 end
 
-function Base.show(io::IO, ::MIME"text/plain", p::PeakTracker)
+roundcell(::Nothing; digits) = ""
+roundcell(x::AbstractFloat; digits) = isinteger(x) ? string(Int(x)) : string(round(x; digits))
+roundcell(x; digits) = string(x)
+
+"""
+    widetable(p; digits=4) -> (header, cells)
+
+Multiplet centres as measured, one row per plane and one column per multiplet, the
+reference first: the table shown in the REPL, rounded and with blank cells where a centre
+is undefined, for reading rather than computing with.
+"""
+function widetable(p::PeakTracker; digits=4)
     t, n = tracks(p), nplanes(p)
-    print(io, "PeakTracker: $(npicks(t)) picks in $n planes")
+    header = String["plane"; [string(k) for k in keys(p.coordinates)]]
+    columns = Vector{String}[string.(1:n)]
+    for v in values(p.coordinates)
+        push!(columns, [roundcell(x; digits) for x in v])
+    end
     for (m, mp) in enumerate(multiplets(t))
-        ls = orderedlines(t, m)
-        k = count(i -> !isnothing(linecentre(t, ls, i)), 1:n)
-        lines = length(ls) == 1 ? "1 line" : "$(length(ls)) lines"
-        print(io, "\n  ", rpad(mp.label, 16), rpad(lines, 10), "centre in $k of $n planes",
-              m == REF ? "  (reference)" : "")
+        push!(header, m == REF ? "$(mp.label) (reference)" : mp.label)
+        push!(columns, [roundcell(centre(t, m, i); digits) for i in 1:n])
+    end
+    return header, reduce(hcat, columns)
+end
+
+function Base.show(io::IO, ::MIME"text/plain", p::PeakTracker)
+    show(io, p)
+    haspicks(tracks(p)) || return
+    println(io)
+    header, cells = widetable(p)
+    w = [maximum(textwidth, [header[j]; cells[:, j]]) for j in eachindex(header)]
+    print(io, join(lpad.(header, w), "  "))
+    for r in eachrow(cells)
+        print(io, "\n", join(lpad.(r, w), "  "))
     end
 end

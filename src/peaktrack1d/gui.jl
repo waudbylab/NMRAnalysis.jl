@@ -501,7 +501,7 @@ function attach!(p::PeakTracker, textbox; radius=8, snr=5)
         elseif ev.key == Keyboard.backspace && !isempty(history)
             found[] = pop!(history)
         elseif ev.key == Keyboard.s
-            dir = mkpath(joinpath(pwd(), p.outputdir[], "figures"))
+            dir = mkpath(joinpath(pwd(), p.outputdir[]))
             path = joinpath(dir, "stack-$(Dates.format(now(), "yyyymmdd-HHMMSS")).pdf")
             save(path, stackplot(p); backend=CairoMakie, pt_per_unit=1)
             @info "Saved a figure of the displayed region" path = abspath(path)

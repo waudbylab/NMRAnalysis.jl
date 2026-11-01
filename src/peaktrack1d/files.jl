@@ -178,19 +178,6 @@ function writesummary(path::AbstractString, p::PeakTracker, folder)
     return path
 end
 
-"""
-    keepfigures!(dir) -> dir
-
-Move `figures/` back from the earlier folder that `backupfolder` has just moved aside, so
-that figures saved with the `s` key survive a later **Save**: they are snapshots taken
-while picking, which a save does not replace.
-"""
-function keepfigures!(dir)
-    previous = joinpath(rstrip(abspath(dir), ['/', '\\']) * "_previous", "figures")
-    isdir(previous) && mv(previous, joinpath(dir, "figures"))
-    return dir
-end
-
 "Heading `heights.csv`, since a height is easily mistaken for an integral or an amplitude."
 const HEIGHTNOTE = "Heights: the intensity at each line's maximum, divided by scale(spec) " *
                    "(ns x rg, and the concentration where recorded); heights, not " *
@@ -204,10 +191,10 @@ reads back), `series.csv` (every line in every plane), the wide files `shifts.cs
 `referencedshifts.csv` (once the reference is picked anywhere) and `heights.csv` (see
 [`linetable`](@ref)), `processing.csv` for time-domain data, `stack.pdf` (the region shown
 in the window), and in `peaks/` one CSV and one plot per multiplet. An existing folder is
-moved aside first, apart from `figures/`, which is kept. Returns the folder.
+moved aside first. Returns the folder.
 """
 function saveanalysis(p::PeakTracker, folder::AbstractString)
-    dir = keepfigures!(backupfolder(folder))
+    dir = backupfolder(folder)
     comments = analysisinfo(p)
     writetable(joinpath(dir, "peaklist.csv"), comments, peaklisttable(p)...)
     header, rows = seriestable(p)

@@ -14,7 +14,7 @@ using NMRAnalysis.PeakTrack1D: cleanlabel, multipletof, multipletlabels, linesof
                                haspicks, picksof, npicks, pickat, tracks
 using NMRAnalysis.PeakTrack1D: densify, painted, track, overlay, hit, nearestrow, location
 using NMRAnalysis.PeakTrack1D: coordinatetable, seriestable, peaklisttable, clipboardtext,
-                               isreferenced, keepfigures!,
+                               isreferenced, widetable,
                                linetable, referencedshift,
                                restore, readtable, saveanalysis, exptfolder, callcoordinates,
                                p1outliers, P1TOLERANCE
@@ -294,9 +294,20 @@ end
     @test length(rows) == npicks(tracks(p))
     @test all(r -> (r[2] == "true") == (r[1] == "DSS"), rows)
 
-    # the clipboard holds the referenced shifts once there is a reference, and the measured
-    # ones before then, with no column for coordinates that were not given
+    header, cells = widetable(p)
+    @test header == ["plane", "pH", "DSS (reference)", "MES", "MOPS"]
+    @test size(cells) == (4, 5)
+    @test cells[3, 5] == ""   # no centre where a line is missing
+
+    # without coordinates there is no column for them, not an empty one
     bare = tracker(s, tracks(p); coordinates=nothing)
+    header, cells = widetable(bare)
+    @test header == ["plane", "DSS (reference)", "MES", "MOPS"]
+    @test size(cells) == (4, 4)
+    @test occursin("DSS (reference)", sprint(show, MIME"text/plain"(), bare))
+
+    # the clipboard holds the referenced shifts once there is a reference, and the measured
+    # ones before then
     @test isreferenced(bare)
     text = clipboardtext(bare)
     @test startswith(text, "plane\tDSS (ppm)\tMES (ppm)\tMOPS[1] (ppm)\tMOPS[2] (ppm)\n")
@@ -334,9 +345,7 @@ end
     @test ismissing(rows[end - 1].shift)
 
     @test occursin("MOPS (2 lines)", sprint(show, p))
-    summary = sprint(show, MIME"text/plain"(), p)
-    @test occursin("2 lines", summary) && occursin("(reference)", summary)
-    @test occursin("centre in 3 of 4 planes", summary)   # MOPS lacks a line in plane 3
+    @test occursin("DSS (reference)", sprint(show, MIME"text/plain"(), p))
 end
 
 @testset "peak list round trip" begin
@@ -390,12 +399,6 @@ end
         @test occursin("not integrals", read(joinpath(folder, "heights.csv"), String))
         saveanalysis(p, joinpath(dir, "out"))
         @test isdir(joinpath(dir, "out_previous"))
-
-        # figures saved while picking survive a later save
-        mkpath(joinpath(dir, "out", "figures"))
-        touch(joinpath(dir, "out", "figures", "stack.pdf"))
-        saveanalysis(p, joinpath(dir, "out"))
-        @test isfile(joinpath(dir, "out", "figures", "stack.pdf"))
 
         # without a reference there is nothing to reference to
         erase!(_ -> true, tracks(p), 1)
