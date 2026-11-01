@@ -72,8 +72,7 @@ function openwindow(s::SpectrumSeries, processing; labels=String[], reference="r
     t = initialtracks(s, peaklist, reflabel, String[cleanlabel(l) for l in labels])
 
     # CairoMakie, loaded for saving figures, would otherwise take over
-    GLMakie.activate!(; focus_on_show=true,
-                      title=isempty(s.title) ? "peaktrack1d" : "peaktrack1d: $(s.title)")
+    GLMakie.activate!(; focus_on_show=true, title="NMRAnalysis.jl")
     fig = Figure(; size)
     ax = Axis(fig[1, 1]; xreversed=true, xlabel=shiftlabel(s.nucleus),
               yticksvisible=false, yticklabelsvisible=false,

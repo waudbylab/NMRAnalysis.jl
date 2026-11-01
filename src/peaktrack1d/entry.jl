@@ -36,7 +36,7 @@ plot, and **Load** restores the picks saved there.
   take PHC0 and PHC1 from its processed data, a vector of `(p0, p1)` pairs in degrees, or
   the path of a `processing.csv` saved earlier. In a series of three or more, a first-order
   phase far from the series median is set to the median and the zero-order phase fitted
-  again.
+  again, and a zero-order phase far from the rest of the series takes its neighbours'.
 - `labels`: names of multiplets to create before picking; more are created as you pick.
 - `reference`: the name of the reference multiplet, picked in this analysis. Or, for ¹⁹F,
   ³¹P or another nucleus, a ¹H `PeakTracker` of the same samples with DSS picked: the

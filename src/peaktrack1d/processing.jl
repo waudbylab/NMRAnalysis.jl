@@ -11,8 +11,9 @@ experiment (degrees, TopSpin's convention) with where it came from:
 - `:auto`: `autoprocess`'s automatic phasing
 - `:refit`: the zero-order phase fitted with the first-order phase fixed at the series
   median, where automatic phasing failed or gave an outlying first-order phase
-- `:neighbours`: the zero-order phase of the neighbouring experiments, where even that
-  failed (see [`fixphases!`](@ref))
+- `:neighbours`: the zero-order phase of the neighbouring experiments, where the refit
+  failed too, or where the zero-order phase was far from the rest of the series (see
+  [`fixphases!`](@ref))
 - `:none`: no phase could be found for any experiment in the series
 - `:pdata`: PHC0 and PHC1 from the experiment's processed data
 - `:given`: passed in, or read from a `processing.csv`
@@ -102,6 +103,9 @@ end
 "Smallest departure (degrees) from the series median that marks a first-order phase as wrong."
 const P1TOLERANCE = 15.0
 
+"Smallest departure (degrees) from the rest of the series that marks a zero-order phase as wrong."
+const P0TOLERANCE = 45.0
+
 """
     fixphases!(phases, phasing, fids; window, zerofill, solvent) -> (phases, phasing)
 
@@ -115,6 +119,12 @@ receiver, the tuning and the temperature. A phasing that has settled on a wrong 
 phase, getting one line right and another wrong, therefore stands out from the series median
 (see [`p1outliers`](@ref)), and its zero-order phase is fitted again with the first-order
 phase fixed at the median.
+
+The zero-order phase follows the sample, but within a series it varies by tens of degrees at
+most, so one far from the rest (see [`p0outliers`](@ref)) has been phased by the wrong
+feature, often settling near the opposite sign, when a single line is too broad or weak to
+dominate the fit. It takes the zero-order phase of its neighbours in the series, with the
+first-order phase at the median.
 
 Automatic phasing fails outright when a spectrum has no line strong enough to phase by,
 which happens to a single line broadened by exchange near a pKa or a binding midpoint. Its
@@ -157,6 +167,16 @@ function fixphases!(phases, phasing, fids; kw...)
         end
         phases[k] = (p0, med)
     end
+    centre, outliers = p0outliers([phases[k][1] for k in ok])
+    good = setdiff(ok, ok[outliers])
+    for k in ok[outliers]
+        p0 = neighbourphase(phases, good, k)
+        @warn "The zero-order phase of experiment $k, $(round(phases[k][1]; digits=1))°, is " *
+              "far from the rest of the series, around $(round(centre; digits=1))°, so it " *
+              "takes the zero-order phase of its neighbours, $(round(p0; digits=1))°"
+        phases[k] = (p0, med)
+        phasing[k] = :neighbours
+    end
     return collect(NTuple{2,Float64}, phases), phasing
 end
 
@@ -194,6 +214,26 @@ function p1outliers(p1)
     length(p1) < 3 && return med, Int[]
     tolerance = max(P1TOLERANCE, 5 * 1.4826 * median(abs.(p1 .- med)))
     return med, findall(x -> abs(x - med) > tolerance, p1)
+end
+
+"An angle in degrees wrapped into [-180, 180)."
+wrap180(x) = mod(x + 180, 360) - 180
+
+"""
+    p0outliers(p0) -> (centre, indices)
+
+The centre of the zero-order phases `p0` (degrees) and the indices of those departing from
+it, round the circle, by more than five robust standard deviations and by more than
+`P0TOLERANCE`. The centre is the circular mean moved to the median of the deviations from
+it, so that a single wild phase barely shifts it. None for fewer than three.
+"""
+function p0outliers(p0)
+    mean0 = rad2deg(atan(sum(sind, p0), sum(cosd, p0)))
+    centre = mean0 + median(wrap180.(p0 .- mean0))
+    length(p0) < 3 && return centre, Int[]
+    deviation = abs.(wrap180.(p0 .- centre))
+    tolerance = max(P0TOLERANCE, 5 * 1.4826 * median(deviation))
+    return centre, findall(>(tolerance), deviation)
 end
 
 "FID `k` processed with exponential line broadening `lb` and its stored phases."

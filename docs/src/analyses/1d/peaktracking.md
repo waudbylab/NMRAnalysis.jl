@@ -53,12 +53,24 @@ When processing, `phase` controls the phase correction:
 | a vector of `(p0, p1)` pairs | the ones you give, in degrees |
 | a path to `processing.csv` | the ones saved by an earlier analysis |
 
-In a series of three or more experiments, `peaktrack1d` checks the first-order phases
-against each other. First-order phase comes from the acquisition rather than the sample, so
-it should barely change along a series. A first-order phase far from the series median
-usually means one line was phased correctly and another wrongly, so `peaktrack1d` sets it to
-the median and fits the zero-order phase again. The REPL reports each experiment it
-corrects, and `processing.csv` records it as `refit`.
+In a series of three or more experiments, `peaktrack1d` checks the phases against each
+other and corrects any that stand out:
+
+- **First-order phase** comes from the acquisition rather than the sample, so it should
+  barely change along a series. One far from the series median usually means one line was
+  phased correctly and another wrongly. It is set to the median and the zero-order phase
+  fitted again (`refit`).
+- **Zero-order phase** varies a little from sample to sample, but one more than 45° from
+  the rest of the series means automatic phasing settled on the wrong answer, which can
+  happen when a spectrum's only line is broadened, near a pKa for example. It takes the
+  zero-order phase of its neighbours in the series (`neighbours`).
+- **No phase at all**, when no line is strong enough for automatic phasing: the zero-order
+  phase is fitted at a lower signal-to-noise threshold (`refit`), or taken from the
+  neighbours.
+
+The REPL reports each experiment it corrects, and the `phasing` column of `processing.csv`
+records how each experiment was phased. Pass the spectra in series order, since neighbours
+are taken from that order.
 
 ## Pick a peak
 

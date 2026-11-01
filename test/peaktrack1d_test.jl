@@ -21,7 +21,8 @@ using NMRAnalysis.PeakTrack1D: coordinatetable, seriestable, peaklisttable, clip
                                linetable, referencedshift, summaryseries,
                                restore, readtable, saveanalysis, exptfolder,
                                callcoordinates,
-                               p1outliers, P1TOLERANCE, neighbourphase
+                               p1outliers, P1TOLERANCE, neighbourphase, p0outliers,
+                               wrap180
 using NMRAnalysis.PeakTrack1D: PickedReference, IndirectReference, referencing, alignment,
                                allreferenced, hertz, xiratio
 using NMRTools: F19, P31, H1
@@ -223,6 +224,20 @@ end
     @test neighbourphase(phases, [1, 3, 5], 2) ≈ 20
     @test neighbourphase(phases, [1, 3, 5], 4) ≈ 10 atol = 1e-9
     @test neighbourphase(phases, [1, 3, 5], 6) ≈ -10
+
+    # zero-order phases from a real ³¹P series, one of which settled ~150° from the rest
+    p0 = [-155.0, -150.4, -155.8, -149.8, -156.9, -156.5, -161.8, -156.6, -157.5, -153.4,
+          -161.4, -146.4, -158.3, -150.2, -163.2, -157.9, -156.6, -158.4, -156.7, -154.5,
+          -160.3, -163.1, -158.2, -160.6, -160.8, 52.3, -155.2, -161.6, -163.9, -162.3,
+          -161.4, -161.3]
+    centre, ks = p0outliers(p0)
+    @test ks == [26]
+    @test -160 < centre < -155
+    # deviations are measured round the circle, so phases either side of ±180° agree
+    @test isempty(p0outliers([179.0, -179.0, 178.0, -178.0, 180.0])[2])
+    @test p0outliers([179.0, -179.0, 178.0, -178.0, 0.0])[2] == [5]
+    @test isempty(p0outliers([0.0, 90.0])[2])   # too few to judge
+    @test wrap180(190.0) ≈ -170 && wrap180(-190.0) ≈ 170
 end
 
 # ---- the brush ------------------------------------------------------------------
