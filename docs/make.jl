@@ -10,7 +10,9 @@ ENV["GKSwstype"] = "100" # https://github.com/jheinen/GR.jl/issues/278
 
 makedocs(;
          modules=[NMRAnalysis],
-         format=Documenter.HTML(; canonical="https://waudbylab.org/NMRAnalysis.jl/stable/"),
+         # the GUI2D API page holds every docstring in the module, so it outgrows the limit
+         format=Documenter.HTML(; canonical="https://waudbylab.org/NMRAnalysis.jl/stable/",
+                                size_threshold_ignore=["api/gui2d.md"]),
          pages=["Home" => "index.md",
                 "Quick Start" => "quickstart.md",
                 "Automatic Analysis" => "analyses/analyse.md",
@@ -36,7 +38,8 @@ makedocs(;
                                      "Cross-Correlated Relaxation (CCR)" => "analyses/2d/ccr.md",
                                      "Methyl CCR (S²τc)" => "analyses/2d/methylccr.md",
                                      "Under Development" => ["CEST" => "analyses/2d/cest.md",
-                                                             "CPMG Dispersion" => "analyses/2d/cpmg.md"],
+                                                             "CPMG Dispersion" => "analyses/2d/cpmg.md",
+                                                             "Paramagnetic Relaxation Enhancement" => "analyses/2d/pre.md"],
                                      "Reference" =>
                                          ["Peak List Formats" => "analyses/2d/peaklistformats.md",
                                           "Summary Plots" => "analyses/2d/summary.md",

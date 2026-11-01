@@ -41,6 +41,8 @@ saved peak list as the window opens.
 - `methylccr2d(buildup, decay, T)`: methyl S²τc
 - `cest2d(file)`: CEST profiles
 - `cpmg2d(file)`: CPMG relaxation dispersion
+- `pre2d(diamagnetic, paramagnetic; type)`: paramagnetic relaxation enhancement Γ₂
+- `lpre2d(diamagnetic, paramagnetic; type)`: Γ₁ and Γ₂ from a series of recycle delays
 - `peaktrack2d(files)`: peaks that move from plane to plane
 - `titration2d(files)`: binding isotherms and a global Kd
 - `rdc2d(; isotropic, aligned)`: one-bond couplings and RDCs
