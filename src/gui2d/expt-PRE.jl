@@ -8,12 +8,13 @@
     use in publication.
 
 Start an interactive GUI for analysing ¹H transverse paramagnetic relaxation enhancement
-(PRE) experiments. The fitted PRE rate Γ₂ accounts for both line broadening and the
-intensity lost during the coherence transfer delays.
+(PRE) experiments. Every peak is fitted across all the spectra at once, with one
+diamagnetic amplitude and linewidths, and the PRE rate Γ₂ accounting for both the line
+broadening and the intensity lost during the coherence transfer delays.
 
 Give a diamagnetic and a paramagnetic spectrum for a spin-labelled or metal-tagged protein,
-and Γ₂ is in s⁻¹. Give a series of spectra with their `concentrations` for a solvent PRE
-titration, and Γ₂ is in s⁻¹ per unit of concentration, in whatever unit you used.
+and Γ₂ is in s⁻¹. Give a series of spectra with their `concentrations` for a solvent PRE,
+and Γ₂ is in s⁻¹ per unit of concentration, in whatever unit you used.
 
 # Arguments
 - `diamagnetic`, `paramagnetic`: processed Bruker data directories, or experiment numbers.
@@ -36,12 +37,15 @@ pre2d("diamagnetic/pdata/1", "paramagnetic/pdata/1"; type=:hsqc)
 # Methyl HMQC, with experiment numbers and an explicit transfer time
 pre2d(11, 12; type=:hmqc, Trelax=0.0089)
 
-# Solvent PRE titration, concentrations in mM
-pre2d(["0mM/pdata/1", "1mM/pdata/1", "5mM/pdata/1", "10mM/pdata/1"];
-      concentrations=[0, 1, 5, 10], type=:hmqc)
+# Solvent PRE, concentrations in mM
+pre2d([10, 11, 12, 13]; concentrations=[0, 1, 5, 10], type=:hmqc)
 ```
 
-The window blocks until it is closed, and the analysis is returned (see [`results`](@ref)).
+Each peak is plotted as cross-sections through both spectra for a pair, or as its height
+against concentration for a series. The summary plots Γ₂, the height in each paramagnetic
+spectrum relative to the diamagnetic one, and the diamagnetic linewidths against residue
+number. The window blocks until it is closed, and the analysis is returned (see
+[`results`](@ref)).
 """
 function pre2d(diamagnetic::Union{AbstractString,Integer},
                paramagnetic::Union{AbstractString,Integer}; type, Trelax=:auto,
@@ -74,7 +78,7 @@ Paramagnetic relaxation enhancement experiment.
 - `expttype`: Either `:hsqc` or `:hmqc`
 - `Trelax`: Transverse ¹H time outside acquisition and t₁ (s)
 """
-struct PREExperiment <: FixedPeakExperiment
+struct PREExperiment <: ParamagneticExperiment
     specdata::Any
     peaks::Any
     concentrations::Vector{Float64}
@@ -93,16 +97,7 @@ struct PREExperiment <: FixedPeakExperiment
 
     function PREExperiment(specdata::SpecData, concentrations, paired, expttype, Trelax;
                            skipplanes=Int[])
-        expttype in (:hsqc, :hmqc) ||
-            throw(ArgumentError("type must be :hsqc or :hmqc, not $(repr(expttype))"))
-        length(concentrations) == length(specdata.z) ||
-            throw(ArgumentError("got $(length(concentrations)) concentrations for " *
-                                "$(length(specdata.z)) spectra"))
-        all(≥(0), concentrations) ||
-            throw(ArgumentError("concentrations must not be negative"))
-        used = [c for (i, c) in enumerate(concentrations) if i ∉ skipplanes]
-        length(unique(used)) ≥ 2 ||
-            throw(ArgumentError("PRE needs spectra at two or more concentrations"))
+        checksamples(expttype, concentrations, length(specdata.z), skipplanes)
         Trelax = transfertime(Trelax, first(specdata.nmrdata))
         expt = new(specdata, Observable(Vector{Peak}()), concentrations, paired, expttype,
                    Trelax,
@@ -144,165 +139,50 @@ function PREExperiment(inputfilenames::AbstractVector; concentrations, type, Tre
                          skipplanes)
 end
 
-# One-bond couplings setting the nominal transfer delays: amide ¹H-¹⁵N and methyl ¹H-¹³C
-const ONEBONDJ = Dict(N15 => 92.0, C13 => 125.0)
+# ---- the model -------------------------------------------------------------------
 
-"""
-    transfertime(Trelax, spec) -> Float64
-
-`Trelax` in seconds, or for `:auto` the 1/¹J for the heteronucleus in F2 of `spec`: two
-INEPTs of 1/(2J) in an HSQC, or the two 1/(2J) delays either side of t₁ in an HMQC.
-"""
-transfertime(Trelax::Real, spec) = Float64(Trelax)
-function transfertime(Trelax::Symbol, spec)
-    Trelax === :auto ||
-        throw(ArgumentError("Trelax must be a time in seconds or :auto, " *
-                            "not $(repr(Trelax))"))
-    nuc = spec[F2Dim, :nucleus]
-    haskey(ONEBONDJ, nuc) ||
-        throw(ArgumentError("cannot set Trelax automatically for a $(label(spec, F2Dim)) " *
-                            "indirect dimension: give it in seconds"))
-    return 1 / ONEBONDJ[nuc]
+function modelparameters(expt::PREExperiment)
+    cmax = maximum(expt.concentrations)
+    return [(key=:PRE, label="Γ₂", initial=10.0 / cmax, lower=0.0, upper=1000.0 / cmax,
+             scale=1 / cmax)]
 end
 
-# load the NMR data and prepare the SpecData object
-function preparespecdata(inputfilenames, zlabels, ::Type{PREExperiment})
-    @debug "Preparing spec data for PRE experiment: $inputfilenames"
+planecondition(expt::PREExperiment, i) = (c=expt.concentrations[i],)
 
-    spectra = map(loadnmr, inputfilenames)
-    x = map(spec -> data(spec, F1Dim), spectra)
-    y = map(spec -> data(spec, F2Dim), spectra)
-    z = map(spec -> data(spec) / scale(spec), spectra)
-    σ = map(spec -> spec[:noise] / scale(spec), spectra)
-
-    return SpecData(spectra, x, y,
-                    z ./ σ[1],
-                    σ ./ σ[1],
-                    zlabels)
+function peakmodel(expt::PREExperiment, cond, R2x, R2y, extras)
+    return transverseplane(expt, cond.c, R2x, R2y, extras[1])
 end
 
-"""Add peak to experiment, setting up type-specific parameters."""
-function addpeak!(expt::PREExperiment, initialposition::Point2f, label="",
-                  xradius=expt.xradius[], yradius=expt.yradius[])
-    expt.state[][:total_peaks][] += 1
-    if label == ""
-        label = "X$(expt.state[][:total_peaks][])"
-    end
-    @debug "Add peak $label at $initialposition"
-    newpeak = Peak(initialposition, label, xradius, yradius)
+referenceplanes(expt::PREExperiment, i) = filter(j -> expt.concentrations[j] == 0,
+                                                 usedplanes(expt))
+planelabel(expt::PREExperiment, i) = expt.paired ? "Paramagnetic" :
+                                     "c = $(expt.concentrations[i])"
 
-    # pars: R2x, R2y, amp
-    R2x0 = MaybeVector(30.0)
-    R2y0 = MaybeVector(15.0)
-    R2x = Parameter("R2x", R2x0; minvalue=1.0, maxvalue=100.0)
-    R2y = Parameter("R2y", R2y0; minvalue=1.0, maxvalue=100.0)
-
-    # initial amplitude from the least paramagnetic spectrum
-    i0 = argmin(expt.concentrations)
-    x0, y0 = initialposition
-    ix = findnearest(expt.specdata.x[i0], x0)
-    iy = findnearest(expt.specdata.y[i0], y0)
-    amp0 = expt.specdata.z[i0][ix, iy]
-    amp0 = MaybeVector(amp0)
-    amp = Parameter("Amplitude", amp0)
-
-    # PRE
-    Γ = Parameter("PRE", MaybeVector(10.0); minvalue=0.0, maxvalue=200.0)
-
-    newpeak.parameters[:R2x] = R2x
-    newpeak.parameters[:R2y] = R2y
-    newpeak.parameters[:amp] = amp
-    newpeak.parameters[:PRE] = Γ
-
-    newpeak.postparameters[:PRE] = Parameter("PRE", 0.0)
-
-    push!(expt.peaks[], newpeak)
-    return notify(expt.peaks)
+function summarypanels(expt::PREExperiment, peaks)
+    return [ratepanel(expt, peaks, :PRE, "Γ₂"), intensitypanel(expt, peaks),
+            transversepanel(expt, peaks)]
 end
 
-"""
-Simulate single peak according to experiment type.
+# ---- the peak plot of a series: height against concentration -----------------------
 
-Γ₂ adds to the ¹H linewidth (and in an HMQC the multiple-quantum linewidth in F2) and
-attenuates the amplitude by exp(-Γ₂ Trelax), which with the amplitude normalised to the
-diamagnetic linewidths gives I_para/I_dia = R₂ exp(-Γ₂ t)/(R₂ + Γ₂) for peak heights
-(Battiste & Wagner, Biochemistry 39, 5355 (2000); Iwahara, Tang & Clore, J. Magn. Reson.
-184, 185 (2007)).
-"""
-function simulate!(z, peak::Peak, expt::PREExperiment, xbounds=nothing, ybounds=nothing)
-    R2x0 = peak.parameters[:R2x].value[][1]
-    R2y0 = peak.parameters[:R2y].value[][1]
-    amp0 = peak.parameters[:amp].value[][1]
-    PRE = peak.parameters[:PRE].value[][1]
+curvelabels(::PREExperiment) = (xlabel="Concentration", ylabel="Relative peak height")
 
-    for i in 1:nslices(expt)
-        # get axis references for window functions
-        xaxis = dims(expt.specdata.nmrdata[i], F1Dim)
-        yaxis = dims(expt.specdata.nmrdata[i], F2Dim)
-        # get axis shift values
-        x = isnothing(xbounds) ? expt.specdata.x[i] : expt.specdata.x[i][xbounds[i]]
-        y = isnothing(ybounds) ? expt.specdata.y[i] : expt.specdata.y[i][ybounds[i]]
-
-        x0 = peak.parameters[:x].value[][i]
-        y0 = peak.parameters[:y].value[][i]
-
-        # apply PRE to linewidths and amplitude
-        Γ = PRE * expt.concentrations[i]
-        R2x = R2x0 + Γ
-        R2y = expt.expttype == :hmqc ? R2y0 + Γ : R2y0
-        amp = amp0 * exp(-Γ * expt.Trelax)
-
-        # find indices of x and y axes within peak radius of peak position
-        xi = x0 .- peak.xradius[] .≤ x .≤ x0 .+ peak.xradius[]
-        yi = y0 .- peak.yradius[] .≤ y .≤ y0 .+ peak.yradius[]
-        xs = x[xi]
-        ys = y[yi]
-        # NB. scale intensities by R2x and R2y to decouple amplitude estimation from linewidth
-        zx = NMRTools.NMRBase._lineshape(2π * hz(x0, xaxis), R2x, 2π * hz(xs, xaxis),
-                                         xaxis[:window], RealLineshape())
-        zy = (π^2 * amp * R2x0 * R2y0) *
-             NMRTools.NMRBase._lineshape(2π * hz(y0, yaxis), R2y, 2π * hz(ys, yaxis),
-                                         yaxis[:window], RealLineshape())
-        z[i][xi, yi] .+= zx .* zy'
-    end
-end
-
-"""Calculate final parameters after fitting."""
-function postfit!(peak::Peak, ::PREExperiment)
-    peak.postparameters[:PRE].uncertainty[] .= peak.parameters[:PRE].uncertainty[]
-    peak.postparameters[:PRE].value[] .= peak.parameters[:PRE].value[]
-    return peak.postfitted[] = true
-end
-
-# Γ₂ from a titration is per unit of a concentration whose unit was never given
-paramunit(e::PREExperiment, name::Symbol) = name == :PRE && !e.paired ? "" : paramunit(name)
-
-preunit(expt::PREExperiment) = expt.paired ? "s⁻¹" : "s⁻¹ per unit concentration"
-
-"""Return descriptive text for slice idx."""
-function slicelabel(expt::PREExperiment, idx)
-    return "$(expt.specdata.zlabels[idx]) ($idx of $(nslices(expt)))"
-end
-
-"""Return formatted text describing peak idx."""
-function peakinfotext(expt::PREExperiment, idx)
-    if idx == 0
-        return "No peak selected"
-    end
-    peak = expt.peaks[][idx]
-    if peak.postfitted[]
-        return "Peak: $(peak.label[])\n" *
-               "PRE: $(peak.parameters[:PRE].value[][1] ± peak.parameters[:PRE].uncertainty[][1]) $(preunit(expt))\n" *
-               "\n" *
-               "δX: $(peak.parameters[:x].value[][1] ± peak.parameters[:x].uncertainty[][1]) ppm\n" *
-               "δY: $(peak.parameters[:y].value[][1] ± peak.parameters[:y].uncertainty[][1]) ppm\n" *
-               "Amplitude: $(peak.parameters[:amp].value[][1] ± peak.parameters[:amp].uncertainty[][1])\n" *
-               "X Linewidth: $(peak.parameters[:R2x].value[][1] ± peak.parameters[:R2x].uncertainty[][1]) s⁻¹\n" *
-               "Y Linewidth: $(peak.parameters[:R2y].value[][1] ± peak.parameters[:R2y].uncertainty[][1]) s⁻¹"
-    else
-        return "Peak: $(peak.label[])\n" *
-               "Not fitted"
-    end
+function drawcurve!(ax, peak, expt::PREExperiment)
+    c = expt.concentrations
+    A = peak.parameters[:amp0].value[][1]
+    y = peak.parameters[:amp].value[] ./ A
+    e = peak.parameters[:amp].uncertainty[] ./ A
+    used = [i ∉ skipset(expt) for i in eachindex(c)]
+    errorbars!(ax, c[used], y[used], e[used]; whiskerwidth=6, color=seriescolour(1))
+    scatter!(ax, c[used], y[used]; color=seriescolour(1))
+    any(!, used) &&
+        scatter!(ax, c[.!used], y[.!used]; color=:transparent, strokecolor=:gray60,
+                 strokewidth=1.5)
+    peak.postfitted[] || return nothing
+    φp = fitvalues(peak, expt)
+    cs = range(0, 1.05 * maximum(c), 100)
+    return lines!(ax, cs, [peakmodel(expt, (c=ci,), φp[3], φp[4], φp[5:end])[3] for ci in cs];
+                  color=:red)
 end
 
 """Return formatted text describing experiment."""
