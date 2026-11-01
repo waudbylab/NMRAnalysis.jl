@@ -21,7 +21,7 @@ using NMRAnalysis.PeakTrack1D: coordinatetable, seriestable, peaklisttable, clip
                                linetable, referencedshift, summaryseries,
                                restore, readtable, saveanalysis, exptfolder,
                                callcoordinates,
-                               p1outliers, P1TOLERANCE
+                               p1outliers, P1TOLERANCE, neighbourphase
 using NMRAnalysis.PeakTrack1D: PickedReference, IndirectReference, referencing, alignment,
                                allreferenced, hertz, xiratio
 using NMRTools: F19, P31, H1
@@ -89,9 +89,7 @@ end
     @test sameaxis(δaxis, copy(δaxis))
     @test !sameaxis(δaxis, δaxis .+ 0.001)
     @test !sameaxis(δaxis, δaxis[1:(end - 1)])
-    # the 90th percentile of the peak heights: between the doublet lines and the singlet,
-    # and nowhere near a single dominant line
-    @test 50 < displayscale(s) ≤ 101
+    @test displayscale(s) == maximum(abs, s.intensities)
     @test_throws DimensionMismatch SpectrumSeries(δaxis, zeros(10, 2), ones(2), ["a", "b"],
                                                   [1, 1])
 end
@@ -218,6 +216,13 @@ end
     @test isempty(p1outliers([0.0, 0.0, 0.0, P1TOLERANCE - 1])[2])
     # a series that genuinely scatters widens the tolerance
     @test isempty(p1outliers([0.0, 30.0, -30.0, 60.0, -60.0])[2])
+
+    # a spectrum that couldn't be phased takes its neighbours' zero-order phase, averaged
+    # round the circle
+    phases = Any[(10.0, 0.0), nothing, (30.0, 0.0), nothing, (350.0, 0.0)]
+    @test neighbourphase(phases, [1, 3, 5], 2) ≈ 20
+    @test neighbourphase(phases, [1, 3, 5], 4) ≈ 10 atol = 1e-9
+    @test neighbourphase(phases, [1, 3, 5], 6) ≈ -10
 end
 
 # ---- the brush ------------------------------------------------------------------
@@ -382,7 +387,7 @@ end
     # points run in order of the coordinate, not of the planes
     q = tracker(s, tracks(p); coordinates="T" => [310, 300, 290, 280])
     @test issorted(first.(summaryseries(q, 2).centre))
-    @test summaryseries(tracker(s, tracks(p); coordinates=nothing), 2).xlabel == "plane"
+    @test summaryseries(tracker(s, tracks(p); coordinates=nothing), 2).xlabel == "spectrum"
 end
 
 @testset "tables" begin
@@ -416,14 +421,14 @@ end
     @test all(r -> (r[2] == "true") == (r[1] == "DSS"), rows)
 
     header, cells = widetable(p)
-    @test header == ["plane", "pH", "DSS (reference)", "MES", "MOPS"]
+    @test header == ["spectrum", "pH", "DSS (reference)", "MES", "MOPS"]
     @test size(cells) == (4, 5)
     @test cells[3, 5] == ""   # no centre where a line is missing
 
     # without coordinates there is no column for them, not an empty one
     bare = tracker(s, tracks(p); coordinates=nothing)
     header, cells = widetable(bare)
-    @test header == ["plane", "DSS (reference)", "MES", "MOPS"]
+    @test header == ["spectrum", "DSS (reference)", "MES", "MOPS"]
     @test size(cells) == (4, 4)
     @test occursin("DSS (reference)", sprint(show, MIME"text/plain"(), bare))
 
@@ -519,8 +524,12 @@ end
         @test occursin("MOPS", summary) && occursin("2 lines", summary)
         @test !occursin("Reproduce", summary)   # no call was recorded
         @test occursin("not integrals", read(joinpath(folder, "heights.csv"), String))
+        touch(joinpath(folder, "figure-20261101-120000.pdf"))
         saveanalysis(p, joinpath(dir, "out"))
         @test isdir(joinpath(dir, "out_previous"))
+        # figures saved with f are copied into the new folder, and kept in the old one
+        @test isfile(joinpath(dir, "out", "figure-20261101-120000.pdf"))
+        @test isfile(joinpath(dir, "out_previous", "figure-20261101-120000.pdf"))
 
         # without a reference there is nothing to reference to
         erase!(_ -> true, tracks(p), 1)

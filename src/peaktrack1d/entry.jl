@@ -70,14 +70,17 @@ snapping off (for overlapped peaks), and holding shift does the opposite of the 
 
 # Keys
 - `←` `→`: step through the lines, multiplet by multiplet, to the vacant slot at the end,
-  where picking creates a new multiplet. `0`-`9`: select a multiplet; `0` is the reference.
+  where picking creates a new multiplet. `0`-`9`: select a multiplet; `0` is the reference,
+  which can't be selected when it comes from a ¹H analysis.
 - `r`: rename the current multiplet (type, then enter; escape cancels).
 - `g`, then click a marker: join that line's multiplet to the current one. `u`: move the
   current line out into a multiplet of its own. `d`: delete the current line.
 - `a`: align the spectra to the reference, once it is picked in every plane. This changes
   only the display; shifts are always stored as measured.
 - `↑` `↓`: vertical scale. `[` `]`: search radius. `m`: snapping. `backspace`: undo.
-- `s`: save a figure of the region shown in the output folder. `q`: quit.
+- `s`: save the analysis to the output folder. `f`: save a figure of the region shown
+  there, saving the analysis first if it hasn't been saved there from this window.
+  `q`: quit.
 
 # Examples
 ```julia

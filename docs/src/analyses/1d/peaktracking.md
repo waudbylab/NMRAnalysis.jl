@@ -66,6 +66,7 @@ The status line above the plot lists the peaks. The current peak is in brackets;
 reference comes first, and a `+` at the end is the vacant slot for a new peak.
 
 1. Select a peak with `←` and `→`, or with the number keys, where `0` is the reference.
+   The window opens on the first peak, or on the `+` slot if there are none yet.
    To start a new peak, move to the `+` at the end.
 2. Drag along the peak's trajectory through the stack. In each spectrum the brush crosses,
    the tallest peak inside the shaded area is picked.
@@ -83,7 +84,7 @@ the picks by hand.
 
 The panel to the right of the stack plots the current peak against your first coordinate,
 or against spectrum number if you gave none: its shift above, and the height of each line
-below. It follows the selection, so step through the peaks with `←` and `→` to check each
+below, on an axis that always includes zero. It follows the selection, so step through the peaks with `←` and `→` to check each
 one, and it updates as you edit. Shifts are referenced once the reference is picked in every
 spectrum and shown as measured until then; the axis label says which. A spectrum with a
 missing pick shows as a gap.
@@ -134,13 +135,14 @@ calculation, it doesn't matter how the spectra were referenced when they were pr
 Pass the spectra in matching order: the first ¹⁹F spectrum is referenced with the first ¹H
 spectrum, and so on. `peaktrack1d` stops with an error if the number of spectra differs, or
 if a spectrum was recorded at a different field from its ¹H partner. In the window the
-reference slot can't be picked, since DSS comes from the ¹H analysis, but `a` aligns the
-stack and the summary panel shows referenced shifts as usual.
+reference is shown greyed and marked external: it can't be selected or picked, since DSS
+comes from the ¹H analysis, but `a` aligns the stack and the summary panel shows referenced
+shifts as usual.
 
 ## Save and reload
 
-Press **Save** to write the output folder named in the box beside it, `out` by default.
-Press **Load** to restore the picks saved there. To carry on from a saved analysis in a
+Press **Save** or `s` to write the output folder named in the box beside it, `out` by
+default. Press **Load** to restore the picks saved there. To carry on from a saved analysis in a
 new session, or on reprocessed data:
 
 ```julia
@@ -168,9 +170,11 @@ This copies what `referencedshifts.csv` holds once the reference is picked, and 
 `planeresults(p)` gives every line in every spectrum as a vector of named tuples, the same
 content as `series.csv`.
 
-Press `s` in the window to save a publication figure of the region currently shown, at a
-single journal column's width, in the output folder. For more control, draw it with `stackplot` and save it with
-CairoMakie:
+Press `f` in the window to save a publication figure of the region currently shown, at a
+single journal column's width, in the output folder. If you haven't saved the analysis to
+that folder yet, `f` saves it first, so the figure always sits with the analysis it shows.
+Each later **Save** copies your figures into the new folder. For more control, draw the
+figure with `stackplot` and save it with CairoMakie:
 
 ```julia
 using CairoMakie
@@ -189,7 +193,7 @@ save("stack.pdf", stackplot(p; size=(500, 340)); backend=CairoMakie, pt_per_unit
 | `heights.csv` | the height of every line, in the same layout |
 | `processing.csv` | the phases, line broadening and zero-filling, when `peaktrack1d` processed the data |
 | `stack.pdf` | the region shown in the window |
-| `stack-<date>-<time>.pdf` | the figures you saved with `s` |
+| `figure-<date>-<time>.pdf` | the figures you saved with `f` |
 | `peaks/` | one CSV and one plot of shift against the first coordinate for each peak |
 
 In `series.csv`, each line is identified by its peak's `label`, its `line` number
@@ -222,7 +226,8 @@ been lost.
 | `↑` `↓` | vertical scale |
 | `[` `]` | brush and search radius |
 | `backspace` | undo |
-| `s` | save a figure of the region shown, in the output folder |
+| `s` | save the analysis to the output folder |
+| `f` | save a figure of the region shown, in the output folder |
 | `q` | quit |
 
 Scroll to zoom the chemical shift axis, right-drag to pan, and ctrl-click to reset the view.

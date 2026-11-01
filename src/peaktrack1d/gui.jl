@@ -4,7 +4,8 @@ const HELP = ("←→ / 0-9 select   r rename   d delete line   g group   u ungr
               "drag: trajectory   click: pick   drag marker: move   ⇧-drag: erase   " *
               "right-click: delete pick",
               "m snap on/off (⇧ inverts)   ↑↓ scale   [ ] radius   a align   ⌫ undo   " *
-              "s save figure   q quit   scroll: zoom   right-drag: pan   ctrl-click: reset view")
+              "s save   f save figure   q quit   scroll: zoom   right-drag: pan   " *
+              "ctrl-click: reset view")
 
 "Gain step for the up and down keys."
 const STEP = 2^(1 / 4)
@@ -70,9 +71,11 @@ function openwindow(s::SpectrumSeries, processing; labels=String[], reference="r
     reflabel, ref = referencing(reference, refshift, s)
     t = initialtracks(s, peaklist, reflabel, String[cleanlabel(l) for l in labels])
 
-    GLMakie.activate!()   # CairoMakie, loaded for saving figures, would otherwise take over
+    # CairoMakie, loaded for saving figures, would otherwise take over
+    GLMakie.activate!(; focus_on_show=true,
+                      title=isempty(s.title) ? "peaktrack1d" : "peaktrack1d: $(s.title)")
     fig = Figure(; size)
-    ax = Axis(fig[1, 1]; xreversed=true, xlabel=shiftlabel(s.nucleus), title=s.title,
+    ax = Axis(fig[1, 1]; xreversed=true, xlabel=shiftlabel(s.nucleus),
               yticksvisible=false, yticklabelsvisible=false,
               xgridvisible=false, ygridvisible=false,
               leftspinevisible=false, rightspinevisible=false, topspinevisible=false,
@@ -87,8 +90,9 @@ function openwindow(s::SpectrumSeries, processing; labels=String[], reference="r
                     call, Observable(String(outputdir)))
     controls = GridLayout(fig[4, 1:2]; tellwidth=false)
     isnothing(processing) || broadeningcontrol!(controls[1, 1], p)
-    textbox = outputcontrols!(controls[1, 2], p)
-    attach!(p, textbox, fig[1, 2]; radius, snr)
+    saved = Ref{Union{Nothing,String}}(nothing)   # the folder last saved to in this window
+    textbox = outputcontrols!(controls[1, 2], p, saved)
+    attach!(p, textbox, fig[1, 2], saved; radius, snr)
     colsize!(fig.layout, 2, Relative(0.28))
 
     display(fig)
@@ -102,9 +106,9 @@ end
 """
     summarypanel!(position, p, current)
 
-The panel beside the stack: the shifts (above) and heights (below) of the current line's
-multiplet against the first coordinate, following the selection and every edit. See
-[`summaryseries`](@ref).
+The panel beside the stack: the shifts (above) and heights (below, always including zero)
+of the current line's multiplet against the first coordinate, following the selection and
+every edit. See [`summaryseries`](@ref).
 """
 function summarypanel!(position, p::PeakTracker, current)
     grid = GridLayout(position)
@@ -122,7 +126,12 @@ function summarypanel!(position, p::PeakTracker, current)
     on(data; update=true) do d
         finite(d.centre) || finite(d.lines) || return
         autolimits!(axshift)
-        finite(d.heights) && autolimits!(axheight)
+        if finite(d.heights)
+            autolimits!(axheight)
+            h = [q[2] for q in d.heights if all(isfinite, q)]
+            lo, hi = min(0.0, minimum(h)), max(0.0, maximum(h))
+            hi > lo && ylims!(axheight, lo - 0.05(hi - lo), hi + 0.05(hi - lo))
+        end
         return
     end
     return grid
@@ -174,8 +183,31 @@ function broadeningcontrol!(position, p::PeakTracker)
     return grid
 end
 
+"""
+Save the analysis to the output folder named in the window, and remember it as the folder
+last saved to.
+"""
+function savefolder!(p::PeakTracker, saved)
+    folder = joinpath(pwd(), p.outputdir[])
+    saveanalysis(p, folder)
+    return saved[] = folder
+end
+
+"""
+Save a figure of the region shown into the output folder, first saving the analysis there if
+it has not been saved to that folder from this window.
+"""
+function savefigure!(p::PeakTracker, saved)
+    folder = joinpath(pwd(), p.outputdir[])
+    saved[] == folder || savefolder!(p, saved)
+    path = joinpath(folder, "figure-$(Dates.format(now(), "yyyymmdd-HHMMSS")).pdf")
+    save(path, stackplot(p); backend=CairoMakie, pt_per_unit=1)
+    @info "Saved a figure of the displayed region" path
+    return path
+end
+
 "The output folder box and the Save, Load and Quit buttons; returns the box."
-function outputcontrols!(position, p::PeakTracker)
+function outputcontrols!(position, p::PeakTracker, saved)
     row = GridLayout(position)
     Label(row[1, 1], "output folder")
     box = Textbox(row[1, 2]; width=120, stored_string=p.outputdir[])
@@ -187,7 +219,7 @@ function outputcontrols!(position, p::PeakTracker)
         return focused || (box.stored_string[] = box.displayed_string[])
     end
     savebutton = Button(row[1, 3]; label="Save")
-    on(_ -> saveanalysis(p, joinpath(pwd(), p.outputdir[])), savebutton.clicks)
+    on(_ -> savefolder!(p, saved), savebutton.clicks)
     loadbutton = Button(row[1, 4]; label="Load")
     on(loadbutton.clicks) do _
         path = joinpath(pwd(), p.outputdir[], "peaklist.csv")
@@ -205,13 +237,19 @@ end
 
 """
 The line above the stack: every multiplet in its colour, the current one bracketed with the
-current line's number where it has several, the vacant slot, and then whatever is being
+current line's number where it has several (an external reference greyed, since it can't
+be selected), the vacant slot, and then whatever is being
 typed or chosen, or the brush settings.
 """
-function statusline(t::Tracks, current, typed, joining, radius, aligned, snapping)
+function statusline(t::Tracks, current, typed, joining, radius, aligned, snapping;
+                    external=false)
     parts = Any[]
     cm = multipletof(t, current)
     for (m, mp) in enumerate(multiplets(t))
+        if external && m == REF
+            push!(parts, rich("$(mp.label) (external)"; color=:grey50), "   ")
+            continue
+        end
         ls = navorder(t, m)
         name = length(ls) > 1 ? "$(mp.label) ×$(length(ls))" : mp.label
         if m == cm
@@ -241,21 +279,20 @@ function statusline(t::Tracks, current, typed, joining, radius, aligned, snappin
 end
 
 """
-    attach!(p, textbox, panel; radius=8, snr=5)
+    attach!(p, textbox, panel, saved; radius=8, snr=5)
 
 Wire up the mouse and keyboard, and draw the summary panel at `panel`. The current line is
 the one that picking, moving, erasing, renaming and deleting act on; line `0` is the vacant
 slot at the end, and picking there creates a new multiplet.
 """
-function attach!(p::PeakTracker, textbox, panel; radius=8, snr=5)
+function attach!(p::PeakTracker, textbox, panel, saved; radius=8, snr=5)
     ax, v, s, found, aligned = p.axis, p.view, p.series, p.tracks, p.aligned
     n = length(s)
 
-    # start on the reference, unless it comes from another analysis
+    # an external reference comes from another analysis and can't be selected here
     indirect = p.reference isa IndirectReference
-    start = indirect ? (nmultiplets(found[]) > 1 ? first(linesof(found[], 2)) : 0) :
-            first(linesof(found[], REF))
-    current = Observable(start)
+    # start on the first peak, or the vacant slot if there is none yet
+    current = Observable(nmultiplets(found[]) > 1 ? first(navorder(found[], 2)) : 0)
     renaming = Observable{Union{Nothing,String}}(nothing)
     grouping = Observable(false)
     r = Observable(Float32(radius))
@@ -268,7 +305,11 @@ function attach!(p::PeakTracker, textbox, panel; radius=8, snr=5)
     on(_ -> foreach(h -> reheight!(h, s), history), v.revision)
 
     # every line in the order left and right step through them, then the vacant slot
-    slots() = [[l for m in eachindex(multiplets(found[])) for l in navorder(found[], m)]; 0]
+    function slots()
+        t = found[]
+        return [[l for m in eachindex(multiplets(t)) if !(indirect && m == REF)
+                 for l in navorder(t, m)]; 0]
+    end
     function select!(step)
         list = slots()
         k = something(findfirst(==(current[]), list), length(list))
@@ -327,8 +368,8 @@ function attach!(p::PeakTracker, textbox, panel; radius=8, snr=5)
             return
         end
         if isnothing(alignment(p))
-            missingplanes = [i for i in 1:n if isnothing(referencedshift(p, i, 0.0))]
-            @warn "The reference is needed in every plane before aligning" missingplanes
+            missingspectra = [i for i in 1:n if isnothing(referencedshift(p, i, 0.0))]
+            @warn "The reference is needed in every spectrum before aligning" missingspectra
             return
         end
         return aligned[] = true
@@ -362,7 +403,9 @@ function attach!(p::PeakTracker, textbox, panel; radius=8, snr=5)
     lines!(ax, live; linewidth=@lift(2 * $r),
            color=@lift(($erasing ? Makie.RGBAf(0.5, 0.5, 0.5, 1) : $highlight, 0.35)))
 
-    status = lift(statusline, found, current, renaming, grouping, r, aligned, snapping)
+    status = lift(found, current, renaming, grouping, r, aligned, snapping) do args...
+        return statusline(args...; external=indirect)
+    end
     ax.subtitle = status[]
     on(text -> ax.subtitle = text, status)
 
@@ -511,7 +554,9 @@ function attach!(p::PeakTracker, textbox, panel; radius=8, snr=5)
         t = found[]
         if Keyboard._0 ≤ ev.key ≤ Keyboard._9
             m = Int(ev.key) - Int(Keyboard._0) + 1   # key 0 is the reference
-            if m ≤ nmultiplets(t)
+            if indirect && m == REF
+                @warn "The reference comes from the 1H analysis, so it can't be selected here"
+            elseif m ≤ nmultiplets(t)
                 current[] = first(navorder(t, m))
             elseif m == nmultiplets(t) + 1
                 current[] = 0
@@ -544,10 +589,9 @@ function attach!(p::PeakTracker, textbox, panel; radius=8, snr=5)
         elseif ev.key == Keyboard.backspace && !isempty(history)
             found[] = pop!(history)
         elseif ev.key == Keyboard.s
-            dir = mkpath(joinpath(pwd(), p.outputdir[]))
-            path = joinpath(dir, "stack-$(Dates.format(now(), "yyyymmdd-HHMMSS")).pdf")
-            save(path, stackplot(p); backend=CairoMakie, pt_per_unit=1)
-            @info "Saved a figure of the displayed region" path = abspath(path)
+            savefolder!(p, saved)
+        elseif ev.key == Keyboard.f
+            savefigure!(p, saved)
         elseif ev.key == Keyboard.q
             quit!()
         end

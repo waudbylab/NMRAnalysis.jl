@@ -118,23 +118,5 @@ sources(s::SpectrumSeries) = s.sources
 "The planes processed from experiment `k`."
 planesfrom(s::SpectrumSeries, k) = findall(==(k), s.experiments)
 
-"""
-    displayscale(s; snr=5) -> Float64
-
-The intensity that fills one row of the stack at unit gain: the 90th percentile of the
-heights of the peaks above `snr` times the noise, across every plane. A percentile of peak
-heights rather than the largest point, so that residual water or a concentrated buffer does
-not flatten everything else when the whole spectrum is shown.
-"""
-function displayscale(s::SpectrumSeries; snr=5)
-    heights = Float64[]
-    for i in eachindex(s)
-        y = intensities(s, i)
-        threshold = snr * noiselevel(s, i)
-        for k in 2:(length(y) - 1)
-            y[k] ≥ y[k - 1] && y[k] > y[k + 1] && y[k] ≥ threshold && push!(heights, y[k])
-        end
-    end
-    isempty(heights) && return max(maximum(abs, s.intensities), eps())
-    return quantile(heights, 0.9)
-end
+"The intensity that fills one row of the stack at unit gain: the largest in the series."
+displayscale(s::SpectrumSeries) = max(maximum(abs, s.intensities), eps())

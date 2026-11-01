@@ -44,7 +44,7 @@ end
 function coordinatetable(nt::NamedTuple, n)
     for (name, v) in pairs(nt)
         isnothing(n) || length(v) == n ||
-            throw(DimensionMismatch("$(length(v)) values of $name for $n planes"))
+            throw(DimensionMismatch("$(length(v)) values of $name for $n spectra"))
     end
     return map(collect, nt)
 end
@@ -128,10 +128,10 @@ function IndirectReference(source::PeakTracker, s::SpectrumSeries)
         c = centre(t, REF, i)
         return isnothing(c) ? NaN : h.bf[i] * (1 + 1e-6c) / (1 + 1e-6r0)
     end
-    missingplanes = findall(isnan, frequencies)
-    isempty(missingplanes) ||
+    missingspectra = findall(isnan, frequencies)
+    isempty(missingspectra) ||
         @warn "The ¹H reference is not picked in every spectrum, so these are not " *
-              "referenced" missingplanes
+              "referenced" missingspectra
     return IndirectReference(frequencies, multiplets(t)[REF].label)
 end
 
@@ -285,10 +285,10 @@ end
 
 # ---------------------------------------------------------------- summary panel
 
-"The first numeric coordinate and its name, or the plane numbers and `\"plane\"`."
+"The first numeric coordinate and its name, or the spectrum numbers and `\"spectrum\"`."
 function xcoordinate(p::PeakTracker)
     name = findfirst(v -> eltype(v) <: Real, p.coordinates)
-    isnothing(name) && return collect(1.0:nplanes(p)), "plane"
+    isnothing(name) && return collect(1.0:nplanes(p)), "spectrum"
     return Float64.(p.coordinates[name]), string(name)
 end
 
@@ -386,7 +386,7 @@ is undefined, for reading rather than computing with.
 """
 function widetable(p::PeakTracker; digits=4)
     t, n = tracks(p), nplanes(p)
-    header = String["plane"; [string(k) for k in keys(p.coordinates)]]
+    header = String["spectrum"; [string(k) for k in keys(p.coordinates)]]
     columns = Vector{String}[string.(1:n)]
     for v in values(p.coordinates)
         push!(columns, [roundcell(x; digits) for x in v])

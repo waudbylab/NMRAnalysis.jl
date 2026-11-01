@@ -67,7 +67,7 @@ function restore(s::SpectrumSeries, header, rows; reference="reference",
         i, δ = tryparse(Int, row[jp]), tryparse(Float64, row[js])
         (isnothing(i) || isnothing(δ)) && continue
         if !(1 ≤ i ≤ length(s))
-            @warn "Plane $i of $lbl in $path is not in the data, so it was skipped"
+            @warn "Spectrum $i of $lbl in $path is not in the data, so it was skipped"
             continue
         end
         setpick!(t, l, exact(s, i, δ))
@@ -154,7 +154,7 @@ function writesummary(path::AbstractString, p::PeakTracker, folder)
         end
         println(io)
         println(io, referencetext(p), ": ",
-                allreferenced(p) ? "available in every plane" : "missing in some planes")
+                allreferenced(p) ? "available in every spectrum" : "missing in some spectra")
         p.aligned[] && println(io, "Spectra shown aligned to the reference")
         println(io)
         println(io, "Multiplets (centres as measured, ppm):")
@@ -165,7 +165,7 @@ function writesummary(path::AbstractString, p::PeakTracker, folder)
             span = isempty(cs) ? "no centre" : "$(fmt(minimum(cs))) to $(fmt(maximum(cs)))"
             println(io,
                     "  $(rpad(mp.label, 16)) $(length(ls)) line$(length(ls) == 1 ? "" : "s")" *
-                    "   $(length(cs)) of $n planes   $span")
+                    "   $(length(cs)) of $n spectra   $span")
         end
         isnothing(p.call) && return
         extra = [:peaklist => repr(joinpath(folder, "peaklist.csv"))]
@@ -185,6 +185,19 @@ function writesummary(path::AbstractString, p::PeakTracker, folder)
     return path
 end
 
+"""
+Copy the figures saved with the `f` key (`figure-*.pdf`) from the earlier folder that
+`backupfolder` has just moved aside into the new one, so that they stay with the analysis.
+"""
+function copyfigures(dir)
+    previous = rstrip(abspath(dir), ['/', '\\']) * "_previous"
+    isdir(previous) || return dir
+    for name in readdir(previous)
+        occursin(r"^figure-.*\.pdf$", name) && cp(joinpath(previous, name), joinpath(dir, name))
+    end
+    return dir
+end
+
 "Heading `heights.csv`, since a height is easily mistaken for an integral or an amplitude."
 const HEIGHTNOTE = "Heights: the intensity at each line's maximum, divided by scale(spec) " *
                    "(ns x rg, and the concentration where recorded); heights, not " *
@@ -198,10 +211,12 @@ reads back), `series.csv` (every line in every plane), the wide files `shifts.cs
 `referencedshifts.csv` (once the reference is picked anywhere) and `heights.csv` (see
 [`linetable`](@ref)), `processing.csv` for time-domain data, `stack.pdf` (the region shown
 in the window), and in `peaks/` one CSV and one plot per multiplet. An existing folder is
-moved aside first. Returns the folder.
+moved aside first, and the figures saved into it with the `f` key are copied across.
+Returns the folder.
 """
 function saveanalysis(p::PeakTracker, folder::AbstractString)
     dir = backupfolder(folder)
+    copyfigures(dir)
     comments = analysisinfo(p)
     writetable(joinpath(dir, "peaklist.csv"), comments, peaklisttable(p)...)
     header, rows = seriestable(p)
