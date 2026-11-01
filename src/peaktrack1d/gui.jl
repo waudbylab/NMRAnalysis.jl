@@ -104,9 +104,7 @@ function openwindow(s::SpectrumSeries, processing; labels=String[],
     coords = coordinatetable(coordinates, length(s))
     reflabel, ref = referencing(reference, refshift, s)
     t = initialtracks(s, peaklist, reflabel, String[cleanlabel(l) for l in labels])
-    # an external reference is named by the analysis it comes from, whatever a peak list says
-    ref isa IndirectReference && !(reflabel in multipletlabels(t)) &&
-        relabel!(t, REF, reflabel)
+    ref isa IndirectReference && makeexternal!(t, reflabel)
 
     # CairoMakie, loaded for saving figures, would otherwise take over
     GLMakie.activate!(; focus_on_show=true, title=windowname("1D peak tracking"))

@@ -204,6 +204,28 @@ underscore separates a quantity from a tag (see `docs/src/advanced/conventions.m
 cleanlabel(name::AbstractString) = replace(sanitizelabel(strip(name)), '_' => '-')
 
 """
+    makeexternal!(t, label) -> Tracks
+
+Make the reference an empty slot called `label`, for a reference taken from another
+analysis. A reference already picked in `t`, as an earlier peak list may hold, becomes an
+ordinary multiplet after it, so that its picks keep their own name rather than being
+relabelled.
+"""
+function makeexternal!(t::Tracks, label)
+    old = t.multiplets[REF]
+    if any(l -> haspicks(t, l), old.lines)
+        name = old.label in (label, DEFAULTREFERENCE) ? vacantname(multipletlabels(t)) :
+               old.label
+        insert!(t.multiplets, REF + 1, Multiplet(name, old.lines))
+        t.multiplets[REF] = Multiplet(cleanlabel(label), [t.nextline])
+        t.nextline += 1
+    else
+        relabel!(t, REF, label)
+    end
+    return t
+end
+
+"""
     relabel!(t, m, name) -> Bool
 
 Rename multiplet `m`, cleaning the name with [`cleanlabel`](@ref). Returns `false`,

@@ -22,7 +22,7 @@ using NMRAnalysis.PeakTrack1D: coordinatetable, seriestable, peaklisttable, clip
                                restore, readtable, saveanalysis, exptfolder,
                                callcoordinates,
                                p1outliers, P1TOLERANCE, neighbourphase, p0outliers,
-                               wrap180
+                               wrap180, fixphases!, makeexternal!
 using NMRAnalysis.PeakTrack1D: PickedReference, IndirectReference, referencing, alignment,
                                allreferenced, hertz, xiratio, referencename, spectralist,
                                ppmtext
@@ -239,6 +239,14 @@ end
     @test p0outliers([179.0, -179.0, 178.0, -178.0, 0.0])[2] == [5]
     @test isempty(p0outliers([0.0, 90.0])[2])   # too few to judge
     @test wrap180(190.0) ≈ -170 && wrap180(-190.0) ≈ 170
+
+    # outliers are repaired before a failed experiment borrows its neighbours' phase, so it
+    # can't inherit an outlier's
+    phases = Any[(0.0, 0.0), (2.0, 0.0), (-1.0, 0.0), (160.0, 0.0), nothing]
+    phasing = [:auto, :auto, :auto, :auto, :failed]
+    fixed, how = fixphases!(phases, phasing, fill(nothing, 5); refit=(fid, p1; kw...) -> nothing)
+    @test all(abs(wrap180(p[1])) < 5 for p in fixed)
+    @test how == [:auto, :auto, :auto, :neighbours, :neighbours]
 end
 
 # ---- the brush ------------------------------------------------------------------
@@ -349,12 +357,36 @@ end
     three = SpectrumSeries(δaxis, s.intensities[:, 1:3], ones(3), fill("f", 3), 1:3;
                            bf=ΞF * bfH, xi=ΞF)
     @test_throws DimensionMismatch IndirectReference(h, three)
+    @test_throws DimensionMismatch SpectrumSeries(δaxis, s.intensities, ones(4), fill("f", 4),
+                                                  1:4; bf=[bfH], xi=ΞF)
+
+    # the field is judged from BF1, so an axis re-referenced by 300 ppm still matches
+    h1 = tracker(SpectrumSeries(δaxis, s.intensities, ones(4), fill("h", 4), 1:4; bf=bfH,
+                                bf1=bfH, xi=1.0), t)
+    shifted = SpectrumSeries(δaxis, s.intensities, ones(4), fill("f", 4), 1:4;
+                             bf=ΞF * bfH * (1 + 300e-6), bf1=ΞF * bfH, xi=ΞF)
+    @test IndirectReference(h1, shifted) isa IndirectReference
+    elsewhere = SpectrumSeries(δaxis, s.intensities, ones(4), fill("f", 4), 1:4;
+                               bf=ΞF * bfH, bf1=ΞF * 500.13e6, xi=ΞF)
+    @test_throws ArgumentError IndirectReference(h1, elsewhere)
     otherfield = SpectrumSeries(δaxis, s.intensities, ones(4), fill("f", 4), 1:4;
                                 bf=ΞF * 500.13e6, xi=ΞF)
     @test_throws ArgumentError IndirectReference(h, otherfield)
     @test_throws ArgumentError IndirectReference(f, fs)                         # not picked
     @test_throws ArgumentError IndirectReference(tracker(fs, Tracks(["X"])), fs) # not 1H
     @test_throws ArgumentError IndirectReference(h, makeseries())               # no Ξ
+
+    # a reference picked in an earlier peak list stays a peak of its own when the reference
+    # comes from elsewhere, rather than having its picks relabelled
+    local3 = Tracks(["TFA"])
+    setpick!(local3, 1, Pick(1, -76.5, 1.0))
+    addmultiplet!(local3, "peak1")
+    makeexternal!(local3, "DSS")
+    @test multipletlabels(local3) == ["DSS", "TFA", "peak1"]
+    @test !haspicks(local3, only(linesof(local3, REF)))
+    @test pickat(local3, 1, 1).shift == -76.5 && multipletof(local3, 1) == 2
+    empty3 = makeexternal!(Tracks(["reference"]), "DSS")
+    @test multipletlabels(empty3) == ["DSS"]
 
     # the reference keyword
     @test referencing("D_SS", 0.5, fs) == ("D-SS", PickedReference(0.5))

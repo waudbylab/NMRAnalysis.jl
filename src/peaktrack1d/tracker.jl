@@ -121,10 +121,14 @@ function IndirectReference(source::PeakTracker, s::SpectrumSeries)
     for i in eachindex(s)
         isfinite(h.bf[i]) && isfinite(s.bf[i]) ||
             throw(ArgumentError("the base frequency of spectrum $i is not known"))
-        abs(s.bf[i] / (s.xi * h.bf[i]) - 1) < FIELDTOLERANCE ||
+        # the field is judged from the acquisition base frequencies, which the processing
+        # reference SR does not move, wherever both are recorded
+        fx, fh = isfinite(s.bf1[i]) && isfinite(h.bf1[i]) ? (s.bf1[i], h.bf1[i]) :
+                 (s.bf[i], h.bf[i])
+        abs(fx / (s.xi * fh) - 1) < FIELDTOLERANCE ||
             throw(ArgumentError("spectrum $i was recorded at a different field from ¹H " *
-                                "spectrum $i: $(round(1e-6s.bf[i]; digits=3)) MHz " *
-                                "$(s.nucleus) against $(round(1e-6h.bf[i]; digits=3)) MHz ¹H"))
+                                "spectrum $i: $(round(1e-6fx; digits=3)) MHz " *
+                                "$(s.nucleus) against $(round(1e-6fh; digits=3)) MHz ¹H"))
     end
     t = tracks(source)
     r0 = source.reference.shift

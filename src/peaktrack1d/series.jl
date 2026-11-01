@@ -2,7 +2,7 @@
 
 """
     SpectrumSeries(shifts, intensities, noise, sources, experiments; nucleus="1H", title="",
-                   bf=NaN, xi=NaN)
+                   bf=NaN, bf1=NaN, xi=NaN)
     SpectrumSeries(spectra)
 
 The data behind the stack: a shared chemical shift axis (ppm), the real intensities with
@@ -10,9 +10,10 @@ one column per plane, the rms noise of each plane, the file each plane came from
 index of the experiment each plane belongs to. A pseudo-2D experiment contributes several
 planes with one experiment index, which is what lets it be processed with one phase.
 
-For referencing across nuclei it also holds each plane's base frequency `bf` (Hz, the
-frequency of 0 ppm on its axis) and the nucleus's Ξ ratio on the DSS scale, `NaN` where
-unknown.
+For referencing across nuclei it also holds, for each plane, the frequency of 0 ppm on its
+axis `bf` (Hz, which moves with the processing reference SR), the spectrometer's base
+frequency for the nucleus `bf1` (Hz, from the acquisition parameter BF1, which does not),
+and the nucleus's Ξ ratio on the DSS scale, each `NaN` where unknown.
 
 Built from a vector of processed spectra, 1D or pseudo-2D, whose shift axes must agree.
 Intensities and noise are divided by NMRTools' `scale(spec)` (number of scans × receiver
@@ -30,21 +31,24 @@ struct SpectrumSeries
     nucleus::String
     title::String
     bf::Vector{Float64}
+    bf1::Vector{Float64}
     xi::Float64
 end
 
 function SpectrumSeries(shifts, intensities, noise, sources, experiments; nucleus="1H",
-                        title="", bf=NaN, xi=NaN)
+                        title="", bf=NaN, bf1=NaN, xi=NaN)
     n = size(intensities, 2)
     length(shifts) == size(intensities, 1) ||
         throw(DimensionMismatch("$(length(shifts)) shifts for $(size(intensities, 1)) points"))
     length(noise) == length(sources) == length(experiments) == n ||
         throw(DimensionMismatch("noise, sources and experiments must have one entry per plane"))
+    perplane(x, name) = x isa Real ? fill(Float64(x), n) :
+                        length(x) == n ? collect(Float64, x) :
+                        throw(DimensionMismatch("$(length(x)) values of $name for $n spectra"))
     return SpectrumSeries(collect(Float64, shifts), Matrix{Float64}(intensities),
                           collect(Float64, noise), collect(String, sources),
                           collect(Int, experiments), String(nucleus), String(title),
-                          bf isa Real ? fill(Float64(bf), n) : collect(Float64, bf),
-                          Float64(xi))
+                          perplane(bf, "bf"), perplane(bf1, "bf1"), Float64(xi))
 end
 
 function SpectrumSeries(spectra::AbstractVector{<:NMRData})
@@ -65,6 +69,7 @@ function SpectrumSeries(spectra::AbstractVector{<:NMRData})
                           nucleus=string(something(label(dims(spec, 1)), "1H")),
                           title=string(something(label(spec), "")),
                           bf=reduce(vcat, [fill(b.bf, size(b.y, 2)) for b in blocks]),
+                          bf1=reduce(vcat, [fill(b.bf1, size(b.y, 2)) for b in blocks]),
                           xi=xiratio(metadata(dims(spec, 1), :nucleus)))
 end
 
@@ -91,7 +96,9 @@ function planesof(spec::NMRData)
     y = Matrix{Float64}(reshape(real.(data(spec)), length(δ), :)) ./ f
     σ = spec[:noise]
     noise = isnothing(σ) ? map(noiselevel, eachcol(y)) : fill(Float64(σ / f), size(y, 2))
-    return (; shifts=δ, y, noise, bf=hertz(metadata(dims(spec, 1), :bf)),
+    acquisition = metadata(spec, :acqus)
+    bf1 = acquisition isa AbstractDict ? get(acquisition, :bf1, nothing) : nothing
+    return (; shifts=δ, y, noise, bf=hertz(metadata(dims(spec, 1), :bf)), bf1=hertz(bf1),
             source=string(something(spec[:filename], spec[:title], "")))
 end
 

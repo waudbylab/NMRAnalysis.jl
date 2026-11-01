@@ -131,7 +131,7 @@ which happens to a single line broadened by exchange near a pKa or a binding mid
 zero-order phase is then fitted the same way at a lower signal-to-noise threshold, and
 failing that taken from the neighbouring experiments in the series.
 """
-function fixphases!(phases, phasing, fids; kw...)
+function fixphases!(phases, phasing, fids; refit=refitzero, kw...)
     ok = findall(!isnothing, phases)
     if isempty(ok)
         @warn "No experiment could be phased automatically; pass phase= to set the phases"
@@ -140,7 +140,7 @@ function fixphases!(phases, phasing, fids; kw...)
     med, outliers = p1outliers([phases[k][2] for k in ok])
     for k in ok[outliers]
         p1 = phases[k][2]
-        p0 = refitzero(fids[k], med; kw...)
+        p0 = refit(fids[k], med; kw...)
         if isnothing(p0)
             @warn "The first-order phase of experiment $k, $(round(p1; digits=1))°, is far " *
                   "from the series median of $(round(med; digits=1))°, but its zero-order " *
@@ -154,26 +154,29 @@ function fixphases!(phases, phasing, fids; kw...)
         phasing[k] = :refit
     end
     for k in findall(isnothing, phases)
-        p0 = refitzero(fids[k], med; snr=5, kw...)
-        if isnothing(p0)
-            p0 = neighbourphase(phases, ok, k)
-            phasing[k] = :neighbours
-            @warn "Experiment $k could not be phased automatically, so it takes the " *
-                  "zero-order phase of its neighbours in the series, $(round(p0; digits=1))°"
-        else
-            phasing[k] = :refit
-            @info "Experiment $k could not be phased automatically, so its zero-order phase " *
-                  "was fitted with the first-order phase fixed at the series median"
-        end
+        p0 = refit(fids[k], med; snr=5, kw...)
+        isnothing(p0) && continue
+        @info "Experiment $k could not be phased automatically, so its zero-order phase " *
+              "was fitted with the first-order phase fixed at the series median"
         phases[k] = (p0, med)
+        phasing[k] = :refit
     end
-    centre, outliers = p0outliers([phases[k][1] for k in ok])
-    good = setdiff(ok, ok[outliers])
-    for k in ok[outliers]
+    # outliers are repaired before any phase is borrowed, so none is borrowed from one
+    fitted = findall(!isnothing, phases)
+    centre, outliers = p0outliers([phases[k][1] for k in fitted])
+    good = setdiff(fitted, fitted[outliers])
+    for k in fitted[outliers]
         p0 = neighbourphase(phases, good, k)
         @warn "The zero-order phase of experiment $k, $(round(phases[k][1]; digits=1))°, is " *
               "far from the rest of the series, around $(round(centre; digits=1))°, so it " *
               "takes the zero-order phase of its neighbours, $(round(p0; digits=1))°"
+        phases[k] = (p0, med)
+        phasing[k] = :neighbours
+    end
+    for k in findall(isnothing, phases)
+        p0 = neighbourphase(phases, good, k)
+        @warn "Experiment $k could not be phased automatically, so it takes the zero-order " *
+              "phase of its neighbours in the series, $(round(p0; digits=1))°"
         phases[k] = (p0, med)
         phasing[k] = :neighbours
     end
