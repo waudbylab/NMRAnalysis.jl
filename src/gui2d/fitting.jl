@@ -1,7 +1,9 @@
 # Lineshape fitting, shared by every 2D experiment.
 #
-# A peak is the product of two one-dimensional lineshapes, truncated at its fitting radius
-# and scaled by π²·R2x·R2y so that its amplitude is the peak height. The model is therefore
+# A peak is the product of two one-dimensional lineshapes, scaled by π²·R2x·R2y so that its
+# amplitude is the peak height. It is evaluated at every point of its cluster's mask, which
+# lies about where the peaks were placed: the fitting region does not move with the fitted
+# positions, and every peak's tails reach every masked point. The model is therefore
 # linear in the amplitudes, which are solved for exactly at every step of the nonlinear fit
 # of positions and linewidths (variable projection: Golub & Pereyra, SIAM J. Numer. Anal.
 # 10, 413 (1973); O'Leary & Rust, Comput. Optim. Appl. 54, 579 (2013)). For a fixed-peak
@@ -45,19 +47,30 @@ function PlaneGrid(expt::Experiment, i, xrange=Colon(), yrange=Colon())
 end
 
 """
-    peakshape(grid, x0, y0, R2x, R2y, xradius, yradius) -> (xi, yi, block)
+    peakshape(grid, x0, y0, R2x, R2y) -> Matrix
 
-A unit-amplitude peak on `grid`: `block` holds its values on the rows `xi` and columns
-`yi` lying within the radii of `(x0, y0)`, and it is zero elsewhere.
+A unit-amplitude peak at every point of `grid`.
 """
-function peakshape(g::PlaneGrid, x0, y0, R2x, R2y, xradius, yradius)
-    xi = findall(x -> abs(x - x0) ≤ xradius, g.x)
-    yi = findall(y -> abs(y - y0) ≤ yradius, g.y)
-    zx = NMRTools.NMRBase._lineshape(2π * hz(x0, g.xaxis), R2x, g.ωx[xi],
-                                     g.xaxis[:window], RealLineshape())
-    zy = NMRTools.NMRBase._lineshape(2π * hz(y0, g.yaxis), R2y, g.ωy[yi],
-                                     g.yaxis[:window], RealLineshape())
-    return xi, yi, (π^2 * R2x * R2y) .* (zx .* zy')
+function peakshape(g::PlaneGrid, x0, y0, R2x, R2y)
+    zx = NMRTools.NMRBase._lineshape(2π * hz(x0, g.xaxis), R2x, g.ωx, g.xaxis[:window],
+                                     RealLineshape())
+    zy = NMRTools.NMRBase._lineshape(2π * hz(y0, g.yaxis), R2y, g.ωy, g.yaxis[:window],
+                                     RealLineshape())
+    return (π^2 * R2x * R2y) .* (zx .* zy')
+end
+
+"""
+    displaygrid(peak, expt, i) -> (xi, yi, grid)
+
+The rows `xi` and columns `yi` of plane `i` within twice the radii of where `peak` was
+placed, and their grid: its mask, and the window of its radii about any position the fit can
+reach, which the cross-sections show.
+"""
+function displaygrid(peak::Peak, expt::Experiment, i)
+    x0, y0 = initialposition(peak)[i]
+    xi = findall(x -> abs(x - x0) ≤ 2 * peak.xradius[], expt.specdata.x[i])
+    yi = findall(y -> abs(y - y0) ≤ 2 * peak.yradius[], expt.specdata.y[i])
+    return xi, yi, PlaneGrid(expt, i, xi, yi)
 end
 
 """
@@ -100,8 +113,8 @@ function simulate!(z, peak::Peak, expt::Experiment)
     cached = nothing
     for i in 1:nslices(expt)
         if isnothing(cached) || !hasfixedpositions(expt) || !samegrid(expt, i, i - 1)
-            radii = (peak.xradius[], peak.yradius[])
-            cached = peakshape(PlaneGrid(expt, i), shapeparams(peak, i)..., radii...)
+            xi, yi, grid = displaygrid(peak, expt, i)
+            cached = (xi, yi, peakshape(grid, shapeparams(peak, i)...))
         end
         xi, yi, block = cached
         z[i][xi, yi] .+= amp[i] .* block
@@ -115,9 +128,10 @@ end
     FitGroup
 
 Planes of a cluster sharing one grid and one mask, and so one design matrix, whose column
-`p` is peak `p` at unit amplitude over the masked points. `z` holds the observed points of
-each plane, and `active` marks the planes that constrain the lineshapes; a skipped plane
-still has its amplitudes measured, at the shapes the others determined.
+`p` is peak `p` at unit amplitude over the masked points. `grid` spans the bounding box of
+the mask, `z` holds the observed points of each plane, and `active` marks the planes that
+constrain the lineshapes; a skipped plane still has its amplitudes measured, at the shapes
+the others determined.
 """
 struct FitGroup
     grid::PlaneGrid
@@ -156,21 +170,16 @@ function fitgroups(expt::Experiment, masks, planes; skip=Set{Int}())
 end
 
 """
-    designmatrix(group, φ, radii) -> Matrix
+    designmatrix(group, φ) -> Matrix
 
 The design matrix of `group` for peak shapes `φ` (x, y, R2x and R2y of each peak in turn).
 """
-function designmatrix(g::FitGroup, φ, radii)
-    A = zeros(count(g.mask), length(radii))
-    block = zeros(length(g.grid.x), length(g.grid.y))
-    for p in eachindex(radii)
-        xi, yi, b = peakshape(g.grid, φ[4p - 3], φ[4p - 2], φ[4p - 1], φ[4p], radii[p]...)
-        fill!(block, 0.0)
-        block[xi, yi] .= b
-        A[:, p] .= view(vec(block), g.mask)
-    end
-    return A
+function designmatrix(g::FitGroup, φ)
+    return stack(designcolumn(g, φp) for φp in Iterators.partition(φ, 4))
 end
+
+"The column of the design matrix of `group` for one peak of shape `φp`."
+designcolumn(g::FitGroup, φp) = vec(peakshape(g.grid, φp...))[g.mask]
 
 "Least-squares amplitudes, one column per plane, tolerating coincident peaks."
 amplitudes(A, Z) = qr(A, ColumnNorm()) \ Z
@@ -233,7 +242,6 @@ called at every step and throws to stop the fit; nothing is written to the peaks
 """
 function fitshapes(peaks, groups, i, check; warm=false)
     f = ShapeFit(peaks, i, first(groups).grid)
-    radii = [(p.xradius[], p.yradius[]) for p in peaks]
     φ0 = reduce(vcat, [collect(shapeparams(p, i, warm ? :value : :initial)) for p in peaks])
     θ0 = clamp.((φ0 .- f.origin) ./ f.scale, f.lower, f.upper)
     fitted = [(g, g.z[:, g.active]) for g in groups if any(g.active)]
@@ -243,7 +251,7 @@ function fitshapes(peaks, groups, i, check; warm=false)
         φ = physical(f, θ)
         r = Float64[]
         for (g, Z) in fitted
-            A = designmatrix(g, φ, radii)
+            A = designmatrix(g, φ)
             append!(r, vec(Z .- A * amplitudes(A, Z)))
         end
         return r
@@ -254,7 +262,7 @@ function fitshapes(peaks, groups, i, check; warm=false)
     θ = coef(sol)
     check()
     φ = physical(f, θ)
-    σθ, amps, σamps = uncertainties(groups, f, θ, radii, check)
+    σθ, amps, σamps = uncertainties(groups, f, θ, check)
 
     atbound = any(j -> θ[j] ≤ f.lower[j] + 1e-6 * abs(f.lower[j]) + 1e-9 ||
                        θ[j] ≥ f.upper[j] - 1e-6 * abs(f.upper[j]) - 1e-9,
@@ -264,7 +272,7 @@ function fitshapes(peaks, groups, i, check; warm=false)
 end
 
 """
-    uncertainties(groups, f, θ, radii, check) -> (σθ, amps, σamps)
+    uncertainties(groups, f, θ, check) -> (σθ, amps, σamps)
 
 Standard errors of the shapes and of every plane's amplitudes, from the covariance of the
 full problem, σ²(JᵀJ)⁻¹ with σ² estimated from the residuals. The amplitude blocks of JᵀJ
@@ -282,7 +290,7 @@ its own (a moving peak, or a single spectrum) both are kept. `amps` and `σamps`
 plane to one value per peak. Errors are `NaN` where the data do not determine them. `check`
 is called as in [`fitshapes`](@ref), so that this phase can also be stopped.
 """
-function uncertainties(groups, f::ShapeFit, θ, radii, check)
+function uncertainties(groups, f::ShapeFit, θ, check)
     nθ = length(θ)
     φ = physical(f, θ)
     S = zeros(nθ, nθ)
@@ -290,7 +298,7 @@ function uncertainties(groups, f::ShapeFit, θ, radii, check)
     npoints = 0
     nlinear = 0
     cached = map(groups) do g
-        A = designmatrix(g, φ, radii)
+        A = designmatrix(g, φ)
         a = amplitudes(A, g.z)
         # dA[j] is the derivative of the one column of A that shape parameter j changes
         dA = map(1:nθ) do j
@@ -301,8 +309,9 @@ function uncertainties(groups, f::ShapeFit, θ, radii, check)
             θp[j] += h
             θm[j] -= h
             p = cld(j, 4)
-            return (designmatrix(g, physical(f, θp), radii)[:, p] .-
-                    designmatrix(g, physical(f, θm), radii)[:, p]) ./ (2h)
+            idx = (4p - 3):(4p)
+            return (designcolumn(g, physical(f, θp)[idx]) .-
+                    designcolumn(g, physical(f, θm)[idx])) ./ (2h)
         end
         Ginv = covinverse(A' * A)
         Ds = map(eachindex(g.planes)) do k

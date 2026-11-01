@@ -88,7 +88,9 @@ Peak markers are colour-coded:
 ## How peaks are fitted
 
 Overlapping peaks are fitted together, as a cluster. Each peak is a 2D lineshape with a
-position and linewidth in each dimension, truncated at its fitting radius. Its amplitude
+position and linewidth in each dimension. The cluster is fitted to the points within the
+fitting radius of where you placed its peaks (the shaded region), and every peak's
+lineshape, tails included, contributes at each of those points. Its amplitude
 in each plane is solved for exactly at every step of the fit, so for a series of fixed
 peaks only the positions and linewidths are optimised, however many planes there are.
 With more than one Julia thread (start Julia with `julia -t auto`), clusters are fitted in
