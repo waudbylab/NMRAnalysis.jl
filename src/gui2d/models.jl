@@ -17,6 +17,9 @@ struct RecoveryModel <: ParametricModel
     xlabel::String
 end
 
+analysisname(::ExponentialModel) = "relaxation"
+analysisname(::RecoveryModel) = "magnetisation recovery"
+
 # I(τ) = A(1 - C exp(-Rτ)): A from the most recovered point, C from the first (y₀ = A(1 - C),
 # so C ≈ 1 for saturation and 2 for inversion), and R from the time to recover half way,
 # where exp(-Rτ) = 1/2
