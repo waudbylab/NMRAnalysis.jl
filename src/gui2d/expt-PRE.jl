@@ -153,10 +153,14 @@ function peakmodel(expt::PREExperiment, cond, R2x, R2y, extras)
     return transverseplane(expt, cond.c, R2x, R2y, extras[1])
 end
 
-referenceplanes(expt::PREExperiment, i) = filter(j -> expt.concentrations[j] == 0,
-                                                 usedplanes(expt))
-planelabel(expt::PREExperiment, i) = expt.paired ? "Paramagnetic" :
-                                     "c = $(expt.concentrations[i])"
+function referenceplanes(expt::PREExperiment, i)
+    return filter(j -> expt.concentrations[j] == 0,
+                  usedplanes(expt))
+end
+function planelabel(expt::PREExperiment, i)
+    return expt.paired ? "Paramagnetic" :
+           "c = $(expt.concentrations[i])"
+end
 
 function summarypanels(expt::PREExperiment, peaks)
     return [ratepanel(expt, peaks, :PRE, "Γ₂"), intensitypanel(expt, peaks),
@@ -181,7 +185,8 @@ function drawcurve!(ax, peak, expt::PREExperiment)
     peak.postfitted[] || return nothing
     φp = fitvalues(peak, expt)
     cs = range(0, 1.05 * maximum(c), 100)
-    return lines!(ax, cs, [peakmodel(expt, (c=ci,), φp[3], φp[4], φp[5:end])[3] for ci in cs];
+    return lines!(ax, cs,
+                  [peakmodel(expt, (c=ci,), φp[3], φp[4], φp[5:end])[3] for ci in cs];
                   color=:red)
 end
 

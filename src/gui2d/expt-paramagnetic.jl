@@ -62,8 +62,10 @@ function transverseplane(expt::ParamagneticExperiment, c, R2x, R2y, Γ2)
 end
 
 # The fitted parameters of a peak, in the order the fit holds them
-fitparamnames(expt::ParamagneticExperiment) = [:x, :y, :R2x0, :R2y0,
-                                               (m.key for m in modelparameters(expt))...]
+function fitparamnames(expt::ParamagneticExperiment)
+    return [:x, :y, :R2x0, :R2y0,
+            (m.key for m in modelparameters(expt))...]
+end
 npeakparams(expt::ParamagneticExperiment) = 4 + length(modelparameters(expt))
 fitvalues(peak, expt) = [peak.parameters[s].value[][1] for s in fitparamnames(expt)]
 
@@ -251,8 +253,9 @@ end
 
 # the planes of `fitted` ((group, positions in group) pairs) stacked in turn
 function modeldesign(expt, fitted, φ, radii)
-    return reduce(vcat, [planedesign(expt, g, g.planes[k], φ, radii)
-                         for (g, ks) in fitted for k in ks])
+    return reduce(vcat,
+                  [planedesign(expt, g, g.planes[k], φ, radii)
+                   for (g, ks) in fitted for k in ks])
 end
 observed(fitted) = reduce(vcat, [vec(g.z[:, ks]) for (g, ks) in fitted])
 
@@ -355,7 +358,7 @@ end
 function commitmodel!(peaks, expt::ParamagneticExperiment, r)
     k = npeakparams(expt)
     names = fitparamnames(expt)
-    setvalue!(par, i, v, e) = (par.value[][i] = v; par.uncertainty[][i] = e)
+    setvalue!(par, i, v, e) = (par.value[][i]=v; par.uncertainty[][i]=e)
     for (p, peak) in enumerate(peaks)
         for (j, sym) in enumerate(names)
             setvalue!(peak.parameters[sym], 1, r.φ[k * (p - 1) + j], r.σφ[k * (p - 1) + j])
@@ -526,7 +529,7 @@ function summaryplot(expt::ParamagneticExperiment; param=nothing, title="", size
     end
     atoms = has_atom_labels(p.label[] for p in peaks)
     if atoms
-        peaks = sort(peaks; by=p -> (l = parse_label(p.label[]); (l.resnum, l.atom)))
+        peaks = sort(peaks; by=p -> (l=parse_label(p.label[]); (l.resnum, l.atom)))
     end
     xs = atoms ? collect(1.0:length(peaks)) :
          Float64[parse_label(p.label[]).resnum for p in peaks]

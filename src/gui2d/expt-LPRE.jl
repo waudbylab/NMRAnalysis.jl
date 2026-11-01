@@ -182,7 +182,8 @@ function recoverytimes(spectra, recycledelays; prompt)
         return τ
     end
     τ = map(spectra) do spec
-        d1, td, swh = acqusvalue(spec, :d, 1), acqusvalue(spec, :td), acqusvalue(spec, :sw_h)
+        d1, td, swh = acqusvalue(spec, :d, 1), acqusvalue(spec, :td),
+                      acqusvalue(spec, :sw_h)
         return any(isnothing, (d1, td, swh)) ? nothing : d1 + td / (2 * swh)
     end
     any(isnothing, τ) || return Vector{Float64}(τ)
@@ -200,8 +201,10 @@ function modelparameters(expt::LPREExperiment)
              upper=1000.0 / cmax, scale=1 / cmax)]
 end
 
-planecondition(expt::LPREExperiment, i) = (c=expt.concentrations[i],
-                                           τ=expt.recoverytimes[i])
+function planecondition(expt::LPREExperiment, i)
+    return (c=expt.concentrations[i],
+            τ=expt.recoverytimes[i])
+end
 
 """
     peakmodel(expt::LPREExperiment, cond, R2x, R2y, (R1, Γ1, Γ2)) -> (R2x, R2y, height)
@@ -240,7 +243,7 @@ end
 
 crosssectionview(::LPREExperiment) = false
 haslegend(::LPREExperiment) = true
-legendposition(::LPREExperiment) = :rb
+legendposition(::LPREExperiment) = :lt
 curvelabels(::LPREExperiment) = (xlabel="Recovery time / s", ylabel="Peak height")
 
 function drawcurve!(ax, peak, expt::LPREExperiment)
