@@ -30,7 +30,7 @@ different data. Lines are numbered within their multiplet as they were saved. Th
 marked as the reference comes first; without one, an empty reference called `reference`
 is added.
 """
-function restore(s::SpectrumSeries, header, rows; reference="reference",
+function restore(s::SpectrumSeries, header, rows; reference=DEFAULTREFERENCE,
                  path="the peak list")
     jl = columnindex(header, "label", path)
     jr = columnindex(header, "reference", path)

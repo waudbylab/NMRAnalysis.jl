@@ -24,7 +24,8 @@ using NMRAnalysis.PeakTrack1D: coordinatetable, seriestable, peaklisttable, clip
                                p1outliers, P1TOLERANCE, neighbourphase, p0outliers,
                                wrap180
 using NMRAnalysis.PeakTrack1D: PickedReference, IndirectReference, referencing, alignment,
-                               allreferenced, hertz, xiratio
+                               allreferenced, hertz, xiratio, referencename, spectralist,
+                               ppmtext
 using NMRTools: F19, P31, H1
 using NMRAnalysis: writetable
 using CairoMakie: Figure, Axis, Observable, Point2f, Vec2f
@@ -369,6 +370,15 @@ end
         @test occursin("indirectly", text) && occursin("TFA (ppm)", text)
         @test occursin("indirectly", read(joinpath(folder, "summary.txt"), String))
     end
+end
+
+@testset "message wording" begin
+    @test referencename(Tracks(["reference"])) == "the reference peak"
+    @test referencename(Tracks(["DSS"])) == "DSS"
+    @test spectralist([3], 32) == "spectrum 3"
+    @test spectralist([3, 7, 12], 32) == "spectra 3, 7 and 12"
+    @test spectralist(1:20, 32) == "20 of the 32 spectra"
+    @test ppmtext(0.0) == "0 ppm" && ppmtext(4.7) == "4.7 ppm"
 end
 
 @testset "summary panel" begin

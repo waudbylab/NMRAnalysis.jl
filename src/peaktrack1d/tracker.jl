@@ -335,6 +335,25 @@ end
 
 # ---------------------------------------------------------------- display and clipboard
 
+"""
+The reference as a sentence names it: by its own name, such as DSS, or as "the reference
+peak" while it keeps the default name.
+"""
+function referencename(t::Tracks)
+    label = multiplets(t)[REF].label
+    return label == DEFAULTREFERENCE ? "the reference peak" : label
+end
+
+"Spectra `ks` of `n`, as a sentence lists them: by number when there are a few, as a count otherwise."
+function spectralist(ks, n)
+    length(ks) == 1 && return "spectrum $(only(ks))"
+    length(ks) ≤ 6 && return "spectra $(join(ks, ", ", " and "))"
+    return "$(length(ks)) of the $n spectra"
+end
+
+"A shift as a sentence gives it: `0 ppm` rather than `0.0 ppm`."
+ppmtext(δ) = isinteger(δ) ? "$(Int(δ)) ppm" : "$δ ppm"
+
 
 """
     clipboardtext(p) -> String

@@ -96,7 +96,7 @@ end
 
 Open the picking window on `s`, wait until it is closed, and return the analysis.
 """
-function openwindow(s::SpectrumSeries, processing; labels=String[], reference="reference",
+function openwindow(s::SpectrumSeries, processing; labels=String[], reference=DEFAULTREFERENCE,
                     refshift=0.0, coordinates=nothing, peaklist=nothing, radius=8, snr=5,
                     gain=2, colormap=nothing, size=(1200, 850), call=nothing,
                     outputdir="out")
@@ -261,8 +261,8 @@ function outputcontrols!(position, p::PeakTracker, session)
     on(loadbutton.clicks) do _
         path = joinpath(pwd(), p.outputdir[], "peaklist.csv")
         if !isfile(path)
-            tell!(session, "There is no peak list to load in $(shortpath(dirname(path)))";
-                  warn=true)
+            tell!(session, "Nothing to load: there is no peaklist.csv in " *
+                           "$(shortpath(dirname(path)))"; warn=true)
             return
         end
         reporting(session) do
@@ -314,7 +314,7 @@ function statusline(t::Tracks, current, typed, joining, radius, aligned, snappin
     else
         push!(parts,
               "      search ±$(round(Int, radius)) px   snap $(snapping ? "on" : "off")")
-        aligned && push!(parts, "   aligned to $(t.multiplets[REF].label)")
+        aligned && push!(parts, "   aligned on $(referencename(t))")
     end
     return rich(parts...)
 end
@@ -379,12 +379,13 @@ function attach!(p::PeakTracker, textbox, panel, session; radius=8, snr=5)
     frozen(l) = isreference(found[], l) && (aligned[] || indirect)
     function locked(l)
         frozen(l) || return false
+        name = referencename(found[])
         if indirect
-            tell!(session, "The reference comes from the 1H analysis, so it can't be " *
-                           "picked here"; warn=true)
+            tell!(session, "$(uppercasefirst(name)) comes from the 1H analysis, so it can't " *
+                           "be picked here"; warn=true)
         else
-            tell!(session, "The reference can't be changed while the spectra are aligned " *
-                           "to it; press a to unalign first"; warn=true)
+            tell!(session, "$(uppercasefirst(name)) is locked while the stack is aligned on " *
+                           "it: press a to undo the alignment first"; warn=true)
         end
         return true
     end
@@ -405,19 +406,26 @@ function attach!(p::PeakTracker, textbox, panel, session; radius=8, snr=5)
     on(_ -> realign!(), found)
     on(_ -> realign!(), aligned)
     function togglealignment!()
-        label = multiplets(found[])[REF].label
+        name = referencename(found[])
         if aligned[]
             aligned[] = false
-            return tell!(session, "Spectra no longer aligned to $label")
+            return tell!(session, "Alignment off: the stack shows the spectra as measured")
         end
         if isnothing(alignment(p))
             missingspectra = [i for i in 1:n if isnothing(referencedshift(p, i, 0.0))]
-            return tell!(session, "$label is needed in every spectrum before aligning; " *
-                                  "it is missing in spectra $(join(missingspectra, ", "))";
-                         warn=true)
+            text = if indirect
+                "$name was not picked in $(spectralist(missingspectra, n)) of the 1H analysis"
+            elseif length(missingspectra) == n
+                "pick $name first, in every spectrum"
+            else
+                "$name is not picked in $(spectralist(missingspectra, n))"
+            end
+            return tell!(session, "Can't align yet: $text"; warn=true)
         end
         aligned[] = true
-        return tell!(session, "Spectra aligned to $label")
+        text = indirect ? "on the unified scale, from $name in the 1H analysis" :
+               "so that $name sits at $(ppmtext(p.reference.shift)) in every spectrum"
+        return tell!(session, "Stack aligned $text")
     end
 
     # overlays are created up front so that editing never triggers a limit reset
@@ -605,8 +613,8 @@ function attach!(p::PeakTracker, textbox, panel, session; radius=8, snr=5)
         if Keyboard._0 ≤ ev.key ≤ Keyboard._9
             m = Int(ev.key) - Int(Keyboard._0) + 1   # key 0 is the reference
             if indirect && m == REF
-                tell!(session, "The reference comes from the 1H analysis, so it can't be " *
-                               "selected here"; warn=true)
+                tell!(session, "$(uppercasefirst(referencename(t))) comes from the 1H " *
+                               "analysis, so it can't be selected here"; warn=true)
             elseif m ≤ nmultiplets(t)
                 current[] = first(navorder(t, m))
             elseif m == nmultiplets(t) + 1

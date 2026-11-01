@@ -51,6 +51,9 @@ end
 "Index of the reference multiplet, shown to the user as 0."
 const REF = 1
 
+"The reference multiplet's name unless another is given."
+const DEFAULTREFERENCE = "reference"
+
 multiplets(t::Tracks) = t.multiplets
 nmultiplets(t::Tracks) = length(t.multiplets)
 multipletlabels(t::Tracks) = [m.label for m in t.multiplets]

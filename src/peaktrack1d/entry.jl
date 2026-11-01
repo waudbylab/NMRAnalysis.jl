@@ -100,7 +100,7 @@ function peaktrack1d end
 
 function peaktrack1d(expts::AbstractVector{<:Union{Integer,AbstractString}};
                      process::Bool=true, zerofill=2, solvent=:auto, coordinates=nothing,
-                     reference="reference", refshift=0.0, kwargs...)
+                     reference=DEFAULTREFERENCE, refshift=0.0, kwargs...)
     isempty(expts) && throw(ArgumentError("no experiments to track peaks in"))
     call = analysiscall("peaktrack1d", expts; process, zerofill, solvent,
                         coordinates=callcoordinates(coordinates), reference,
