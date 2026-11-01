@@ -247,6 +247,8 @@ function peakinfotext(expt::CESTExperiment, idx)
 end
 
 """Return formatted text describing experiment."""
+analysisname(::CESTExperiment) = "CEST"
+
 function experimentinfo(expt::CESTExperiment)
     return "Analysis type: CEST (Chemical Exchange Saturation Transfer)\n" *
            "Filename: $(expt.specdata.nmrdata[1][:filename])\n" *

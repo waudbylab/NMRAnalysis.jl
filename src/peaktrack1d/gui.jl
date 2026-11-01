@@ -58,6 +58,39 @@ function draw!(ax::Axis, s::SpectrumSeries, v::StackView; colormap=nothing,
 end
 
 """
+    Session()
+
+What the window keeps beyond the analysis itself: the folder it last saved to, and the
+message shown at its foot.
+"""
+mutable struct Session
+    saved::Union{Nothing,String}
+    notice::Observable{Tuple{String,Bool}}
+end
+
+Session() = Session(nothing, Observable(("", false)))
+
+"""
+Show `text` at the foot of the window, where it can be seen; a warning is shown in red and
+also logged, since the REPL is usually hidden behind the window.
+"""
+function tell!(session::Session, text; warn=false)
+    warn && @warn text
+    session.notice[] = ("$(Dates.format(now(), "HH:MM:SS"))  $text", warn)
+    return nothing
+end
+
+"Run a file operation the user asked for, showing any error at the foot of the window."
+function reporting(f, session::Session)
+    try
+        return f()
+    catch err
+        tell!(session, first(split(sprint(showerror, err), '\n')); warn=true)
+        return nothing
+    end
+end
+
+"""
     openwindow(s, processing; labels, reference, refshift, coordinates, peaklist, radius, snr,
            gain, colormap, size, call) -> PeakTracker
 
@@ -72,7 +105,7 @@ function openwindow(s::SpectrumSeries, processing; labels=String[], reference="r
     t = initialtracks(s, peaklist, reflabel, String[cleanlabel(l) for l in labels])
 
     # CairoMakie, loaded for saving figures, would otherwise take over
-    GLMakie.activate!(; focus_on_show=true, title="NMRAnalysis.jl")
+    GLMakie.activate!(; focus_on_show=true, title=windowname("1D peak tracking"))
     fig = Figure(; size)
     ax = Axis(fig[1, 1]; xreversed=true, xlabel=shiftlabel(s.nucleus),
               yticksvisible=false, yticklabelsvisible=false,
@@ -87,11 +120,13 @@ function openwindow(s::SpectrumSeries, processing; labels=String[], reference="r
 
     p = PeakTracker(s, coords, Observable(t), processing, ref, Observable(false), v, fig, ax,
                     call, Observable(String(outputdir)))
+    session = Session()
     controls = GridLayout(fig[4, 1:2]; tellwidth=false)
-    isnothing(processing) || broadeningcontrol!(controls[1, 1], p)
-    saved = Ref{Union{Nothing,String}}(nothing)   # the folder last saved to in this window
-    textbox = outputcontrols!(controls[1, 2], p, saved)
-    attach!(p, textbox, fig[1, 2], saved; radius, snr)
+    isnothing(processing) || broadeningcontrol!(controls[1, 1], p, session)
+    textbox = outputcontrols!(controls[1, 2], p, session)
+    Label(fig[5, 1:2], @lift(first($(session.notice))); fontsize=13, tellwidth=false,
+          color=@lift(last($(session.notice)) ? :firebrick : :grey20))
+    attach!(p, textbox, fig[1, 2], session; radius, snr)
     colsize!(fig.layout, 2, Relative(0.28))
 
     display(fig)
@@ -163,7 +198,7 @@ end
 A slider for the exponential line broadening. Changing it reprocesses every experiment;
 picks keep their shifts, and their heights are read from the new data.
 """
-function broadeningcontrol!(position, p::PeakTracker)
+function broadeningcontrol!(position, p::PeakTracker, session)
     proc = p.processing
     lbs = sort!(unique([0.0, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 7.0,
                         10.0,
@@ -177,7 +212,8 @@ function broadeningcontrol!(position, p::PeakTracker)
         process!(p.series, proc, lb)
         notify(p.view.revision)
         reheight!(tracks(p), p.series)
-        return notify(p.tracks)
+        notify(p.tracks)
+        return tell!(session, "Reprocessed with $lb Hz exponential line broadening")
     end
     return grid
 end
@@ -186,27 +222,29 @@ end
 Save the analysis to the output folder named in the window, and remember it as the folder
 last saved to.
 """
-function savefolder!(p::PeakTracker, saved)
+function savefolder!(p::PeakTracker, session)
     folder = joinpath(pwd(), p.outputdir[])
     saveanalysis(p, folder)
-    return saved[] = folder
+    session.saved = folder
+    return tell!(session, "Saved the analysis to $(shortpath(folder))")
 end
 
 """
 Save a figure of the region shown into the output folder, first saving the analysis there if
 it has not been saved to that folder from this window.
 """
-function savefigure!(p::PeakTracker, saved)
+function savefigure!(p::PeakTracker, session)
     folder = joinpath(pwd(), p.outputdir[])
-    saved[] == folder || savefolder!(p, saved)
+    session.saved == folder || savefolder!(p, session)
     path = joinpath(folder, "figure-$(Dates.format(now(), "yyyymmdd-HHMMSS")).pdf")
     save(path, stackplot(p); backend=CairoMakie, pt_per_unit=1)
     @info "Saved a figure of the displayed region" path
+    tell!(session, "Saved a figure of the displayed region to $(shortpath(path))")
     return path
 end
 
 "The output folder box and the Save, Load and Quit buttons; returns the box."
-function outputcontrols!(position, p::PeakTracker, saved)
+function outputcontrols!(position, p::PeakTracker, session)
     row = GridLayout(position)
     Label(row[1, 1], "output folder")
     box = Textbox(row[1, 2]; width=120, stored_string=p.outputdir[])
@@ -217,17 +255,21 @@ function outputcontrols!(position, p::PeakTracker, saved)
     on(box.focused) do focused
         return focused || (box.stored_string[] = box.displayed_string[])
     end
-    savebutton = Button(row[1, 3]; label="Save")
-    on(_ -> savefolder!(p, saved), savebutton.clicks)
+    savebutton = Button(row[1, 3]; label="(S)ave")
+    on(_ -> reporting(() -> savefolder!(p, session), session), savebutton.clicks)
     loadbutton = Button(row[1, 4]; label="Load")
     on(loadbutton.clicks) do _
         path = joinpath(pwd(), p.outputdir[], "peaklist.csv")
         if !isfile(path)
-            @warn "There is no peak list to load" path
+            tell!(session, "There is no peak list to load in $(shortpath(dirname(path)))";
+                  warn=true)
             return
         end
-        p.tracks[] = restore(p.series, path; reference=multiplets(tracks(p))[REF].label)
-        @info "Loaded $(npicks(tracks(p))) picks from $path"
+        reporting(session) do
+            p.tracks[] = restore(p.series, path;
+                                 reference=multiplets(tracks(p))[REF].label)
+            return tell!(session, "Loaded $(npicks(tracks(p))) picks from $(shortpath(path))")
+        end
     end
     quitbutton = Button(row[1, 5]; label="(Q)uit")
     on(_ -> quit!(), quitbutton.clicks)
@@ -278,13 +320,13 @@ function statusline(t::Tracks, current, typed, joining, radius, aligned, snappin
 end
 
 """
-    attach!(p, textbox, panel, saved; radius=8, snr=5)
+    attach!(p, textbox, panel, session; radius=8, snr=5)
 
 Wire up the mouse and keyboard, and draw the summary panel at `panel`. The current line is
 the one that picking, moving, erasing, renaming and deleting act on; line `0` is the vacant
 slot at the end, and picking there creates a new multiplet.
 """
-function attach!(p::PeakTracker, textbox, panel, saved; radius=8, snr=5)
+function attach!(p::PeakTracker, textbox, panel, session; radius=8, snr=5)
     ax, v, s, found, aligned = p.axis, p.view, p.series, p.tracks, p.aligned
     n = length(s)
 
@@ -338,10 +380,11 @@ function attach!(p::PeakTracker, textbox, panel, saved; radius=8, snr=5)
     function locked(l)
         frozen(l) || return false
         if indirect
-            @warn "The reference comes from the 1H analysis, so it can't be picked here"
+            tell!(session, "The reference comes from the 1H analysis, so it can't be " *
+                           "picked here"; warn=true)
         else
-            @warn "The reference can't be changed while the spectra are aligned to it; " *
-                  "press a to unalign first"
+            tell!(session, "The reference can't be changed while the spectra are aligned " *
+                           "to it; press a to unalign first"; warn=true)
         end
         return true
     end
@@ -362,16 +405,19 @@ function attach!(p::PeakTracker, textbox, panel, saved; radius=8, snr=5)
     on(_ -> realign!(), found)
     on(_ -> realign!(), aligned)
     function togglealignment!()
+        label = multiplets(found[])[REF].label
         if aligned[]
             aligned[] = false
-            return
+            return tell!(session, "Spectra no longer aligned to $label")
         end
         if isnothing(alignment(p))
             missingspectra = [i for i in 1:n if isnothing(referencedshift(p, i, 0.0))]
-            @warn "The reference is needed in every spectrum before aligning" missingspectra
-            return
+            return tell!(session, "$label is needed in every spectrum before aligning; " *
+                                  "it is missing in spectra $(join(missingspectra, ", "))";
+                         warn=true)
         end
-        return aligned[] = true
+        aligned[] = true
+        return tell!(session, "Spectra aligned to $label")
     end
 
     # overlays are created up front so that editing never triggers a limit reset
@@ -415,17 +461,21 @@ function attach!(p::PeakTracker, textbox, panel, saved; radius=8, snr=5)
             name = cleanlabel(name)
             isempty(name) && return
             if name in multipletlabels(t)
-                @warn "A multiplet called $name already exists"
+                tell!(session, "A peak called $name already exists"; warn=true)
                 return
             end
             checkpoint()
             current[] = addmultiplet!(t, name)
+            tell!(session, "Added $name")
         else
             m = multipletof(t, current[])
             checkpoint()
-            if !relabel!(t, m, name)
+            if relabel!(t, m, name)
+                tell!(session, "Renamed to $(multiplets(t)[m].label)")
+            else
                 pop!(history)
-                @warn "Can't rename to \"$name\": the name is blank or already taken"
+                tell!(session, "Can't rename to \"$name\": the name is blank or already " *
+                               "taken"; warn=true)
             end
         end
         return notify(found)
@@ -438,8 +488,9 @@ function attach!(p::PeakTracker, textbox, panel, saved; radius=8, snr=5)
         (locked(current[]) || locked(first(k))) && return
         multipletof(t, first(k)) == multipletof(t, current[]) && return
         checkpoint()
-        group!(t, current[], first(k))
-        return notify(found)
+        m = group!(t, current[], first(k))
+        notify(found)
+        return tell!(session, "Grouped the lines into $(multiplets(t)[m].label)")
     end
 
     deactivate_interaction!(ax, :rectanglezoom)
@@ -554,7 +605,8 @@ function attach!(p::PeakTracker, textbox, panel, saved; radius=8, snr=5)
         if Keyboard._0 ≤ ev.key ≤ Keyboard._9
             m = Int(ev.key) - Int(Keyboard._0) + 1   # key 0 is the reference
             if indirect && m == REF
-                @warn "The reference comes from the 1H analysis, so it can't be selected here"
+                tell!(session, "The reference comes from the 1H analysis, so it can't be " *
+                               "selected here"; warn=true)
             elseif m ≤ nmultiplets(t)
                 current[] = first(navorder(t, m))
             elseif m == nmultiplets(t) + 1
@@ -568,14 +620,17 @@ function attach!(p::PeakTracker, textbox, panel, saved; radius=8, snr=5)
             l = current[]
             if l != 0 && !locked(l) && length(linesof(t, multipletof(t, l))) > 1
                 checkpoint()
-                ungroup!(t, current[])
+                m = ungroup!(t, current[])
                 notify(found)
+                tell!(session, "Moved the line into a peak of its own, $(multiplets(t)[m].label)")
             end
         elseif ev.key == Keyboard.d
             if current[] != 0 && !locked(current[])
+                label = multiplets(t)[multipletof(t, current[])].label
                 checkpoint()
                 deleteline!(t, current[])
                 notify(found)
+                tell!(session, "Deleted a line of $label")
             end
         elseif ev.key == Keyboard.a
             togglealignment!()
@@ -585,12 +640,17 @@ function attach!(p::PeakTracker, textbox, panel, saved; radius=8, snr=5)
             r[] = max(2.0f0, r[] - 2)
         elseif ev.key == Keyboard.right_bracket
             r[] += 2
-        elseif ev.key == Keyboard.backspace && !isempty(history)
-            found[] = pop!(history)
+        elseif ev.key == Keyboard.backspace
+            if isempty(history)
+                tell!(session, "Nothing to undo")
+            else
+                found[] = pop!(history)
+                tell!(session, "Undid the last change")
+            end
         elseif ev.key == Keyboard.s
-            savefolder!(p, saved)
+            reporting(() -> savefolder!(p, session), session)
         elseif ev.key == Keyboard.f
-            savefigure!(p, saved)
+            reporting(() -> savefigure!(p, session), session)
         elseif ev.key == Keyboard.q
             quit!()
         end

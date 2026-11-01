@@ -26,7 +26,9 @@ pH = [5.5, 6.0, 6.5, 7.0, 7.5, 8.0]
 p = peaktrack1d(11:16; coordinates="pH" => pH, reference="DSS")
 ```
 
-The window stays open until you close it, and `peaktrack1d` then returns the analysis.
+The window stays open until you close it, and `peaktrack1d` then returns the analysis. A
+line at the foot of the window confirms each thing you do, such as saving or aligning, and
+shows warnings and errors in red, since the REPL is usually hidden behind the window.
 
 ### Choose how the spectra are processed
 

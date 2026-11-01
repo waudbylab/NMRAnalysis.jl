@@ -23,6 +23,7 @@ using ..NMRAnalysis: annotation, acqusvalue, ask, askvector
 using ..NMRAnalysis: B1Calibration
 # the call that produced an analysis, for summary.txt - see src/calls.jl
 using ..NMRAnalysis: AnalysisCall, analysiscall, callstring
+using ..NMRAnalysis: windowname
 
 include("util.jl")
 include("types.jl")

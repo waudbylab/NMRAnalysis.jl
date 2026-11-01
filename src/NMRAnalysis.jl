@@ -70,6 +70,7 @@ include("fitting.jl")  # shared fitting utilities
 include("b1.jl")       # B₁ calibration and inhomogeneity, shared by Analysis1D and Exchange1D
 include("prompts.jl")  # parameter resolution, shared by Analysis1D and GUI2D
 include("calls.jl")    # the call that produced an analysis, for summary.txt
+include("windows.jl")  # shared conventions for the analysis windows
 
 include("maybevector/MaybeVector.jl")
 using .MaybeVectorModule

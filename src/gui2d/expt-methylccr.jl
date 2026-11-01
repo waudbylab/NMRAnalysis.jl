@@ -55,6 +55,8 @@ struct MethylCCRModel <: ParametricModel
     times::Vector{Float64}
 end
 
+analysisname(::MethylCCRModel) = "methyl CCR"
+
 function MethylCCRModel(C, times)
     func = (T, p) -> begin
         s = sqrt(p[1]^2 + p[2]^2)
