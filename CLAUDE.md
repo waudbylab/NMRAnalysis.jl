@@ -69,6 +69,12 @@ All 2D functions are provided by the GUI2D module:
 - `hetnoe2d()` - Heteronuclear NOE experiments
 - `cest2d()` - CEST (Chemical Exchange Saturation Transfer)
 - `cpmg2d()` - CPMG (Carr-Purcell-Meiboom-Gill) experiments
+- `pre2d()` - ¹H transverse PRE (Γ₂), from a dia/para pair or a concentration series
+- `lpre2d()` - ¹H longitudinal and transverse PRE (Γ₁, Γ₂) from a series of recycle delays
+
+`pre2d` and `lpre2d` (`expt-paramagnetic.jl`) have a fit of their own: one amplitude per peak
+across all planes, with a model giving each plane's linewidths and height, rather than the
+shared fit's free amplitude per plane.
 - `ccr2d()` - Cross-correlated relaxation
 - `methylccr2d()` - Methyl CCR (S²τc from buildup/decay series)
 

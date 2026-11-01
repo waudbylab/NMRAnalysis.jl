@@ -44,6 +44,14 @@ end
 seriescoordinates(e::CPMGExperiment) = [:nu_CPMG => e.vCPMG, :Trelax => e.Trelax]
 seriescoordinates(e::HetNOEExperiment) = [:saturated => collect(e.saturation)]
 seriescoordinates(e::CCRExperiment) = [:buildup => collect(e.isbuildup), :Trelax => e.T]
+seriescoordinates(e::PREExperiment) = [samplecoordinate(e), :Trelax => e.Trelax]
+function seriescoordinates(e::LPREExperiment)
+    return [samplecoordinate(e), :recovery => e.recoverytimes, :Trelax => e.Trelax]
+end
+function samplecoordinate(e::ParamagneticExperiment)
+    e.paired && return :paramagnetic => collect(e.concentrations .> 0)
+    return :concentration => e.concentrations
+end
 
 """
     coordinatename(model) -> Symbol
@@ -59,7 +67,7 @@ coordinatename(::MethylCCRModel) = :time
 coordinatename(::TitrationModel) = :concentration
 
 const COORDINATE_UNITS = Dict(:time => "s", :offset => "ppm", :B1 => "Hz", :Tsat => "s",
-                              :nu_CPMG => "Hz", :Trelax => "s")
+                              :nu_CPMG => "Hz", :Trelax => "s", :recovery => "s")
 
 coordinateunit(name::Symbol) = get(COORDINATE_UNITS, name, "")
 

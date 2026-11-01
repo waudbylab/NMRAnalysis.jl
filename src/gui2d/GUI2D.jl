@@ -66,6 +66,10 @@ export cest2d
 # export CPMGExperiment
 export cpmg2d
 
+# export PREExperiment, LPREExperiment
+export pre2d
+export lpre2d
+
 # export CCRExperiment
 export ccr2d
 

@@ -41,6 +41,8 @@ saved peak list as the window opens.
 - `methylccr2d(buildup, decay, T)`: methyl S²τc
 - `cest2d(file)`: CEST profiles
 - `cpmg2d(file)`: CPMG relaxation dispersion
+- `pre2d(diamagnetic, paramagnetic; type)`: paramagnetic relaxation enhancement Γ₂
+- `lpre2d(diamagnetic, paramagnetic; type)`: Γ₁ and Γ₂ from a series of recycle delays
 - `peaktrack2d(files)`: peaks that move from plane to plane
 - `titration2d(files)`: binding isotherms and a global Kd
 - `rdc2d(; isotropic, aligned)`: one-bond couplings and RDCs
@@ -108,6 +110,8 @@ using .PeakTrack1D
 @reexport using .GUI2D: hetnoe2d # HetNOEExperiment
 @reexport using .GUI2D: cest2d # CESTExperiment
 @reexport using .GUI2D: cpmg2d # CPMGExperiment
+@reexport using .GUI2D: pre2d # PREExperiment
+@reexport using .GUI2D: lpre2d # LPREExperiment
 @reexport using .GUI2D: ccr2d # CCRExperiment
 @reexport using .GUI2D: methylccr2d # methyl CCR (buildup/decay ratio)
 @reexport using .GUI2D: summaryplot, results, planeresults
