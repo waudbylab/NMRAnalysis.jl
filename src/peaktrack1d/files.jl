@@ -178,13 +178,20 @@ function writesummary(path::AbstractString, p::PeakTracker, folder)
     return path
 end
 
+"Heading `heights.csv`, since a height is easily mistaken for an integral or an amplitude."
+const HEIGHTNOTE = "Heights: the intensity at each line's maximum, divided by scale(spec) " *
+                   "(ns x rg, and the concentration where recorded); heights, not " *
+                   "integrals or fitted amplitudes"
+
 """
     saveanalysis(p, folder) -> String
 
 Write the output folder: `summary.txt`, `peaklist.csv` (what was picked, which **Load**
-reads back), `series.csv` (every line in every plane), `processing.csv` for time-domain
-data, `stack.pdf` (the region shown in the window), and in `peaks/` one CSV and one plot per
-multiplet. An existing folder is moved aside first. Returns the folder.
+reads back), `series.csv` (every line in every plane), the wide files `shifts.csv`,
+`referencedshifts.csv` (once the reference is picked anywhere) and `heights.csv` (see
+[`linetable`](@ref)), `processing.csv` for time-domain data, `stack.pdf` (the region shown
+in the window), and in `peaks/` one CSV and one plot per multiplet. An existing folder is
+moved aside first. Returns the folder.
 """
 function saveanalysis(p::PeakTracker, folder::AbstractString)
     dir = backupfolder(folder)
@@ -192,6 +199,16 @@ function saveanalysis(p::PeakTracker, folder::AbstractString)
     writetable(joinpath(dir, "peaklist.csv"), comments, peaklisttable(p)...)
     header, rows = seriestable(p)
     writetable(joinpath(dir, "series.csv"), comments, header, rows)
+    writetable(joinpath(dir, "shifts.csv"), [comments; "Shifts as measured"],
+               linetable(p, q -> q.shift, "ppm")...)
+    if any(i -> !isnothing(refcentre(p, i)), 1:nplanes(p))
+        reference = multiplets(tracks(p))[REF].label
+        writetable(joinpath(dir, "referencedshifts.csv"),
+                   [comments; "Shifts referenced to $reference at $(p.refshift) ppm"],
+                   linetable(p, q -> referencedshift(p, q), "ppm")...)
+    end
+    writetable(joinpath(dir, "heights.csv"), [comments; HEIGHTNOTE],
+               linetable(p, q -> q.height)...)
     isnothing(p.processing) ||
         writetable(joinpath(dir, "processing.csv"), comments, processingtable(p.processing)...)
     save(joinpath(dir, "stack.pdf"), stackplot(p); backend=CairoMakie, pt_per_unit=1)

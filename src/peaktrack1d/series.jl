@@ -9,9 +9,12 @@ one column per plane, the rms noise of each plane, the file each plane came from
 index of the experiment each plane belongs to. A pseudo-2D experiment contributes several
 planes with one experiment index, which is what lets it be processed with one phase.
 
-Built from a vector of processed spectra, 1D or pseudo-2D, whose shift axes must agree. The
-noise of each plane is NMRTools' whole-spectrum estimate (`spec[:noise]`), or where that is
-missing a robust estimate from the plane itself.
+Built from a vector of processed spectra, 1D or pseudo-2D, whose shift axes must agree.
+Intensities and noise are divided by NMRTools' `scale(spec)` (number of scans × receiver
+gain, and the sample concentration where one is recorded), so that experiments recorded
+with different settings can be compared. The noise of each plane is NMRTools'
+whole-spectrum estimate (`spec[:noise]`), or where that is missing a robust estimate from
+the plane itself.
 """
 struct SpectrumSeries
     shifts::Vector{Float64}
@@ -54,13 +57,17 @@ function SpectrumSeries(spectra::AbstractVector{<:NMRData})
                           title=string(something(label(spec), "")))
 end
 
-"The planes of one processed spectrum: its shift axis, real intensities, noise and source."
+"""
+The planes of one processed spectrum: its shift axis, real intensities and noise, both
+divided by `scale(spec)`, and its source.
+"""
 function planesof(spec::NMRData)
     spec = frequencyfirst(spec)
     δ = collect(Float64, data(dims(spec, 1)))
-    y = Matrix{Float64}(reshape(real.(data(spec)), length(δ), :))
+    f = scale(spec)
+    y = Matrix{Float64}(reshape(real.(data(spec)), length(δ), :)) ./ f
     σ = spec[:noise]
-    noise = isnothing(σ) ? map(noiselevel, eachcol(y)) : fill(Float64(σ), size(y, 2))
+    noise = isnothing(σ) ? map(noiselevel, eachcol(y)) : fill(Float64(σ / f), size(y, 2))
     return (; shifts=δ, y, noise, source=string(something(spec[:filename], spec[:title], "")))
 end
 

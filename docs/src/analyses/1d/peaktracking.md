@@ -148,6 +148,9 @@ save("stack.pdf", stackplot(p; size=(500, 340)); backend=CairoMakie, pt_per_unit
 | `summary.txt` | the processing, the reference, each peak's range of shifts, and the call that repeats the analysis |
 | `peaklist.csv` | every pick as placed: what **Load** and `peaklist` read |
 | `series.csv` | every line in every spectrum: its shift, height and signal-to-noise ratio, and its peak's centre and referenced shift |
+| `shifts.csv` | the shift of every line as measured, one row per spectrum and one column per line |
+| `referencedshifts.csv` | the same, referenced to the reference at `refshift`; written once the reference is picked in any spectrum |
+| `heights.csv` | the height of every line, in the same layout |
 | `processing.csv` | the phases, line broadening and zero-filling, when `peaktrack1d` processed the data |
 | `stack.pdf` | the region shown in the window |
 | `peaks/` | one CSV and one plot of shift against the first coordinate for each peak |
@@ -155,6 +158,17 @@ save("stack.pdf", stackplot(p; size=(500, 340)); backend=CairoMakie, pt_per_unit
 In `series.csv`, each line is identified by its peak's `label`, its `line` number
 (counting from the highest shift) and the `plane`. The `centre (ppm)` and
 `referenced (ppm)` columns describe the whole peak, so they repeat down its lines.
+
+The three wide files are the ones to open in a spreadsheet or plot from. Their first columns
+are `plane` and your coordinates. A singlet's column is named by its label, and the lines
+of a multiplet by its label and line number, `MOPS[1]` and `MOPS[2]`, counting from the
+highest shift. A blank pick is `NA`.
+
+A height is the intensity at the line's maximum, divided by the number of scans and the
+receiver gain, and by the sample concentration where one is recorded (NMRTools' `scale`),
+so that spectra recorded with different settings compare. It is a height, not an integral or an amplitude: when a line broadens, as it often
+does near a pKa or the midpoint of a titration, its height falls even though nothing has
+been lost.
 
 ## Keys
 

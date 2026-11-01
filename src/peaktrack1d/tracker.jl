@@ -71,7 +71,9 @@ cellvalue(x) = csvvalue(x)
 Column names and rows of `series.csv`: one row per line per plane, keyed by multiplet
 `label`, `line` (numbered by decreasing shift) and `plane`, with the plane's coordinates,
 the line's measured `shift` (ppm), `height` and `snr`, and the multiplet's `centre` and
-`referenced` shift (ppm) in that plane, repeated down its lines. Absent values are `NA`.
+`referenced` shift (ppm) in that plane, repeated down its lines. Absent values are `NA`. A
+height is the intensity at the line's maximum, divided by `scale(spec)`: a height, not an
+integral or an amplitude.
 """
 function seriestable(p::PeakTracker)
     t, s = tracks(p), p.series
@@ -144,6 +146,50 @@ function planeresults(p::PeakTracker)
         end
     end
     return rows
+end
+
+# ---------------------------------------------------------------- wide files
+
+"""
+    linetable(p, value, unit="") -> (header, rows)
+
+A wide table for a spreadsheet: one row per plane, keyed by `plane` and the coordinates,
+then one column per line of every multiplet that has been picked, the reference first. A
+singlet's column is named by its label, and the lines of a multiplet `label[1]`,
+`label[2]`, ... from the highest shift. Each cell is `value(q)` for the line's pick `q` in
+that plane, at full precision, and `NA` where the line is not picked or `value` returns
+`nothing`.
+"""
+function linetable(p::PeakTracker, value, unit="")
+    t, n = tracks(p), nplanes(p)
+    header = String["plane"; [string(k) for k in keys(p.coordinates)]]
+    lines = Int[]
+    for (m, mp) in enumerate(multiplets(t))
+        ls = orderedlines(t, m)
+        for (j, l) in enumerate(ls)
+            push!(header, csvcolumn(length(ls) == 1 ? mp.label : "$(mp.label)[$j]", unit))
+            push!(lines, l)
+        end
+    end
+    rows = map(1:n) do i
+        row = String[string(i)]
+        append!(row, [cellvalue(v[i]) for v in values(p.coordinates)])
+        for l in lines
+            q = pickat(t, l, i)
+            push!(row, csvvalue(isnothing(q) ? nothing : value(q)))
+        end
+        return row
+    end
+    return header, rows
+end
+
+"""
+The shift of pick `q` referenced to the reference multiplet placed at `refshift`, or
+`nothing` where the reference is not picked in that plane.
+"""
+function referencedshift(p::PeakTracker, q::Pick)
+    r = refcentre(p, q.plane)
+    return isnothing(r) ? nothing : q.shift - r + p.refshift
 end
 
 # ---------------------------------------------------------------- the wide table

@@ -14,6 +14,7 @@ using NMRAnalysis.PeakTrack1D: multipletof, multipletlabels, linesof, orderedlin
                                haspicks, picksof, npicks, pickat, tracks
 using NMRAnalysis.PeakTrack1D: densify, painted, track, overlay, hit, nearestrow, location
 using NMRAnalysis.PeakTrack1D: coordinatetable, seriestable, peaklisttable, widetable,
+                               linetable, referencedshift,
                                restore, readtable, saveanalysis, exptfolder, callcoordinates,
                                p1outliers, P1TOLERANCE
 using NMRAnalysis: writetable
@@ -302,6 +303,25 @@ end
     @test startswith(sprint(show, MIME"text/tab-separated-values"(), bare),
                      "plane\tDSS (reference)\tMES\tMOPS\n")
 
+    # the wide files: one column per line, a multiplet's lines numbered from the highest shift
+    header, rows = linetable(p, q -> q.shift, "ppm")
+    @test header == ["plane", "pH", "DSS (ppm)", "MES (ppm)", "MOPS[1] (ppm)", "MOPS[2] (ppm)"]
+    @test length(rows) == 4 && all(length.(rows) .== 6)
+    @test parse(Float64, rows[2][4]) ≈ singlet(2) atol = 1e-3
+    @test parse(Float64, rows[1][5]) > parse(Float64, rows[1][6])
+    @test rows[3][6] == "NA"                           # the pick deleted above
+    header, rows = linetable(p, q -> referencedshift(p, q), "ppm")
+    @test parse(Float64, rows[2][4]) ≈ singlet(2) - dss(2) atol = 2e-3
+    @test parse(Float64, rows[2][3]) ≈ 0.0 atol = 1e-12  # the reference at refshift
+    header, rows = linetable(p, q -> q.height)
+    @test header[end] == "MOPS[2]"                     # a height has no unit
+    @test parse(Float64, rows[1][4]) ≈ 100 atol = 1
+    bare = tracker(s, tracks(p); coordinates=nothing)
+    @test first(linetable(bare, q -> q.shift, "ppm"))[1:2] == ["plane", "DSS (ppm)"]
+    nodss = copy(tracks(p))
+    erase!(_ -> true, nodss, 1)
+    @test isnothing(referencedshift(tracker(s, nodss), pickat(nodss, 2, 1)))
+
     rows = planeresults(p)
     @test length(rows) == 16
     @test keys(first(rows)) ==
@@ -350,7 +370,8 @@ end
     p = tracker(s, picked(s))
     mktempdir() do dir
         folder = saveanalysis(p, joinpath(dir, "out"))
-        for file in ["summary.txt", "peaklist.csv", "series.csv", "stack.pdf",
+        for file in ["summary.txt", "peaklist.csv", "series.csv", "shifts.csv",
+                     "referencedshifts.csv", "heights.csv", "stack.pdf",
                      joinpath("peaks", "MOPS.csv"), joinpath("peaks", "MOPS.pdf")]
             @test isfile(joinpath(folder, file))
         end
@@ -359,7 +380,14 @@ end
         summary = read(joinpath(folder, "summary.txt"), String)
         @test occursin("MOPS", summary) && occursin("2 lines", summary)
         @test !occursin("Reproduce", summary)   # no call was recorded
+        @test occursin("not integrals", read(joinpath(folder, "heights.csv"), String))
         saveanalysis(p, joinpath(dir, "out"))
         @test isdir(joinpath(dir, "out_previous"))
+
+        # without a reference there is nothing to reference to
+        erase!(_ -> true, tracks(p), 1)
+        folder = saveanalysis(p, joinpath(dir, "noref"))
+        @test isfile(joinpath(folder, "shifts.csv"))
+        @test !isfile(joinpath(folder, "referencedshifts.csv"))
     end
 end
