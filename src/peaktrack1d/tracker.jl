@@ -318,8 +318,11 @@ function summaryseries(p::PeakTracker, line)
     shift(δ, i) = isref ? referencedshift(p, i, δ) : δ
     gap = Point2f(NaN, NaN)
     function perline(value)
-        return reduce(vcat, [[[Point2f(x[i], value(pickat(t, l, i), i)) for i in order]; gap]
-                             for l in ls]; init=Point2f[])
+        # push! rather than [points; gap]: a Point2f is itself a vector, which vcat would
+        # splice in as two numbers
+        return reduce(vcat,
+                      [push!([Point2f(x[i], value(pickat(t, l, i), i)) for i in order], gap)
+                       for l in ls]; init=Point2f[])
     end
     lines = perline((q, i) -> isnothing(q) ? NaN : shift(q.shift, i))
     heights = perline((q, i) -> isnothing(q) ? NaN : q.height)
