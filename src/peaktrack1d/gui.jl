@@ -67,8 +67,8 @@ function openwindow(s::SpectrumSeries, processing; labels=String[], reference="r
                     gain=2, colormap=nothing, size=(1200, 850), call=nothing,
                     outputdir="out")
     coords = coordinatetable(coordinates, length(s))
-    t = initialtracks(s, peaklist, cleanlabel(reference),
-                      String[cleanlabel(l) for l in labels])
+    reflabel, ref = referencing(reference, refshift, s)
+    t = initialtracks(s, peaklist, reflabel, String[cleanlabel(l) for l in labels])
 
     GLMakie.activate!()   # CairoMakie, loaded for saving figures, would otherwise take over
     fig = Figure(; size)
@@ -83,8 +83,8 @@ function openwindow(s::SpectrumSeries, processing; labels=String[], reference="r
     v = StackView(s; gain)
     draw!(ax, s, v; colormap)
 
-    p = PeakTracker(s, coords, Observable(t), processing, Float64(refshift),
-                    Observable(false), v, fig, ax, call, Observable(String(outputdir)))
+    p = PeakTracker(s, coords, Observable(t), processing, ref, Observable(false), v, fig, ax,
+                    call, Observable(String(outputdir)))
     controls = GridLayout(fig[4, 1:2]; tellwidth=false)
     isnothing(processing) || broadeningcontrol!(controls[1, 1], p)
     textbox = outputcontrols!(controls[1, 2], p)
@@ -251,10 +251,13 @@ function attach!(p::PeakTracker, textbox, panel; radius=8, snr=5)
     ax, v, s, found, aligned = p.axis, p.view, p.series, p.tracks, p.aligned
     n = length(s)
 
-    current = Observable(isempty(linesof(found[], REF)) ? 0 : first(linesof(found[], REF)))
+    # start on the reference, unless it comes from another analysis
+    indirect = p.reference isa IndirectReference
+    start = indirect ? (nmultiplets(found[]) > 1 ? first(linesof(found[], 2)) : 0) :
+            first(linesof(found[], REF))
+    current = Observable(start)
     renaming = Observable{Union{Nothing,String}}(nothing)
     grouping = Observable(false)
-    target = Ref(p.refshift)
     r = Observable(Float32(radius))
     live = Observable(Point2f[])
     erasing = Observable(false)
@@ -289,24 +292,28 @@ function attach!(p::PeakTracker, textbox, panel; radius=8, snr=5)
     # place exactly at the cursor? shift inverts the snapping setting
     precise(scene) = snapping[] == shifted(scene)
     place(scene, i, x, w) = precise(scene) ? exact(s, i, x) : snap(s, i, x, w)
-    # the reference is frozen while the spectra are aligned to it
-    frozen(l) = aligned[] && isreference(found[], l)
+    # the reference is frozen while the spectra are aligned to it, and always when it was
+    # picked in another analysis
+    frozen(l) = isreference(found[], l) && (aligned[] || indirect)
     function locked(l)
         frozen(l) || return false
-        @warn "The reference can't be changed while the spectra are aligned to it; " *
-              "press a to unalign first"
+        if indirect
+            @warn "The reference comes from the 1H analysis, so it can't be picked here"
+        else
+            @warn "The reference can't be changed while the spectra are aligned to it; " *
+                  "press a to unalign first"
+        end
         return true
     end
 
     # keep the offsets in step with the reference picks
     function realign!()
         if aligned[]
-            δ = referenceshifts(found[], n)
-            if isnothing(δ)
+            offsets = alignment(p)
+            if isnothing(offsets)
                 aligned[] = false   # re-enters realign! and clears the offsets
                 return
             end
-            offsets = target[] .- δ
             offsets == v.offsets[] || (v.offsets[] = offsets)   # redraw only if they move
         elseif any(!iszero, v.offsets[])
             v.offsets[] = zeros(n)
@@ -319,9 +326,9 @@ function attach!(p::PeakTracker, textbox, panel; radius=8, snr=5)
             aligned[] = false
             return
         end
-        if isnothing(referenceshifts(found[], n))
-            missingplanes = [i for i in 1:n if isnothing(centre(found[], REF, i))]
-            @warn "Pick the reference in every plane before aligning" missingplanes
+        if isnothing(alignment(p))
+            missingplanes = [i for i in 1:n if isnothing(referencedshift(p, i, 0.0))]
+            @warn "The reference is needed in every plane before aligning" missingplanes
             return
         end
         return aligned[] = true

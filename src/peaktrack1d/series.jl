@@ -1,13 +1,18 @@
 # The spectra behind the stack, as plain arrays on one shared chemical shift axis.
 
 """
-    SpectrumSeries(shifts, intensities, noise, sources, experiments; nucleus="1H", title="")
+    SpectrumSeries(shifts, intensities, noise, sources, experiments; nucleus="1H", title="",
+                   bf=NaN, xi=NaN)
     SpectrumSeries(spectra)
 
 The data behind the stack: a shared chemical shift axis (ppm), the real intensities with
 one column per plane, the rms noise of each plane, the file each plane came from, and the
 index of the experiment each plane belongs to. A pseudo-2D experiment contributes several
 planes with one experiment index, which is what lets it be processed with one phase.
+
+For referencing across nuclei it also holds each plane's base frequency `bf` (Hz, the
+frequency of 0 ppm on its axis) and the nucleus's Ξ ratio on the DSS scale, `NaN` where
+unknown.
 
 Built from a vector of processed spectra, 1D or pseudo-2D, whose shift axes must agree.
 Intensities and noise are divided by NMRTools' `scale(spec)` (number of scans × receiver
@@ -24,10 +29,12 @@ struct SpectrumSeries
     experiments::Vector{Int}
     nucleus::String
     title::String
+    bf::Vector{Float64}
+    xi::Float64
 end
 
 function SpectrumSeries(shifts, intensities, noise, sources, experiments; nucleus="1H",
-                        title="")
+                        title="", bf=NaN, xi=NaN)
     n = size(intensities, 2)
     length(shifts) == size(intensities, 1) ||
         throw(DimensionMismatch("$(length(shifts)) shifts for $(size(intensities, 1)) points"))
@@ -35,7 +42,9 @@ function SpectrumSeries(shifts, intensities, noise, sources, experiments; nucleu
         throw(DimensionMismatch("noise, sources and experiments must have one entry per plane"))
     return SpectrumSeries(collect(Float64, shifts), Matrix{Float64}(intensities),
                           collect(Float64, noise), collect(String, sources),
-                          collect(Int, experiments), String(nucleus), String(title))
+                          collect(Int, experiments), String(nucleus), String(title),
+                          bf isa Real ? fill(Float64(bf), n) : collect(Float64, bf),
+                          Float64(xi))
 end
 
 function SpectrumSeries(spectra::AbstractVector{<:NMRData})
@@ -54,12 +63,26 @@ function SpectrumSeries(spectra::AbstractVector{<:NMRData})
                           reduce(vcat, [fill(b.source, size(b.y, 2)) for b in blocks]),
                           experiments;
                           nucleus=string(something(label(dims(spec, 1)), "1H")),
-                          title=string(something(label(spec), "")))
+                          title=string(something(label(spec), "")),
+                          bf=reduce(vcat, [fill(b.bf, size(b.y, 2)) for b in blocks]),
+                          xi=xiratio(metadata(dims(spec, 1), :nucleus)))
 end
 
 """
+The base frequency in Hz. NMRTools records it in Hz, but its Bruker reader copies TopSpin's
+SF, which is in MHz; no spectrometer frequency is below 10⁵ Hz, so the two cannot be
+confused.
+"""
+hertz(::Nothing) = NaN
+hertz(f::Real) = f < 1e5 ? 1e6 * Float64(f) : Float64(f)
+
+"The Ξ ratio of a nucleus on the DSS scale (IUPAC), or `NaN` where NMRTools has none."
+xiratio(::Nothing) = NaN
+xiratio(nuc) = Float64(something(xi_ratio(nuc; aqueous=true), NaN))
+
+"""
 The planes of one processed spectrum: its shift axis, real intensities and noise, both
-divided by `scale(spec)`, and its source.
+divided by `scale(spec)`, its base frequency and its source.
 """
 function planesof(spec::NMRData)
     spec = frequencyfirst(spec)
@@ -68,7 +91,7 @@ function planesof(spec::NMRData)
     y = Matrix{Float64}(reshape(real.(data(spec)), length(δ), :)) ./ f
     σ = spec[:noise]
     noise = isnothing(σ) ? map(noiselevel, eachcol(y)) : fill(Float64(σ / f), size(y, 2))
-    return (; shifts=δ, y, noise,
+    return (; shifts=δ, y, noise, bf=hertz(metadata(dims(spec, 1), :bf)),
             source=string(something(spec[:filename], spec[:title], "")))
 end
 

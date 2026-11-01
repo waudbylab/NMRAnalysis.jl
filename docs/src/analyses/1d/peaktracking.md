@@ -114,6 +114,29 @@ each centre referenced as well.
 
 While the spectra are aligned, the reference can't be edited; press `a` again first.
 
+### Reference other nuclei to DSS
+
+To put ¹⁹F or ³¹P shifts on the same footing as ¹H, analyse the ¹H spectra first with DSS
+picked, then pass that analysis as the reference for the other nucleus:
+
+```julia
+h = peaktrack1d(11:30; reference="DSS")
+f = peaktrack1d(31:50; reference=h)   # ¹⁹F
+p = peaktrack1d(51:70; reference=h)   # ³¹P
+```
+
+The ¹⁹F and ³¹P shifts are then referenced indirectly to DSS on the IUPAC unified scale:
+the zero of each nucleus is its Ξ ratio times the ¹H frequency of DSS, measured in the
+matching ¹H spectrum. That puts ¹⁹F on the CFCl₃ scale and ³¹P on the H₃PO₄ scale, with
+the Ξ ratios NMRTools holds. Because each spectrum's own reference frequency enters the
+calculation, it doesn't matter how the spectra were referenced when they were processed.
+
+Pass the spectra in matching order: the first ¹⁹F spectrum is referenced with the first ¹H
+spectrum, and so on. `peaktrack1d` stops with an error if the number of spectra differs, or
+if a spectrum was recorded at a different field from its ¹H partner. In the window the
+reference slot can't be picked, since DSS comes from the ¹H analysis, but `a` aligns the
+stack and the summary panel shows referenced shifts as usual.
+
 ## Save and reload
 
 Press **Save** to write the output folder named in the box beside it, `out` by default.

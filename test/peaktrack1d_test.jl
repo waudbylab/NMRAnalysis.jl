@@ -22,6 +22,9 @@ using NMRAnalysis.PeakTrack1D: coordinatetable, seriestable, peaklisttable, clip
                                restore, readtable, saveanalysis, exptfolder,
                                callcoordinates,
                                p1outliers, P1TOLERANCE
+using NMRAnalysis.PeakTrack1D: PickedReference, IndirectReference, referencing, alignment,
+                               allreferenced, hertz, xiratio
+using NMRTools: F19, P31, H1
 using NMRAnalysis: writetable
 using CairoMakie: Figure, Axis, Observable, Point2f, Vec2f
 using Test
@@ -65,11 +68,12 @@ function picked(s; group=true)
     return t
 end
 
-function tracker(s, t; coordinates="pH" => [6.0, 6.5, 7.0, 7.5][1:length(s)], refshift=0.0)
+function tracker(s, t; coordinates="pH" => [6.0, 6.5, 7.0, 7.5][1:length(s)], refshift=0.0,
+                 reference=PickedReference(refshift))
     fig = Figure()
     ax = Axis(fig[1, 1])
     return PeakTracker(s, coordinatetable(coordinates, length(s)), Observable(t), nothing,
-                       refshift, Observable(false), StackView(s), fig, ax, nothing,
+                       reference, Observable(false), StackView(s), fig, ax, nothing,
                        Observable("out"))
 end
 
@@ -278,6 +282,72 @@ end
     @test exptfolder("11/pdata/1") == "11"
     @test exptfolder(joinpath("data", "11", "pdata", "2")) == joinpath("data", "11")
     @test exptfolder("11") == "11"
+end
+
+@testset "indirect referencing" begin
+    s = makeseries()
+    ΞF = 0.94094011
+    bfH = 600.13e6
+    @test xiratio(F19) == ΞF && xiratio(H1) == 1.0 && xiratio(P31) ≈ 0.40480742
+    @test isnan(xiratio(nothing))
+    @test hertz(600.13) == 600.13e6 && hertz(600.13e6) == 600.13e6 && isnan(hertz(nothing))
+
+    # a 1H analysis with DSS picked exactly where it is in each plane
+    hs = SpectrumSeries(δaxis, s.intensities, ones(4), fill("h", 4), 1:4; bf=bfH, xi=1.0)
+    t = Tracks(["DSS"])
+    foreach(i -> setpick!(t, 1, exact(hs, i, dss(i))), 1:4)
+    h = tracker(hs, t)
+    @test alignment(h) ≈ -dss.(1:4)
+    @test referencedshift(h, 1, 3.0) ≈ 3.0 - dss(1)
+
+    # a 19F series of the same samples whose axis is 3 ppm off the unified scale
+    fs = SpectrumSeries(δaxis, s.intensities, ones(4), fill("f", 4), 1:4; nucleus="19F",
+                        bf=ΞF * bfH * (1 + 3e-6), xi=ΞF)
+    r = IndirectReference(h, fs)
+    @test r.label == "DSS"
+    @test r.frequencies ≈ [bfH * (1 + 1e-6dss(i)) for i in 1:4]
+    f = tracker(fs, Tracks(["DSS"]); reference=r)
+    δ′ = -60.0
+    exact19F(i) = 1e6 * ((1 + 3e-6) * (1 + 1e-6δ′) / (1 + 1e-6dss(i)) - 1)
+    @test referencedshift(f, 2, δ′) ≈ exact19F(2) rtol = 1e-12
+    @test referencedshift(f, 2, δ′) ≈ δ′ + 3 - dss(2) atol = 1e-3   # to first order
+    @test allreferenced(f) && isreferenced(f)
+    @test alignment(f) ≈ [referencedshift(f, i, 5.0) - 5.0 for i in 1:4]
+
+    # a plane without DSS in the 1H analysis is not referenced in the 19F one
+    t2 = copy(t)
+    delete!(t2.picks, (1, 3))
+    r2 = @test_logs (:warn,) match_mode = :any IndirectReference(tracker(hs, t2), fs)
+    @test isnan(r2.frequencies[3])
+    f2 = tracker(fs, Tracks(["DSS"]); reference=r2)
+    @test isnothing(referencedshift(f2, 3, 1.0)) && !allreferenced(f2)
+    @test isnothing(alignment(f2))
+
+    # spectra that don't match one to one, or differ in field, are refused
+    three = SpectrumSeries(δaxis, s.intensities[:, 1:3], ones(3), fill("f", 3), 1:3;
+                           bf=ΞF * bfH, xi=ΞF)
+    @test_throws DimensionMismatch IndirectReference(h, three)
+    otherfield = SpectrumSeries(δaxis, s.intensities, ones(4), fill("f", 4), 1:4;
+                                bf=ΞF * 500.13e6, xi=ΞF)
+    @test_throws ArgumentError IndirectReference(h, otherfield)
+    @test_throws ArgumentError IndirectReference(f, fs)                         # not picked
+    @test_throws ArgumentError IndirectReference(tracker(fs, Tracks(["X"])), fs) # not 1H
+    @test_throws ArgumentError IndirectReference(h, makeseries())               # no Ξ
+
+    # the reference keyword
+    @test referencing("D_SS", 0.5, fs) == ("D-SS", PickedReference(0.5))
+    @test first(referencing(h, 0.0, fs)) == "DSS"
+    @test referencing(("DSS", r), 0.0, fs) == ("DSS", r)
+
+    # saved output says how it was referenced
+    t3 = Tracks(["DSS"])
+    setpick!(t3, addmultiplet!(t3, "TFA"), exact(fs, 1, δ′))
+    mktempdir() do dir
+        folder = saveanalysis(tracker(fs, t3; reference=r), joinpath(dir, "out"))
+        text = read(joinpath(folder, "referencedshifts.csv"), String)
+        @test occursin("indirectly", text) && occursin("TFA (ppm)", text)
+        @test occursin("indirectly", read(joinpath(folder, "summary.txt"), String))
+    end
 end
 
 @testset "summary panel" begin

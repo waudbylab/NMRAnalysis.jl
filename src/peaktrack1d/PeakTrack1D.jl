@@ -33,6 +33,7 @@ export peaktrack1d, PeakTracker, stackplot
 
 include("series.jl")
 include("tracks.jl")
+include("referencing.jl")
 include("peaks.jl")
 include("processing.jl")
 include("view.jl")

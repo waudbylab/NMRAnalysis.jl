@@ -120,7 +120,7 @@ function analysisinfo(p::PeakTracker)
     push!(lines, "Number of spectra: $(length(s))", "Nucleus: $(s.nucleus)")
     isempty(p.coordinates) ||
         push!(lines, "Coordinates: $(join(keys(p.coordinates), ", "))")
-    push!(lines, "Reference: $(multiplets(tracks(p))[REF].label) at $(p.refshift) ppm")
+    push!(lines, referencetext(p))
     return lines
 end
 
@@ -153,10 +153,8 @@ function writesummary(path::AbstractString, p::PeakTracker, folder)
             end
         end
         println(io)
-        ref = referenceshifts(t, n)
-        println(io,
-                "Reference $(multiplets(t)[REF].label), placed at $(p.refshift) ppm: " *
-                (isnothing(ref) ? "not picked in every plane" : "picked in every plane"))
+        println(io, referencetext(p), ": ",
+                allreferenced(p) ? "available in every plane" : "missing in some planes")
         p.aligned[] && println(io, "Spectra shown aligned to the reference")
         println(io)
         println(io, "Multiplets (centres as measured, ppm):")
@@ -179,7 +177,10 @@ function writesummary(path::AbstractString, p::PeakTracker, folder)
         isnothing(text) && return
         println(io)
         println(io, "Reproduce:")
-        return foreach(line -> println(io, "    ", line), split(text, '\n'))
+        foreach(line -> println(io, "    ", line), split(text, '\n'))
+        p.reference isa IndirectReference &&
+            println(io, "adding reference= the 1H analysis, to reference indirectly again.")
+        return
     end
     return path
 end
@@ -208,9 +209,7 @@ function saveanalysis(p::PeakTracker, folder::AbstractString)
     writetable(joinpath(dir, "shifts.csv"), [comments; "Shifts as measured"],
                linetable(p, q -> q.shift, "ppm")...)
     if isreferenced(p)
-        reference = multiplets(tracks(p))[REF].label
-        writetable(joinpath(dir, "referencedshifts.csv"),
-                   [comments; "Shifts referenced to $reference at $(p.refshift) ppm"],
+        writetable(joinpath(dir, "referencedshifts.csv"), [comments; referencetext(p)],
                    linetable(p, q -> referencedshift(p, q), "ppm")...)
     end
     writetable(joinpath(dir, "heights.csv"), [comments; HEIGHTNOTE],

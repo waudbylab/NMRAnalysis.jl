@@ -38,8 +38,12 @@ plot, and **Load** restores the picks saved there.
   phase far from the series median is set to the median and the zero-order phase fitted
   again.
 - `labels`: names of multiplets to create before picking; more are created as you pick.
-- `reference`: the name of the reference multiplet.
-- `refshift`: the shift (ppm) at which the reference is placed when aligning and
+- `reference`: the name of the reference multiplet, picked in this analysis. Or, for ¹⁹F,
+  ³¹P or another nucleus, a ¹H `PeakTracker` of the same samples with DSS picked: the
+  shifts are then referenced indirectly to it on the IUPAC unified scale, using NMRTools'
+  Ξ ratios, matching spectra one to one in order (see [`IndirectReference`](@ref)). The
+  two must have the same number of spectra, recorded at the same field.
+- `refshift`: the shift (ppm) at which a picked reference is placed when aligning and
   referencing.
 - `coordinates`: what distinguishes the planes, one value per plane: a vector, a pair such
   as `"pH" => pH`, or a `NamedTuple` of vectors such as `(; pH, T)`. Written beside every
@@ -81,6 +85,9 @@ p = peaktrack1d(11:42; coordinates="pH" => pH, reference="DSS")
 p = peaktrack1d(11:42; process=false)               # the processed spectra instead
 p = peaktrack1d(11:42; peaklist="out/peaklist.csv") # carry on from a saved analysis
 p = peaktrack1d(p)                                  # reopen
+
+h = peaktrack1d(11:42; reference="DSS")             # ¹H, with DSS picked
+f = peaktrack1d(51:82; reference=h)                 # ¹⁹F of the same samples, on DSS
 clipboard(p)
 ```
 
@@ -121,7 +128,7 @@ end
 
 function peaktrack1d(p::PeakTracker; kwargs...)
     return openwindow(p.series, p.processing; coordinates=p.coordinates, peaklist=p,
-                      reference=multiplets(tracks(p))[REF].label, refshift=p.refshift,
+                      reference=(multiplets(tracks(p))[REF].label, p.reference),
                       gain=p.view.gain[], call=p.call, outputdir=p.outputdir[], kwargs...)
 end
 
