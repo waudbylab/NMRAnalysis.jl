@@ -96,7 +96,8 @@ end
 
 Open the picking window on `s`, wait until it is closed, and return the analysis.
 """
-function openwindow(s::SpectrumSeries, processing; labels=String[], reference=DEFAULTREFERENCE,
+function openwindow(s::SpectrumSeries, processing; labels=String[],
+                    reference=DEFAULTREFERENCE,
                     refshift=0.0, coordinates=nothing, peaklist=nothing, radius=8, snr=5,
                     gain=2, colormap=nothing, size=(1200, 850), call=nothing,
                     outputdir="out")
@@ -121,12 +122,14 @@ function openwindow(s::SpectrumSeries, processing; labels=String[], reference=DE
     v = StackView(s; gain)
     draw!(ax, s, v; colormap)
 
-    p = PeakTracker(s, coords, Observable(t), processing, ref, Observable(false), v, fig, ax,
+    p = PeakTracker(s, coords, Observable(t), processing, ref, Observable(false), v, fig,
+                    ax,
                     call, Observable(String(outputdir)))
     session = Session()
     pickhint = "drag along a peak to pick it in every spectrum, or click to pick it in one"
     session.notice[] = ref isa IndirectReference ?
-                       ("Shifts are referenced to $reflabel in the 1H analysis: $pickhint", false) :
+                       ("Shifts are referenced to $reflabel in the 1H analysis: $pickhint",
+                        false) :
                        (uppercasefirst(pickhint), false)
     controls = GridLayout(fig[4, 1:2]; tellwidth=false)
     isnothing(processing) || broadeningcontrol!(controls[1, 1], p, session)
@@ -268,14 +271,16 @@ function outputcontrols!(position, p::PeakTracker, session)
     on(loadbutton.clicks) do _
         path = joinpath(pwd(), p.outputdir[], "peaklist.csv")
         if !isfile(path)
-            tell!(session, "Nothing to load: there is no peaklist.csv in " *
-                           "$(shortpath(dirname(path)))"; warn=true)
+            tell!(session,
+                  "Nothing to load: there is no peaklist.csv in " *
+                  "$(shortpath(dirname(path)))"; warn=true)
             return
         end
         reporting(session) do
             p.tracks[] = restore(p.series, path;
                                  reference=multiplets(tracks(p))[REF].label)
-            return tell!(session, "Loaded $(npicks(tracks(p))) picks from $(shortpath(path))")
+            return tell!(session,
+                         "Loaded $(npicks(tracks(p))) picks from $(shortpath(path))")
         end
     end
     quitbutton = Button(row[1, 5]; label="(Q)uit")
@@ -388,11 +393,13 @@ function attach!(p::PeakTracker, textbox, panel, session; radius=8, snr=5)
         frozen(l) || return false
         name = referencename(found[])
         if indirect
-            tell!(session, "$(uppercasefirst(name)) comes from the 1H analysis, so it can't " *
-                           "be picked here"; warn=true)
+            tell!(session,
+                  "$(uppercasefirst(name)) comes from the 1H analysis, so it can't " *
+                  "be picked here"; warn=true)
         else
-            tell!(session, "$(uppercasefirst(name)) is locked while the stack is aligned on " *
-                           "it: press a to undo the alignment first"; warn=true)
+            tell!(session,
+                  "$(uppercasefirst(name)) is locked while the stack is aligned on " *
+                  "it: press a to undo the alignment first"; warn=true)
         end
         return true
     end
@@ -489,8 +496,9 @@ function attach!(p::PeakTracker, textbox, panel, session; radius=8, snr=5)
                 tell!(session, "Renamed to $(multiplets(t)[m].label)")
             else
                 pop!(history)
-                tell!(session, "Can't rename to \"$name\": the name is blank or already " *
-                               "taken"; warn=true)
+                tell!(session,
+                      "Can't rename to \"$name\": the name is blank or already " *
+                      "taken"; warn=true)
             end
         end
         return notify(found)
@@ -620,8 +628,9 @@ function attach!(p::PeakTracker, textbox, panel, session; radius=8, snr=5)
         if Keyboard._0 ≤ ev.key ≤ Keyboard._9
             m = Int(ev.key) - Int(Keyboard._0) + 1   # key 0 is the reference
             if indirect && m == REF
-                tell!(session, "$(uppercasefirst(referencename(t))) comes from the 1H " *
-                               "analysis, so it can't be selected here"; warn=true)
+                tell!(session,
+                      "$(uppercasefirst(referencename(t))) comes from the 1H " *
+                      "analysis, so it can't be selected here"; warn=true)
             elseif m ≤ nmultiplets(t)
                 current[] = first(navorder(t, m))
             elseif m == nmultiplets(t) + 1
@@ -637,7 +646,8 @@ function attach!(p::PeakTracker, textbox, panel, session; radius=8, snr=5)
                 checkpoint()
                 m = ungroup!(t, current[])
                 notify(found)
-                tell!(session, "Moved the line into a peak of its own, $(multiplets(t)[m].label)")
+                tell!(session,
+                      "Moved the line into a peak of its own, $(multiplets(t)[m].label)")
             end
         elseif ev.key == Keyboard.d
             if current[] != 0 && !locked(current[])

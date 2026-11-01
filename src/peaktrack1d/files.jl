@@ -154,7 +154,8 @@ function writesummary(path::AbstractString, p::PeakTracker, folder)
         end
         println(io)
         println(io, referencetext(p), ": ",
-                allreferenced(p) ? "available in every spectrum" : "missing in some spectra")
+                allreferenced(p) ? "available in every spectrum" :
+                "missing in some spectra")
         p.aligned[] && println(io, "Spectra shown aligned to the reference")
         println(io)
         println(io, "Multiplets (centres as measured, ppm):")
@@ -193,7 +194,8 @@ function copyfigures(dir)
     previous = rstrip(abspath(dir), ['/', '\\']) * "_previous"
     isdir(previous) || return dir
     for name in readdir(previous)
-        occursin(r"^figure-.*\.pdf$", name) && cp(joinpath(previous, name), joinpath(dir, name))
+        occursin(r"^figure-.*\.pdf$", name) &&
+            cp(joinpath(previous, name), joinpath(dir, name))
     end
     return dir
 end

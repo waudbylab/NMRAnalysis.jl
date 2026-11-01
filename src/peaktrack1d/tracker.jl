@@ -77,8 +77,12 @@ function referenced(p::PeakTracker, lines, i)
 end
 
 "Is the reference available in any plane, and in every plane?"
-isreferenced(p::PeakTracker) = any(i -> !isnothing(referencedshift(p, i, 0.0)), 1:nplanes(p))
-allreferenced(p::PeakTracker) = all(i -> !isnothing(referencedshift(p, i, 0.0)), 1:nplanes(p))
+function isreferenced(p::PeakTracker)
+    return any(i -> !isnothing(referencedshift(p, i, 0.0)), 1:nplanes(p))
+end
+function allreferenced(p::PeakTracker)
+    return all(i -> !isnothing(referencedshift(p, i, 0.0)), 1:nplanes(p))
+end
 
 """
     alignment(p) -> Union{Vector{Float64},Nothing}
@@ -323,7 +327,8 @@ function summaryseries(p::PeakTracker, line)
         # push! rather than [points; gap]: a Point2f is itself a vector, which vcat would
         # splice in as two numbers
         return reduce(vcat,
-                      [push!([Point2f(x[i], value(pickat(t, l, i), i)) for i in order], gap)
+                      [push!([Point2f(x[i], value(pickat(t, l, i), i)) for i in order],
+                             gap)
                        for l in ls]; init=Point2f[])
     end
     lines = perline((q, i) -> isnothing(q) ? NaN : shift(q.shift, i))
@@ -355,7 +360,6 @@ end
 
 "A shift as a sentence gives it: `0 ppm` rather than `0.0 ppm`."
 ppmtext(δ) = isinteger(δ) ? "$(Int(δ)) ppm" : "$δ ppm"
-
 
 """
     clipboardtext(p) -> String
