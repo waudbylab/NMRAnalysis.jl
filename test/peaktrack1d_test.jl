@@ -18,7 +18,7 @@ using NMRAnalysis.PeakTrack1D: cleanlabel, multipletof, multipletlabels, linesof
 using NMRAnalysis.PeakTrack1D: densify, painted, track, overlay, hit, nearestrow, location
 using NMRAnalysis.PeakTrack1D: coordinatetable, seriestable, peaklisttable, clipboardtext,
                                isreferenced, widetable,
-                               linetable, referencedshift,
+                               linetable, referencedshift, summaryseries,
                                restore, readtable, saveanalysis, exptfolder,
                                callcoordinates,
                                p1outliers, P1TOLERANCE
@@ -278,6 +278,40 @@ end
     @test exptfolder("11/pdata/1") == "11"
     @test exptfolder(joinpath("data", "11", "pdata", "2")) == joinpath("data", "11")
     @test exptfolder("11") == "11"
+end
+
+@testset "summary panel" begin
+    s = makeseries()
+    p = tracker(s, picked(s))
+    d = summaryseries(p, 3)                        # a line of the doublet
+    @test d.m == 3 && d.label == "MOPS"
+    @test d.xlabel == "pH"
+    @test startswith(d.ylabel, "shift referenced to DSS")
+    @test length(d.centre) == 4
+    @test d.centre[2][2] ≈ doublet(2) - dss(2) atol = 2e-3
+    @test length(d.lines) == 2 * (4 + 1)           # two lines, each ending in a gap
+    @test isnan(d.lines[5][1])
+    @test d.heights[1][2] ≈ 80 atol = 6
+
+    # a missing pick leaves a gap rather than joining its neighbours
+    delete!(tracks(p).picks, (4, 3))
+    d = summaryseries(p, 3)
+    @test isnan(d.centre[3][2]) && isnan(d.lines[8][2])
+
+    # without the reference in every plane, shifts are as measured
+    delete!(tracks(p).picks, (1, 2))
+    d = summaryseries(p, 2)
+    @test startswith(d.ylabel, "shift as measured")
+    @test d.centre[1][2] ≈ singlet(1) atol = 1e-3
+
+    # the vacant slot shows nothing, with the same fields
+    e = summaryseries(p, 0)
+    @test e.m == 0 && isempty(e.centre) && keys(e) == keys(d)
+
+    # points run in order of the coordinate, not of the planes
+    q = tracker(s, tracks(p); coordinates="T" => [310, 300, 290, 280])
+    @test issorted(first.(summaryseries(q, 2).centre))
+    @test summaryseries(tracker(s, tracks(p); coordinates=nothing), 2).xlabel == "plane"
 end
 
 @testset "tables" begin

@@ -79,6 +79,15 @@ If a strong neighbour is picked instead of your peak, narrow the brush with `[`.
 lines overlap so that no maximum separates them, press `m` to turn snapping off and place
 the picks by hand.
 
+## Check the series as you pick
+
+The panel to the right of the stack plots the current peak against your first coordinate,
+or against spectrum number if you gave none: its shift above, and the height of each line
+below. It follows the selection, so step through the peaks with `←` and `→` to check each
+one, and it updates as you edit. Shifts are referenced once the reference is picked in every
+spectrum and shown as measured until then; the axis label says which. A spectrum with a
+missing pick shows as a gap.
+
 ## Pick a multiplet
 
 Pick each line of the multiplet as a separate peak, then group them:

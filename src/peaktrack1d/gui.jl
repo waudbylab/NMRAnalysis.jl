@@ -78,17 +78,18 @@ function openwindow(s::SpectrumSeries, processing; labels=String[], reference="r
               leftspinevisible=false, rightspinevisible=false, topspinevisible=false,
               yzoomlock=true, ypanlock=true)   # the mouse zooms and pans chemical shift only
     for (row, text) in enumerate(HELP)
-        Label(fig[row + 1, 1], text; fontsize=12, color=:grey40, tellwidth=false)
+        Label(fig[row + 1, 1:2], text; fontsize=12, color=:grey40, tellwidth=false)
     end
     v = StackView(s; gain)
     draw!(ax, s, v; colormap)
 
     p = PeakTracker(s, coords, Observable(t), processing, Float64(refshift),
                     Observable(false), v, fig, ax, call, Observable(String(outputdir)))
-    controls = GridLayout(fig[4, 1]; tellwidth=false)
+    controls = GridLayout(fig[4, 1:2]; tellwidth=false)
     isnothing(processing) || broadeningcontrol!(controls[1, 1], p)
     textbox = outputcontrols!(controls[1, 2], p)
-    attach!(p, textbox; radius, snr)
+    attach!(p, textbox, fig[1, 2]; radius, snr)
+    colsize!(fig.layout, 2, Relative(0.28))
 
     display(fig)
     while isopen(fig.scene)
@@ -96,6 +97,35 @@ function openwindow(s::SpectrumSeries, processing; labels=String[], reference="r
     end
     GLMakie.closeall()
     return p
+end
+
+"""
+    summarypanel!(position, p, current)
+
+The panel beside the stack: the shifts (above) and heights (below) of the current line's
+multiplet against the first coordinate, following the selection and every edit. See
+[`summaryseries`](@ref).
+"""
+function summarypanel!(position, p::PeakTracker, current)
+    grid = GridLayout(position)
+    data = lift((_, c) -> summaryseries(p, c), p.tracks, current)
+    colour = @lift(multipletcolour(max($data.m, REF)))
+    axshift = Axis(grid[1, 1]; title=@lift($data.label), ylabel=@lift($data.ylabel),
+                   xticklabelsvisible=false)
+    axheight = Axis(grid[2, 1]; xlabel=@lift($data.xlabel), ylabel="height")
+    linkxaxes!(axshift, axheight)
+    scatter!(axshift, @lift($data.lines); color=@lift(($colour, 0.5)), markersize=6)
+    scatterlines!(axshift, @lift($data.centre); color=colour, markersize=8)
+    scatterlines!(axheight, @lift($data.heights); color=colour, markersize=6)
+    # autolimits on series with no finite point would collapse the axes
+    finite(points) = any(q -> all(isfinite, q), points)
+    on(data; update=true) do d
+        finite(d.centre) || finite(d.lines) || return
+        autolimits!(axshift)
+        finite(d.heights) && autolimits!(axheight)
+        return
+    end
+    return grid
 end
 
 "Multiplets to start from: named ones, a saved peak list, or an earlier analysis's."
@@ -211,13 +241,13 @@ function statusline(t::Tracks, current, typed, joining, radius, aligned, snappin
 end
 
 """
-    attach!(p, textbox; radius=8, snr=5)
+    attach!(p, textbox, panel; radius=8, snr=5)
 
-Wire up the mouse and keyboard. The current line is the one that picking, moving, erasing,
-renaming and deleting act on; line `0` is the vacant slot at the end, and picking there
-creates a new multiplet.
+Wire up the mouse and keyboard, and draw the summary panel at `panel`. The current line is
+the one that picking, moving, erasing, renaming and deleting act on; line `0` is the vacant
+slot at the end, and picking there creates a new multiplet.
 """
-function attach!(p::PeakTracker, textbox; radius=8, snr=5)
+function attach!(p::PeakTracker, textbox, panel; radius=8, snr=5)
     ax, v, s, found, aligned = p.axis, p.view, p.series, p.tracks, p.aligned
     n = length(s)
 
@@ -304,6 +334,7 @@ function attach!(p::PeakTracker, textbox; radius=8, snr=5)
     siblings = @lift($layers[2])
     chosen = @lift($layers[3])
     bars = @lift($layers[4])
+    summarypanel!(panel, p, current)
     highlight = lift(found, current) do t, c
         return multipletcolour(something(multipletof(t, c), nmultiplets(t) + 1))
     end

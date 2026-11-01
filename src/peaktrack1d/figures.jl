@@ -80,10 +80,9 @@ none: each line's shift as an open marker, and the centre filled.
 """
 function multipletplot(p::PeakTracker, m; size=(340, 250), fontsize=10)
     t, s = tracks(p), p.series
-    name = findfirst(v -> eltype(v) <: Real, p.coordinates)
-    x = isnothing(name) ? collect(1:length(s)) : Float64.(p.coordinates[name])
+    x, xlabel = xcoordinate(p)
     fig = Figure(; size, fontsize)
-    ax = Axis(fig[1, 1]; xlabel=isnothing(name) ? "plane" : string(name),
+    ax = Axis(fig[1, 1]; xlabel,
               ylabel=shiftlabel(s.nucleus), title=multiplets(t)[m].label)
     ls = orderedlines(t, m)
     if length(ls) > 1

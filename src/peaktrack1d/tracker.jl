@@ -196,6 +196,53 @@ function referencedshift(p::PeakTracker, q::Pick)
     return isnothing(r) ? nothing : q.shift - r + p.refshift
 end
 
+# ---------------------------------------------------------------- summary panel
+
+"The first numeric coordinate and its name, or the plane numbers and `\"plane\"`."
+function xcoordinate(p::PeakTracker)
+    name = findfirst(v -> eltype(v) <: Real, p.coordinates)
+    isnothing(name) && return collect(1.0:nplanes(p)), "plane"
+    return Float64.(p.coordinates[name]), string(name)
+end
+
+"""
+    summaryseries(p, line) -> NamedTuple
+
+What the summary panel shows for the multiplet holding `line`, against the first numeric
+coordinate or the plane number: the shift of each line and the multiplet's centre, and the
+height of each line. Shifts are referenced where the reference is picked in every plane, and
+as measured otherwise, so one panel never mixes the two. Points run in order of the
+coordinate, with `NaN` where a plane has no value and between lines, so the drawn lines
+break there. The vacant slot (`line` 0) gives empty series and `m == 0`.
+"""
+function summaryseries(p::PeakTracker, line)
+    t, n = tracks(p), nplanes(p)
+    x, xlabel = xcoordinate(p)
+    ref = referenceshifts(t, n)
+    ylabel = isnothing(ref) ? "shift as measured (ppm)" :
+             "shift referenced to $(multiplets(t)[REF].label) (ppm)"
+    m = something(multipletof(t, line), 0)
+    if m == 0
+        return (; xlabel, ylabel, m, label="", lines=Point2f[], centre=Point2f[],
+                heights=Point2f[])
+    end
+    order = sortperm(x)
+    ls = orderedlines(t, m)
+    shift(δ, i) = isnothing(ref) ? δ : δ - ref[i] + p.refshift
+    gap = Point2f(NaN, NaN)
+    function perline(value)
+        return reduce(vcat, [[[Point2f(x[i], value(pickat(t, l, i), i)) for i in order]; gap]
+                             for l in ls]; init=Point2f[])
+    end
+    lines = perline((q, i) -> isnothing(q) ? NaN : shift(q.shift, i))
+    heights = perline((q, i) -> isnothing(q) ? NaN : q.height)
+    centre = map(order) do i
+        c = linecentre(t, ls, i)
+        return Point2f(x[i], isnothing(c) ? NaN : shift(c, i))
+    end
+    return (; xlabel, ylabel, m, label=multiplets(t)[m].label, lines, centre, heights)
+end
+
 # ---------------------------------------------------------------- display and clipboard
 
 "Has the reference been picked in any plane?"
