@@ -39,11 +39,11 @@ in the contour plot to work with it.
 |--------|--------------|
 | Add peak at cursor position | `A` |
 | Track peak from cursor position (moving-peak experiments) | `T` |
-| Place a peak at the maximum along a line in every plane (moving-peak experiments) | Hold `L` at one end, drag to the other, and release; or press `L` at each end |
+| Place a peak at the maximum along a line in every plane (moving-peak experiments) | Hold `L` at one end, drag to the other, and release; or press `L` at one end, then click or press `L` at the other |
 | Widen or narrow the selected peak's fitting radii | `Shift` + `←` / `→` (x), `Shift` + `↑` / `↓` (y) |
 | Return the selected peak to the default radii | `=` |
-| Continue fits that stopped at the time or iteration limit | `C` |
-| Continue them, without a time limit, until they converge | `Shift` + `C` |
+| Fit waiting peaks, or continue fits stopped at the time or iteration limit | `C` |
+| Fit and continue, without a time limit, until every fit converges | `Shift` + `C` |
 | Cancel the fit in progress | `Esc` |
 | Delete the selected peak | `D` or **Delete peak** button |
 | Rename the selected peak | `R` or **Rename peak** button |
@@ -76,6 +76,15 @@ The window background changes colour to indicate the current interaction mode:
 | Pale green | Moving a peak |
 | Grey | Saving results to folder |
 
+The status line at the bottom of the window says what the window is doing or waiting for.
+While you rename a peak, add one plane by plane or mark a line, it lists the keys that
+finish or cancel the step. While a fit runs it shows progress through the clusters. It
+reports the outcome of your last command, such as a peak added, a peak list loaded, a peak
+deleted, the results saved or a fit that failed, until you next change the peaks or a new
+fit starts.
+The rest of the time it lists the peaks whose fits are not finished, with the key that
+deals with each (see below).
+
 Peak markers are colour-coded:
 
 | Colour | Meaning |
@@ -94,7 +103,7 @@ lineshape, tails included, contributes at each of those points. Its amplitude
 in each plane is solved for exactly at every step of the fit, so for a series of fixed
 peaks only the positions and linewidths are optimised, however many planes there are.
 With more than one Julia thread (start Julia with `julia -t auto`), clusters are fitted in
-parallel. The label beside the **Fitting** toggle shows progress through the clusters.
+parallel. The status line at the bottom of the window shows progress through the clusters.
 
 In a series of fixed peaks, each amplitude's uncertainty is that of the linear
 least-squares fit of the amplitudes, with the positions and linewidths held at their fitted
@@ -112,11 +121,16 @@ A fit that doesn't reach a converged optimum is flagged, and its peaks turn oran
 - a fit that reaches the iteration limit stops where it got to;
 - a fit that ends with a position or linewidth at its limit is reported as such.
 
-The info panel says which applies to the selected peak, and the label beside the
-**Fitting** toggle counts the unfinished peaks. Press `C` to continue the stopped fits from
-where they got to, with five minutes each, or `Shift` + `C` to keep continuing them, with no
-time limit, round after round, until they converge or a round no longer moves them. The
-REPL reports each round. `Esc` cancels either.
+The info panel says which applies to the selected peak. Press `C` to continue the stopped
+fits from where they got to, with five minutes each, or `Shift` + `C` to keep continuing
+them, with no time limit, round after round, until they converge or a round no longer moves
+them. `Esc` cancels either. Continuing cannot free a peak at its limit: move it, or widen
+its radius.
+
+The status line counts the peaks awaiting a fit (after you press `Esc`, or while
+**Fitting** is off), the peaks whose fit stopped short and the peaks at a limit, each with
+the key that deals with them. While `Shift` + `C` runs it shows the round, and afterwards
+how it ended.
 
 Positions are bounded to within the peak's radius of where you placed it. Linewidths are
 bounded between 1 s⁻¹ and the broadest line the fitting window can determine, one whose full
@@ -180,8 +194,9 @@ The **Load peak list...** button restores peak positions and labels from a saved
 `peaklist.csv`, a Sparky peak list, or a simple `label x y` text file, so you can resume
 work later or seed a new analysis from existing positions. Where peaks were tracked plane
 by plane, the whole trajectory is restored, as are any radii you set for individual peaks.
-The whole list is fitted once, after it has loaded. See
-[Peak Lists and Output Files](peaklistformats.md).
+A loaded list replaces the current peaks. If the file can't be read, or holds no peaks,
+the current peaks and radii are kept. The whole list is fitted once, after it has loaded.
+See [Peak Lists and Output Files](peaklistformats.md).
 
 `summary.txt` ends with a `Reproduce:` block: the call that produced the analysis, with
 every parameter as it was resolved and `peaklist=` pointing at the saved peak list. Paste it

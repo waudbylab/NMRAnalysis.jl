@@ -121,7 +121,8 @@ mean of its lines, which is the centre of any symmetric first-order multiplet. A
 in which one of the lines is missing has no centre, rather than a biased one.
 
 Press `u` to move the current line back out into a peak of its own, or `d` to delete it.
-The left and right keys step through every line of a multiplet in turn.
+The left and right keys step through every line of a multiplet in turn. When a deletion or
+an undo removes the current line, the line before it becomes current.
 
 ## Reference the shifts
 

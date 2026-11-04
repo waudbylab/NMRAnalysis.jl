@@ -126,7 +126,10 @@ The following functions are implemented generically and do not need to be reimpl
 - `simulate!(z, peaks, expt)`: Simulate the experiment and update internal specdata
 - `fit!(expt)`: Fit the touched clusters of peaks in the experiment
 - `fitcluster!(peaks, expt, check)`: Fit one cluster of overlapping peaks
-- `continuefit!(expt)`: Continue the fits stopped at the time or iteration limit
+- `continuefit!(expt)`: Fit the peaks awaiting a fit, or else continue the fits stopped at
+  the time or iteration limit
+- `notice!(expt, text)`: Show `text` in the window's status line until the peaks are next
+  changed or fitted
 - `simulate!(z, peak, expt)`: Add a peak's fitted lineshape to every plane of `z`
 - `batchupdate(f, expt)`: Make several changes to the peaks, then mask, cluster and fit once
 - `checktouched!(expt)`: Check which clusters have been modified

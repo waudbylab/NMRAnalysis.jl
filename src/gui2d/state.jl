@@ -10,8 +10,15 @@ function preparestate(expt::Experiment)
     # longer matches the generation it started with. :fit_task holds the current fit task.
     state[:fit_generation] = Observable(0)
     state[:fit_task] = Observable{Union{Task,Nothing}}(nothing)
-    # clusters fitted of those in the current fit
+    # clusters fitted of those in the current fit, and the round of a fit to convergence
     state[:fitprogress] = Observable((0, 0))
+    state[:fitround] = Observable(0)
+    # the outcome of the last command, shown in the status line until the peaks are next
+    # changed or fitted (see notice!)
+    state[:message] = Observable("")
+    # whether (L) is still held on the line being marked, or was let go to finish it later
+    state[:lineheld] = Observable(false)
+    on(t -> any(t) && (state[:message][] = ""), expt.touched)
     # true while a batch of changes is made (see batchupdate)
     state[:deferupdates] = Observable(false)
 
@@ -128,14 +135,7 @@ function preparestate(expt::Experiment)
     # global Kd) refresh in the panel when a fit completes, not only on reselection.
     state[:current_peak_info] = lift(state[:current_peak_idx], state[:mode],
                                      expt.peaks) do idx, mode, _peaks
-        if mode == :adding
-            "Adding peak\n\n(a) mark this plane\n(space) fill remaining planes\n(esc) cancel"
-        elseif mode == :line
-            "Marking a line\n\nMove to its other end, then release (L) if held,\n" *
-            "or press (L) again\n(esc) cancel"
-        else
-            peakinfotext(expt, idx) * radiusnote(expt, idx) * statusnote(expt, idx)
-        end
+        return peakinfotext(expt, idx) * radiusnote(expt, idx) * statusnote(expt, idx)
     end
 
     completestate!(state, expt)

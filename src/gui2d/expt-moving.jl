@@ -340,6 +340,7 @@ function finish_add!(expt::MovingPeakExperiment, state)
     show_add_marks!(state, Point2f[])
     state[:current_peak_idx][] = length(expt.peaks[])
     state[:mode][] = :normal
+    noticeadded!(expt)
     return set_close_to!(state[:gui][][:sliderslice], anchor)
 end
 
@@ -406,13 +407,14 @@ end
 
 # --- line add (L) ------------------------------------------------------------
 # For a titration whose peaks walk along straight lines: (L) starts a line at the cursor,
-# which then follows it. Releasing (L) after dragging, or pressing it again otherwise, adds a
-# peak placed, in every plane, at the most intense point along that line. The line is held
-# in state[:line].
+# which then follows it. Releasing (L) after dragging, or else pressing it again or
+# clicking, adds a peak placed, in every plane, at the most intense point along that line.
+# The line is held in state[:line].
 
 """Begin marking a line at `pos`."""
 function beginline!(expt::MovingPeakExperiment, state, pos)
     state[:line][] = [Point2f(pos), Point2f(pos)]
+    state[:lineheld][] = true
     return state[:mode][] = :line
 end
 
@@ -434,7 +436,8 @@ function finishline!(expt::MovingPeakExperiment, state, pos)
     state[:line][] = Point2f[]
     state[:mode][] = :normal
     addlinepeak!(expt, a, Point2f(pos))
-    return state[:current_peak_idx][] = length(expt.peaks[])
+    state[:current_peak_idx][] = length(expt.peaks[])
+    return noticeadded!(expt, " at the maximum along the line in each plane")
 end
 
 """Abandon the line being marked."""

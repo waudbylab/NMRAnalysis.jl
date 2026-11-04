@@ -38,8 +38,8 @@ plane does not disturb the others.
   peaks; not available for RDC experiments.
 - **(L) — add along a line.** Press `l` with the cursor at one end of the path a peak follows
   across the planes. The line then follows the cursor: either keep `l` held, drag to the
-  other end and release, or release it straight away, move to the other end and press `l`
-  again. The peak is placed in each plane at the most intense point along that line, and the
+  other end and release, or release it straight away, move to the other end, and click or
+  press `l` again. The status line says which you are doing. The peak is placed in each plane at the most intense point along that line, and the
   fit then refines it within the radius. `esc` cancels the line.
   Suited to fast-exchange titrations; not available for RDC experiments.
 - **Drag** a peak's handle to correct its position in the current plane. The handle enlarges
