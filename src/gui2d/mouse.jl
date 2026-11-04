@@ -10,6 +10,13 @@ function process_mousebutton(expt, state, event)
             state[:mode][] = :moving
             return Consume(true)
         end
+    elseif state[:mode][] == :line && event.button == Mouse.left &&
+           event.action == Mouse.press
+        # a click inside the spectrum is the line's other end; one on a button is not
+        ax = state[:gui][][:axcontour]
+        Makie.is_mouseinside(ax.scene) || return Consume(false)
+        finishline!(expt, state, mouseposition(ax))
+        return Consume(true)
     elseif state[:mode][] == :moving && event.button == Mouse.left &&
            event.action == Mouse.release
         @debug "event: stop dragging"

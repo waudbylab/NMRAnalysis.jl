@@ -25,12 +25,16 @@ function gui!(expt::Experiment; peaklist=nothing, call=nothing)
     g[:panelcontour] = g[:fig][2:3, 1] = GridLayout()
     g[:panelinfo] = g[:fig][2, 2] = GridLayout()
     g[:panelpeakplot] = g[:fig][3, 2] = GridLayout()
+    g[:status] = Label(g[:fig][4, 1:2], statustext(expt); tellwidth=false, halign=:center)
 
     rowsize!(g[:fig].layout, 1, Auto(true))
     # Row 2 (info panel: buttons, hint, radius sliders) is sized to its own content so it
     # never gets squeezed; row 3 (peak plot) takes whatever height is left.
     rowsize!(g[:fig].layout, 2, Auto(true))
     rowsize!(g[:fig].layout, 3, Auto(false, 1))
+    # Row 4, the status line, has a fixed height so that text coming and going doesn't
+    # shift the panels above it.
+    rowsize!(g[:fig].layout, 4, Fixed(24))
     colsize!(g[:fig].layout, 1, Auto(false, 1.6))
     colsize!(g[:fig].layout, 2, Auto(false, 1))
 
@@ -153,8 +157,6 @@ function gui!(expt::Experiment; peaklist=nothing, call=nothing)
     g[:slideryradius] = g[:sgradiiy].sliders[1].value
 
     g[:infotext] = Label(g[:panelinfo][6, 1:2], state[:current_peak_info])
-    g[:status] = Label(g[:panelinfo][7, 1:2], statustext(expt); tellwidth=false,
-                       justification=:center)
 
     # peak plot panel
     makepeakplot!(g, state, expt)
@@ -180,10 +182,12 @@ and what is left to fit, with the key that fits it.
 function statustext(expt::Experiment)
     state = expt.state[]
     return lift(state[:mode], state[:fitprogress], state[:fitround], state[:message],
-                expt.peaks, expt.isfitting) do mode, progress, r, message, peaks, fitting
+                state[:lineheld], expt.peaks,
+                expt.isfitting) do mode, progress, r, message, held, peaks, fitting
         mode == :fitting && return fittingtext(progress, r)
+        mode == :line && return linehint(held)
         haskey(MODEHINTS, mode) && return MODEHINTS[mode]
-        return join(filter(!isempty, [message; pendingtext(peaks, fitting)]), "\n")
+        return join(filter(!isempty, [message; pendingtext(peaks, fitting)]), "   ·   ")
     end
 end
 
@@ -193,7 +197,7 @@ function fittingtext((done, total), round)
     return uppercasefirst(progress) * " (Esc to stop)"
 end
 
-"One line for each kind of peak whose fit is not finished, saying what finishes it."
+"One entry for each kind of peak whose fit is not finished, saying what finishes it."
 function pendingtext(peaks, fitting)
     fitted = filter(peak -> !peak.touched[], peaks)
     waiting = length(peaks) - length(fitted)
@@ -205,27 +209,29 @@ function pendingtext(peaks, fitting)
                          (fitting ? "press (C) to fit" : "switch Fitting on to fit"))
     stopped > 0 && push!(lines,
                          counted(stopped, "peak") *
-                         " stopped short: (C) continue, ⇧C until converged")
+                         " stopped short: (C) continue, ⇧C to converge")
     atlimit > 0 && push!(lines,
                          counted(atlimit, "peak") *
-                         " at a limit: move, or widen radii with ⇧←↑↓→")
+                         " at a limit: move, or widen radii (⇧←↑↓→)")
     return lines
 end
 
 counted(n, noun) = n == 1 ? "1 $noun" : "$n $(noun)s"
 
 # The keys each mode is waiting for. :moving needs none: the drag is self-explanatory.
-const RENAMEHINT = "Renaming: type the new label\n(Enter) finish   (Esc) cancel"
+const RENAMEHINT = "Renaming: type the new label   (Enter) finish   (Esc) cancel"
 const MODEHINTS = Dict(:saving => "Saving results…",
                        :renaming => RENAMEHINT,
                        :renamingstart => RENAMEHINT,
                        :adding =>
-                           "Adding a peak plane by plane\n" *
-                           "(A) mark this plane   (Space) fill the rest   " *
-                           "(Esc) cancel",
-                       :line =>
-                           "Marking a line: move to its other end, then release\n" *
-                           "(L) if held, or press it again   (Esc) cancel")
+                           "Adding a peak plane by plane:   (A) mark this plane   " *
+                           "(Space) fill the rest   (Esc) cancel")
+
+# Marking a line, by dragging with (L) held, or by two presses or a press and a click
+function linehint(held)
+    held && return "Dragging a line: release (L) at its other end   (Esc) cancel"
+    return "Drawing a line: click its other end, or press (L) there   (Esc) cancel"
+end
 
 """
     notice!(expt, text)
@@ -233,6 +239,11 @@ const MODEHINTS = Dict(:saving => "Saving results…",
 Show `text` in the status line until the peaks are next changed or fitted.
 """
 notice!(expt::Experiment, text) = (expt.state[][:message][] = text)
+
+"Say in the status line that the newest peak was added, and `how`."
+function noticeadded!(expt::Experiment, how="")
+    return notice!(expt, "Added peak $(expt.peaks[][end].label[])$how")
+end
 
 "Delete the selected peak, if there is one, and say which in the status line."
 function deleteselected!(expt::Experiment)

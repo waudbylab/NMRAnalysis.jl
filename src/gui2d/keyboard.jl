@@ -15,6 +15,7 @@ function process_keyboardbutton(expt, state, event)
             if hasfixedpositions(expt)
                 addpeak!(expt, Point2f(pos))
                 state[:current_peak_idx][] = length(expt.peaks[]) # select the new peak
+                noticeadded!(expt)
             elseif needsguidedadd(expt)
                 # moving peaks: walk through the planes, marking the position in each
                 begin_add!(expt, state, pos)
@@ -22,6 +23,7 @@ function process_keyboardbutton(expt, state, event)
                 # RDC after the first peak: place immediately, copying the learned offsets
                 addpeak!(expt, Point2f(pos))
                 state[:current_peak_idx][] = length(expt.peaks[])
+                noticeadded!(expt)
             end
         elseif ispressed(g[:fig], Keyboard.l) && cantrack(expt)
             beginline!(expt, state, mouseposition(g[:axcontour]))
@@ -30,6 +32,7 @@ function process_keyboardbutton(expt, state, event)
             pos = mouseposition(g[:axcontour])
             addandtrackpeak!(expt, Point2f(pos))
             state[:current_peak_idx][] = length(expt.peaks[]) # select the new peak
+            noticeadded!(expt, ", tracked across the planes")
         elseif ispressed(g[:fig], Keyboard.d)
             deleteselected!(expt)
         elseif ispressed(g[:fig], Keyboard.r)
@@ -87,11 +90,15 @@ function process_keyboardbutton(expt, state, event)
         return Consume(false)
     elseif state[:mode][] == :line
         # The line follows the cursor from where L was pressed. Releasing L finishes it if
-        # it was dragged out; if not, the line stays and a second press of L finishes it.
+        # it was dragged out; if not, the line stays and a second press of L, or a click
+        # (see process_mousebutton), finishes it.
         if event.key == Keyboard.l &&
            (event.action == Keyboard.press ||
             event.action == Keyboard.release && isdragged(expt, state))
             finishline!(expt, state, mouseposition(g[:axcontour]))
+            return Consume()
+        elseif event.key == Keyboard.l && event.action == Keyboard.release
+            state[:lineheld][] = false
             return Consume()
         elseif event.action == Keyboard.press && event.key == Keyboard.escape
             cancelline!(state)

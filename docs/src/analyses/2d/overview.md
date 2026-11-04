@@ -39,7 +39,7 @@ in the contour plot to work with it.
 |--------|--------------|
 | Add peak at cursor position | `A` |
 | Track peak from cursor position (moving-peak experiments) | `T` |
-| Place a peak at the maximum along a line in every plane (moving-peak experiments) | Hold `L` at one end, drag to the other, and release; or press `L` at each end |
+| Place a peak at the maximum along a line in every plane (moving-peak experiments) | Hold `L` at one end, drag to the other, and release; or press `L` at one end, then click or press `L` at the other |
 | Widen or narrow the selected peak's fitting radii | `Shift` + `←` / `→` (x), `Shift` + `↑` / `↓` (y) |
 | Return the selected peak to the default radii | `=` |
 | Fit waiting peaks, or continue fits stopped at the time or iteration limit | `C` |
@@ -76,11 +76,12 @@ The window background changes colour to indicate the current interaction mode:
 | Pale green | Moving a peak |
 | Grey | Saving results to folder |
 
-The status line below the peak information says what the window is doing or waiting for.
+The status line at the bottom of the window says what the window is doing or waiting for.
 While you rename a peak, add one plane by plane or mark a line, it lists the keys that
 finish or cancel the step. While a fit runs it shows progress through the clusters. It
-reports the outcome of your last command, such as a peak list loaded, a peak deleted, the
-results saved or a fit that failed, until you next change the peaks or a new fit starts.
+reports the outcome of your last command, such as a peak added, a peak list loaded, a peak
+deleted, the results saved or a fit that failed, until you next change the peaks or a new
+fit starts.
 The rest of the time it lists the peaks whose fits are not finished, with the key that
 deals with each (see below).
 
@@ -102,7 +103,7 @@ lineshape, tails included, contributes at each of those points. Its amplitude
 in each plane is solved for exactly at every step of the fit, so for a series of fixed
 peaks only the positions and linewidths are optimised, however many planes there are.
 With more than one Julia thread (start Julia with `julia -t auto`), clusters are fitted in
-parallel. The status line below the peak information shows progress through the clusters.
+parallel. The status line at the bottom of the window shows progress through the clusters.
 
 In a series of fixed peaks, each amplitude's uncertainty is that of the linear
 least-squares fit of the amplitudes, with the positions and linewidths held at their fitted

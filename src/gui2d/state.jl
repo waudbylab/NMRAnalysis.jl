@@ -16,6 +16,8 @@ function preparestate(expt::Experiment)
     # the outcome of the last command, shown in the status line until the peaks are next
     # changed or fitted (see notice!)
     state[:message] = Observable("")
+    # whether (L) is still held on the line being marked, or was let go to finish it later
+    state[:lineheld] = Observable(false)
     on(t -> any(t) && (state[:message][] = ""), expt.touched)
     # true while a batch of changes is made (see batchupdate)
     state[:deferupdates] = Observable(false)
