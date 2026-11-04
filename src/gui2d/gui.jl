@@ -219,11 +219,13 @@ const RENAMEHINT = "Renaming: type the new label\n(Enter) finish   (Esc) cancel"
 const MODEHINTS = Dict(:saving => "Saving results…",
                        :renaming => RENAMEHINT,
                        :renamingstart => RENAMEHINT,
-                       :adding => "Adding a peak plane by plane\n" *
-                                  "(A) mark this plane   (Space) fill the rest   " *
-                                  "(Esc) cancel",
-                       :line => "Marking a line: move to its other end, then release\n" *
-                                "(L) if held, or press it again   (Esc) cancel")
+                       :adding =>
+                           "Adding a peak plane by plane\n" *
+                           "(A) mark this plane   (Space) fill the rest   " *
+                           "(Esc) cancel",
+                       :line =>
+                           "Marking a line: move to its other end, then release\n" *
+                           "(L) if held, or press it again   (Esc) cancel")
 
 """
     notice!(expt, text)
