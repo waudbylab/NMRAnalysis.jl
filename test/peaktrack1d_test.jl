@@ -214,7 +214,7 @@ end
     # slots as shown: reference line 1, then lines 3, 4 and 7, then the vacant slot
     shown = [1, 3, 4, 7, 0]
     @test neighbour(shown, [1, 3, 7, 0], 4) == 3     # the one before, not the reference
-    @test neighbour(shown, [1, 4, 7, 0], 3) == 1     # the reference, if it is the one before
+    @test neighbour(shown, [1, 4, 7, 0], 3) == 1     # the reference, if it comes before
     @test neighbour(shown, [1, 7, 0], 4) == 1        # skipping others that went too
     @test neighbour([3, 4, 0], [4, 0], 3) == 4       # the one after, with none before
     @test neighbour([3, 4, 0], [0], 3) == 0          # the vacant slot, with no line left

@@ -194,8 +194,8 @@ The **Load peak list...** button restores peak positions and labels from a saved
 work later or seed a new analysis from existing positions. Where peaks were tracked plane
 by plane, the whole trajectory is restored, as are any radii you set for individual peaks.
 A loaded list replaces the current peaks. If the file can't be read, or holds no peaks,
-the current peaks and radii are kept. The whole list is fitted once, after it has loaded. See
-[Peak Lists and Output Files](peaklistformats.md).
+the current peaks and radii are kept. The whole list is fitted once, after it has loaded.
+See [Peak Lists and Output Files](peaklistformats.md).
 
 `summary.txt` ends with a `Reproduce:` block: the call that produced the analysis, with
 every parameter as it was resolved and `peaklist=` pointing at the saved peak list. Paste it
