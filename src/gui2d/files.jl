@@ -5,11 +5,12 @@
 # Hand-made lists may instead be a bare, header-less `label x y` per line.
 
 """
-    choosepeaklist() -> String
+    choosepeaklist() -> Union{String,Nothing}
 
-A peak list chosen in a file dialog, or `""` for none. On Linux the dialog is not opened:
-the GTK it uses can abort Julia when the system's GTK settings schema lacks a key it expects
-(`show-type-column`), so a warning says how to load a list instead.
+A peak list chosen in a file dialog, or `""` for none. On Linux the dialog is not opened,
+and `nothing` is returned: the GTK it uses can abort Julia when the system's GTK settings
+schema lacks a key it expects (`show-type-column`), so a warning says how to load a list
+instead.
 """
 function choosepeaklist()
     if Sys.islinux()
@@ -19,7 +20,7 @@ function choosepeaklist()
                  The crash comes from GTK settings schemas older than the GTK that Julia \
                  bundles; updating the system's GTK 3 package (libgtk-3-common on \
                  Debian/Ubuntu, gtk3 on Fedora) may fix the dialog."""
-        return ""
+        return nothing
     end
     return pick_file(; filterlist="csv;list;peaks;txt;bak")
 end
@@ -29,10 +30,19 @@ function loadpeaks!(expt, file::AbstractString)
     isfile(file) || throw(ArgumentError("no peak list at $file"))
 
     @info "Loading peak file $file"
-    return batchupdate(expt) do
+    n = 0
+    batchupdate(expt) do
         deleteallpeaks!(expt)
-        return readpeaklist!(expt, file)
+        return n = readpeaklist!(expt, file)
     end
+    return notice!(expt,
+                   n == 0 ? "No peaks found in $(basename(file))" :
+                   "Loaded $(counted(n, "peak")) from $(basename(file))")
+end
+
+# no file dialog (see choosepeaklist)
+function loadpeaks!(expt, ::Nothing)
+    return notice!(expt, "No file dialog on Linux: see the REPL to load a list")
 end
 
 function saveresults!(expt)
@@ -59,7 +69,10 @@ function saveresults!(expt)
             save_peak_plots!(expt, folder)
             save_cluster_plots!(expt, folder)
             save_summary_plot!(expt, folder)
-            notice!(expt, "Saved to $(expt.state[][:outputdir][])")
+            name = expt.state[][:outputdir][]
+            notice!(expt,
+                    unfinished == 0 ? "Saved to $name" :
+                    "Saved to $name, with $(counted(unfinished, "unfinished fit"))")
         catch e
             @error "Error saving results to $folder" exception = (e, catch_backtrace())
             notice!(expt, "Saving failed: see the REPL")

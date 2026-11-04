@@ -273,6 +273,7 @@ function fit!(expt::Experiment; warm=false,
     isempty(todo) && return nothing
 
     mygen = (state[:fit_generation][] += 1)
+    notice!(expt, "")
     clusters = [peaks[cluster] for cluster in todo]
 
     runfit = function ()
@@ -296,6 +297,7 @@ function fit!(expt::Experiment; warm=false,
         catch e
             # a background task's error is otherwise never seen
             @error "Fitting failed" exception = (e, catch_backtrace())
+            current() && notice!(expt, "Fitting failed: see the REPL")
         finally
             current() && (state[:mode][] = :normal)
         end

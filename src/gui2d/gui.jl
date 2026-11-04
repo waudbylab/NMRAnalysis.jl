@@ -174,15 +174,15 @@ end
 """
     statustext(expt) -> Observable{String}
 
-The status line: what the window is doing, the outcome of the last command, and what is
-left to fit, with the key that fits it.
+The status line: what the window is doing or waiting for, the outcome of the last command,
+and what is left to fit, with the key that fits it.
 """
 function statustext(expt::Experiment)
     state = expt.state[]
     return lift(state[:mode], state[:fitprogress], state[:fitround], state[:message],
                 expt.peaks, expt.isfitting) do mode, progress, r, message, peaks, fitting
         mode == :fitting && return fittingtext(progress, r)
-        mode == :saving && return "Saving results…"
+        haskey(MODEHINTS, mode) && return MODEHINTS[mode]
         return join(filter(!isempty, [message; pendingtext(peaks, fitting)]), "\n")
     end
 end
@@ -214,8 +214,34 @@ end
 
 counted(n, noun) = n == 1 ? "1 $noun" : "$n $(noun)s"
 
-"Show `text` in the status line until the peaks next change."
+# The keys each mode is waiting for. :moving needs none: the drag is self-explanatory.
+const RENAMEHINT = "Renaming: type the new label\n(Enter) finish   (Esc) cancel"
+const MODEHINTS = Dict(:saving => "Saving results…",
+                       :renaming => RENAMEHINT,
+                       :renamingstart => RENAMEHINT,
+                       :adding => "Adding a peak plane by plane\n" *
+                                  "(A) mark this plane   (Space) fill the rest   " *
+                                  "(Esc) cancel",
+                       :line => "Marking a line: move to its other end, then release\n" *
+                                "(L) if held, or press it again   (Esc) cancel")
+
+"""
+    notice!(expt, text)
+
+Show `text` in the status line until the peaks are next changed or fitted.
+"""
 notice!(expt::Experiment, text) = (expt.state[][:message][] = text)
+
+"Delete the selected peak, if there is one, and say which in the status line."
+function deleteselected!(expt::Experiment)
+    state = expt.state[]
+    idx = state[:current_peak_idx][]
+    idx > 0 || return nothing
+    label = expt.peaks[][idx].label[]
+    state[:current_peak_idx][] = 0
+    deletepeak!(expt, idx)
+    return notice!(expt, "Deleted peak $label")
+end
 
 # Hook for experiment-specific contour-panel overlays; specialised for moving-peak
 # experiments in expt-moving.jl. No-op for fixed-position experiments.
@@ -308,7 +334,13 @@ function addhanders!(g, state, expt::Experiment)
 
     # load peak list
     on(g[:cmdload].clicks) do _
-        return loadpeaks!(expt, choosepeaklist())
+        file = choosepeaklist()
+        try
+            loadpeaks!(expt, file)
+        catch e
+            @error "Error loading $file" exception = (e, catch_backtrace())
+            notice!(expt, "Could not load $(basename(file)): see the REPL")
+        end
     end
 
     # save peak list
@@ -322,13 +354,7 @@ function addhanders!(g, state, expt::Experiment)
     end
 
     # delete peak
-    on(g[:cmddelete].clicks) do _
-        idx = state[:current_peak_idx][]
-        if idx > 0
-            state[:current_peak_idx][] = 0
-            deletepeak!(expt, idx)
-        end
-    end
+    on(_ -> deleteselected!(expt), g[:cmddelete].clicks)
 
     # rename peak
     on(g[:cmdrename].clicks) do _
@@ -407,7 +433,6 @@ function renamepeak!(expt, state, initiator)
     else
         state[:mode][] = :renaming
     end
-    # state[:current_peak_info][] = "Renaming peak $(peak.label[]), press Enter to finish, Backspace to delete, Esc to cancel"
     state[:oldlabel][] = state[:current_peak][].label[]
     state[:current_peak][].label[] = "‸"
     return notify(expt.peaks)

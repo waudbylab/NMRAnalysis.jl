@@ -31,11 +31,7 @@ function process_keyboardbutton(expt, state, event)
             addandtrackpeak!(expt, Point2f(pos))
             state[:current_peak_idx][] = length(expt.peaks[]) # select the new peak
         elseif ispressed(g[:fig], Keyboard.d)
-            idx = state[:current_peak_idx][]
-            if idx > 0
-                state[:current_peak_idx][] = 0
-                deletepeak!(expt, idx)
-            end
+            deleteselected!(expt)
         elseif ispressed(g[:fig], Keyboard.r)
             if state[:current_peak_idx][] > 0
                 renamepeak!(expt, state, :keyboard)

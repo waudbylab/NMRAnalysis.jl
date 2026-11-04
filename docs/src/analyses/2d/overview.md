@@ -76,6 +76,14 @@ The window background changes colour to indicate the current interaction mode:
 | Pale green | Moving a peak |
 | Grey | Saving results to folder |
 
+The status line below the peak information says what the window is doing or waiting for.
+While you rename a peak, add one plane by plane or mark a line, it lists the keys that
+finish or cancel the step. While a fit runs it shows progress through the clusters. It
+reports the outcome of your last command, such as a peak list loaded, a peak deleted, the
+results saved or a fit that failed, until you next change the peaks or a new fit starts.
+The rest of the time it lists the peaks whose fits are not finished, with the key that
+deals with each (see below).
+
 Peak markers are colour-coded:
 
 | Colour | Meaning |
@@ -118,11 +126,10 @@ them, with no time limit, round after round, until they converge or a round no l
 them. `Esc` cancels either. Continuing cannot free a peak at its limit: move it, or widen
 its radius.
 
-The status line below the peak information tells you what is left to do. While a fit runs it
-shows progress through the clusters, and the round when you press `Shift` + `C`. Otherwise
-it counts the peaks awaiting a fit (after you press `Esc`, or while **Fitting** is off), the
-peaks whose fit stopped short and the peaks at a limit, each with the key that deals with
-them, and reports the outcome of the last `C` or `Shift` + `C`.
+The status line counts the peaks awaiting a fit (after you press `Esc`, or while
+**Fitting** is off), the peaks whose fit stopped short and the peaks at a limit, each with
+the key that deals with them. While `Shift` + `C` runs it shows the round, and afterwards
+how it ended.
 
 Positions are bounded to within the peak's radius of where you placed it. Linewidths are
 bounded between 1 s⁻¹ and the broadest line the fitting window can determine, one whose full
