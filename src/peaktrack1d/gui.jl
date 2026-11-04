@@ -330,6 +330,22 @@ function statusline(t::Tracks, current, typed, joining, radius, aligned, snappin
 end
 
 """
+    neighbour(before, after, l) -> Int
+
+The slot to select once line `l` has gone: of the slots in `after`, the nearest before `l`
+in `before`, the order the slots were last shown in, or failing that the nearest after it.
+A line never shown was added since, at the end, so the last line takes its place.
+"""
+function neighbour(before, after, l)
+    k = findfirst(==(l), before)
+    isnothing(k) && return after[max(length(after) - 1, 1)]
+    i = findlast(in(after), before[1:(k - 1)])
+    isnothing(i) || return before[i]
+    j = findfirst(in(after), before[(k + 1):end])
+    return isnothing(j) ? first(after) : before[k + j]
+end
+
+"""
     attach!(p, textbox, panel, session; radius=8, snr=5)
 
 Wire up the mouse and keyboard, and draw the summary panel at `panel`. The current line is
@@ -374,12 +390,20 @@ function attach!(p::PeakTracker, textbox, panel, session; radius=8, snr=5)
         end
         return current[]
     end
-    # after an undo or a load, the current line may no longer exist
+    # the slots as last shown, so that a line that goes hands the selection to its neighbour
+    shown = Ref(slots())
+    # after a delete, an undo or a load, the current line may no longer exist
     function validate!()
-        return current[] == 0 || hasline(found[], current[]) || (current[] = first(slots()))
+        after = slots()
+        current[] == 0 || hasline(found[], current[]) ||
+            (current[] = neighbour(shown[], after, current[]))
+        return shown[] = after
     end
     on(_ -> validate!(), found)
-    checkpoint() = push!(history, copy(found[]))
+    function checkpoint()
+        shown[] = slots()
+        return push!(history, copy(found[]))
+    end
     halfwidth(axis) = r[] / pixelscale(axis)[1]   # search radius in ppm
     # place exactly at the cursor? shift inverts the snapping setting
     precise(scene) = snapping[] == shifted(scene)

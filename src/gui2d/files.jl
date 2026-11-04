@@ -30,14 +30,29 @@ function loadpeaks!(expt, file::AbstractString)
     isfile(file) || throw(ArgumentError("no peak list at $file"))
 
     @info "Loading peak file $file"
+    # A read replaces the peaks and may reset the default radii. If it fails, or finds no
+    # peaks, both are put back, radii first so that the restored peaks aren't touched.
+    peaks, radii = copy(expt.peaks[]), (x=expt.xradius[], y=expt.yradius[])
+    function restore()
+        expt.xradius[] == radii.x || setdefaultradius!(expt, :x, radii.x)
+        expt.yradius[] == radii.y || setdefaultradius!(expt, :y, radii.y)
+        return append!(empty!(expt.peaks[]), peaks)
+    end
     n = 0
     batchupdate(expt) do
         deleteallpeaks!(expt)
-        return n = readpeaklist!(expt, file)
+        n = try
+            readpeaklist!(expt, file)
+        catch
+            restore()
+            rethrow()
+        end
+        return n == 0 && restore()
     end
+    name = basename(file)
     return notice!(expt,
-                   n == 0 ? "No peaks found in $(basename(file))" :
-                   "Loaded $(counted(n, "peak")) from $(basename(file))")
+                   n == 0 ? "No peaks found in $name: the current peaks are kept" :
+                   "Loaded $(counted(n, "peak")) from $name")
 end
 
 # no file dialog (see choosepeaklist)

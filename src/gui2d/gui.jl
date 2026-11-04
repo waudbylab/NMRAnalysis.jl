@@ -339,7 +339,7 @@ function addhanders!(g, state, expt::Experiment)
             loadpeaks!(expt, file)
         catch e
             @error "Error loading $file" exception = (e, catch_backtrace())
-            notice!(expt, "Could not load $(basename(file)): see the REPL")
+            notice!(expt, "Could not load $(basename(file)): peaks unchanged, see the REPL")
         end
     end
 

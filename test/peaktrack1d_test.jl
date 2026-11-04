@@ -15,7 +15,8 @@ using NMRAnalysis.PeakTrack1D: cleanlabel, multipletof, multipletlabels, linesof
                                addmultiplet!,
                                setpick!, erase!, group!, ungroup!, deleteline!, relabel!,
                                haspicks, picksof, npicks, pickat, tracks
-using NMRAnalysis.PeakTrack1D: densify, painted, track, overlay, hit, nearestrow, location
+using NMRAnalysis.PeakTrack1D: densify, painted, track, overlay, hit, nearestrow, location,
+                               neighbour
 using NMRAnalysis.PeakTrack1D: coordinatetable, seriestable, peaklisttable, clipboardtext,
                                isreferenced, widetable,
                                linetable, referencedshift, summaryseries,
@@ -207,6 +208,18 @@ end
     @test multipletlabels(t) == ["DSS", "MOPS"]
     @test linesof(t, REF) == [1]
     @test !haspicks(t, 1)
+end
+
+@testset "selection after a line goes" begin
+    # slots as shown: reference line 1, then lines 3, 4 and 7, then the vacant slot
+    shown = [1, 3, 4, 7, 0]
+    @test neighbour(shown, [1, 3, 7, 0], 4) == 3     # the one before, not the reference
+    @test neighbour(shown, [1, 4, 7, 0], 3) == 1     # the reference, if it is the one before
+    @test neighbour(shown, [1, 7, 0], 4) == 1        # skipping others that went too
+    @test neighbour([3, 4, 0], [4, 0], 3) == 4       # the one after, with none before
+    @test neighbour([3, 4, 0], [0], 3) == 0          # the vacant slot, with no line left
+    @test neighbour(shown, [1, 3, 0], 9) == 3        # a line never shown: the last
+    @test neighbour(shown, [0], 9) == 0
 end
 
 @testset "first-order phase outliers" begin

@@ -193,7 +193,8 @@ The **Load peak list...** button restores peak positions and labels from a saved
 `peaklist.csv`, a Sparky peak list, or a simple `label x y` text file, so you can resume
 work later or seed a new analysis from existing positions. Where peaks were tracked plane
 by plane, the whole trajectory is restored, as are any radii you set for individual peaks.
-The whole list is fitted once, after it has loaded. See
+A loaded list replaces the current peaks. If the file can't be read, or holds no peaks,
+the current peaks and radii are kept. The whole list is fitted once, after it has loaded. See
 [Peak Lists and Output Files](peaklistformats.md).
 
 `summary.txt` ends with a `Reproduce:` block: the call that produced the analysis, with
