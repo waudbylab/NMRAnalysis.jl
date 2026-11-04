@@ -310,47 +310,65 @@ end
 """
     continuefit!(expt; budget=CONTINUE_TIME_BUDGET)
 
-Refit the peaks whose last fit was stopped before it finished (see
-[`iscontinuable`](@ref)), starting from where it stopped, with `budget` seconds per cluster.
+Fit the peaks still awaiting a fit, if any, as an ordinary fit. Otherwise refit the peaks
+whose last fit was stopped before it finished (see [`iscontinuable`](@ref)), starting from
+where it stopped, with `budget` seconds per cluster. Returns the fit's task, or `nothing`
+where there is nothing to fit, which the status line then reports.
 """
 function continuefit!(expt::Experiment; budget=CONTINUE_TIME_BUDGET)
+    any(expt.touched[]) && return fit!(expt)
     unfinished = filter(iscontinuable, expt.peaks[])
-    isempty(unfinished) && return nothing
+    isempty(unfinished) && return notice!(expt, nothingtocontinue(expt))
     foreach(peak -> peak.touched.val = true, unfinished)
     expt.touched.val = map(c -> any(j -> expt.peaks[][j].touched[], c), expt.clusters[])
     return fit!(expt; warm=true, budget)
 end
 
+function nothingtocontinue(expt::Experiment)
+    any(peak -> fitstatus(peak) == :bound, expt.peaks[]) &&
+        return "Nothing to continue: refitting cannot free a peak at a limit"
+    return "Nothing to continue: every fit has converged"
+end
+
 """
     convergefit!(expt; maxrounds=100)
 
-Continue the stopped fits without a time limit, round after round, until none is left
-stopped short. It also ends when a round no longer moves any position or linewidth, after
-`maxrounds` rounds, or when the fit is cancelled with Esc or superseded by a change to the
-peaks.
+Fit the peaks awaiting a fit, then continue the stopped fits without a time limit, round
+after round, until none is left stopped short. It also ends when a round no longer moves any
+position or linewidth, after `maxrounds` rounds, or when the fit is cancelled with Esc or
+superseded by a change to the peaks.
 """
 function convergefit!(expt::Experiment; maxrounds=100)
     state = expt.state[]
     planes(p) = eachindex(p.parameters[:x].value[])
     shapes(peaks) = [shapeparams(p, i) for p in peaks for i in planes(p)]
-    return @async begin
+    # false once the fit is cancelled, or superseded by another change
+    function finish(task)
+        isnothing(task) && return true
+        generation = state[:fit_generation][]
+        wait(task)
+        return state[:fit_generation][] == generation
+    end
+    return @async try
+        any(expt.touched[]) && (finish(fit!(expt)) || return nothing)
         for round in 1:maxrounds
             unfinished = filter(iscontinuable, expt.peaks[])
-            isempty(unfinished) && return @info "All fits have converged"
-            @info "Continuing $(length(unfinished)) unfinished fit(s), round $round " *
-                  "(Esc to stop)"
+            if isempty(unfinished)
+                done = "Continued fits finished after $(counted(round - 1, "round"))"
+                return notice!(expt, round == 1 ? nothingtocontinue(expt) : done)
+            end
+            state[:fitround][] = round
             before = shapes(unfinished)
-            task = continuefit!(expt; budget=Inf)
-            isnothing(task) && return nothing
-            generation = state[:fit_generation][]
-            wait(task)
-            # cancelled, or superseded by another change
-            state[:fit_generation][] == generation || return nothing
+            finish(continuefit!(expt; budget=Inf)) || return nothing
             any(iscontinuable, unfinished) || continue
             isapprox(reduce(vcat, collect.(shapes(unfinished))),
                      reduce(vcat, collect.(before)); rtol=1e-9) &&
-                return @info "Fits have stopped improving"
+                return notice!(expt,
+                               "Fits stopped improving after $(counted(round, "round"))")
         end
+        notice!(expt, "Stopped after $maxrounds rounds")
+    finally
+        state[:fitround][] = 0
     end
 end
 

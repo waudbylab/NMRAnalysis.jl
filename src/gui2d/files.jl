@@ -59,8 +59,10 @@ function saveresults!(expt)
             save_peak_plots!(expt, folder)
             save_cluster_plots!(expt, folder)
             save_summary_plot!(expt, folder)
+            notice!(expt, "Saved to $(expt.state[][:outputdir][])")
         catch e
             @error "Error saving results to $folder" exception = (e, catch_backtrace())
+            notice!(expt, "Saving failed: see the REPL")
         finally
             # Always restore normal mode - otherwise a failure mid-save leaves the GUI stuck
             # on the salmon "fitting" background with no way to recover.

@@ -153,7 +153,8 @@ function gui!(expt::Experiment; peaklist=nothing, call=nothing)
     g[:slideryradius] = g[:sgradiiy].sliders[1].value
 
     g[:infotext] = Label(g[:panelinfo][6, 1:2], state[:current_peak_info])
-    g[:fitstatus] = Label(g[:panelinfo][7, 1:2], fitstatustext(expt); tellwidth=false)
+    g[:status] = Label(g[:panelinfo][7, 1:2], statustext(expt); tellwidth=false,
+                       justification=:center)
 
     # peak plot panel
     makepeakplot!(g, state, expt)
@@ -171,18 +172,50 @@ function gui!(expt::Experiment; peaklist=nothing, call=nothing)
 end
 
 """
-    fitstatustext(expt) -> Observable{String}
+    statustext(expt) -> Observable{String}
 
-Progress through a fit while it runs, and afterwards how many peaks it left unfinished.
+The status line: what the window is doing, the outcome of the last command, and what is
+left to fit, with the key that fits it.
 """
-function fitstatustext(expt::Experiment)
+function statustext(expt::Experiment)
     state = expt.state[]
-    return lift(state[:mode], state[:fitprogress], expt.peaks) do mode, progress, peaks
-        mode == :fitting && return "Fitting $(progress[1])/$(progress[2])"
-        n = count(isunfinished, peaks)
-        return n == 0 ? "" : "$n unfinished"
+    return lift(state[:mode], state[:fitprogress], state[:fitround], state[:message],
+                expt.peaks, expt.isfitting) do mode, progress, r, message, peaks, fitting
+        mode == :fitting && return fittingtext(progress, r)
+        mode == :saving && return "Saving results…"
+        return join(filter(!isempty, [message; pendingtext(peaks, fitting)]), "\n")
     end
 end
+
+function fittingtext((done, total), round)
+    progress = "fitting cluster $(min(done + 1, total)) of $total"
+    round > 0 && return "Continuing to convergence, round $round: $progress (Esc to stop)"
+    return uppercasefirst(progress) * " (Esc to stop)"
+end
+
+"One line for each kind of peak whose fit is not finished, saying what finishes it."
+function pendingtext(peaks, fitting)
+    fitted = filter(peak -> !peak.touched[], peaks)
+    waiting = length(peaks) - length(fitted)
+    stopped = count(iscontinuable, fitted)
+    atlimit = count(peak -> fitstatus(peak) == :bound, fitted)
+    lines = String[]
+    waiting > 0 && push!(lines,
+                         counted(waiting, "peak") * " awaiting a fit: " *
+                         (fitting ? "press (C) to fit" : "switch Fitting on to fit"))
+    stopped > 0 && push!(lines,
+                         counted(stopped, "peak") *
+                         " stopped short: (C) continue, ⇧C until converged")
+    atlimit > 0 && push!(lines,
+                         counted(atlimit, "peak") *
+                         " at a limit: move, or widen radii with ⇧←↑↓→")
+    return lines
+end
+
+counted(n, noun) = n == 1 ? "1 $noun" : "$n $(noun)s"
+
+"Show `text` in the status line until the peaks next change."
+notice!(expt::Experiment, text) = (expt.state[][:message][] = text)
 
 # Hook for experiment-specific contour-panel overlays; specialised for moving-peak
 # experiments in expt-moving.jl. No-op for fixed-position experiments.

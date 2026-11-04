@@ -60,8 +60,13 @@ function process_keyboardbutton(expt, state, event)
             end
         elseif ispressed(g[:fig], Keyboard.c)
             # Shift+C fits until convergence, C for one more stretch
-            ispressed(g[:fig], Keyboard.left_shift | Keyboard.right_shift) ?
-            convergefit!(expt) : continuefit!(expt)
+            if !expt.isfitting[]
+                notice!(expt, "Fitting is off: switch it on to fit")
+            elseif ispressed(g[:fig], Keyboard.left_shift | Keyboard.right_shift)
+                convergefit!(expt)
+            else
+                continuefit!(expt)
+            end
         elseif ispressed(g[:fig], Keyboard.equal)
             idx = state[:current_peak_idx][]
             idx > 0 && resetradius!(expt, idx)
@@ -127,6 +132,7 @@ function process_keyboardbutton(expt, state, event)
             # here to restore the UI to :normal.
             state[:fit_generation][] += 1
             state[:mode][] = :normal
+            notice!(expt, "Fitting stopped")
             return Consume()
         end
         return Consume(false)

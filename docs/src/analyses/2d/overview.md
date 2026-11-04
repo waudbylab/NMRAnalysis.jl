@@ -42,8 +42,8 @@ in the contour plot to work with it.
 | Place a peak at the maximum along a line in every plane (moving-peak experiments) | Hold `L` at one end, drag to the other, and release; or press `L` at each end |
 | Widen or narrow the selected peak's fitting radii | `Shift` + `←` / `→` (x), `Shift` + `↑` / `↓` (y) |
 | Return the selected peak to the default radii | `=` |
-| Continue fits that stopped at the time or iteration limit | `C` |
-| Continue them, without a time limit, until they converge | `Shift` + `C` |
+| Fit waiting peaks, or continue fits stopped at the time or iteration limit | `C` |
+| Fit and continue, without a time limit, until every fit converges | `Shift` + `C` |
 | Cancel the fit in progress | `Esc` |
 | Delete the selected peak | `D` or **Delete peak** button |
 | Rename the selected peak | `R` or **Rename peak** button |
@@ -94,7 +94,7 @@ lineshape, tails included, contributes at each of those points. Its amplitude
 in each plane is solved for exactly at every step of the fit, so for a series of fixed
 peaks only the positions and linewidths are optimised, however many planes there are.
 With more than one Julia thread (start Julia with `julia -t auto`), clusters are fitted in
-parallel. The label beside the **Fitting** toggle shows progress through the clusters.
+parallel. The status line below the peak information shows progress through the clusters.
 
 In a series of fixed peaks, each amplitude's uncertainty is that of the linear
 least-squares fit of the amplitudes, with the positions and linewidths held at their fitted
@@ -112,11 +112,17 @@ A fit that doesn't reach a converged optimum is flagged, and its peaks turn oran
 - a fit that reaches the iteration limit stops where it got to;
 - a fit that ends with a position or linewidth at its limit is reported as such.
 
-The info panel says which applies to the selected peak, and the label beside the
-**Fitting** toggle counts the unfinished peaks. Press `C` to continue the stopped fits from
-where they got to, with five minutes each, or `Shift` + `C` to keep continuing them, with no
-time limit, round after round, until they converge or a round no longer moves them. The
-REPL reports each round. `Esc` cancels either.
+The info panel says which applies to the selected peak. Press `C` to continue the stopped
+fits from where they got to, with five minutes each, or `Shift` + `C` to keep continuing
+them, with no time limit, round after round, until they converge or a round no longer moves
+them. `Esc` cancels either. Continuing cannot free a peak at its limit: move it, or widen
+its radius.
+
+The status line below the peak information tells you what is left to do. While a fit runs it
+shows progress through the clusters, and the round when you press `Shift` + `C`. Otherwise
+it counts the peaks awaiting a fit (after you press `Esc`, or while **Fitting** is off), the
+peaks whose fit stopped short and the peaks at a limit, each with the key that deals with
+them, and reports the outcome of the last `C` or `Shift` + `C`.
 
 Positions are bounded to within the peak's radius of where you placed it. Linewidths are
 bounded between 1 s⁻¹ and the broadest line the fitting window can determine, one whose full

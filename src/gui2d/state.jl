@@ -10,8 +10,12 @@ function preparestate(expt::Experiment)
     # longer matches the generation it started with. :fit_task holds the current fit task.
     state[:fit_generation] = Observable(0)
     state[:fit_task] = Observable{Union{Task,Nothing}}(nothing)
-    # clusters fitted of those in the current fit
+    # clusters fitted of those in the current fit, and the round of a fit to convergence
     state[:fitprogress] = Observable((0, 0))
+    state[:fitround] = Observable(0)
+    # the outcome of the last command, shown in the status line until the peaks next change
+    state[:message] = Observable("")
+    on(_ -> state[:message][] = "", expt.peaks)
     # true while a batch of changes is made (see batchupdate)
     state[:deferupdates] = Observable(false)
 
