@@ -37,6 +37,10 @@ asexptpath(x) = x
 asexptpath(x::Integer) = string(x)
 asexptpath(x::AbstractVector{<:Integer}) = string.(x)
 
+"""Spectra as a vector of paths, from a path, an experiment number or a list of them."""
+planelist(x) = [asexptpath(x)]
+planelist(x::AbstractVector) = asexptpath.(collect(x))
+
 function choptitle(title, maxlength=30)
     if length(title) > maxlength
         title[1:maxlength] * "…"

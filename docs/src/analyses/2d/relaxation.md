@@ -46,8 +46,7 @@ looked for in this order:
 5. the `vclist` multiplied by `cycletime`
 6. a question, before the window opens
 
-Where a loop count is used and `cycletime` isn't given, you are asked for it. The second
-argument may still be given positionally, as `relaxation2d("20", delays)`.
+Where a loop count is used and `cycletime` isn't given, you are asked for it.
 
 ## Excluding planes from the fit
 

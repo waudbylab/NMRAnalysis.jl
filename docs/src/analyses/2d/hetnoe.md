@@ -36,7 +36,13 @@ hetnoe2d(
 
 # Bruker experiment numbers
 hetnoe2d(1, 2)
+
+# every plane, saying which are saturated
+hetnoe2d(10:13; saturation=[false, true, false, true])
 ```
+
+Given the planes alone, `hetnoe2d(planes)` reads which are saturated from each spectrum's
+`hetnoe.saturated` pulse-sequence annotation, and otherwise asks.
 
 ## Output
 

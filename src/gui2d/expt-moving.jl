@@ -512,14 +512,15 @@ struct RDCModel <: FittingModel
 end
 
 """
-    rdc2d(; isotropic, aligned, components=("a","b"), coupling=nothing, scale=1)
+    rdc2d(isotropic, aligned; components=("a","b"), coupling=nothing, scale=1,
+          peaklist=nothing)
 
 Interactive measurement of one-bond couplings and residual dipolar couplings from paired
 2D spectra. Supply the two doublet-component spectra (already combined, e.g. IPAP α/β, or
 HSQC/TROSY) for each condition:
 
-    rdc2d(isotropic = ["iso_a/pdata/1", "iso_b/pdata/1"],
-          aligned   = ["aln_a/pdata/1", "aln_b/pdata/1"])
+    rdc2d(["iso_a/pdata/1", "iso_b/pdata/1"],     # isotropic
+          ["aln_a/pdata/1", "aln_b/pdata/1"])     # aligned
 
 The four spectra become the planes of a peak-tracking experiment. Track each residue's peak
 across the planes (T) or add and adjust by hand (A); the per-residue postfit then reports
@@ -536,18 +537,22 @@ heteronuclear dimension, and the sign is flipped automatically for ¹⁵N (so J 
 the two components in the same order for both conditions; if J comes out with the wrong sign,
 swap the pair. Each component can also be given as a Bruker experiment number.
 """
-function rdc2d(; isotropic, aligned, components=("a", "b"), coupling=nothing, scale=1.0,
+function rdc2d(isotropic, aligned; components=("a", "b"), coupling=nothing, scale=1.0,
                peaklist=nothing)
     length(isotropic) == 2 ||
-        error("`isotropic` must be two component spectra, e.g. [A, B]")
-    length(aligned) == 2 || error("`aligned` must be two component spectra, e.g. [A, B]")
+        throw(ArgumentError("the isotropic data must be two component spectra, e.g. [A, B]"))
+    length(aligned) == 2 ||
+        throw(ArgumentError("the aligned data must be two component spectra, e.g. [A, B]"))
 
+    isotropic, aligned = asexptpath(collect(isotropic)), asexptpath(collect(aligned))
     files = string.([isotropic[1], isotropic[2], aligned[1], aligned[2]])
     specdata = preparespecdata(files, MovingExperiment)
     length(specdata.z) == 4 ||
-        error("expected 4 single-plane spectra (got $(length(specdata.z))); each input must be a 2D spectrum")
+        throw(ArgumentError("expected 4 single-plane spectra (got $(length(specdata.z))): " *
+                            "each input must be a 2D spectrum"))
 
-    length(components) == 2 || error("`components` must name the two doublet components")
+    length(components) == 2 ||
+        throw(ArgumentError("components must name the two doublet components"))
     couplingdim = _resolve_coupling_dim(specdata, coupling)
     model = RDCModel((1, 2), (3, 4), couplingdim, Float64(scale),
                      _gamma_sign(specdata, couplingdim),
@@ -555,7 +560,7 @@ function rdc2d(; isotropic, aligned, components=("a", "b"), coupling=nothing, sc
 
     peaks = Observable(Vector{Peak}())
     expt = MovingExperiment(specdata, peaks, model, nothing, CrossSectionVisualisation())
-    call = analysiscall("rdc2d"; isotropic, aligned, components, coupling, scale)
+    call = analysiscall("rdc2d", isotropic, aligned; components, coupling, scale)
     return gui!(expt; peaklist, call)
 end
 

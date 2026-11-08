@@ -35,17 +35,17 @@ saved peak list as the window opens.
 - `fit2d(files)`: positions, linewidths and amplitudes, with no model
 - `relaxation2d(files)`: R₁ or R₂ from an exponential decay
 - `recovery2d(files)`: inversion or saturation recovery
-- `modelfit2d(files, x, equation, parameters)`: a model of your own
+- `modelfit2d(files; x, equation, parameters)`: a model of your own
 - `hetnoe2d(reference, saturated)`: heteronuclear NOE
-- `ccr2d(decay, buildup, T)`: cross-correlated relaxation rates
-- `methylccr2d(buildup, decay, T)`: methyl S²τc
+- `ccr2d(decay, buildup; T)`: cross-correlated relaxation rates
+- `methylccr2d(decay, buildup; T)`: methyl S²τc
 - `cest2d(file)`: CEST profiles
 - `cpmg2d(file)`: CPMG relaxation dispersion
 - `pre2d(diamagnetic, paramagnetic; type)`: paramagnetic relaxation enhancement Γ₂
 - `lpre2d(diamagnetic, paramagnetic; type)`: Γ₁ and Γ₂ from a series of recycle delays
 - `peaktrack2d(files)`: peaks that move from plane to plane
 - `titration2d(files)`: binding isotherms and a global Kd
-- `rdc2d(; isotropic, aligned)`: one-bond couplings and RDCs
+- `rdc2d(isotropic, aligned)`: one-bond couplings and RDCs
 - `summaryplot(expt)`: a fitted parameter against residue number
 
 # Other tools

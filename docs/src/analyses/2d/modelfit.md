@@ -16,12 +16,10 @@ other symbols in the equation are treated as free parameters to be fitted.
 using NMRAnalysis
 
 # J-modulation experiment: amplitudes oscillate as A·sin(J·x)
-modelfit2d(
-    ["112", "113", "114", "115"],
-    [0.1, 0.2, 0.3, 0.4],        # x values (e.g. delay times in seconds)
-    "A*sin(J*x)",                 # model equation
-    ["A" => 40.0, "J" => 0.5]    # parameter names and initial values
-)
+modelfit2d(["112", "113", "114", "115"];
+           x=[0.1, 0.2, 0.3, 0.4],                  # x values (e.g. delays in seconds)
+           equation="A*sin(J*x)",                   # model equation
+           parameters=["A" => 40.0, "J" => 0.5])    # names and initial values
 ```
 
 Parameters are specified as a vector of `"name" => initial_value` pairs. Good initial

@@ -12,8 +12,8 @@ HSQC/TROSY):
 ```julia
 using NMRAnalysis
 
-rdc2d(isotropic = ["expt/1", "expt/2"],
-      aligned   = ["expt/11", "expt/12"])
+rdc2d(["expt/1", "expt/2"],      # isotropic
+      ["expt/11", "expt/12"])    # aligned
 ```
 
 ![Screenshot of RDC fitting](../../assets/rdc2d.png)
