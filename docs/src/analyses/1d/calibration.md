@@ -118,7 +118,7 @@ annotations let [`analyse`](../analyse.md) recognise the experiment and run this
 without being told which one to use:
 
 ```julia
-analyse("examples/calibration/1")
+analyse(example("calibration1d_19f"))
 ```
 
 | Annotation | Meaning |
@@ -186,10 +186,10 @@ param(results[1], :pulse90)   # µs, with uncertainty
 for a set of spin-lock field strengths:
 
 ```julia
-setupR1rhopowers("examples/calibration/1")
+setupR1rhopowers(example("calibration1d_19f"))
 
 # several power levels, so the powers follow the fitted curve rather than the ideal law
-setupR1rhopowers(["examples/calibration/1", "examples/calibration/2"])
+setupR1rhopowers(["cal/1", "cal/2"])
 ```
 
 Each experiment is fitted in the analysis window first, so you can check the fits before
