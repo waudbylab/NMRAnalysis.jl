@@ -6,7 +6,7 @@
 # ---- 1. entry point -----------------------------------------------------------
 
 """
-    calibration1d(spec; durations=nothing, phase=nothing, power=nothing, regions=nothing,
+    calibration1d(spec; durations=nothing, phase=nothing, power=nothing, peaklist=nothing,
                   integration=nothing, window=true, prompt=isinteractive())
     calibration1d(specs::AbstractVector; ...)
 
@@ -34,7 +34,8 @@ and an unknown power costs only the calibration curve, not the analysis.
   magnetisation).
 - `power`: the power each spectrum was recorded at, as `Power`s or as numbers in dB, one per
   spectrum.
-- `regions`: integration regions to start from, instead of one on the tallest peak.
+- `peaklist`: the regions to start from, instead of one on the tallest peak: a `peaklist.csv`
+  saved earlier, a folder holding one (such as an earlier output folder), or `Region`s.
 - `integration`: a `(; peakppm, noiseppm, ppmwidth)` triple, which skips the window and
   analyses that region directly.
 - `window`: whether to open the analysis window at all. `false` analyses the default region
@@ -61,7 +62,7 @@ function calibration1d(spec; kwargs...)
 end
 
 """
-    nutationexperiment(specs; durations, phase, power, regions, prompt)
+    nutationexperiment(specs; durations, phase, power, peaklist, prompt)
         -> (expt, dataset, regions, call)
 
 Everything [`calibration1d`](@ref) resolves before it fits: the spectra loaded, their pulse
@@ -73,7 +74,7 @@ can be saved afterwards from the same pieces the entry point would have saved - 
 [`calibrationanalysis`](@ref).
 """
 function nutationexperiment(specs::AbstractVector; durations=nothing, phase=nothing,
-                            power=nothing, regions=nothing,
+                            power=nothing, peaklist=nothing,
                             prompt::Bool=isinteractive())
     isempty(specs) && throw(ArgumentError("no calibration experiments given"))
     given = specs                      # the argument as written, for the reproduce line
@@ -99,10 +100,10 @@ function nutationexperiment(specs::AbstractVector; durations=nothing, phase=noth
                   [planevars(t[i], isnothing(dB) ? nothing : dB[i])
                    for i in eachindex(specs)])
     src = reduce(vcat, [fill(speclabel(specs[i]), length(t[i])) for i in eachindex(specs)])
-    ds = Dataset1D(Planes(traces, vars), defaultnoisecentre(first(specs)),
+    regions, noise = picks(peaklist)
+    ds = Dataset1D(Planes(traces, vars), something(noise, defaultnoisecentre(first(specs))),
                    speclabel(first(specs)), src)
 
-    # named `regs`, the accessor `regions` being shadowed here by the keyword of that name
     regs = @something(regions, [defaultregion(ds)])
     expt = NutationExperiment(ds; phase, regions=regs)
     # `durations` applies to every spectrum, so it is only worth recording when the lists

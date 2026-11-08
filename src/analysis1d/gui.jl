@@ -262,20 +262,16 @@ function gui!(expt::Experiment1D; call=nothing)
     on(btnsave.clicks) do _
         return saveresults(state)
     end
-    # Restores a region list saved earlier from the same output folder, so a multi-region
-    # session can be picked up again rather than re-picked by hand.
+    # Restores the peak list saved earlier in the output folder, so a multi-region session
+    # can be picked up again rather than re-picked by hand.
     btnload = outputrow[1, 3] = Button(fig; label="Load")
     on(btnload.clicks) do _
         folder = joinpath(pwd(), state[:outputdir][])
-        # `regionlist.csv` is the region list proper; `results.csv` is read as a fallback
-        # for folders saved before the two were separated.
-        path = joinpath(folder, "regionlist.csv")
-        isfile(path) || (path = joinpath(folder, "results.csv"))
         try
-            n = readregions!(state, path)
-            @info "Restored $n region(s) from $path"
+            n = readpeaklist!(state, folder)
+            @info "Restored $n region(s) from $(peaklistfile(folder))"
         catch err
-            @warn "Could not load regions" path exception=err
+            @warn "Could not load the peak list" folder exception=err
         end
         return nothing
     end
@@ -748,8 +744,8 @@ end
 """Save the results, covering every region (not just the active one shown live in the GUI
 panels), to the output folder, in the layout described in
 `docs/src/advanced/conventions.md`: `summary.txt` to read, `results.csv` and `series.csv`
-to compute with (`results.csv` is also the file a region list is restored from
-- see `readregions!`), an overlay of every region in `fit.pdf`, and a `regions/` folder
+to compute with, `peaklist.csv` to restore the regions from (see `readpeaklist`), an
+overlay of every region in `fit.pdf`, and a `regions/` folder
 holding each region's own plot and the data behind it under the same basename. An
 experiment with anything further to report adds it through `saveextras!`."""
 function saveresults(state)
@@ -786,8 +782,9 @@ function saveanalysis(expt::Experiment1D, ds::Dataset1D, result, regs,
              resultfigure(expt, result, [label]); backend=CairoMakie)
     end
 
-    writesummary(joinpath(dir, "summary.txt"), expt, ds, result, regs, call)
+    # the summary records the analysis with the peak list written here, so it comes last
     writeresults!(expt, ds, result, regs, dir)
+    writesummary(joinpath(dir, "summary.txt"), expt, ds, result, regs, call)
     saveextras!(expt, result, dir)
     @info "Saved results to $dir"
     return dir

@@ -157,7 +157,8 @@ since the last one does not leave its plot behind:
 ```
 out/
   summary.txt
-  regionlist.csv
+  analysis.toml
+  peaklist.csv
   results.csv
   series.csv
   fit.pdf
@@ -169,7 +170,8 @@ out/
 | File | Contents |
 |---|---|
 | `summary.txt` | The record to read: where the data came from, the regions, and the results rounded and with units |
-| `regionlist.csv` | The regions you picked, and the noise position. This is what **Load** reads |
+| `analysis.toml` | The analysis, with every parameter as it was resolved: `reopen("out")` repeats it, with the same regions |
+| `peaklist.csv` | The regions you picked, and the noise position. This is what **Load** reads |
 | `results.csv` | One row per region, carrying every parameter reported for it with its uncertainty. Where a region was measured under more than one condition, each condition's fitted parameters are named apart on that same row (TRACT's `R_trosy` and `R_anti`) |
 | `series.csv` | The measurements themselves, one row per region per spectrum |
 | `fit.pdf` | The fit for every region on one set of axes |
@@ -178,8 +180,9 @@ out/
 Every CSV carries the experiment details as `#` comment lines above an ordinary header row,
 so they open directly in a spreadsheet or `pandas`.
 
-`regionlist.csv` is what you picked, kept apart from what was fitted, so it can be reused on
-another dataset or edited by hand:
+`peaklist.csv` is what you picked, kept apart from what was fitted, so it can be reused on
+another dataset or edited by hand. Pass it, or the folder holding it, as `peaklist` to start
+another analysis from the same regions:
 
 ```
 label,lo (ppm),hi (ppm)

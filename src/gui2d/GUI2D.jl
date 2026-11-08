@@ -7,7 +7,6 @@ using Graphs
 using LinearAlgebra: ColumnNorm, Symmetric, cholesky, diag, issuccess, qr
 using LsqFit
 using Measurements
-using NativeFileDialog
 using NMRTools
 using OrderedCollections
 using PrettyTables
@@ -17,12 +16,13 @@ using ..MaybeVectorModule
 # shared output rules - see src/output.jl and docs/src/advanced/conventions.md
 using ..NMRAnalysis: stderrors   # standard errors that survive a singular covariance
 using ..NMRAnalysis: csvcolumn, csvcolumns, csvvalue, safename, sanitizelabel, backupfile,
-                     backupfolder, writetable
+                     backupfolder, writetable, peaklistfile
 # parameter resolution: argument, then annotation/acqus, then ask - see src/prompts.jl
 using ..NMRAnalysis: annotation, acqusvalue, ask, askvector
 using ..NMRAnalysis: B1Calibration
 # the call that produced an analysis, for summary.txt - see src/calls.jl
-using ..NMRAnalysis: AnalysisCall, analysiscall, callstring
+using ..NMRAnalysis: AnalysisCall, analysiscall
+import ..NMRAnalysis: writereproduce
 using ..NMRAnalysis: windowname
 
 include("util.jl")

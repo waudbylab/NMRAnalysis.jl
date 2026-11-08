@@ -25,7 +25,7 @@ import ..NMRAnalysis  # the module itself, for pkgversion(NMRAnalysis)
 using ..NMRAnalysis: csvcolumn, csvvalue, safename, sanitizelabel, backupfolder, writetable,
                      shortpath
 # the call that produced an analysis - see src/calls.jl
-using ..NMRAnalysis: AnalysisCall, analysiscall, callstring
+using ..NMRAnalysis: AnalysisCall, analysiscall, writereproduce, RECORD
 using ..NMRAnalysis: windowname
 # one table row per entity per plane, as for the 2D analyses
 import ..GUI2D: planeresults

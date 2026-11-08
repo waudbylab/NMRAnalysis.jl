@@ -1,8 +1,8 @@
 """
     gui!(expt; peaklist=nothing, call=nothing) -> expt
 
-Open the analysis window for `expt`, loading the peaks in the file `peaklist` if one is
-given, and wait until it is closed, returning `expt` with its fitted peaks (see
+Open the analysis window for `expt`, loading the peaks in `peaklist` if given (a peak list,
+or a folder holding `peaklist.csv`), and wait until it is closed, returning `expt` with its fitted peaks (see
 [`results`](@ref) and [`planeresults`](@ref)). `call` is the [`AnalysisCall`](@ref) the
 entry point recorded, written to `summary.txt` so the analysis can be repeated.
 """
@@ -127,7 +127,7 @@ function gui!(expt::Experiment; peaklist=nothing, call=nothing)
     # peak info
     Label(g[:panelinfo][1, 1:2], "Working directory:\n$(pwd())"; word_wrap=true,
           tellwidth=false, halign=:left)
-    g[:cmdload] = Button(g[:panelinfo][2, 1]; label="Load peak list...")
+    g[:cmdload] = Button(g[:panelinfo][2, 1]; label="Load peak list")
     # Output folder typed rather than chosen from a native dialog: the dialog cannot create
     # a folder on every platform, and a typed name is what makes a save repeatable.
     outputrow = g[:panelinfo][2, 2] = GridLayout()
@@ -345,14 +345,15 @@ function addhanders!(g, state, expt::Experiment)
         @async display(GLMakie.Screen(), summaryplot(expt))
     end
 
-    # load peak list
+    # load the peak list saved in the output folder
     on(g[:cmdload].clicks) do _
-        file = choosepeaklist()
+        folder = joinpath(pwd(), expt.state[][:outputdir][])
         try
-            loadpeaks!(expt, file)
+            loadpeaks!(expt, folder)
         catch e
-            @error "Error loading $file" exception = (e, catch_backtrace())
-            notice!(expt, "Could not load $(basename(file)): peaks unchanged, see the REPL")
+            @error "Error loading the peak list in $folder" exception = (e,
+                                                                         catch_backtrace())
+            notice!(expt, "Could not load the peak list: peaks unchanged, see the REPL")
         end
     end
 

@@ -17,8 +17,10 @@ using NMRAnalysis.Analysis1D: relaxationmodel, relaxationseriesmodel, nutationph
                               shapefactor, solventname, tractf, tracttauc
 using NMRAnalysis.Analysis1D: resultstable, seriestable, experimentinfo,
                               writeresults!, csvcolumn, safename, sources, seriesname,
-                              baseparam, regionlisttable, readregions!, NOISE_LABEL
-using NMRAnalysis.Analysis1D: analysiscall, callstring, callvalue, writesummary
+                              baseparam, peaklisttable, readpeaklist, readpeaklist!,
+                              picks, NOISE_LABEL
+using NMRAnalysis.Analysis1D: writesummary
+using NMRAnalysis: analysiscall, callstring, callvalue, literal, resolve
 using NMRAnalysis.Analysis1D: ask, askvector, askchoice, parsevector, acqusvalue
 using NMRAnalysis.Analysis1D: powerdb, saveextras!, fitseries, groupname, displaylabel,
                               summarytext, paramgroups, saveanalysis, dataset, resultfigure
@@ -28,6 +30,7 @@ using NMRTools: Power, db, hz
 using Measurements
 using Random
 using Test
+using TOML
 
 # ---- synthetic spectra --------------------------------------------------------
 
@@ -431,7 +434,7 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
         @test all(row[7] == "NA" for row in rows)        # NoFitting: no fitted curve
 
         rheader, rrows = resultstable(expt, res)
-        @test rheader == ["label"]      # bounds are input, and live in regionlist.csv
+        @test rheader == ["label"]      # bounds are input, and live in peaklist.csv
         @test length(rrows) == 2
         @test occursin("Kinetics", experimentinfo(expt))
         @test occursin("Number of spectra: 4", experimentinfo(expt))
@@ -511,9 +514,9 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
         @test length(sprint(show, res)) < 500
     end
 
-    @testset "Region list" begin
+    @testset "Peak list" begin
         regs = [Region("signal", 7.9, 8.5), Region("wide", 1.0, 3.0)]
-        header, rows = regionlisttable(regs, -1.0, 0.28)
+        header, rows = peaklisttable(regs, -1.0, 0.28)
         @test header == ["label", "lo (ppm)", "hi (ppm)"]
         @test length(rows) == 3                       # two regions plus the noise marker
         @test rows[1] == ["signal", "7.9", "8.5"]
@@ -526,12 +529,12 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
         @test parse(Float64, noise[3]) ≈ 0.0
 
         # with no regions at all it falls back to the default width
-        _, narrow = regionlisttable(Region[], 5.0, 0.28)
+        _, narrow = peaklisttable(Region[], 5.0, 0.28)
         @test parse(Float64, narrow[end][3]) - parse(Float64, narrow[end][2]) ≈ 0.28
 
-        # round trip
+        # round trip, from the file or from the folder holding it
         dir = mktempdir()
-        path = joinpath(dir, "regionlist.csv")
+        path = joinpath(dir, "peaklist.csv")
         open(path, "w") do f
             println(f, "# NMRAnalysis.jl test")
             println(f, join(header, ","))
@@ -539,68 +542,91 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
                 println(f, join(row, ","))
             end
         end
+        loaded, noisecentre = readpeaklist(dir)
+        @test [r.label for r in loaded] == ["signal", "wide"]   # the noise row is not a region
+        @test loaded[1].lo ≈ 7.9
+        @test noisecentre ≈ -1.0
+        @test readpeaklist(path)[1] == loaded
+
         state = Dict{Symbol,Any}(:regions => Ref(Region[]), :active => Ref(0),
                                  :noisec => Ref(0.0))
-        @test readregions!(state, path) == 2          # the noise row is not a region
+        @test readpeaklist!(state, path) == 2
         @test [r.label for r in state[:regions][]] == ["signal", "wide"]
-        @test state[:regions][][1].lo ≈ 7.9
         @test state[:noisec][] ≈ -1.0
 
-        # a results.csv from before the two files were separated still loads: label/lo/hi
-        # columns and a noise comment
-        legacy = joinpath(dir, "results.csv")
-        open(legacy, "w") do f
-            println(f, "# Noise position / ppm: 4.25")
-            println(f, "region,lo,hi,A,A_err")
-            println(f, "signal,7.9,8.5,1.0,0.1")
-        end
-        state2 = Dict{Symbol,Any}(:regions => Ref(Region[]), :active => Ref(0),
-                                  :noisec => Ref(0.0))
-        @test readregions!(state2, legacy) == 1
-        @test state2[:noisec][] ≈ 4.25
+        # what an entry point's peaklist argument gives
+        @test picks(nothing) == (nothing, nothing)
+        @test picks(regs) == (regs, nothing)
+        @test picks(dir)[2] ≈ -1.0
 
-        @test_throws ArgumentError readregions!(state2, joinpath(dir, "nope.csv"))
+        # a hand-made list needs no noise row
+        handmade = joinpath(dir, "handmade.csv")
+        write(handmade, "label,lo,hi\nsignal,7.9,8.5\n")
+        @test readpeaklist(handmade)[2] === nothing
+
+        @test_throws ArgumentError readpeaklist(joinpath(dir, "nope.csv"))
     end
 
-    @testset "The reproduce line" begin
-        call = analysiscall("relaxation1d", "11"; tau=[0.01, 0.03], model=:exponential)
-        text = callstring(call, [Region("signal", 7.9, 8.5)], -1.0)
-        @test occursin("relaxation1d(\"11\";", text)
+    @testset "The analysis record" begin
+        dir = mktempdir()
+        mkpath(joinpath(dir, "11"))
+        out = mkpath(joinpath(dir, "out"))
+        call = cd(() -> analysiscall("relaxation1d", "11"; tau=[0.01, 0.03],
+                                     model=:exponential), dir)
+        # paths are written relative to the folder the record is saved in
+        peaks = joinpath(out, "peaklist.csv")
+        touch(peaks)
+        text = callstring(call, out; peaklist=peaks)
+        @test occursin("relaxation1d(\"../11\";", text)
         @test occursin("tau=[0.01, 0.03]", text)
         @test occursin("model=:exponential", text)
-        # a single region is expressible as one integration triple, so the line repeats the
-        # whole analysis without the window opening
-        @test occursin("integration=(peakppm=8.2, noiseppm=-1.0, ppmwidth=0.6)", text)
+        @test occursin("peaklist=\"./peaklist.csv\"", text)
+        # an experiment number given for the data names a folder too
+        @test occursin("relaxation1d(\"../11\")",
+                       callstring(cd(() -> analysiscall("relaxation1d", 11), dir), out))
 
-        # several regions are not, so they are left out and the summary points at Load
-        multi = callstring(call, [Region("a", 1.0, 2.0), Region("b", 3.0, 4.0)], -1.0)
-        @test !occursin("integration", multi)
-
-        # values with no literal are left out rather than printed misleadingly
+        # values with no literal are left out rather than written misleadingly
         @test isempty(analysiscall("kinetics1d", "21"; model=NoFitting()).kwargs)
         @test callvalue(NoFitting()) === nothing
-        @test callvalue(0.05:0.05:0.15) == repr([0.05, 0.1, 0.15])
+        @test callvalue(0.05:0.05:0.15) == "[0.05, 0.1, 0.15]"
+        @test callvalue((peakppm=8.2, noiseppm=-1.0)) == "(peakppm=8.2, noiseppm=-1.0)"
+        # a spectrum passed as an object has no literal either, so nothing is recorded
+        @test isnothing(callstring(analysiscall("relaxation1d", Dict())))
 
-        # a spectrum passed as an object has no literal either, so no line is printed at all
-        @test isnothing(callstring(analysiscall("relaxation1d", Dict()), Region[], 0.0))
+        # the record is read back as data, and never run
+        @test literal(Meta.parse("[0.01, 0.03]")) isa Vector{Float64}
+        @test literal(Meta.parse("[false, true]")) isa Vector{Bool}
+        @test literal(Meta.parse(":exponential")) === :exponential
+        @test literal(Meta.parse("(a=1, b=\"x\")")) == (a=1, b="x")
+        @test literal(Meta.parse("[\"a\" => 1.0]")) == ["a" => 1.0]
+        @test literal(Meta.parse("-Inf")) == -Inf
+        @test_throws ArgumentError literal(Meta.parse("run(`ls`)"))
+        @test_throws ArgumentError literal(Meta.parse("x"))
+        @test resolve("../11", out) == normpath(joinpath(dir, "11"))
+        @test resolve("signal", out) == "signal"
 
-        # and it reaches summary.txt
+        # summary.txt says how to reopen the analysis, recorded beside it
         times = [0.0, 0.1, 0.2, 0.4]
         ds = peakdataset([100 * exp(-2.0t) for t in times], :time, times; noise=0.5)
         expt = RelaxationExperiment(ds; regions=signalregion())
         res = analyse1d(expt)
-        path = joinpath(mktempdir(), "summary.txt")
-        writesummary(path, expt, ds, res, expt.regions, call)
-        written = read(path, String)
+        writesummary(joinpath(out, "summary.txt"), expt, ds, res, expt.regions, call)
+        written = read(joinpath(out, "summary.txt"), String)
         @test occursin("Reproduce:", written)
-        @test occursin("relaxation1d(", written)
+        @test occursin("reopen(", written)
         @test occursin("Relaxation rate", written)
-        @test occursin("NMRAnalysis.jl", written)
+        record = TOML.parsefile(joinpath(out, "analysis.toml"))
+        @test occursin("relaxation1d(\"../11\";", record["call"])
 
-        # without a recorded call there is simply no such section
-        path2 = joinpath(mktempdir(), "summary.txt")
-        writesummary(path2, expt, ds, res, expt.regions)
-        @test !occursin("Reproduce:", read(path2, String))
+        # reopen repeats the call recorded, which must name an analysis of this package
+        write(joinpath(out, "analysis.toml"), "call = '''\nviscosity(:h2o, 298.0)\n'''\n")
+        @test reopen(out) ≈ viscosity(:h2o, 298.0)
+        @test reopen(joinpath(out, "analysis.toml")) ≈ viscosity(:h2o, 298.0)
+        write(joinpath(out, "analysis.toml"), "call = 'rm(\"x\")'\n")
+        @test_throws ArgumentError reopen(out)
+        write(joinpath(out, "analysis.toml"), "call = 'viscosity(:h2o, sqrt(2))'\n")
+        @test_throws ArgumentError reopen(out)
+        @test_throws ArgumentError reopen(mktempdir())
     end
 
     @testset "Parameter prompts" begin
@@ -640,7 +666,7 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
 
         @test isfile(joinpath(dir, "results.csv"))
         @test isfile(joinpath(dir, "series.csv"))
-        @test isfile(joinpath(dir, "regionlist.csv"))
+        @test isfile(joinpath(dir, "peaklist.csv"))
         @test isfile(joinpath(dir, "regions", "signal.csv"))
 
         datalines(f) = filter(l -> !startswith(l, "#"), readlines(joinpath(dir, f)))

@@ -49,7 +49,7 @@ analysis can be repeated without any typing:
 
 ```julia
 g = collect(LinRange(0.05, 0.95, 16))            # relative gradient strengths, 0 to 1
-diffusion1d("106", g; δ=4e-3, Δ=0.1, σ=0.9, Gmax=0.55)
+diffusion1d("106"; gradients=g, δ=4e-3, Δ=0.1, σ=0.9, Gmax=0.55)
 ```
 
 | Argument | Meaning | Read from |

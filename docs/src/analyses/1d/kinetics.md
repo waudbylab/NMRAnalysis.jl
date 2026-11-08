@@ -14,7 +14,7 @@ holds them:
 using NMRAnalysis
 
 times = 0:120:7200                      # seconds, one per spectrum
-results = kinetics1d("21", times)
+results = kinetics1d("21"; times)
 ```
 
 The [analysis window](overview.md#Using-the-analysis-window) opens with one region on the
@@ -31,7 +31,7 @@ Where a series contains repeats, tag each spectrum with `run` and each run is tr
 its own series and plotted in its own colour:
 
 ```julia
-kinetics1d("21", times; run=[1, 1, 1, 2, 2, 2])
+kinetics1d("21"; times, run=[1, 1, 1, 2, 2, 2])
 ```
 
 ## Fitting a model
@@ -40,7 +40,7 @@ By default nothing is fitted: the deliverable is the intensity against time. Pas
 `SeriesModel` to fit one, for instance a single exponential decay:
 
 ```julia
-kinetics1d("21", times; model=ExponentialModel())
+kinetics1d("21"; times, model=ExponentialModel())
 ```
 
 ## Reading the traces
@@ -63,7 +63,7 @@ has several runs, `run` appears as a further column, so runs need not share the 
 The returned results carry the same traces:
 
 ```julia
-results = kinetics1d("21", times)
+results = kinetics1d("21"; times)
 results[1].x        # times
 results[1].y        # integrated intensities, with uncertainties
 ```

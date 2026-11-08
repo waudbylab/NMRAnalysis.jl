@@ -5,28 +5,13 @@
 # Hand-made lists may instead be a bare, header-less `label x y` per line.
 
 """
-    choosepeaklist() -> Union{String,Nothing}
+    loadpeaks!(expt, path)
 
-A peak list chosen in a file dialog, or `""` for none. On Linux the dialog is not opened,
-and `nothing` is returned: the GTK it uses can abort Julia when the system's GTK settings
-schema lacks a key it expects (`show-type-column`), so a warning says how to load a list
-instead.
+Replace the peaks with those in a peak list: the file `path`, or the `peaklist.csv` in the
+folder `path`, such as an output folder saved earlier.
 """
-function choosepeaklist()
-    if Sys.islinux()
-        @warn """The file dialog is unavailable on Linux, where it can crash Julia. Pass the \
-                 peak list when you start the analysis instead, e.g.
-                     relaxation2d("11/pdata/1"; peaklist="out/peaklist.csv")
-                 The crash comes from GTK settings schemas older than the GTK that Julia \
-                 bundles; updating the system's GTK 3 package (libgtk-3-common on \
-                 Debian/Ubuntu, gtk3 on Fedora) may fix the dialog."""
-        return nothing
-    end
-    return pick_file(; filterlist="csv;list;peaks;txt;bak")
-end
-
-function loadpeaks!(expt, file::AbstractString)
-    file == "" && return
+function loadpeaks!(expt, path::AbstractString)
+    file = peaklistfile(path)
     isfile(file) || throw(ArgumentError("no peak list at $file"))
 
     @info "Loading peak file $file"
@@ -53,11 +38,6 @@ function loadpeaks!(expt, file::AbstractString)
     return notice!(expt,
                    n == 0 ? "No peaks found in $name: the current peaks are kept" :
                    "Loaded $(counted(n, "peak")) from $name")
-end
-
-# no file dialog (see choosepeaklist)
-function loadpeaks!(expt, ::Nothing)
-    return notice!(expt, "No file dialog on Linux: see the REPL to load a list")
 end
 
 function saveresults!(expt)

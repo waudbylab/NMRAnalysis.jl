@@ -3,7 +3,7 @@
 #
 #   out/
 #     summary.txt        (written by `saveresults` in gui.jl)
-#     regionlist.csv     what the user picked; what Load reads back
+#     peaklist.csv       what the user picked; what Load reads back
 #     results.csv        one row per region: everything reported for it
 #     series.csv         the measurements, one row per region per plane
 #     fit.pdf
@@ -84,7 +84,7 @@ under several conditions keeps them all on that row under the names [`seriesname
 gave them, so TRACT writes `R_trosy` and `R_anti` beside the `tauc` computed from the two.
 
 The region bounds are not here: they are what the user picked, and live in
-`regionlist.csv` (see [`regionlisttable`](@ref)).
+`peaklist.csv` (see [`peaklisttable`](@ref)).
 """
 function resultstable(expt::Experiment1D, results)
     names = parameternames(results)
@@ -168,7 +168,7 @@ end
 """
     writeresults!(expt, dataset, results, regions, folder) -> String
 
-Write the whole result set into `folder`: `regionlist.csv` (what was picked), `series.csv`,
+Write the whole result set into `folder`: `peaklist.csv` (what was picked), `series.csv`,
 `results.csv` where anything is reported per region, and one `regions/<label>.csv` per
 region holding that region's own rows of `series.csv`. Returns the path of the series
 file.
@@ -178,10 +178,10 @@ function writeresults!(expt::Experiment1D, ds::Dataset1D, results, regs,
     comments = split(experimentinfo(expt, ds), '\n')
 
     # What the user picked, kept apart from what the fit produced, so a region list can be
-    # reused on another dataset (and is what `readregions!` reads back).
+    # reused on another dataset (and is what `readpeaklist` reads back).
     defaultwidth = defaultregionwidth(first(ds.planes.traces).δ)
-    writetable(joinpath(folder, "regionlist.csv"), comments,
-               regionlisttable(regs, ds.noisecenter, defaultwidth)...)
+    writetable(joinpath(folder, "peaklist.csv"), comments,
+               peaklisttable(regs, ds.noisecenter, defaultwidth)...)
 
     # An experiment that reports nothing per region (kinetics) would get a results.csv of
     # labels and no values, so it gets none - see docs/src/advanced/conventions.md.
@@ -202,22 +202,22 @@ function writeresults!(expt::Experiment1D, ds::Dataset1D, results, regs,
     return filepath
 end
 
-# ---- regionlist.csv: the user's input -----------------------------------------
+# ---- peaklist.csv: the user's input --------------------------------------------
 
 """
     NOISE_LABEL
 
-The label of the row in `regionlist.csv` that records the noise position rather than a
+The label of the row in `peaklist.csv` that records the noise position rather than a
 signal region. Reserved: a signal region of this name would be read back as the noise
 marker.
 """
 const NOISE_LABEL = "noise"
 
 """
-    regionlisttable(regions, noisecentre, defaultwidth) -> (header, rows)
+    peaklisttable(regions, noisecentre, defaultwidth) -> (header, rows)
 
-Column names and rows for `regionlist.csv`: what the user picked, as opposed to what the
-fit produced. One row per region, plus one for the noise position.
+Column names and rows for `peaklist.csv`: what the user picked, as opposed to what the fit
+produced. One row per region, plus one for the noise position.
 
 The noise marker has a position but no width of its own - the width used to estimate a
 region's uncertainty always matches that region's own (see [`integrate`](@ref)) - so it
@@ -225,7 +225,7 @@ is written as a region `defaultwidth` wide, or as wide as the widest signal regi
 that is wider. Reading its centre back is what matters; the width is there so the row means
 something on its own and so the file needs no separate convention for it.
 """
-function regionlisttable(regs, noisecentre, defaultwidth)
+function peaklisttable(regs, noisecentre, defaultwidth)
     header = ["label", csvcolumn("lo", "ppm"), csvcolumn("hi", "ppm")]
     rows = [[r.label, csvvalue(r.lo), csvvalue(r.hi)] for r in regs]
     w = maximum([defaultwidth; [width(r) for r in regs]])
@@ -234,38 +234,31 @@ function regionlisttable(regs, noisecentre, defaultwidth)
 end
 
 """
-    readregions!(state, filepath) -> Int
+    readpeaklist(path) -> (regions, noisecentre)
 
-Restore a saved region list, replacing whatever is currently set, and return the number of
-signal regions read. The row labelled `noise` sets the noise position from its centre;
-every other row is a region.
-
-Written for `regionlist.csv` but deliberately tolerant, so that a hand-made list works and
-so does a `results.csv` from before the region bounds moved out of it: any file with a
-label column and `lo`/`hi` columns is read, and a `# Noise position / ppm:` comment is
-honoured where there is no `noise` row.
+The regions saved in a peak list, and the noise position, or `nothing` where it records
+none. `path` is the file or a folder holding `peaklist.csv`. The row labelled `noise` gives
+the noise position from its centre; every other row is a region. Any file with a label
+column and `lo`/`hi` columns is read, so a hand-made list works too.
 """
-function readregions!(state, filepath::AbstractString)
-    isfile(filepath) || throw(ArgumentError("no such region list: $filepath"))
+function readpeaklist(path::AbstractString)
+    filepath = peaklistfile(path)
+    isfile(filepath) || throw(ArgumentError("no such peak list: $filepath"))
     regs = Region[]
+    noise = nothing
     seen = Set{String}()
     colmap = nothing
     labelcol = nothing
     for line in eachline(filepath)
         sline = strip(line)
-        isempty(sline) && continue
-        if startswith(sline, '#')
-            m = match(r"Noise position / ppm:\s*(\S+)", sline)
-            isnothing(m) || (state[:noisec][] = parse(Float64, m.captures[1]))
-            continue
-        end
+        (isempty(sline) || startswith(sline, '#')) && continue
         fields = strip.(split(sline, ','))
         if isnothing(colmap)
             # Units are part of the header (`lo (ppm)`), so columns are located by their
             # name with any parenthesised unit stripped.
             colmap = Dict(lowercase(strip(replace(name, r"\s*\(.*\)$" => ""))) => i
                           for (i, name) in enumerate(fields))
-            labelcol = get(colmap, "label", get(colmap, "region", nothing))
+            labelcol = get(colmap, "label", nothing)
             (isnothing(labelcol) || !haskey(colmap, "lo") || !haskey(colmap, "hi")) &&
                 throw(ArgumentError("$filepath has no label/lo/hi columns"))
             continue
@@ -276,41 +269,42 @@ function readregions!(state, filepath::AbstractString)
         (lo == "NA" || hi == "NA") && continue
         push!(seen, label)
         if lowercase(label) == NOISE_LABEL
-            state[:noisec][] = (parse(Float64, lo) + parse(Float64, hi)) / 2
+            noise = (parse(Float64, lo) + parse(Float64, hi)) / 2
         else
             push!(regs, Region(label, parse(Float64, lo), parse(Float64, hi)))
         end
     end
     isempty(regs) && throw(ArgumentError("$filepath contains no regions"))
+    return regs, noise
+end
+
+"""
+    readpeaklist!(state, path) -> Int
+
+Restore a saved peak list into an open analysis, replacing its regions (and its noise
+position, where the list records one), and return the number of regions read.
+"""
+function readpeaklist!(state, path::AbstractString)
+    regs, noise = readpeaklist(path)
+    isnothing(noise) || (state[:noisec][] = noise)
     state[:regions][] = regs
     state[:active][] = 1
     return length(regs)
 end
 
-# ---- the call that produced an analysis ---------------------------------------
-# AnalysisCall and its formatting are shared with GUI2D - see src/calls.jl
-
 """
-    callstring(call, regions, noisecentre) -> String or nothing
+    picks(peaklist) -> (regions, noisecentre)
 
-The `Reproduce:` line for `summary.txt`: the recorded call with the region actually used
-appended as an `integration` triple, so pasting it back repeats the analysis without the
-window opening.
-
-Only a single-region analysis can be repeated in one call, the integration triple carrying
-one region and one noise position. With several regions the call is still printed, without
-them, and [`writesummary`](@ref) adds a line pointing at the **Load** button, which restores
-every region *and* the noise position from `results.csv`.
+What an entry point's `peaklist` gives: nothing, the `Region`s passed, or the regions and
+noise position read from a peak list file or a folder holding one.
 """
-function callstring(call::AnalysisCall, regs, noisecentre)
-    length(regs) == 1 || return callstring(call)
-    r = only(regs)
-    return callstring(call,
-                      [:integration =>
-                           "(peakppm=$(round(centre(r); digits=3)), " *
-                           "noiseppm=$(round(noisecentre; digits=3)), " *
-                           "ppmwidth=$(round(width(r); digits=3)))"])
-end
+picks(::Nothing) = (nothing, nothing)
+picks(regs::AbstractVector{<:Region}) = (collect(Region, regs), nothing)
+picks(path::AbstractString) = readpeaklist(path)
+
+"""The dataset with its noise position moved, or as it is for `nothing`."""
+withnoise(ds::Dataset1D, ::Nothing) = ds
+withnoise(ds::Dataset1D, noise::Real) = Dataset1D(ds.planes, noise, ds.label, ds.sources)
 
 # ---- summary.txt --------------------------------------------------------------
 
@@ -337,20 +331,8 @@ function writesummary(filepath::AbstractString, expt::Experiment1D, ds::Dataset1
         for r in regs
             print(f, summarytext(expt, results, r.label))
         end
-        isnothing(call) && return nothing
-        text = callstring(call, regs, ds.noisecenter)
-        isnothing(text) && return nothing
-        println(f, "Reproduce:")
-        for line in split(text, '\n')
-            println(f, "    ", line)
-        end
-        if length(regs) != 1
-            println(f)
-            println(f,
-                    "Then press Load in the analysis window to restore the " *
-                    "$(length(regs)) regions and the noise position from results.csv.")
-        end
-        return nothing
+        folder = dirname(filepath)
+        return writereproduce(f, folder, call; peaklist=joinpath(folder, "peaklist.csv"))
     end
     return filepath
 end

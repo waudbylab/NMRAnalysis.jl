@@ -6,7 +6,7 @@
 
 """
     tract()
-    tract(trosy, antitrosy; tau=nothing, regions=nothing, integration=nothing,
+    tract(trosy, antitrosy; tau=nothing, peaklist=nothing, integration=nothing,
           prompt=isinteractive())
 
 Analyse a TRACT pair, deriving τc from the TROSY / anti-TROSY relaxation-rate difference,
@@ -19,13 +19,15 @@ are asked for them.
 
 # Arguments
 - `tau`: relaxation delays, in seconds, one per spectrum, used for both experiments.
-- `regions`: integration regions to start from, instead of the 7.5-9.5 ppm amide window.
+- `peaklist`: the regions to start from, instead of the 7.5-9.5 ppm amide window: a
+  `peaklist.csv` saved earlier, a folder holding one (such as an earlier output folder), or
+  `Region`s.
 - `integration`: a `(; peakppm, noiseppm, ppmwidth)` triple, which skips the window and
   analyses that region directly.
 - `prompt`: whether to ask for anything that could not be determined. Defaults to `false`
   outside an interactive session, where a missing value raises an error instead.
 """
-function tract(trosy, antitrosy; tau=nothing, regions=nothing, integration=nothing,
+function tract(trosy, antitrosy; tau=nothing, peaklist=nothing, integration=nothing,
                prompt::Bool=isinteractive())
     # the arguments as written, for the reproduce line
     giventrosy, givenanti = trosy, antitrosy
@@ -49,7 +51,8 @@ function tract(trosy, antitrosy; tau=nothing, regions=nothing, integration=nothi
     # than naming the TROSY one for both.
     src = vcat(fill(speclabel(trosy), length(ttau)),
                fill(speclabel(antitrosy), length(atau)))
-    ds = Dataset1D(Planes(traces, vars), defaultnoisecentre(trosy),
+    regions, noise = picks(peaklist)
+    ds = Dataset1D(Planes(traces, vars), something(noise, defaultnoisecentre(trosy)),
                    speclabel(trosy), src)
     expt = isnothing(regions) ? TractExperiment(ds; ωN, f) :
            TractExperiment(ds; ωN, f, regions)

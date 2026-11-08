@@ -5,15 +5,17 @@
 # ---- 1. entry point -----------------------------------------------------------
 
 """
-    kinetics1d(spec, times; run=nothing, regions=nothing, model=NoFitting(), integration=nothing)
+    kinetics1d(spec; times, run=nothing, peaklist=nothing, model=NoFitting(),
+               integration=nothing)
 
 Track integrated intensity of one or more named regions against `times`, optionally tagged
 by `run` for several time series.
 
-`regions` defaults to a single peak-detected region; add further named regions of
-interest interactively in the GUI (press `A`) rather than specifying them up front.
+`peaklist` gives the regions to start from: a `peaklist.csv` saved earlier, a folder holding
+one, or `Region`s. Without it, a single peak-detected region is used; add further named
+regions of interest in the window (press `A`).
 """
-function kinetics1d(spec, times::AbstractVector; run=nothing, regions=nothing,
+function kinetics1d(spec; times::AbstractVector, run=nothing, peaklist=nothing,
                     model::SeriesModel=NoFitting(), integration=nothing)
     given = spec                       # the argument as written, for the reproduce line
     spec = loadspec(spec)
@@ -22,10 +24,11 @@ function kinetics1d(spec, times::AbstractVector; run=nothing, regions=nothing,
     else
         [(; time=Float64(times[i]), run=run[i]) for i in eachindex(times)]
     end
-    ds = datasetfromspec(spec, vars)
+    regions, noise = picks(peaklist)
+    ds = withnoise(datasetfromspec(spec, vars), noise)
     expt = isnothing(regions) ? KineticsExperiment(ds; model) :
            KineticsExperiment(ds; regions, model)
-    return run1d(expt; integration, call=analysiscall("kinetics1d", given, times; run))
+    return run1d(expt; integration, call=analysiscall("kinetics1d", given; times, run))
 end
 
 # ---- 2. type ------------------------------------------------------------------

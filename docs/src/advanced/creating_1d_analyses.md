@@ -52,20 +52,25 @@ The exported user-facing function. It resolves whatever the analysis needs to kn
 the experiment, and hands off to `run1d`:
 
 ```julia
-function myanalysis1d(spec; tau=nothing, regions=nothing, integration=nothing,
+function myanalysis1d(spec; tau=nothing, peaklist=nothing, integration=nothing,
                       prompt::Bool=isinteractive())
+    given = spec
     spec = loadspec(spec)
     times = @something(tau,
                        annotation(spec, :myanalysis, :duration),
                        acqusvalue(spec, :vdlist),
                        askvector("delays", nplanesfromspec(spec); unit="s", prompt))
-    ds = datasetfromspec(spec, [(; time=Float64(t)) for t in times])
+    regions, noise = picks(peaklist)
+    ds = withnoise(datasetfromspec(spec, [(; time=Float64(t)) for t in times]), noise)
     expt = isnothing(regions) ? MyExperiment(ds) : MyExperiment(ds; regions)
-    return run1d(expt; integration)
+    return run1d(expt; integration, call=analysiscall("myanalysis1d", given; tau=times))
 end
 ```
 
-`run1d` opens the GUI and returns the results standing when its window closes, or — when
+`picks` turns the `peaklist` argument (a saved `peaklist.csv`, a folder holding one, or
+`Region`s) into the regions to start from and the noise position. The `analysiscall`
+records the call, with every parameter as resolved, so that the saved analysis can be
+reopened. `run1d` opens the GUI and returns the results standing when its window closes, or — when
 an `integration = (; peakppm, noiseppm, ppmwidth)` triple is supplied — skips it and
 analyses that region directly, so a chosen region can be replayed from a script. Either
 way it returns a `Vector{RegionResult}`.
