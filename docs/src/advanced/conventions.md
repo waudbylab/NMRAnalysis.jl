@@ -320,17 +320,18 @@ Not every analysis resolves everything. An experiment combining many datasets, e
 its own lists of offsets, powers and delays, is not something a user can reasonably type,
 so `exchange1d` reads those from annotations and does not offer a fallback. Its questions
 are about the fit (which model, which molecules, which parameters to fix) rather than about
-what the experiment was.
+what the experiment was, and each has a keyword that answers it, so that a saved fit can be
+reopened without one.
 
 ## Implementation status
 
-| Module | `summary.txt` | `results.csv` | `series.csv` | `global.csv` | per-entity files |
-|---|---|---|---|---|---|
-| Analysis1D | yes | yes | yes | nothing global yet | yes |
-| GUI2D | yes | yes | yes | yes | yes |
-| Exchange1D | yes | yes | yes | yes | yes |
-| PeakTrack1D | yes | nothing fitted | yes | nothing global | yes |
-| R1rho | old format | no | no | no | no |
+| Module | `summary.txt` | `analysis.toml` | `results.csv` | `series.csv` | `global.csv` | per-entity files |
+|---|---|---|---|---|---|---|
+| Analysis1D | yes | yes | yes | yes | nothing global yet | yes |
+| GUI2D | yes | yes | yes | yes | yes | yes |
+| Exchange1D | yes | yes | yes | yes | yes | yes |
+| PeakTrack1D | yes | yes | nothing fitted | yes | nothing global | yes |
+| R1rho | old format | no | no | no | no | no |
 
 Every 2D routine now resolves its parameters through the same chain as the 1D routines,
 from the helpers in `src/prompts.jl`, and returns the analysis when its window closes

@@ -17,7 +17,9 @@ import NMRAnalysis.Exchange1D:
                                _flatten_params_items, isatbound,
                                strongcorrelations, covariancematrixtable,
                                correlationmatrixtable,
-                               correlationheatmap
+                               correlationheatmap, exchangemodel, setparams!, paramindices,
+                               resolvedcall, writepeaklist, integrationregion, FitResult
+using NMRAnalysis: analysiscall, callstring
 using CairoMakie
 using ComponentArrays
 using LinearAlgebra
@@ -775,5 +777,45 @@ end
         result = fit(prob, defaultparams(prob))
 
         @test correlationheatmap(result) isa Figure
+    end
+
+    @testset "The analysis record and keyword arguments" begin
+        x = collect(1.0:20.0)
+        observed = (3.0 .* x .+ 0.1 .* sin.(x)) .± 1.0
+        prob = ExchangeProblem([DoFTestExperiment(x, 14.1, observed, zeros(length(x)), 0)],
+                               NoExchangeModel())
+        p0 = defaultparams(prob)
+        label = only(_flatten_params_items(p0)).label
+
+        # models are named by their type
+        @test exchangemodel(:NoExchangeModel) isa NoExchangeModel
+        @test exchangemodel("TwoStateModel") isa TwoStateModel
+        @test exchangemodel(nothing) === nothing
+        @test_throws ArgumentError exchangemodel(:NoSuchModel)
+
+        # starting values and fixed parameters by label
+        setparams!(p0, [label => 2.5])
+        @test only(_flatten_params_items(p0)).value == 2.5
+        @test paramindices(p0, [label]) == Set([1])
+        @test_throws ArgumentError setparams!(p0, ["spin.nope" => 1.0])
+        @test_throws ArgumentError paramindices(p0, ["spin.nope"])
+
+        # the record holds everything the fit was set up with
+        result = fit(prob, p0)
+        call = analysiscall("exchange1d", ["11", "12"])
+        text = callstring(resolvedcall(call, result))
+        @test occursin("model=:NoExchangeModel", text)
+        @test occursin("initial=[\"$label\" => 2.5]", text)
+        @test !occursin("fixed=", text)
+        fixedresult = FitResult((f == :fixed ? Set([1]) : getfield(result, f)
+                                 for f in fieldnames(FitResult))...)
+        @test occursin("fixed=[\"$label\"]", callstring(resolvedcall(call, fixedresult)))
+
+        # the integration region, as the 1D peak list
+        dir = mktempdir()
+        prob.integration = (; peakppm=8.2, noiseppm=-1.0, ppmwidth=0.6)
+        writepeaklist(joinpath(dir, "peaklist.csv"), prob)
+        region = integrationregion(dir)
+        @test region[1] ≈ 8.2 && region[2] ≈ -1.0 && region[3] ≈ 0.6
     end
 end

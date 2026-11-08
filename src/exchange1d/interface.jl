@@ -14,7 +14,9 @@ out."""
 detail(msg::AbstractString) = printstyled(msg * "\n"; color=:light_black)
 
 """
-    exchange1d(filenames::Vector{String}; calibration=nothing)
+    exchange1d(filenames; calibration=nothing, model=nothing, molecules=nothing,
+               concentrations=nothing, peaklist=nothing, initial=nothing, fixed=nothing,
+               prompt=isinteractive())
 
 Interactive text-based interface for 1D chemical exchange analysis.
 
@@ -26,12 +28,29 @@ Guides the user through:
 5. Fitting and display of results
 6. Saving results
 
+Each step is skipped where its keyword is given, so a saved analysis repeats without a
+question asked: `reopen` passes every one of them, as they were when the fit was saved.
+
 # Arguments
 - `filenames`: Vector of paths to NMR experiment directories
 - `calibration`: the B₁ field strengths and inhomogeneity to simulate with, as a
   [`B1Calibration`](@ref NMRAnalysis.B1Calibration) or as the nutation calibration experiment(s) to fit for one.
   Without it, each experiment's own reference pulse gives the field strengths on the
   assumption of a perfectly linear amplifier, and the B₁ inhomogeneity is taken to be 5%.
+- `model`: the exchange model, by its type name (e.g. `:TwoStateModel`), or a model.
+- `molecules`: for a model of several molecules, which sample molecule plays each role, as
+  `role => name` pairs, e.g. `[:ligand => "Nbox", :protein => "FIR"]`.
+- `concentrations`: concentrations to use where the sample metadata gives none, as
+  `name => value` pairs.
+- `peaklist`: the integration region and noise position, as a `peaklist.csv` (one region
+  and a `noise` row) or a folder holding one.
+- `initial`: starting values of the fitted parameters, as `label => value` pairs, with the
+  labels and internal parametrisation of the saved `analysis.toml` (`model.logKd`, the
+  logarithm of Kd).
+- `fixed`: the labels of parameters held at their starting values.
+- `prompt`: whether to ask for anything not given, and offer the parameter editor. Without
+  it (the default outside an interactive session) the fit runs once and is returned,
+  unsaved.
 
 # Example
 ```julia
@@ -39,14 +58,18 @@ Guides the user through:
 exchange1d(["cest/11", "r1rho/12"]; calibration=["cal/1", "cal/2", "cal/3"])
 ```
 """
-function exchange1d(filenames::Vector{String}; calibration=nothing)
+function exchange1d(filenames::AbstractVector{<:AbstractString}; calibration=nothing,
+                    model=nothing, molecules=nothing, concentrations=nothing,
+                    peaklist=nothing, initial=nothing, fixed=nothing,
+                    prompt::Bool=isinteractive())
+    filenames = collect(String, filenames)
+    call = analysiscall("exchange1d", filenames; calibration)
     println()
     sectionheader("Exchange 1D analysis")
     println()
 
     # ── 1. Model selection ──────────────────────────────────────────────
-    model = _prompt_model()
-    model === nothing && return nothing
+    model = @something(exchangemodel(model), _prompt_model(; prompt), return nothing)
     println()
 
     # ── 2. Build problem ────────────────────────────────────────────────
@@ -61,34 +84,50 @@ function exchange1d(filenames::Vector{String}; calibration=nothing)
 
     # ── 3. Molecule mapping (if model requires it) ──────────────────────
     if nmolecules(model) > 1
-        ok = _prompt_moleculemap!(model, prob)
-        ok || return nothing
-        _prompt_concentrations!(model, prob)
+        if isnothing(molecules)
+            prompt || throw(ArgumentError("which sample molecule plays each role of " *
+                                          "$(modelname(model)) is not given: pass molecules"))
+            _prompt_moleculemap!(model, prob) || return nothing
+        else
+            foreach(((r, n),) -> model.moleculemap[Symbol(r)] = String(n), molecules)
+        end
+        isnothing(concentrations) ||
+            foreach(((n, c),) -> model.concentrations[String(n)] = Float64(c),
+                    concentrations)
+        _prompt_concentrations!(model, prob; prompt)
         println()
     end
 
     # ── 4. Integration ──────────────────────────────────────────────────
-    _prompt_integration!(prob)
+    if isnothing(peaklist)
+        prompt || throw(ArgumentError("no integration region given: pass peaklist"))
+        _prompt_integration!(prob)
+    else
+        integrate!(prob, integrationregion(peaklist)...)
+    end
     println()
 
     # ── 5. Parameters + fit loop ────────────────────────────────────────
     p0 = defaultparams(prob)
-    fixed = Set{Int}()
+    isnothing(initial) || setparams!(p0, initial)
+    fixedset = isnothing(fixed) ? Set{Int}() : paramindices(p0, fixed)
     while true
-        p0 = _prompt_params(p0, prob, fixed)
-        p0 === nothing && return nothing
-
-        println()
+        if prompt
+            p0 = _prompt_params(p0, prob, fixedset)
+            p0 === nothing && return nothing
+            println()
+        end
         sectionheader("Fitting...")
-        result = fit(prob, p0; fixed=fixed)
+        result = fit(prob, p0; fixed=fixedset)
         display(result)
+        prompt || return result
 
         GLMakie.activate!()
         display(combineplots(result))
 
         action = _prompt_after_fit()
         if action == :save
-            _save_results(result)
+            _save_results(result, call)
             return result
         elseif action == :adjust
             println()
@@ -97,6 +136,75 @@ function exchange1d(filenames::Vector{String}; calibration=nothing)
             return result
         end
     end
+end
+
+"""The exchange model named by `model`: one already made, or one of its type name."""
+exchangemodel(::Nothing) = nothing
+exchangemodel(model::AbstractModel) = model
+function exchangemodel(name::Union{Symbol,AbstractString})
+    for T in _available_models()
+        nameof(T) == Symbol(name) && return T()
+    end
+    return throw(ArgumentError("no exchange model called $name: choose from " *
+                               join(nameof.(_available_models()), ", ")))
+end
+
+"""The `(peakppm, noiseppm, ppmwidth)` of the one region and the noise in a peak list."""
+function integrationregion(peaklist)
+    regs, noise = readpeaklist(peaklist)
+    length(regs) == 1 ||
+        throw(ArgumentError("exchange1d integrates one region, but the peak list has " *
+                            "$(length(regs))"))
+    isnothing(noise) && throw(ArgumentError("the peak list has no noise row"))
+    r = only(regs)
+    return (centre(r), noise, width(r))
+end
+
+"""Set the parameters named by `label => value` pairs, in their stored parametrisation."""
+function setparams!(p0::ComponentArray, values)
+    items = Dict(item.label => item for item in _flatten_params_items(p0))
+    for (label, value) in values
+        haskey(items, label) ||
+            throw(ArgumentError("no parameter $label: the parameters are " *
+                                join(keys(items), ", ")))
+        _set_param!(p0, items[label].flat_index, Float64(value))
+    end
+    return p0
+end
+
+"""The flat indices of the parameters with the given labels."""
+function paramindices(p0::ComponentArray, labels)
+    items = Dict(item.label => item for item in _flatten_params_items(p0))
+    for label in labels
+        haskey(items, label) || throw(ArgumentError("no parameter $label to fix"))
+    end
+    return Set{Int}(items[label].flat_index for label in labels)
+end
+
+"""
+    resolvedcall(call, result) -> AnalysisCall
+
+The call that repeats a fit without a question: the one made, with the model, molecule
+mapping, fallback concentrations, starting values and fixed parameters that `result` was
+fitted with added. The integration region is saved as the folder's `peaklist.csv`.
+"""
+function resolvedcall(call::AnalysisCall, result::FitResult)
+    m = result.prob.model
+    items = _flatten_params_items(result.params0)
+    extra = Pair{Symbol,Any}[:model => nameof(typeof(m))]
+    if nmolecules(m) > 1
+        push!(extra,
+              :molecules => [role => m.moleculemap[role] for (role, _) in molecules(m)])
+        isempty(m.concentrations) ||
+            push!(extra,
+                  :concentrations =>
+                      [n => c for (n, c) in sort!(collect(m.concentrations))])
+    end
+    push!(extra, :initial => [item.label => Float64(item.value) for item in items])
+    isempty(result.fixed) ||
+        push!(extra,
+              :fixed => [item.label for item in items if item.flat_index in result.fixed])
+    return AnalysisCall(call.func, call.args, [call.kwargs; extra], call.dir)
 end
 
 function exchange1d(directory::String=""; kwargs...)
@@ -175,7 +283,9 @@ function _collect_concrete_subtypes!(T, out)
     end
 end
 
-function _prompt_model()
+function _prompt_model(; prompt::Bool=true)
+    prompt || throw(ArgumentError("no exchange model given: pass model, one of " *
+                                  join(nameof.(_available_models()), ", ")))
     model_types = _available_models()
     instances = sort!([T() for T in model_types]; by=modelorder)
     names = [modelname(m) for m in instances]
@@ -272,7 +382,7 @@ Warning about a partial mismatch here, rather than only about a total one,
 is what turns a `KeyError` buried deep in the fit (see issue #36) into an
 actionable prompt at setup time.
 """
-function _prompt_concentrations!(model, prob::ExchangeProblem)
+function _prompt_concentrations!(model, prob::ExchangeProblem; prompt::Bool=true)
     for (role, description) in molecules(model)
         name = model.moleculemap[role]
         haskey(model.concentrations, name) && continue
@@ -290,6 +400,8 @@ function _prompt_concentrations!(model, prob::ExchangeProblem)
         else
             detail("No sample concentration found for \"$name\" ($description)")
         end
+        prompt || throw(ArgumentError("no concentration for \"$name\" ($description): " *
+                                      "pass concentrations"))
         conc = _prompt_value("Concentration of $name", nothing) do v
             return v > 0 || error("Concentration must be positive")
         end
@@ -705,12 +817,10 @@ end
 # Step 7: Save results
 # ═══════════════════════════════════════════════════════════════════════════
 
-function _save_results(result::FitResult)
-    print("Save results to folder: ")
+function _save_results(result::FitResult, call=nothing)
+    print("Save results to folder [out]: ")
     input = strip(readline())
-    isempty(input) && return nothing
-
-    outputfolder = input
+    outputfolder = isempty(input) ? "out" : input
     prepare_outputfolder(outputfolder)
     mkpath(joinpath(outputfolder, "experiments"))
     saved = String[]
@@ -742,10 +852,13 @@ function _save_results(result::FitResult)
         push!(saved, "correlation.pdf")
     end
 
-    writesummary(joinpath(outputfolder, "summary.txt"), result)
-    push!(saved, "summary.txt")
+    writepeaklist(joinpath(outputfolder, "peaklist.csv"), result.prob)
     writeresults!(result, outputfolder)
-    append!(saved, ["results.csv", "series.csv", "global.csv"])
+    append!(saved, ["peaklist.csv", "results.csv", "series.csv", "global.csv"])
+    # the summary records the call with the peak list written above, so it comes after it
+    writesummary(joinpath(outputfolder, "summary.txt"), result,
+                 isnothing(call) ? nothing : resolvedcall(call, result))
+    push!(saved, "summary.txt", RECORD)
     result.nparams > 1 && append!(saved, ["covariance.csv", "correlation.csv"])
     for expt in result.prob.experiments
         push!(saved, joinpath("experiments", "$(safename(short_expt_path(expt))).csv"))
@@ -782,11 +895,6 @@ function writeexperimentsummary(io::IO, prob::ExchangeProblem)
     model = prob.model
     println(io, "Exchange 1D — experiment summary")
     println(io, "Model: $(modelname(model))")
-    println(io)
-
-    println(io, "Repeat with:")
-    paths = join((repr(experimentdirectory(expt)) for expt in prob.experiments), ", ")
-    println(io, "    exchange1d([$paths])")
     println(io)
 
     if nmolecules(model) > 1
