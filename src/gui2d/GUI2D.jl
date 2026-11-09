@@ -23,7 +23,7 @@ using ..NMRAnalysis: B1Calibration
 # the call that produced an analysis, for summary.txt - see src/calls.jl
 using ..NMRAnalysis: AnalysisCall, analysiscall
 import ..NMRAnalysis: writereproduce
-using ..NMRAnalysis: windowname
+using ..NMRAnalysis: windowname, outputfolder
 
 include("util.jl")
 include("types.jl")

@@ -100,7 +100,7 @@ function openwindow(s::SpectrumSeries, processing; labels=String[],
                     reference=DEFAULTREFERENCE,
                     refshift=0.0, coordinates=nothing, peaklist=nothing, radius=8, snr=5,
                     gain=2, colormap=nothing, size=(1200, 850), call=nothing,
-                    outputdir="out")
+                    outputdir=outputfolder())
     coords = coordinatetable(coordinates, length(s))
     reflabel, ref = referencing(reference, refshift, s)
     t = initialtracks(s, peaklist, reflabel, String[cleanlabel(l) for l in labels])

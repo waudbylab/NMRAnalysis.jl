@@ -109,6 +109,16 @@ function callstring(call::AnalysisCall, folder=nothing; extra...)
     return String(take!(io))
 end
 
+"""
+The output folder a window starts with: `out` in the working directory, or, while
+[`reopen`](@ref) repeats an analysis, the folder it reopened.
+"""
+const OUTPUT = Ref("out")
+outputfolder() = OUTPUT[]
+
+# An example's saved analysis is inside a downloaded artifact, which must not be changed.
+inartifact(path) = any(d -> startswith(abspath(path), joinpath(abspath(d), "artifacts")), DEPOT_PATH)
+
 """The file an output folder records its analysis in, which [`reopen`](@ref) reads."""
 const RECORD = "analysis.toml"
 
@@ -145,8 +155,8 @@ Reopen a saved analysis: repeat the call recorded in the output folder `path` (o
 it saved, so the window opens as it was left and the fit repeats.
 
 Keywords given here replace those recorded: `peaklist=nothing` reopens the same data with
-the same parameters but no peaks. The output is saved wherever the window's output folder
-says, not into the folder reopened.
+the same parameters but no peaks. The window saves back into the folder reopened, unless it
+is an example's saved analysis, which must not change: that is saved to `out`.
 
 The record is read as data, never run as code: only literal values are accepted.
 
@@ -180,7 +190,13 @@ function reopen(path::AbstractString; kwargs...)
     end
     inside(x) = resolve(x, folder)
     recorded = (; (k => inside(v) for (k, v) in kws)...)
-    return getfield(@__MODULE__, f)(map(inside, args)...; merge(recorded, kwargs)...)
+    previous = OUTPUT[]
+    inartifact(folder) || (OUTPUT[] = relpath(folder))
+    try
+        return getfield(@__MODULE__, f)(map(inside, args)...; merge(recorded, kwargs)...)
+    finally
+        OUTPUT[] = previous
+    end
 end
 
 """

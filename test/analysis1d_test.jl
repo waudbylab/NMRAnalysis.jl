@@ -637,6 +637,15 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
         write(joinpath(out, "analysis.toml"), "call = 'viscosity(:h2o, sqrt(2))'\n")
         @test_throws ArgumentError reopen(out)
         @test_throws ArgumentError reopen(mktempdir())
+
+        # a window saves to out, or back into the folder reopened, but never into an
+        # example's saved analysis, inside a downloaded artifact
+        @test NMRAnalysis.outputfolder() == "out"
+        @test NMRAnalysis.inartifact(joinpath(first(DEPOT_PATH), "artifacts", "0a1b", "analysis"))
+        @test !NMRAnalysis.inartifact(out)
+        write(joinpath(out, "analysis.toml"), "call = '''\nviscosity(:h2o, 298.0)\n'''\n")
+        reopen(out)
+        @test NMRAnalysis.outputfolder() == "out"   # restored once the window is closed
     end
 
     @testset "Parameter prompts" begin

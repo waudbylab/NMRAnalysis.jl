@@ -279,9 +279,15 @@ relaxation2d("../11/pdata/1";
 
 Paths are written relative to the folder, as `./name` inside it and `../name` outside it, so
 the folder can be moved, copied or shipped as example data with its experiments and still be
-reopened. Any string argument that named a file or folder when the analysis was run is
-written this way, and so is an experiment number given as data; reading the record resolves
-every string starting `./` or `../` against the folder.
+reopened. Every positional argument is data and is written this way, including an
+experiment number or an nmrPipe plane template such as `ft/test%03d.ft2`; a keyword is
+written this way when it names a file or folder. Reading the record resolves every string
+starting `./` or `../` against the folder, and a path that is no longer there is an error
+naming it.
+
+The window `reopen` opens saves back into the folder reopened, so saving updates it. An
+example's saved analysis is the exception: it is inside a downloaded artifact, which must
+not change, so its window saves to `out`.
 
 The record is data, never run as code. `reopen` parses the call and accepts only literal
 values (numbers, strings, symbols, `nothing`, and vectors, tuples, named tuples and pairs of

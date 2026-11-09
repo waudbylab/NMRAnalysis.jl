@@ -818,9 +818,10 @@ end
 # ═══════════════════════════════════════════════════════════════════════════
 
 function _save_results(result::FitResult, call=nothing)
-    print("Save results to folder [out]: ")
+    default = NMRAnalysis.outputfolder()
+    print("Save results to folder [$default]: ")
     input = strip(readline())
-    outputfolder = isempty(input) ? "out" : input
+    outputfolder = isempty(input) ? default : input
     prepare_outputfolder(outputfolder)
     mkpath(joinpath(outputfolder, "experiments"))
     saved = String[]

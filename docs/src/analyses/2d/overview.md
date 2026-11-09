@@ -199,7 +199,8 @@ See [Peak Lists and Output Files](peaklistformats.md).
 
 The output folder also records the analysis, with every parameter as it was resolved, in
 `analysis.toml`. `reopen` repeats it, opening the window with the same peaks and radii, and
-the fit repeats. `summary.txt` ends with the line to type:
+the fit repeats. Saving then updates the same folder. `summary.txt` ends with the line to
+type:
 
 ```julia
 reopen("out")
