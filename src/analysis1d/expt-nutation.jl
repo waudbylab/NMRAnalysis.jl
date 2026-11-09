@@ -401,6 +401,22 @@ windowtitle(::NutationExperiment) = "Nutation calibration"
 
 resultxfactor(e::NutationExperiment) = timescale(column(dataset(e).planes, :duration))[1]
 
+# The panel shows the calibration, the parameters that belong to the region as a whole,
+# without the amplitude: each power level's field is labelled on the plot instead.
+function panelgroups(::NutationExperiment, r::RegionResult)
+    summary = last(paramgroups(r))
+    delete!(summary.second, :A)
+    return [summary]
+end
+
+function serieslabel(e::NutationExperiment, r::RegionResult, s)
+    name = groupname(e, s.group)
+    ν = seriesname(:nu, s.group)
+    haskey(r.parameters, ν) || return name
+    field = "$(round(Int, Measurements.value(param(r, ν)))) Hz"
+    return isempty(name) ? field : "$name, $field"
+end
+
 function resultlabels(e::NutationExperiment)
     _, unit = timescale(column(dataset(e).planes, :duration))
     return ("Pulse duration / $unit", "Intensity")
