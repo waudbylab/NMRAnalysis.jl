@@ -63,12 +63,14 @@ end
 
 `x` with every string naming a file or folder (relative to `from`) rewritten relative to
 the folder `to`: as `./name` inside it, `../name` outside it. With `data`, which marks a
-positional argument, an experiment number naming a folder is rewritten in the same way.
+positional argument, every string is a path and is rewritten, even one that names no single
+file, such as the nmrPipe template `ft/test%03d.ft2`; an experiment number naming a folder
+is rewritten too.
 """
 relocate(x, from, to; data=false) = x
 function relocate(x::AbstractString, from, to; data=false)
     p = joinpath(from, x)
-    ispath(p) || return x
+    data || ispath(p) || return x
     r = relpath(p, to)
     return startswith(r, "..") ? r : "./" * r
 end
@@ -151,7 +153,7 @@ The record is read as data, never run as code: only literal values are accepted.
 # Examples
 ```julia
 reopen("out")                                    # an analysis saved earlier
-reopen(exampleanalysis("relaxation2d_ubq"))      # an example's saved analysis
+reopen(exampleanalysis("relaxation2d_asyn"))     # an example's saved analysis
 reopen("out"; peaklist=nothing)                  # the same, picking the peaks afresh
 ```
 """
@@ -181,10 +183,19 @@ function reopen(path::AbstractString; kwargs...)
     return getfield(@__MODULE__, f)(map(inside, args)...; merge(recorded, kwargs)...)
 end
 
-"""A recorded path, written relative to the record (`./…`, `../…`), made absolute."""
+"""
+A recorded path, written relative to the record (`./…`, `../…`), made absolute. Throws an
+`ArgumentError` if it is not there, as when the folder was moved after it was saved.
+"""
 resolve(x, folder) = x
 function resolve(x::AbstractString, folder)
-    return startswith(x, "./") || startswith(x, "../") ? normpath(joinpath(folder, x)) : x
+    startswith(x, "./") || startswith(x, "../") || return x
+    p = normpath(joinpath(folder, x))
+    # an nmrPipe plane series is recorded as a template, such as ft/test%03d.ft2
+    ispath(p) || occursin('%', basename(p)) ||
+        throw(ArgumentError("$folder records $x, but there is nothing at $p. Was the " *
+                            "folder moved, or the data renamed, after the analysis was saved?"))
+    return p
 end
 resolve(x::AbstractVector, folder) = map(y -> resolve(y, folder), x)
 resolve(x::Tuple, folder) = map(y -> resolve(y, folder), x)

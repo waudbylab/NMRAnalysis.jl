@@ -604,6 +604,16 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
         @test_throws ArgumentError literal(Meta.parse("x"))
         @test resolve("../11", out) == normpath(joinpath(dir, "11"))
         @test resolve("signal", out) == "signal"
+        # data are always recorded relative to the output folder, even a plane template
+        # that names no single file
+        text = callstring(cd(() -> analysiscall("relaxation2d", "ft/test%03d.ft2"), dir), out)
+        @test occursin("\"../ft/test%03d.ft2\"", text)
+        # a keyword string that is not a path is left as it is
+        text = callstring(cd(() -> analysiscall("relaxation1d", "11"; model="exponential"), dir), out)
+        @test occursin("model=\"exponential\"", text)
+        # a recorded path that is no longer there says so, rather than failing later
+        @test_throws ArgumentError resolve("../moved", out)
+        @test resolve("../ft/test%03d.ft2", out) == normpath(joinpath(dir, "ft", "test%03d.ft2"))
 
         # summary.txt says how to reopen the analysis, recorded beside it
         times = [0.0, 0.1, 0.2, 0.4]
