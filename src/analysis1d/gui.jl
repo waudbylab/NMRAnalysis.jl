@@ -285,35 +285,17 @@ function gui!(expt::Experiment1D; call=nothing)
     on(_ -> quit!(), btnquit.clicks)
     fittingrow = r  # extra gap added below this row, once later rows exist to gap against
 
-    # The whole info panel - active region, its bounds, the fit and its derived
-    # quantities - as one Label (see `state[:resultspanel]` for why one, not several).
-    #
-    # Deliberately no `word_wrap`: every line break here is an explicit "\n" the panel
-    # itself puts in (one parameter per line, aligned into columns), never text that
-    # should reflow at the column edge - and `word_wrap` has a real cost beyond being
-    # unnecessary. It makes the Label's wrap width follow `computedbbox` (the cell
-    # GridLayout has already given it) while that cell's own size is set from the
-    # Label's *reported* size - a live feedback loop between two Observables that, for a
-    # panel whose content keeps changing, does not reliably settle. `halign=:left` then
-    # places the (possibly narrower-than-the-column) text block at the column's left
-    # edge rather than centring it.
+    # The info panel - active region, its bounds, the fit and its derived quantities -
+    # as one text (see `state[:resultspanel]`). The row only reserves the space, sized
+    # from the number of lines, and the text is drawn from its top-left corner: a Label
+    # centres its text on a measurement that, in a live window, can be taken before the
+    # text changes, drawing a longer panel half its height too low.
     r += 1
     resultsrow = r
-    right[r, 1] = Label(fig, state[:resultspanel]; tellwidth=false, halign=:left,
-                        justification=:left)
-    # Row height set explicitly from the text itself, rather than left to GridLayout's
-    # own "Auto" sizing off the Label's reported bounding box. That reporting comes from
-    # Makie's own RichText boundingbox/autosize machinery, and for this panel - reactive,
-    # multi-font (bold headers over plain aligned text), variable line count - it turned
-    # out not to reliably settle: fixed for relaxation1d (a short, single-block panel)
-    # but still stuck at a fixed height for calibration1d (longer, with a derived-quantity
-    # block too), so the row started too low and didn't track the window. Counting
-    # newlines in the flattened text is a few lines of plain Julia string handling with
-    # nothing uncertain about it, so the row height no longer depends on trusting that
-    # machinery at all. `PANEL_LINE_HEIGHT` is a rough estimate for the theme's default
-    # 14pt font - generous rather than tight, since underestimating recreates the
-    # original overlap this panel was merged into one Label to avoid, while a few extra
-    # pixels of blank space below the text is harmless.
+    panel = right[r, 1] = Box(fig; visible=false)
+    text!(fig.scene, lift(bb -> Point2f(minimum(bb)[1], maximum(bb)[2]),
+                          panel.layoutobservables.computedbbox);
+          text=state[:resultspanel], align=(:left, :top), justification=:left)
     on(rt -> rowsize!(right, resultsrow,
                       Fixed(PANEL_LINE_HEIGHT * (count('\n', String(rt)) + 1) + 10)),
        state[:resultspanel]; update=true)
