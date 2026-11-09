@@ -574,10 +574,9 @@ function resultpanel!(gui, state, expt::Experiment1D, ::SeriesVisualisation)
     # TROSY/anti-TROSY) get a proper axislegend instead via `seriesnames`.
     legendnames = seriesnames(expt)
     if isnothing(legendnames)
-        # above each curve's last point, ending at it, so a label stays inside the axes
         text!(ax, state[:seriestextpos]; text=state[:seriestexttxt],
-              color=state[:seriestextcolor], fontsize=11, align=(:right, :bottom),
-              offset=(0, 8))
+              color=state[:seriestextcolor], fontsize=11, align=(:left, :center),
+              offset=(6, 0))
     else
         legendelements = [MarkerElement(; color=seriescolor(i), marker=:circle)
                           for i in eachindex(legendnames)]

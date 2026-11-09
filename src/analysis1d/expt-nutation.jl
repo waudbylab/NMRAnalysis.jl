@@ -414,7 +414,7 @@ function serieslabel(e::NutationExperiment, r::RegionResult, s)
     ν = seriesname(:nu, s.group)
     haskey(r.parameters, ν) || return name
     field = "$(round(Int, Measurements.value(param(r, ν)))) Hz"
-    return isempty(name) ? field : "$name, $field"
+    return isempty(name) ? field : "$name\n$field"
 end
 
 function resultlabels(e::NutationExperiment)
