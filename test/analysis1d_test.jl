@@ -26,7 +26,7 @@ using NMRAnalysis.Analysis1D: powerdb, saveextras!, fitseries, groupname, displa
                               summarytext, paramgroups, saveanalysis, dataset, resultfigure
 using CairoMakie: Axis
 using NMRAnalysis: refpower, ν1ref
-using NMRTools: Power, db, hz
+using NMRTools: NMRTools, Power, db, hz
 using Measurements
 using Random
 using Test
@@ -653,6 +653,12 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
         # acqus lookups answer `nothing` rather than throwing, so a precedence chain can
         # fall through them
         @test acqusvalue(nothing, :vdlist) === nothing
+        # an unset list, such as `VDLIST= <>`, is absent too
+        spec = NMRTools.NMRData(zeros(3), (NMRTools.X1Dim(1:3),);
+                                metadata=Dict{Symbol,Any}(:acqus => Dict{Any,Any}(:vdlist => "",
+                                                                                  :vclist => [0, 1, 2])))
+        @test acqusvalue(spec, :vdlist) === nothing
+        @test acqusvalue(spec, :vclist) == [0, 1, 2]
     end
 
     @testset "Results are written to disk" begin

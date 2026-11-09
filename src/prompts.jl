@@ -27,7 +27,8 @@ function acqusvalue(spec, keys...)
         nothing
     end
     (isnothing(value) || ismissing(value)) && return nothing
-    return (value isa AbstractVector && isempty(value)) ? nothing : value
+    # an unset list, such as `VDLIST= <>`, is an empty string
+    return (value isa Union{AbstractString,AbstractVector} && isempty(value)) ? nothing : value
 end
 
 """
