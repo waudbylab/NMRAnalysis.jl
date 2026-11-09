@@ -73,6 +73,14 @@ methylccr2d(12, 11; T=[0.001, 0.002, 0.004, 0.006, 0.010])
 methylccr2d("12", "11"; T=[0.001, 0.002, 0.004, 0.006, 0.010], C=1/2)
 ```
 
+`methylccr2d_fln5` is a TQ experiment on ILV methyl-labelled FLN5, with eight delays from
+2 to 60 ms. The delays are read from the buildup series' vdlist:
+
+```julia
+decay, buildup = example("methylccr2d_fln5")
+methylccr2d(decay, buildup)
+```
+
 The buildup and decay series are loaded into a single dataset and normalised by a common
 noise level, so the intensity ratio ``|I_a/I_b|`` is preserved. Each residue panel plots
 ``|I_a/I_b|`` against ``T`` with the eq 7 fit (showing ``\eta`` and ``\delta``).
