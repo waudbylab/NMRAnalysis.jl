@@ -196,7 +196,8 @@ function settle!(expt)
         xlo, xhi = extrema(state[:current_spec_x][])
         ylo, yhi = extrema(state[:current_spec_y][])
         hx, hy = (xhi - xlo) / 2shot.zoom, (yhi - ylo) / 2shot.zoom
-        limits!(g[:axcontour], x - hx, x + hx, y - hy, y + hy)
+        # limits! sets each axis reversed when its first value is the larger, as shifts are
+        limits!(g[:axcontour], x + hx, x - hx, y + hy, y - hy)
     end
     return nothing
 end
