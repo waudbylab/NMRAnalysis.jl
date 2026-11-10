@@ -310,7 +310,8 @@ function gui!(expt::Experiment1D; call=nothing)
     function ready()
         autolimits!(gui[:axfit])
         lims = SCREENSHOT[].xlims
-        return isnothing(lims) || xlims!(ax, extrema(lims)...)
+        # xlims!(ax, a, b) sets ax.xreversed[] = a > b, so the higher shift goes first
+        return isnothing(lims) || xlims!(ax, reverse(extrema(lims))...)
     end
     capturewindow(fig; ready) && return state
     display(fig)

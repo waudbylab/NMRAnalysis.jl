@@ -28,14 +28,14 @@ In the window that opens:
 
 1. Move the cursor over a peak and press `A`. The peak is fitted, and its decay appears on
    the right.
-2. Press `R` to rename the peak, for example `V40`, so that plots use the residue number.
+2. Press `R` to rename the peak, for example `L113`, so that plots use the residue number.
 3. Add the other peaks you want.
 4. Press **Save**.
 5. Press `Q` to close the window.
 
 ```@setup quickstart
 using NMRAnalysis
-expt = NMRAnalysis.screenshot("relaxation2d.png"; peak="V40") do
+expt = NMRAnalysis.screenshot("relaxation2d.png"; peak="L113", zoom=3) do
     reopen(exampleanalysis("relaxation2d_asyn"))
 end
 Main.savepng("relaxation2d-summary.png", summaryplot(expt))

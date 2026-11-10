@@ -56,7 +56,7 @@ titration2d(example("titration2d_fir_nbox"))
 
 ```@setup titration2d
 using NMRAnalysis
-expt = NMRAnalysis.screenshot("titration2d.png"; peak="X14", zoom=3, contour=-1) do
+expt = NMRAnalysis.screenshot("titration2d.png"; peak="X14", zoom=4.5, contour=-1) do
     reopen(exampleanalysis("titration2d_fir_nbox"))
 end
 ```

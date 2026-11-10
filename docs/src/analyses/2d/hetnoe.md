@@ -36,7 +36,7 @@ hetnoe2d(reference, saturated)
 
 ```@setup hetnoe2d
 using NMRAnalysis
-expt = NMRAnalysis.screenshot("hetnoe2d.png") do
+expt = NMRAnalysis.screenshot("hetnoe2d.png"; zoom=3) do
     hetnoe2d(example("hetnoe2d_calr")...; peaklist=Main.savedanalysis("hetnoe2d_calr"))
 end
 picked = !isempty(results(expt))

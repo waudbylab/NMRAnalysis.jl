@@ -38,13 +38,13 @@ relaxation2d(example("relaxation2d_asyn"); cycletime=0.02809)
 
 ```@setup relaxation2d
 using NMRAnalysis
-expt = NMRAnalysis.screenshot("relaxation2d.png"; peak="V40") do
+expt = NMRAnalysis.screenshot("relaxation2d.png"; peak="L113", zoom=3) do
     reopen(exampleanalysis("relaxation2d_asyn"))
 end
 Main.savepng("relaxation2d-summary.png", summaryplot(expt))
 ```
 
-![The relaxation2d window, with the decay of V40](relaxation2d.png)
+![The relaxation2d window, with the decay of L113](relaxation2d.png)
 
 ![Picking and fitting peaks in a relaxation series](../../assets/relaxation-demo.mov)
 
