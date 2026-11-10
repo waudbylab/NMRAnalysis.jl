@@ -20,7 +20,7 @@ r1rho()
 You can provide a starting folder as an argument. The program will display a list of available NMR experiments in the terminal for you to select.
 
 ```julia
-r1rho("example/R1rho")
+r1rho("path/to/data")
 ```
 
 ![R1ρ Experiment Selection](../assets/r1rho-selection.png)
@@ -30,7 +30,8 @@ r1rho("example/R1rho")
 You can also provide a list of specific experiment folders or files for direct analysis.
 
 ```julia
-r1rho(["example/R1rho/11", "example/R1rho/12"])
+r1rho(["path/to/data/11", "path/to/data/12"])
+r1rho(example("r1rho_pin1"))          # the example data, from NMRExampleData
 ```
 
 ![R1ρ Analysis Interface](../assets/r1rho-gui.png)
@@ -45,7 +46,7 @@ In on-resonance R1ρ experiments, very low spin-lock strengths can result in poo
 For example, to exclude spin-lock strengths below 500 Hz and above 10 kHz:
 
 ```julia
-r1rho(["example/R1rho/11", "example/R1rho/12"], minvSL=500, maxvSL=10_000)
+r1rho(example("r1rho_pin1"); minvSL=500, maxvSL=10_000)
 ```
 
 Or, when launching with a dialog:

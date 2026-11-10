@@ -23,10 +23,10 @@ spin-lock strengths, ready to be copied into the experiment setup.
 # Example
 ```julia
 # read pulse calibration from an experiment, then prompt for spin-lock strengths
-setupR1rhopowers("examples/calibration/1")
+setupR1rhopowers(example("calibration1d_19f"))
 
 # calibrate the amplifier's response over several power levels first
-setupR1rhopowers(["examples/calibration/1", "examples/calibration/2"])
+setupR1rhopowers(["cal/1", "cal/2"])
 
 # prompt for pulse parameters and spin-lock strengths interactively
 setupR1rhopowers()

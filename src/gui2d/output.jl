@@ -401,23 +401,13 @@ end
 """
     writereproduce(io, expt, folder)
 
-The `Reproduce:` block of `summary.txt`: the call that produced the analysis, its parameters
-as resolved, with the `peaklist.csv` saved in `folder` to load. Pasted back into Julia it
-reopens the window with the same peaks and radii, and the fit repeats. Nothing is written
-where the call was not recorded.
+Save the record of the call that produced the analysis, with the `peaklist.csv` saved in
+`folder` to load, and print the `Reproduce:` block of `summary.txt`. Reopened, the window
+opens with the same peaks and radii, and the fit repeats.
 """
-function writereproduce(io, expt, folder)
+function writereproduce(io, expt::Experiment, folder)
     call = haskey(expt.state[], :call) ? expt.state[][:call][] : nothing
-    isnothing(call) && return nothing
-    peaklist = relpath(joinpath(folder, "peaklist.csv"))
-    text = callstring(call, [:peaklist => repr(peaklist)])
-    isnothing(text) && return nothing
-    println(io)
-    println(io, "Reproduce:")
-    for line in split(text, '\n')
-        println(io, "    ", line)
-    end
-    return nothing
+    return writereproduce(io, folder, call; peaklist=joinpath(folder, "peaklist.csv"))
 end
 
 # ---- returned to the caller ---------------------------------------------------

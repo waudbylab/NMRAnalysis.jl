@@ -55,7 +55,7 @@ in the contour plot to work with it.
 | Show or hide the fitted lineshape overlay | **Fitting** toggle |
 | Show or hide other spectra (moving-peak experiments, e.g. titrations, RDCs) | `S` or **(S)how all** toggle |
 | Open a summary plot of the current results | **Summary plot** button (enabled once peaks are present) |
-| Load a previously saved peak list | **Load peak list...** button, or `peaklist=` when you start (see below) |
+| Load the peak list saved in the output folder | **Load peak list** button, or `peaklist=` when you start (see below) |
 | Save all results to a folder | **Save to folder** button |
 | Close the GUI window | `Q` or **(Q)uit** button |
 
@@ -190,29 +190,30 @@ since the last one does not leave its plot behind. See
 
 ## Loading and Resuming Analysis
 
-The **Load peak list...** button restores peak positions and labels from a saved
-`peaklist.csv`, a Sparky peak list, or a simple `label x y` text file, so you can resume
-work later or seed a new analysis from existing positions. Where peaks were tracked plane
+The **Load peak list** button restores peak positions and labels from the `peaklist.csv`
+in the output folder named beside it, so you can resume work later. Where peaks were tracked plane
 by plane, the whole trajectory is restored, as are any radii you set for individual peaks.
 A loaded list replaces the current peaks. If the file can't be read, or holds no peaks,
 the current peaks and radii are kept. The whole list is fitted once, after it has loaded.
 See [Peak Lists and Output Files](peaklistformats.md).
 
-`summary.txt` ends with a `Reproduce:` block: the call that produced the analysis, with
-every parameter as it was resolved and `peaklist=` pointing at the saved peak list. Paste it
-into Julia to reopen the window with the same peaks and radii, and the fit repeats.
-
-You can also load a list as the window opens, by passing it to any 2D routine:
+The output folder also records the analysis, with every parameter as it was resolved, in
+`analysis.toml`. `reopen` repeats it, opening the window with the same peaks and radii, and
+the fit repeats. Saving then updates the same folder. `summary.txt` ends with the line to
+type:
 
 ```julia
-relaxation2d("11/pdata/1"; peaklist="out/peaklist.csv")
+reopen("out")
 ```
 
-On Linux, the **Load peak list...** button doesn't open a file dialog, because the GTK file
-dialog can crash Julia there; it prints a warning instead. Pass `peaklist` when you start
-the analysis. The crash comes from GTK settings schemas older than the GTK that Julia
-bundles, so updating your system's GTK 3 package (`libgtk-3-common` on Debian or Ubuntu,
-`gtk3` on Fedora) may fix the dialog.
+To seed an analysis from any other list, pass it as the window opens: a saved
+`peaklist.csv` or the folder holding one, a Sparky peak list, or a simple `label x y` text
+file.
+
+```julia
+relaxation2d("11/pdata/1"; peaklist="out")
+relaxation2d("11/pdata/1"; peaklist="hsqc.list")
+```
 
 ## Summary plots
 

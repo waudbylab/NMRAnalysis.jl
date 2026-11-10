@@ -66,9 +66,16 @@ function resultplotdata(e::Experiment1D, result, activelabel::AbstractString)
         else
             Point2f[]
         end
-        return ResultSeries(points, errors, fitline, groupname(e, s.group))
+        return ResultSeries(points, errors, fitline, serieslabel(e, result[i], s))
     end
 end
+
+"""
+    serieslabel(expt, result, series) -> String
+
+The label drawn beside a series in the result panel: its [`groupname`](@ref) by default.
+"""
+serieslabel(e::Experiment1D, r, s) = groupname(e, s.group)
 
 """
     groupname(expt, group) -> String
@@ -361,13 +368,25 @@ function paramwidth(expt::Experiment1D, groups)
 end
 
 """
+    panelgroups(expt, result) -> Vector{Pair{NamedTuple,OrderedDict{Symbol,Any}}}
+
+The [`paramgroups`](@ref) of `result` shown in the window's panel: all of them by default.
+`summary.txt` always has them all.
+"""
+panelgroups(::Experiment1D, r::RegionResult) = paramgroups(r)
+
+"""
     paramblock(io, expt, result::RegionResult, width=nothing)
 
 Everything a region reports, a block per series under a heading naming it, then the
 quantities derived across them. See [`paramgroups`](@ref).
 """
 function paramblock(io::IO, expt::Experiment1D, r::RegionResult, width=nothing)
-    groups = paramgroups(r)
+    return paramblock(io, expt, paramgroups(r), width)
+end
+
+function paramblock(io::IO, expt::Experiment1D,
+                    groups::AbstractVector{<:Pair{<:NamedTuple}}, width=nothing)
     w = something(width, paramwidth(expt, groups) + 2)
     isfirst = true
     for (group, params) in groups
@@ -406,7 +425,7 @@ function panelwidth(expt::Experiment1D, result, activelabel::AbstractString)
     len = 0
     for r in result
         r.region == activelabel || continue
-        len = max(len, paramwidth(expt, paramgroups(r)))
+        len = max(len, paramwidth(expt, panelgroups(expt, r)))
     end
     return len == 0 ? nothing : len + 2
 end
@@ -453,7 +472,7 @@ function resultstext(e::Experiment1D, result, activelabel::AbstractString, width
     spans = Any[]
     for r in result
         r.region == activelabel || continue
-        block = paramtext(e, r, width)
+        block = paramtext(e, panelgroups(e, r), width)
         isempty(block) && continue
         push!(spans, plaintext(block), "\n")
     end

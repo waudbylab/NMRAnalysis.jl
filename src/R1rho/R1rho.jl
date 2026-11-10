@@ -48,16 +48,19 @@ Launch the R1rho analysis GUI for a given directory or experiment folder.
 
 ```julia
 # analyse experiments 11 and 12
-r1rho(["examples/R1rho/11", "examples/R1rho/12"])
+r1rho(["data/11", "data/12"])
+
+# the example data, from NMRExampleData
+r1rho(example("r1rho_pin1"))
 
 # open a dialog to select a directory, and scale the display size by 1.5
 r1rho(scalefactor=1.5)
 
 # filter out spin-lock strengths below 500 Hz (e.g. to exclude poorly aligned experiments, 250 Hz is the default)
-r1rho("examples/R1rho", minvSL=500)
+r1rho("data", minvSL=500)
 
 # filter out spin-lock strengths about 10 kHz (e.g. to exclude data with detuning effects)
-r1rho("examples/R1rho", maxvSL=10_000)
+r1rho("data", maxvSL=10_000)
 ```
 """
 function r1rho(directory_path=""; minvSL=250, maxvSL=1e6, scalefactor=:automatic)

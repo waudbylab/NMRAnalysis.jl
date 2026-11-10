@@ -67,7 +67,7 @@ function MethylCCRModel(C, times)
 end
 
 """
-    methylccr2d(buildupexpt, decayexpt, T=nothing; C=3/4, skipplanes=nothing,
+    methylccr2d(decay, buildup; T=nothing, C=3/4, skipplanes=nothing, peaklist=nothing,
                 prompt=isinteractive()) -> IntensityExperiment
 
 Start an interactive GUI for methyl ¹H–¹H cross-correlated relaxation analysis.
@@ -80,44 +80,45 @@ cross-correlated relaxation rate `η` (s⁻¹) and a coupling term `δ` (< 0). T
 blocks until it is closed, and the analysis is returned (see [`results`](@ref)).
 
 # Arguments
-- `buildupexpt`: buildup series (Iₐ) — a single pseudo-3D path string, or a
-  `Vector{String}` of per-delay 2D data directories. Bruker experiment numbers work too,
-  individually or as a list/range.
-- `decayexpt`: decay series (I_b), in the same form as `buildupexpt`.
+- `decay`: decay series (I_b): a single pseudo-3D path string, or a `Vector{String}` of
+  per-delay 2D data directories. Bruker experiment numbers work too, individually or as a
+  list/range.
+- `buildup`: buildup series (Iₐ), in the same form as `decay`.
+
+# Keyword Arguments
 - `T`: vector of relaxation delays in **seconds**, or a path string to a text file of
   delays (one per line; lines beginning with `#` are ignored). Each series must have one
   plane per delay. If omitted, the delays are read from the buildup series' annotations or
   `vdlist`, or asked for.
-
-# Keyword Arguments
 - `C`: fixed prefactor in eq 7. `3/4` (default) for triple-quantum (TQ); `1/2` for
   double-quantum (DQ).
 - `skipplanes`: optional list of delay indices (1-based, into `T`) to exclude from the
   fitting, in both series. Skipped points appear as open grey markers.
+- `peaklist`: a peak list to start from, or a folder holding one.
 - `prompt`: Whether to ask for delays that cannot be found (default: when interactive).
 
 # Example
 ```julia
-# buildup and decay each as a pseudo-3D dataset
-methylccr2d("11/pdata/1", "12/pdata/1", [0.001, 0.002, 0.004, 0.006, 0.010])
+# decay and buildup each as a pseudo-3D dataset
+methylccr2d("12/pdata/1", "11/pdata/1"; T=[0.001, 0.002, 0.004, 0.006, 0.010])
 
 # double-quantum variant
-methylccr2d("11/pdata/1", "12/pdata/1", "vdlist.txt"; C=1/2)
+methylccr2d("12/pdata/1", "11/pdata/1"; T="vdlist.txt", C=1/2)
 ```
 """
-function methylccr2d(buildupexpt, decayexpt, T=nothing; C=3 / 4, skipplanes=nothing,
+function methylccr2d(decay, buildup; T=nothing, C=3 / 4, skipplanes=nothing,
                      peaklist=nothing, prompt::Bool=isinteractive())
-    buildupexpt = asexptpath(buildupexpt)
-    decayexpt = asexptpath(decayexpt)
+    buildupexpt = asexptpath(buildup)
+    decayexpt = asexptpath(decay)
 
     tau = if isnothing(T)
-        buildup = preparespecdata(buildupexpt, IntensityExperiment)
-        relaxationdelays(buildup; prompt)
+        series = preparespecdata(buildupexpt, IntensityExperiment)
+        relaxationdelays(series; prompt)
     else
         readvalues(T)
     end
     N = length(tau)
-    N > 0 || error("No relaxation delays provided")
+    N > 0 || throw(ArgumentError("no relaxation delays provided"))
     skip = checkskipplanes(skipplanes, N)
 
     specdata = preparespecdata_methylccr(buildupexpt, decayexpt, N)
@@ -128,7 +129,7 @@ function methylccr2d(buildupexpt, decayexpt, T=nothing; C=3 / 4, skipplanes=noth
     # only ever uses its own `times`. A skipped delay skips its plane in both series.
     expt = IntensityExperiment(specdata, peaks, model, [tau; tau],
                                ModelFitVisualisation(); skipplanes=[skip; skip .+ N])
-    call = analysiscall("methylccr2d", buildupexpt, decayexpt, tau; C,
+    call = analysiscall("methylccr2d", decayexpt, buildupexpt; T=tau, C,
                         skipplanes=nonempty(skip))
 
     return gui!(expt; peaklist, call)

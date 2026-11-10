@@ -35,6 +35,10 @@ using ..NMRAnalysis: csvcolumn, csvvalue, safename, backupfile, backupfolder,
                      writetable
 # Interactive region selection for `integrate!` (replaces the former readline prompts).
 using ..Analysis1D: pickregion, calibrationanalysis
+# the integration region, saved and read as the 1D analyses' peak list
+using ..Analysis1D: Region, readpeaklist, peaklisttable, centre, width
+# the call that produced an analysis, recorded for `reopen` - see src/calls.jl
+using ..NMRAnalysis: AnalysisCall, analysiscall, writereproduce, RECORD
 
 # Include submodules in dependency order
 include("fitting-with-errors.jl")

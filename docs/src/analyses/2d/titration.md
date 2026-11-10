@@ -90,27 +90,15 @@ Without sample metadata (or to override it), pass `L0` — and, for the exact 1:
 ```julia
 using NMRAnalysis
 
-files = [
-    "/Users/chris/git/titan/examples/FBPNbox/1"
-    "/Users/chris/git/titan/examples/FBPNbox/2"
-    "/Users/chris/git/titan/examples/FBPNbox/3"
-    "/Users/chris/git/titan/examples/FBPNbox/4"
-    "/Users/chris/git/titan/examples/FBPNbox/5"
-    "/Users/chris/git/titan/examples/FBPNbox/6"
-    "/Users/chris/git/titan/examples/FBPNbox/7"
-    "/Users/chris/git/titan/examples/FBPNbox/8"
-    "/Users/chris/git/titan/examples/FBPNbox/9"
-    "/Users/chris/git/titan/examples/FBPNbox/10"
-    "/Users/chris/git/titan/examples/FBPNbox/11"
-]
+files = example("titration2d_fir_nbox")   # FIR RRM1-RRM2 titrated with the Nbox peptide
 ligand_concs = [0, 8.13, 16.14, 24.01, 31.76, 46.89, 61.56, 75.79, 109.53, 140.89, 200.06]
 protein_concs = [41, 40.67, 40.34, 40.02, 39.7, 39.08, 38.48, 37.89, 36.51, 35.22, 32.8]
 
 # Ligand concentrations only (hyperbolic, ligand ≈ free):
-titration2d(files, L0=ligand_concs)
+titration2d(files; L0=ligand_concs)
 
 # With protein concentrations — exact 1:1 equation, accounts for dilution:
-titration2d(files, L0=ligand_concs, P0=protein_concs)
+titration2d(files; L0=ligand_concs, P0=protein_concs)
 ```
 
 ## Tracking peaks
@@ -184,7 +172,7 @@ obtained by the delta method.
   concentration units as `L0`/`P0`.
 - **Save to folder** writes `results.csv` with each peak's per-plane positions, linewidths and
   amplitudes, plus the derived ``\delta_\text{free}``/``\delta_\text{bound}`` shifts and the
-  global ``K_\text{d}``. **Load peak list...** restores them.
+  global ``K_\text{d}``. **Load peak list** restores them.
 - The **summary plot** shows ΔδX, ΔδN and the combined `|Δδ|` (saturation CSP =
   ``\delta_\text{bound} - \delta_\text{free}``) against residue number.
 

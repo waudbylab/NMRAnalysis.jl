@@ -298,11 +298,12 @@ end
     writesummary(filepath, result) -> String
 
 Write `summary.txt`: the parameter tables and fit statistics as the REPL shows them, then
-the experiment-by-experiment provenance, then the call that repeats the analysis. Replaces
+the experiment-by-experiment provenance, then how to reopen the analysis, recorded beside
+it as `analysis.toml` from `call`. Replaces
 the former pair of `exchange1d_params.txt` and `exchange1d_experiments.txt`, which split
 one record across two files.
 """
-function writesummary(filepath::AbstractString, result::FitResult)
+function writesummary(filepath::AbstractString, result::FitResult, call=nothing)
     backupfile(filepath)
     open(filepath, "w") do io
         show(io, MIME("text/plain"), result)
@@ -311,7 +312,22 @@ function writesummary(filepath::AbstractString, result::FitResult)
         println(io,
                 "Concentrations, and any dissociation constant fitted from them, are in " *
                 "whatever units the sample metadata gives them in.")
-        return nothing
+        folder = dirname(filepath)
+        return writereproduce(io, folder, call; peaklist=joinpath(folder, "peaklist.csv"))
     end
     return filepath
+end
+
+"""
+    writepeaklist(filepath, prob)
+
+Write the integration region and noise position as a `peaklist.csv`, in the form the 1D
+analyses write and read, so that `exchange1d(...; peaklist)` integrates the same region.
+"""
+function writepeaklist(filepath::AbstractString, prob::ExchangeProblem)
+    isnothing(prob.integration) && return nothing
+    (; peakppm, noiseppm, ppmwidth) = prob.integration
+    region = Region("signal", peakppm - ppmwidth / 2, peakppm + ppmwidth / 2)
+    return writetable(filepath, ["Exchange 1D integration region"],
+                      peaklisttable([region], noiseppm, ppmwidth)...)
 end

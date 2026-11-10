@@ -20,7 +20,7 @@ results when the window closes.
 - `diffusion1d(filename)`: diffusion coefficient and hydrodynamic radius
 - `tract(trosy, antitrosy)`: rotational correlation time from TRACT
 - `calibration1d(filename)`: pulse-length calibration from a nutation experiment
-- `kinetics1d(filename, times)`: intensities of named regions against time
+- `kinetics1d(filename; times)`: intensities of named regions against time
 - `peaktrack1d(filenames)`: positions of peaks and multiplets across a series of spectra
 - `r1rho([directory])`: R₁ρ relaxation dispersion
 - `exchange1d([filenames])`: CEST and R₁ρ fitted by Bloch-McConnell simulation
@@ -35,17 +35,17 @@ saved peak list as the window opens.
 - `fit2d(files)`: positions, linewidths and amplitudes, with no model
 - `relaxation2d(files)`: R₁ or R₂ from an exponential decay
 - `recovery2d(files)`: inversion or saturation recovery
-- `modelfit2d(files, x, equation, parameters)`: a model of your own
+- `modelfit2d(files; x, equation, parameters)`: a model of your own
 - `hetnoe2d(reference, saturated)`: heteronuclear NOE
-- `ccr2d(decay, buildup, T)`: cross-correlated relaxation rates
-- `methylccr2d(buildup, decay, T)`: methyl S²τc
+- `ccr2d(decay, buildup; T)`: cross-correlated relaxation rates
+- `methylccr2d(decay, buildup; T)`: methyl S²τc
 - `cest2d(file)`: CEST profiles
 - `cpmg2d(file)`: CPMG relaxation dispersion
 - `pre2d(diamagnetic, paramagnetic; type)`: paramagnetic relaxation enhancement Γ₂
 - `lpre2d(diamagnetic, paramagnetic; type)`: Γ₁ and Γ₂ from a series of recycle delays
 - `peaktrack2d(files)`: peaks that move from plane to plane
 - `titration2d(files)`: binding isotherms and a global Kd
-- `rdc2d(; isotropic, aligned)`: one-bond couplings and RDCs
+- `rdc2d(isotropic, aligned)`: one-bond couplings and RDCs
 - `summaryplot(expt)`: a fitted parameter against residue number
 
 # Other tools
@@ -63,6 +63,7 @@ using NMRTools
 using REPL.TerminalMenus
 using Reexport
 using Statistics
+using TOML
 
 include("fileselection.jl")
 include("analyse.jl")
@@ -94,6 +95,7 @@ export viscosity
 # field across the sample (see src/b1.jl)
 export B1Calibration, B1Distribution, b1average, b1rate, inhomogeneity, linearity
 export shortpath
+export reopen
 
 include("R1rho/R1rho.jl")
 using .R1rho
@@ -104,6 +106,8 @@ using .Exchange1D
 include("peaktrack1d/PeakTrack1D.jl")
 using .PeakTrack1D
 
+# example data, to open with the analyses: relaxation2d(example(name)), reopen(exampleanalysis(name))
+@reexport using NMRTools: example, exampleanalysis, exampleinfo, examples
 @reexport using .MaybeVectorModule: MaybeVector, SingleElementVector, StandardVector
 @reexport using .GUI2D: fit2d, relaxation2d, recovery2d, modelfit2d # IntensityExperiment
 @reexport using .GUI2D: peaktrack2d, rdc2d, titration2d # MovingExperiment

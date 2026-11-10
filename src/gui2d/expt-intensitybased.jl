@@ -124,7 +124,9 @@ available you are asked for them, as you are for a `cycletime` that is needed an
 - `ncyc`: Loop counts, one per plane, or the path of a file holding them, for an experiment
   whose delay is a number of loops of fixed duration.
 - `cycletime`: The duration in seconds of one loop, which multiplies `ncyc` or the `vclist`.
-- `skipplanes`: Planes (1-based) to exclude from the fitting. All spectra are still loaded
+- `xlabel`: the label of the x axis.
+- `skipplanes`: Planes (1-based) to exclude from the fitting.
+- `peaklist`: a peak list to start from, or a folder holding one. All spectra are still loaded
   and displayed; skipped planes appear as open grey markers in the peak plot and are not
   used when fitting R or A. The full list of relaxation times must still be provided,
   including those for skipped planes.
@@ -159,10 +161,6 @@ function relaxation2d(inputfilenames; relaxationtimes=nothing, ncyc=nothing,
     call = analysiscall("relaxation2d", inputfilenames; relaxationtimes=tau,
                         skipplanes=nonempty(skip))
     return gui!(expt; peaklist, call)
-end
-
-function relaxation2d(inputfilenames, relaxationtimes; kwargs...)
-    return relaxation2d(inputfilenames; relaxationtimes, kwargs...)
 end
 
 """
@@ -206,21 +204,17 @@ function recovery2d(inputfilenames; relaxationtimes=nothing, ncyc=nothing,
     return gui!(expt; peaklist, call)
 end
 
-function recovery2d(inputfilenames, relaxationtimes; kwargs...)
-    return recovery2d(inputfilenames; relaxationtimes, kwargs...)
-end
-
 """
-    modelfit2d(inputfilenames, xvalues, equation, parameters, xlabel="x";
-               skipplanes=nothing, prompt=isinteractive())
+    modelfit2d(inputfilenames; x=nothing, equation, parameters, xlabel="x",
+               skipplanes=nothing, peaklist=nothing, prompt=isinteractive())
 
 Create an intensity analysis experiment with fitting to a custom equation. The window
 blocks until it is closed, and the analysis is returned (see [`results`](@ref)).
 
 # Arguments
 - `inputfilenames`: String or vector of strings giving the input data files.
-- `xvalues`: Vector of Float64 giving the x values for fitting, or string giving a filename
-  from which to read the x values. `nothing` asks for them.
+- `x`: Vector of Float64 giving the x values for fitting, or string giving a filename
+  from which to read the x values. Without it, you are asked for them.
 - `equation`: String giving the model equation to fit, e.g. `"A*sin(J*x)"`
 - `parameters`: Vector of parameter name-value pairs giving initial parameter values,
   e.g. `["A"=>40., "J"=>0.5]`
@@ -228,25 +222,26 @@ blocks until it is closed, and the analysis is returned (see [`results`](@ref)).
 
 # Example: J-modulation
 ```julia
-modelfit2d(["112","113","114","115"],
-    [0.1, 0.2, 0.3, 0.4],
-    "A*sin(J*x)",
-    ["A"=>40., "J"=>0.5])
+modelfit2d(["112","113","114","115"];
+    x=[0.1, 0.2, 0.3, 0.4],
+    equation="A*sin(J*x)",
+    parameters=["A"=>40., "J"=>0.5])
 ```
 """
-function modelfit2d(inputfilenames, xvalues, modelfunction::String,
-                    parameters::Vector{Pair{String,Float64}}, xlabel="x";
+function modelfit2d(inputfilenames; x=nothing, equation::AbstractString,
+                    parameters::AbstractVector{<:Pair{<:AbstractString,<:Real}}, xlabel="x",
                     skipplanes=nothing, peaklist=nothing, prompt::Bool=isinteractive())
     specdata = preparespecdata(asexptpath(inputfilenames), IntensityExperiment)
     n = length(specdata.z)
-    xval = isnothing(xvalues) ? askvector("x values", n; prompt) : readvalues(xvalues)
+    xval = isnothing(x) ? askvector("x values", n; prompt) : readvalues(x)
     checklength(xval, n, "x values")
     skip = checkskipplanes(skipplanes, n)
-    model = CustomModel(modelfunction, parameters, xlabel)
+    params = Pair{String,Float64}[String(k) => Float64(v) for (k, v) in parameters]
+    model = CustomModel(String(equation), params, xlabel)
     expt = IntensityExperiment(specdata, Observable(Vector{Peak}()), model, xval,
                                ModelFitVisualisation(); skipplanes=skip)
-    call = analysiscall("modelfit2d", inputfilenames, xval, modelfunction, parameters,
-                        xlabel; skipplanes=nonempty(skip))
+    call = analysiscall("modelfit2d", inputfilenames; x=xval, equation, parameters=params,
+                        xlabel, skipplanes=nonempty(skip))
     return gui!(expt; peaklist, call)
 end
 

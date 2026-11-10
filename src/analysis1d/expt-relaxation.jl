@@ -6,7 +6,7 @@
 # ---- 1. entry point -----------------------------------------------------------
 
 """
-    relaxation1d(spec; tau=nothing, model=nothing, regions=nothing, integration=nothing,
+    relaxation1d(spec; tau=nothing, model=nothing, peaklist=nothing, integration=nothing,
                  prompt=isinteractive())
 
 Analyse a 1D relaxation experiment (T1/T2, or inversion recovery) from a pseudo-2D `spec`
@@ -21,7 +21,8 @@ otherwise you are asked to choose one. Neither annotation is required.
 - `tau`: relaxation delays, in seconds, one per spectrum.
 - `model`: `:exponential` for a decay `A exp(-Rt)`, `:recovery` for an
   inversion/saturation recovery `A [1 - C exp(-Rt)]`, or any [`SeriesModel`](@ref).
-- `regions`: integration regions to start from, instead of one on the tallest peak.
+- `peaklist`: the regions to start from, instead of one on the tallest peak: a `peaklist.csv`
+  saved earlier, a folder holding one (such as an earlier output folder), or `Region`s.
 - `integration`: a `(; peakppm, noiseppm, ppmwidth)` triple, which skips the window and
   analyses that region directly.
 - `prompt`: whether to ask for anything that could not be determined. Defaults to `false`
@@ -34,7 +35,7 @@ relaxation1d("11"; tau=[0.01, 0.05, 0.1, 0.5])       # delays given explicitly
 relaxation1d("11"; model=:recovery)                  # inversion recovery
 ```
 """
-function relaxation1d(spec; tau=nothing, model=nothing, regions=nothing,
+function relaxation1d(spec; tau=nothing, model=nothing, peaklist=nothing,
                       integration=nothing, prompt::Bool=isinteractive())
     given = spec                       # the argument as written, for the reproduce line
     spec = loadspec(spec)
@@ -46,7 +47,8 @@ function relaxation1d(spec; tau=nothing, model=nothing, regions=nothing,
     model = @something(model,
                        relaxationmodel(annotation(spec, :relaxation, :model)),
                        askrelaxationmodel(; prompt))
-    ds = datasetfromspec(spec, [(; time=Float64(t)) for t in times])
+    regions, noise = picks(peaklist)
+    ds = withnoise(datasetfromspec(spec, [(; time=Float64(t)) for t in times]), noise)
     expt = isnothing(regions) ? RelaxationExperiment(ds; model) :
            RelaxationExperiment(ds; model, regions)
     return run1d(expt; integration,

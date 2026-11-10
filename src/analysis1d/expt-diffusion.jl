@@ -6,8 +6,8 @@
 
 """
     diffusion1d()
-    diffusion1d(spec, gradients=nothing; coherence=SQ(H1), δ=nothing, Δ=nothing,
-                σ=nothing, Gmax=nothing, regions=nothing, integration=nothing,
+    diffusion1d(spec; gradients=nothing, coherence=SQ(H1), δ=nothing, Δ=nothing,
+                σ=nothing, Gmax=nothing, peaklist=nothing, integration=nothing,
                 prompt=isinteractive())
 
 Analyse a diffusion experiment, fitting the Stejskal-Tanner equation to extract the
@@ -30,7 +30,8 @@ asked about.
 - `σ`: gradient shape factor (0.9 for the smoothed-square `SMSQ` shapes, 0.6366 for
   `SINE`).
 - `Gmax`: maximum gradient strength, in T m⁻¹ (0.55 on a typical Bruker system).
-- `regions`: integration regions to start from, instead of one on the tallest peak.
+- `peaklist`: the regions to start from, instead of one on the tallest peak: a `peaklist.csv`
+  saved earlier, a folder holding one (such as an earlier output folder), or `Region`s.
 - `integration`: a `(; peakppm, noiseppm, ppmwidth)` triple, which skips the window and
   analyses that region directly.
 - `prompt`: whether to ask for anything that could not be determined. Defaults to `false`
@@ -39,12 +40,12 @@ asked about.
 # Examples
 ```julia
 diffusion1d("106")                                    # asks for the gradient ramp
-diffusion1d("106", 0.05:0.05:0.95)                    # ramp given explicitly
-diffusion1d("106", g; δ=4e-3, Δ=0.1, σ=0.9, Gmax=0.55)  # nothing left to ask
+diffusion1d("106"; gradients=0.05:0.05:0.95)                    # ramp given explicitly
+diffusion1d("106"; gradients=g, δ=4e-3, Δ=0.1, σ=0.9, Gmax=0.55)  # nothing left to ask
 ```
 """
-function diffusion1d(spec, gradients=nothing; coherence=SQ(H1), δ=nothing, Δ=nothing,
-                     σ=nothing, Gmax=nothing, regions=nothing, integration=nothing,
+function diffusion1d(spec; gradients=nothing, coherence=SQ(H1), δ=nothing, Δ=nothing,
+                     σ=nothing, Gmax=nothing, peaklist=nothing, integration=nothing,
                      prompt::Bool=isinteractive())
     given = spec                       # the argument as written, for the reproduce line
     spec = loadspec(spec)
@@ -77,12 +78,15 @@ function diffusion1d(spec, gradients=nothing; coherence=SQ(H1), δ=nothing, Δ=n
     temp = acqusvalue(spec, :te)
     solvent = solventname(acqusvalue(spec, :solvent))
 
-    ds = datasetfromspec(spec, [(; gradient=Float64(g)) for g in gradients])
+    regions, noise = picks(peaklist)
+    ds = withnoise(datasetfromspec(spec, [(; gradient=Float64(g)) for g in gradients]),
+                   noise)
     kw = (; γ, δ, Δ, σ, Gmax, temp, solvent)
     expt = isnothing(regions) ? DiffusionExperiment(ds; kw...) :
            DiffusionExperiment(ds; kw..., regions)
     return run1d(expt; integration,
-                 call=analysiscall("diffusion1d", given, gradients; δ, Δ, σ, Gmax))
+                 call=analysiscall("diffusion1d", given; gradients, δ, Δ, σ, Gmax,
+                                   coherence=coherence == SQ(H1) ? nothing : coherence))
 end
 
 diffusion1d(; kwargs...) = diffusion1d(askpath("diffusion experiment"); kwargs...)

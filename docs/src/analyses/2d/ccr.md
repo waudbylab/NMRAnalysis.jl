@@ -28,22 +28,31 @@ recorded to suppress contributions from auto-relaxation:
 ```julia
 using NMRAnalysis
 
-ccr2d("decay", "buildup", 0.08)
+ccr2d("decay", "buildup"; T=0.08)
 ```
 
 ### Symmetric reconversion (two pairs)
 
 ```julia
-ccr2d(
-    ["decay1", "decay2"],
-    ["buildup1", "buildup2"],
-    0.08
-)
+ccr2d(["decay1", "decay2"],
+      ["buildup1", "buildup2"];
+      T=0.08)
 ```
 
-The third argument `T` is the relaxation time constant in seconds during which the CCR
-rate acts. Experiments can also be given as Bruker experiment numbers, individually or as a
-list/range (e.g. `ccr2d(1, 2, 0.08)` or `ccr2d(1:2, 3:4, 0.08)`).
+`T` is the relaxation time in seconds during which the CCR rate acts; without it, you are
+asked. Experiments can also be given as Bruker experiment numbers, individually or as a
+list/range (e.g. `ccr2d(1, 2; T=0.08)` or `ccr2d(1:2, 3:4; T=0.08)`).
+
+### Example data
+
+`ccr2d_calr` is a symmetric reconversion experiment on the CALR C-terminal domain, recorded
+at 1.2 GHz with a relaxation time of 40 ms. Its two decay and two buildup spectra unpack
+into the two arguments:
+
+```julia
+decay, buildup = example("ccr2d_calr")
+ccr2d(decay, buildup; T=0.04)
+```
 
 ## Output
 

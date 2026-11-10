@@ -54,6 +54,14 @@ CSV cells (see [`writetable`](@ref)), so a comma in one would corrupt the row.
 sanitizelabel(label::AbstractString) = replace(String(label), "," => "")
 
 """
+    peaklistfile(path) -> String
+
+The peak list a `peaklist` argument names: the file itself, or the `peaklist.csv` inside a
+folder, such as an output folder saved earlier.
+"""
+peaklistfile(path::AbstractString) = isdir(path) ? joinpath(path, "peaklist.csv") : path
+
+"""
     backupfile(filepath)
 
 Rename an existing file to `<name>.bak`, so a save never silently destroys the last one.

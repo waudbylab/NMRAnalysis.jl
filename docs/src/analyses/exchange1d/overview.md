@@ -109,12 +109,8 @@ For models involving multiple molecules (e.g. two-state binding), you are prompt
 
 ### 4. Peak integration
 
-You are prompted for three values:
-- **Peak position** (ppm): Centre of the signal of interest
-- **Integration width** (ppm): Width of the integration region (default: 0.1 ppm)
-- **Noise position** (ppm): Centre of a signal-free region for noise estimation
-
-All experiments are integrated at these positions. Noise is estimated from the standard deviation of the noise region across the variable dimension (e.g. saturation offsets for CEST, delays for R1).
+You pick the integration region and a signal-free noise position in a window showing every
+experiment. All experiments are integrated at these positions. Noise is estimated from the standard deviation of the noise region across the variable dimension (e.g. saturation offsets for CEST, delays for R1).
 
 ### 5. Parameter review and fitting
 
@@ -127,12 +123,14 @@ You can then choose to:
 
 ### 6. Saving results
 
-If you choose to save, you are prompted for an output folder, which is written in the
-[standard layout](../../advanced/conventions.md):
+If you choose to save, you are prompted for an output folder (`out` unless you type
+another), which is written in the [standard layout](../../advanced/conventions.md):
 
 ```
 out/
   summary.txt         the parameter tables, the fit statistics, and where every experiment came from
+  analysis.toml       the analysis, with everything it was set up with: reopen("out") repeats it
+  peaklist.csv        the integration region and the noise position
   results.csv         one row per experiment: its type, field, number of points and settings
   series.csv          the measurements, one row per experiment per data point
   global.csv          every fitted parameter, with its starting value, uncertainty and unit
@@ -170,6 +168,32 @@ columns that do not apply to it.
     `correlation.pdf`. A parameter tagged `(at bound)` (a relaxation rate pinned at zero, for
     instance) has converged onto a limit rather than an interior optimum, so its uncertainty
     describes how well-constrained that limit is, not a two-sided confidence interval.
+
+### Repeating an analysis
+
+Every step above is skipped where you give its answer as a keyword, so an analysis can be
+run from a script, or repeated without a question:
+
+```julia
+exchange1d(["101", "102", "103"];
+           model=:TwoStateBindingModel,
+           molecules=[:ligand => "Nbox", :protein => "FIR"],
+           peaklist="out")           # the integration region saved by an earlier fit
+```
+
+| Keyword | Answers |
+|---|---|
+| `model` | the exchange model, by its type name |
+| `molecules` | which sample molecule plays each role, as `role => name` pairs |
+| `concentrations` | concentrations where the sample metadata gives none, as `name => value` pairs |
+| `peaklist` | the integration region and noise position: a `peaklist.csv`, or a folder holding one |
+| `initial` | starting values, as `label => value` pairs, with the labels `analysis.toml` uses |
+| `fixed` | the labels of parameters held at their starting values |
+
+Saving records all of these in `analysis.toml`, as they were for the fit, so
+`reopen("out")` repeats the fit exactly. Outside an interactive session, or with
+`prompt=false`, nothing is asked: the fit runs once with what is given, and is returned
+without being saved.
 
 ## Parameter Structure
 

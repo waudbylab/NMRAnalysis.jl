@@ -1,65 +1,68 @@
 """
-    hetnoe2d(reference, saturated; skipplanes=nothing) -> HetNOEExperiment
+    hetnoe2d(reference, saturated; skipplanes=nothing, peaklist=nothing) -> HetNOEExperiment
+    hetnoe2d(planes; saturation=nothing, skipplanes=nothing, peaklist=nothing,
+             prompt=isinteractive()) -> HetNOEExperiment
 
 Start interactive GUI for analysing 2D heteronuclear NOE data.
 
-`reference` and `saturated` can each be a single filename or a list of filenames — Bruker
-experiment numbers work too, individually or as a list/range. When lists are provided,
-results are averaged across all pairs.
+Give the `reference` and `saturated` spectra, each a single spectrum or a list of them, or
+give every plane in `planes` with `saturation` saying which are saturated. Spectra can be
+paths or Bruker experiment numbers, individually or as a list or range. With several
+pairs, results are averaged across them.
+
+`saturation` is one `true` or `false` per plane. Without it, it is read from each
+spectrum's `hetnoe.saturated` annotation, and otherwise you are asked.
+
+`skipplanes` lists planes (1-based, in the order of `planes`, or with reference and
+saturated planes interleaved) left out of the averages; at least one of each must remain.
+`peaklist` is a peak list to start from, or a folder holding one. The window blocks until it
+is closed, and the analysis is returned (see [`results`](@ref)).
 
 # Examples
 ```julia
-# Single reference / saturated pair
-hetnoe2d("expno1/pdata/231", "expno1/pdata/232")
-
-# Multiple pairs (results are averaged across pairs)
-hetnoe2d(
-    ["expno1/pdata/231", "expno2/pdata/231"],  # references
-    ["expno1/pdata/232", "expno2/pdata/232"],  # saturated
-)
-
-# Bruker experiment numbers
-hetnoe2d(1, 2)
+hetnoe2d("expno1/pdata/231", "expno1/pdata/232")      # one reference / saturated pair
+hetnoe2d(["1/pdata/1", "2/pdata/1"], ["3/pdata/1", "4/pdata/1"])   # two pairs, averaged
+hetnoe2d(1, 2)                                         # Bruker experiment numbers
+hetnoe2d(10:13; saturation=[false, true, false, true]) # planes, in any order
 ```
-
-`skipplanes` lists planes (1-based, counting reference and saturated planes in the order
-they are interleaved) left out of the averages; at least one of each must remain. The
-window blocks until it is closed, and the analysis is returned (see [`results`](@ref)).
 """
-function hetnoe2d(reference::AbstractString, saturated::AbstractString; kwargs...)
-    return hetnoe2d([reference, saturated], [false, true]; kwargs...)
+function hetnoe2d(reference, saturated; kwargs...)
+    ref, sat = planelist(reference), planelist(saturated)
+    length(ref) == length(sat) ||
+        throw(ArgumentError("got $(length(ref)) reference and $(length(sat)) saturated " *
+                            "spectra: give one of each per pair"))
+    planes = collect(Iterators.flatten(zip(ref, sat)))
+    return hetnoe2d(planes; saturation=repeat([false, true], length(ref)), kwargs...)
 end
 
-function hetnoe2d(reference::AbstractVector{String}, saturated::AbstractVector{String};
-                  kwargs...)
-    length(reference) == length(saturated) ||
-        throw(ArgumentError("reference and saturated lists must have equal length"))
-    planefilenames = collect(Iterators.flatten(zip(reference, saturated)))
-    saturationlist = repeat([false, true], length(reference))
-    return hetnoe2d(planefilenames, saturationlist; kwargs...)
-end
-
-function hetnoe2d(planefilenames, saturationlist::AbstractVector{Bool}; skipplanes=nothing,
-                  peaklist=nothing)
-    skip = checkskipplanes(skipplanes, length(saturationlist))
-    expt = HetNOEExperiment(asexptpath(planefilenames), saturationlist; skipplanes=skip)
-    call = analysiscall("hetnoe2d", planefilenames, saturationlist;
+function hetnoe2d(planes; saturation=nothing, skipplanes=nothing, peaklist=nothing,
+                  prompt::Bool=isinteractive())
+    planes = planelist(planes)
+    saturation = @something(saturation, annotatedsaturation(planes),
+                            asksaturation(length(planes); prompt))
+    length(saturation) == length(planes) ||
+        throw(ArgumentError("got $(length(saturation)) saturation values for " *
+                            "$(length(planes)) planes"))
+    skip = checkskipplanes(skipplanes, length(saturation))
+    expt = HetNOEExperiment(planes, collect(Bool, saturation); skipplanes=skip)
+    call = analysiscall("hetnoe2d", planes; saturation=collect(Bool, saturation),
                         skipplanes=nonempty(skip))
     return gui!(expt; peaklist, call)
 end
 
-# Bool <: Integer, so plane numbers with a saturation list need a method of their own
-function hetnoe2d(planes::AbstractVector{<:Integer}, saturationlist::AbstractVector{Bool};
-                  kwargs...)
-    return hetnoe2d(string.(planes), saturationlist; kwargs...)
+"""Which planes are saturated, from the `hetnoe.saturated` annotations, or `nothing`."""
+function annotatedsaturation(planes)
+    values = [annotation(loadnmr(p), :hetnoe, :saturated) for p in planes]
+    any(isnothing, values) && return nothing
+    flat = reduce(vcat, values)
+    return length(flat) == length(planes) ? Bool.(flat) : nothing
 end
 
-function hetnoe2d(reference::Integer, saturated::Integer; kwargs...)
-    return hetnoe2d(string(reference), string(saturated); kwargs...)
-end
-function hetnoe2d(reference::AbstractVector{<:Integer},
-                  saturated::AbstractVector{<:Integer}; kwargs...)
-    return hetnoe2d(string.(reference), string.(saturated); kwargs...)
+function asksaturation(n; prompt::Bool=true)
+    prompt || throw(ArgumentError("which planes are saturated could not be read from the " *
+                                  "annotations: pass saturation, e.g. [false, true]"))
+    values = askvector("saturation flags (1 for saturated, 0 for reference)", n)
+    return values .!= 0
 end
 
 """

@@ -44,7 +44,7 @@ function preparestate(expt::Experiment1D)
 
     state[:currentspectrumidx] = Observable(1)
     state[:isfitting] = Observable(true)
-    state[:outputdir] = Observable("out")
+    state[:outputdir] = Observable(outputfolder())
 
     # interaction mode: :normal, :addingdrag (press-drag-release with 'A'), :renaming
     state[:mode] = Observable(:normal)

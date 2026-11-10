@@ -262,20 +262,16 @@ function gui!(expt::Experiment1D; call=nothing)
     on(btnsave.clicks) do _
         return saveresults(state)
     end
-    # Restores a region list saved earlier from the same output folder, so a multi-region
-    # session can be picked up again rather than re-picked by hand.
+    # Restores the peak list saved earlier in the output folder, so a multi-region session
+    # can be picked up again rather than re-picked by hand.
     btnload = outputrow[1, 3] = Button(fig; label="Load")
     on(btnload.clicks) do _
         folder = joinpath(pwd(), state[:outputdir][])
-        # `regionlist.csv` is the region list proper; `results.csv` is read as a fallback
-        # for folders saved before the two were separated.
-        path = joinpath(folder, "regionlist.csv")
-        isfile(path) || (path = joinpath(folder, "results.csv"))
         try
-            n = readregions!(state, path)
-            @info "Restored $n region(s) from $path"
+            n = readpeaklist!(state, folder)
+            @info "Restored $n region(s) from $(peaklistfile(folder))"
         catch err
-            @warn "Could not load regions" path exception=err
+            @warn "Could not load the peak list" folder exception=err
         end
         return nothing
     end
@@ -289,35 +285,18 @@ function gui!(expt::Experiment1D; call=nothing)
     on(_ -> quit!(), btnquit.clicks)
     fittingrow = r  # extra gap added below this row, once later rows exist to gap against
 
-    # The whole info panel - active region, its bounds, the fit and its derived
-    # quantities - as one Label (see `state[:resultspanel]` for why one, not several).
-    #
-    # Deliberately no `word_wrap`: every line break here is an explicit "\n" the panel
-    # itself puts in (one parameter per line, aligned into columns), never text that
-    # should reflow at the column edge - and `word_wrap` has a real cost beyond being
-    # unnecessary. It makes the Label's wrap width follow `computedbbox` (the cell
-    # GridLayout has already given it) while that cell's own size is set from the
-    # Label's *reported* size - a live feedback loop between two Observables that, for a
-    # panel whose content keeps changing, does not reliably settle. `halign=:left` then
-    # places the (possibly narrower-than-the-column) text block at the column's left
-    # edge rather than centring it.
+    # The info panel - active region, its bounds, the fit and its derived quantities -
+    # as one text (see `state[:resultspanel]`). The row only reserves the space, sized
+    # from the number of lines, and the text is drawn from its top-left corner: a Label
+    # centres its text on a measurement that, in a live window, can be taken before the
+    # text changes, drawing a longer panel half its height too low.
     r += 1
     resultsrow = r
-    right[r, 1] = Label(fig, state[:resultspanel]; tellwidth=false, halign=:left,
-                        justification=:left)
-    # Row height set explicitly from the text itself, rather than left to GridLayout's
-    # own "Auto" sizing off the Label's reported bounding box. That reporting comes from
-    # Makie's own RichText boundingbox/autosize machinery, and for this panel - reactive,
-    # multi-font (bold headers over plain aligned text), variable line count - it turned
-    # out not to reliably settle: fixed for relaxation1d (a short, single-block panel)
-    # but still stuck at a fixed height for calibration1d (longer, with a derived-quantity
-    # block too), so the row started too low and didn't track the window. Counting
-    # newlines in the flattened text is a few lines of plain Julia string handling with
-    # nothing uncertain about it, so the row height no longer depends on trusting that
-    # machinery at all. `PANEL_LINE_HEIGHT` is a rough estimate for the theme's default
-    # 14pt font - generous rather than tight, since underestimating recreates the
-    # original overlap this panel was merged into one Label to avoid, while a few extra
-    # pixels of blank space below the text is harmless.
+    panel = right[r, 1] = Box(fig; visible=false)
+    text!(fig.scene,
+          lift(bb -> Point2f(minimum(bb)[1], maximum(bb)[2]),
+               panel.layoutobservables.computedbbox);
+          text=state[:resultspanel], align=(:left, :top), justification=:left)
     on(rt -> rowsize!(right, resultsrow,
                       Fixed(PANEL_LINE_HEIGHT * (count('\n', String(rt)) + 1) + 10)),
        state[:resultspanel]; update=true)
@@ -748,8 +727,8 @@ end
 """Save the results, covering every region (not just the active one shown live in the GUI
 panels), to the output folder, in the layout described in
 `docs/src/advanced/conventions.md`: `summary.txt` to read, `results.csv` and `series.csv`
-to compute with (`results.csv` is also the file a region list is restored from
-- see `readregions!`), an overlay of every region in `fit.pdf`, and a `regions/` folder
+to compute with, `peaklist.csv` to restore the regions from (see `readpeaklist`), an
+overlay of every region in `fit.pdf`, and a `regions/` folder
 holding each region's own plot and the data behind it under the same basename. An
 experiment with anything further to report adds it through `saveextras!`."""
 function saveresults(state)
@@ -786,8 +765,9 @@ function saveanalysis(expt::Experiment1D, ds::Dataset1D, result, regs,
              resultfigure(expt, result, [label]); backend=CairoMakie)
     end
 
-    writesummary(joinpath(dir, "summary.txt"), expt, ds, result, regs, call)
+    # the summary records the analysis with the peak list written here, so it comes last
     writeresults!(expt, ds, result, regs, dir)
+    writesummary(joinpath(dir, "summary.txt"), expt, ds, result, regs, call)
     saveextras!(expt, result, dir)
     @info "Saved results to $dir"
     return dir

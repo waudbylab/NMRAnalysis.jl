@@ -14,8 +14,9 @@ produced it, and that a script written against one analysis should work against 
 ```
 out/
   summary.txt          human-readable record of the whole analysis
-  peaklist.csv         2D: the peaks the user picked, and where they were placed
-  regionlist.csv       1D: the regions the user picked, and the noise position
+  analysis.toml        the call that produced it, which `reopen` repeats
+  peaklist.csv         what the user picked: 2D peaks and where they were placed, 1D
+                       regions and the noise position
   results.csv          one row per entity: everything reported for it
   series.csv           the measurements, one row per entity per plane
   global.csv           parameters fitted once across every entity (when there are any)
@@ -63,8 +64,10 @@ than an entity with its own parameters, so it stays at the top level under its e
 
 ## Input and output are separate files
 
-`peaklist.csv` and `regionlist.csv` record what the *user* specified: where each peak was
-placed, where each region sits, the fitting radii, the noise position. Everything else in
+`peaklist.csv` records what the *user* specified: where each peak was placed, where each
+region sits, the fitting radii, the noise position. It has one name in every analysis,
+whatever the entities are, and every entry point takes it the same way, as `peaklist`: the
+file, or a folder holding one, such as an earlier output folder. Everything else in
 the folder records what the *fit* produced.
 
 They are different things with different lives. A peak list is picked once and then reused:
@@ -77,7 +80,8 @@ So the input file is what **Load** reads, and it is written on every save. It ho
 per entity, or one row per entity per plane where positions were placed plane by plane, with
 a blank `plane` key meaning the row applies to every plane.
 
-The 1D noise marker travels in `regionlist.csv` as a region named `noise`, as wide as the
+In 1D, a region's row gives its bounds, `lo (ppm)` and `hi (ppm)`. The noise marker
+travels as a region named `noise`, as wide as the
 widest signal region. Only its centre is read back; the width used to estimate a region's
 uncertainty always matches that region's own.
 
@@ -201,7 +205,7 @@ it came from with nothing left blank. The experiment's headline parameter
 2D adds `resnum`, `resname` and `atom`, derived from the label, and `fitstatus` (see
 `series.csv` above). The region or peak
 *positions* are not here: where an entity sits is something the user chose, and it lives in
-`regionlist.csv` or `peaklist.csv`.
+`peaklist.csv`.
 
 ## `global.csv`
 
@@ -248,37 +252,67 @@ Linearity                0.9965 ± 0.0021
 A region with one series has nothing to group, and is written as the flat block it always
 was. The GUI's results panel is built from the same text, so the two cannot drift apart.
 
-It should also carry the Julia call that would repeat the analysis, together with where
-each resolved parameter came from, which makes the annotation lookup auditable:
+It ends by saying how to repeat the analysis:
 
 ```
 Reproduce:
-    relaxation1d("11";
-                 tau=[0.01, 0.03, 0.06, 0.10, 0.20, 0.40],
-                 model=:exponential,
-                 integration=(peakppm=8.21, noiseppm=-1.00, ppmwidth=0.60))
-
-tau from vdlist; model from annotation relaxation.model; region selected interactively.
-
-A 2D analysis records its call the same way, with the parameters as resolved, and adds the
-`peaklist.csv` saved beside it, which restores the peaks and their radii when the window
-opens, so the fit repeats:
-
-```
-Reproduce:
-    relaxation2d("11/pdata/1";
-                 relaxationtimes=[0.01, 0.03, 0.06, 0.1, 0.2, 0.4],
-                 peaklist="out/peaklist.csv")
+    reopen("out")
 ```
 
-`AnalysisCall`, `analysiscall` and `callstring` live in `src/calls.jl`, shared by both.
+## `analysis.toml` and `reopen`
+
+Every analysis saves the call that produced it as `analysis.toml`, beside `summary.txt`,
+and [`reopen`](@ref) reads it back. The call is recorded with every parameter as it was
+resolved, and with the `peaklist.csv` saved beside it, so reopening opens the window with the
+same data, parameters and peaks, and the fit repeats:
+
+```toml
+# The analysis that wrote this folder, with paths relative to it.
+# reopen("<this folder>") in NMRAnalysis.jl repeats it.
+nmranalysis = "0.5.0"
+call = '''
+relaxation2d("../11/pdata/1";
+             relaxationtimes=[0.01, 0.03, 0.06, 0.1, 0.2, 0.4],
+             peaklist="./peaklist.csv")
+'''
 ```
+
+Paths are written relative to the folder, as `./name` inside it and `../name` outside it, so
+the folder can be moved, copied or shipped as example data with its experiments and still be
+reopened. Every positional argument is data and is written this way, including an
+experiment number or an nmrPipe plane template such as `ft/test%03d.ft2`; a keyword is
+written this way when it names a file or folder. Reading the record resolves every string
+starting `./` or `../` against the folder, and a path that is no longer there is an error
+naming it.
+
+The window `reopen` opens saves back into the folder reopened, so saving updates it. An
+example's saved analysis is the exception: it is inside a downloaded artifact, which must
+not change, so its window saves to `out`.
+
+The record is data, never run as code. `reopen` parses the call and accepts only literal
+values (numbers, strings, symbols, `nothing`, and vectors, tuples, named tuples and pairs of
+them) and only a function this package exports. Keywords passed to `reopen` replace those
+recorded: `reopen("out"; peaklist=nothing)` repeats the analysis without its peaks.
+
+A call has no record where it was given something that cannot be written down: data passed
+as `NMRData` rather than as paths, or an object such as a `SeriesModel`, a `B1Calibration`
+or a coherence other than the default. Leaving it out would reopen a different analysis.
+
+`AnalysisCall`, `analysiscall`, `writereproduce` and `reopen` live in `src/calls.jl`, shared
+by every module.
 
 ## Entry points
 
-The data is positional; everything else is a keyword. A coordinate list is a keyword even
-where it is required, because it may instead be resolved from the experiment, and an
-optional positional argument that is sometimes inferred reads badly.
+The data is positional; everything else is a keyword. Where an analysis takes its data in
+roles, the roles are the positions: `hetnoe2d(reference, saturated)`,
+`rdc2d(isotropic, aligned)`, `ccr2d(decay, buildup)`. A coordinate list is a keyword even
+where it is required (a saturation list, a gradient ramp, the times of a kinetics run),
+because it may instead be resolved from the experiment, and an optional positional argument
+that is sometimes inferred reads badly. Data may be given as paths or as Bruker experiment
+numbers, which `asexptpath` turns into paths.
+
+What the user picked is passed the same way everywhere, as `peaklist`: a `peaklist.csv`, a
+folder holding one, or the entities themselves (`Region`s in 1D).
 
 Keyword names are chosen to be informative rather than to match annotation keys, so
 `relaxationtimes`, `Trelax` and `Tsat` keep the names a spectroscopist would use.
@@ -293,17 +327,18 @@ Not every analysis resolves everything. An experiment combining many datasets, e
 its own lists of offsets, powers and delays, is not something a user can reasonably type,
 so `exchange1d` reads those from annotations and does not offer a fallback. Its questions
 are about the fit (which model, which molecules, which parameters to fix) rather than about
-what the experiment was.
+what the experiment was, and each has a keyword that answers it, so that a saved fit can be
+reopened without one.
 
 ## Implementation status
 
-| Module | `summary.txt` | `results.csv` | `series.csv` | `global.csv` | per-entity files |
-|---|---|---|---|---|---|
-| Analysis1D | yes | yes | yes | nothing global yet | yes |
-| GUI2D | yes | yes | yes | yes | yes |
-| Exchange1D | yes | yes | yes | yes | yes |
-| PeakTrack1D | yes | nothing fitted | yes | nothing global | yes |
-| R1rho | old format | no | no | no | no |
+| Module | `summary.txt` | `analysis.toml` | `results.csv` | `series.csv` | `global.csv` | per-entity files |
+|---|---|---|---|---|---|---|
+| Analysis1D | yes | yes | yes | yes | nothing global yet | yes |
+| GUI2D | yes | yes | yes | yes | yes | yes |
+| Exchange1D | yes | yes | yes | yes | yes | yes |
+| PeakTrack1D | yes | yes | nothing fitted | yes | nothing global | yes |
+| R1rho | old format | no | no | no | no | no |
 
 Every 2D routine now resolves its parameters through the same chain as the 1D routines,
 from the helpers in `src/prompts.jl`, and returns the analysis when its window closes
@@ -313,6 +348,6 @@ Still outstanding:
 
 - Analysis1D has no `global.csv` because no 1D analysis currently fits anything across
   regions. `postfitglobal!` exists and will need somewhere to put its results when one does.
-- The `Reproduce:` line records the resolved arguments but not *where* each came from (an
+- `analysis.toml` records the resolved arguments but not *where* each came from (an
   annotation, the `vdlist`, a question), which needs the resolution chain to report its own
   winner rather than only its result.

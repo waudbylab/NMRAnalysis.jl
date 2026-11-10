@@ -28,14 +28,14 @@ NMRAnalysis.jl provides the function `setupR1rhopowers()` for calculating spin-l
 The simplest approach is to provide a path to a nutation calibration experiment. See the [Calibration documentation](../analyses/1d/calibration.md) for details on acquiring nutation calibration experiments. The pulse parameters will then be extracted automatically:
 
 ```julia
-setupR1rhopowers("examples/calibration/1")
+setupR1rhopowers(example("calibration1d_19f"))   # an example nutation calibration
 ```
 
 Give several calibration experiments, recorded at different power levels, and the powers
 follow the fitted calibration curve rather than the ideal ν₁ ∝ √W law:
 
 ```julia
-setupR1rhopowers(["examples/calibration/1", "examples/calibration/2", "examples/calibration/3"])
+setupR1rhopowers(["cal/1", "cal/2", "cal/3"])
 ```
 
 Each calibration experiment is fitted in the analysis window, so you can check the fits
@@ -43,7 +43,7 @@ before the powers they imply go anywhere near the probe. Closing the window then
 for the spin-lock strengths:
 
 ```
-Using calibration: B1Calibration(1 point, 1010.6 Hz at 17.0 dB, B₁ inhomogeneity 5.1%, from examples/calibration/1)
+Using calibration: B1Calibration(1 point, 1010.6 Hz at 17.0 dB, B₁ inhomogeneity 5.1%, from calibration1d_19f/1)
 
 Input a list of spin-lock strengths (in Hz) separated by commas, or press ENTER for a default list:
 > 
@@ -114,9 +114,11 @@ You will be prompted to enter:
 
 ### Example Data
 
-Example R1ρ data is available for download: [example-R1rho.zip](../assets/example-R1rho.zip)
-
-This dataset contains two experiments (11 and 12) that should be analysed together, as they contain different spin-lock strengths. Extract the zip file and use the extracted directory path in the examples below.
+Example R1ρ data are available from
+[NMRExampleData.jl](https://waudbylab.org/NMRExampleData.jl/stable/) as `r1rho_pin1`: ¹⁹F
+on-resonance R1ρ of a ligand binding Pin1, in two experiments that should be analysed
+together, as they contain different spin-lock strengths. `example("r1rho_pin1")` downloads
+them the first time, and gives their paths.
 
 ### Launching the Interface
 
@@ -134,11 +136,14 @@ using NMRAnalysis
 # prompt to select experiments
 r1rho()
 
-# provide path to directory containing experiments
-r1rho("example/R1rho")
+# provide path to directory containing experiments, to choose from
+r1rho("path/to/data")
 
-# provide path to specific experiments
-r1rho(["example/R1rho/11", "example/R1rho/12"])
+# provide paths to specific experiments
+r1rho(["path/to/data/11", "path/to/data/12"])
+
+# the example data
+r1rho(example("r1rho_pin1"))
 ```
 
 ### Optional arguments
@@ -146,7 +151,7 @@ r1rho(["example/R1rho/11", "example/R1rho/12"])
 You can restrict the range of spin-lock field strengths included in the analysis using keyword arguments:
 
 ```julia
-r1rho("example/R1rho"; minvSL=250, maxvSL=100000)
+r1rho(example("r1rho_pin1"); minvSL=250, maxvSL=100000)
 ```
 
 This is useful for excluding low spin-lock fields that are poorly aligned or high spin-lock fields that may be affected by detuning.

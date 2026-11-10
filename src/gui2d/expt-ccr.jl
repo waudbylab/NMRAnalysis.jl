@@ -1,6 +1,6 @@
 """
-    ccr2d(decay_expts, buildup_expts, T; skipplanes=nothing, prompt=isinteractive())
-        -> CCRExperiment
+    ccr2d(decay, buildup; T=nothing, skipplanes=nothing, peaklist=nothing,
+          prompt=isinteractive()) -> CCRExperiment
 
 Start interactive GUI for analysing 2D measurements of cross-correlated relaxation data.
 
@@ -14,16 +14,16 @@ or
 
 
 # Arguments
-- `decay_expts`: List of NMR data files for decay experiments
-- `buildup_expts`: List of NMR data files for buildup experiments
-- `T`: Relaxation time constant (in seconds)
+- `decay`: the decay experiment, or a list of them
+- `buildup`: the buildup experiment, or a list of them
+- `T`: relaxation time (in seconds)
 
 # Example:
 ```julia
-ccr2d("decay_expt", "buildup_expt", 0.08)    # single decay and buildup experiment
+ccr2d("decay_expt", "buildup_expt"; T=0.08)  # single decay and buildup experiment
 
 ccr2d(["decay_expt1", "decay_expt2"],        # symmetric reconversion experiments
-      ["buildup_expt1", "buildup_expt2"], 0.08)
+      ["buildup_expt1", "buildup_expt2"]; T=0.08)
 ```
 
 Experiments can also be given as Bruker experiment numbers, individually or as a list/range
@@ -34,21 +34,14 @@ out of the ratio; at least one decay and one buildup plane must remain, and a sy
 measurement with a plane skipped is reduced to the ratio of the mean intensities. The window
 blocks until it is closed, and the analysis is returned (see [`results`](@ref)).
 """
-function ccr2d(decay_expts::AbstractVector, buildup_expts::AbstractVector, T=nothing;
-               skipplanes=nothing, peaklist=nothing, prompt::Bool=isinteractive())
+function ccr2d(decay, buildup; T=nothing, skipplanes=nothing, peaklist=nothing,
+               prompt::Bool=isinteractive())
+    decay, buildup = planelist(decay), planelist(buildup)
     T = @something(T, ask("relaxation time T"; unit="s", prompt))
-    skip = checkskipplanes(skipplanes, 2 * length(decay_expts))
-    expt = CCRExperiment(asexptpath(decay_expts), asexptpath(buildup_expts), T;
-                         skipplanes=skip)
-    call = analysiscall("ccr2d", decay_expts, buildup_expts, T; skipplanes=nonempty(skip))
+    skip = checkskipplanes(skipplanes, 2 * length(decay))
+    expt = CCRExperiment(decay, buildup, T; skipplanes=skip)
+    call = analysiscall("ccr2d", decay, buildup; T, skipplanes=nonempty(skip))
     return gui!(expt; peaklist, call)
-end
-
-function ccr2d(decay_expt::String, buildup_expt::String, T=nothing; kwargs...)
-    return ccr2d([decay_expt], [buildup_expt], T; kwargs...)
-end
-function ccr2d(decay_expt::Integer, buildup_expt::Integer, T=nothing; kwargs...)
-    return ccr2d(string(decay_expt), string(buildup_expt), T; kwargs...)
 end
 
 """

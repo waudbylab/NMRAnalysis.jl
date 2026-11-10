@@ -1,6 +1,6 @@
 name = "NMRAnalysis"
 uuid = "e8f11e50-668f-4bdf-b40b-95f76662da30"
-version = "0.4.7"
+version = "0.5.0"
 authors = ["Chris Waudby", "Sophia Hazlett"]
 
 [deps]
@@ -27,6 +27,7 @@ REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [compat]
 CairoMakie = "0.15.7"
@@ -42,7 +43,7 @@ LinearAlgebra = "1"
 LsqFit = "0.15"
 Measurements = "2"
 MonteCarloMeasurements = "1"
-NMRTools = "0.3.1"
+NMRTools = "0.4"
 NativeFileDialog = "0.2.1"
 OrderedCollections = "1, 2"
 PrecompileTools = "1"
@@ -53,6 +54,7 @@ Random = "1"
 Reexport = "1"
 SafeTestsets = "0.1"
 Statistics = "1"
+TOML = "1"
 julia = "1.10"
 
 [extras]

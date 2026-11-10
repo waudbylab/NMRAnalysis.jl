@@ -169,18 +169,15 @@ function writesummary(path::AbstractString, p::PeakTracker, folder)
                     "   $(length(cs)) of $n spectra   $span")
         end
         isnothing(p.call) && return
-        extra = [:peaklist => repr(joinpath(folder, "peaklist.csv"))]
-        if !isnothing(p.processing)
-            pushfirst!(extra, :lb => repr(p.processing.lb[]),
-                       :phase => repr(joinpath(folder, "processing.csv")))
+        if isnothing(p.processing)
+            writereproduce(io, folder, p.call; peaklist=joinpath(folder, "peaklist.csv"))
+        else
+            writereproduce(io, folder, p.call; lb=p.processing.lb[],
+                           phase=joinpath(folder, "processing.csv"),
+                           peaklist=joinpath(folder, "peaklist.csv"))
         end
-        text = callstring(p.call, extra)
-        isnothing(text) && return
-        println(io)
-        println(io, "Reproduce:")
-        foreach(line -> println(io, "    ", line), split(text, '\n'))
-        p.reference isa IndirectReference &&
-            println(io, "adding reference= the 1H analysis, to reference indirectly again.")
+        isfile(joinpath(folder, RECORD)) && p.reference isa IndirectReference &&
+            println(io, "Pass reference= the 1H analysis, to reference indirectly again.")
         return
     end
     return path
