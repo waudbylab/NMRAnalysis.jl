@@ -24,6 +24,18 @@ using Test
         @test_throws ArgumentError hetnoe2d(["a"], ["b", "c"])
     end
 
+    @testset "Times are T, and former names still work" begin
+        renamed = NMRAnalysis.renamedkeyword
+        @test renamed([0.1], nothing, :relaxationtimes, :T) == [0.1]
+        @test (@test_logs renamed(nothing, [0.1], :relaxationtimes, :T)) == [0.1]
+        @test_throws ArgumentError renamed([0.1], [0.2], :relaxationtimes, :T)
+        for f in (relaxation2d, recovery2d, methylccr2d, ccr2d, cpmg2d, cest2d, pre2d,
+                  lpre2d, relaxation1d, tract, kinetics1d,
+                  NMRAnalysis.Analysis1D.nutationexperiment)    # behind calibration1d
+            @test any(m -> :T in Base.kwarg_decl(m), methods(f))
+        end
+    end
+
     @testset "Which planes are saturated" begin
         @test_throws ArgumentError asksaturation(2; prompt=false)
         # the record of a hetNOE reads back as the saturation it was given

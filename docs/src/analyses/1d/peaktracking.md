@@ -1,28 +1,27 @@
 # Peak tracking
 
-`peaktrack1d` follows the chemical shifts of peaks across a series of 1D spectra: a pH or
-temperature series, a titration, or anything else where signals move from one spectrum to
-the next. It draws the spectra as a stack, and you pick each peak by painting along its
-trajectory with the mouse. A peak can be a singlet or a multiplet of several lines, and one
-peak serves as the chemical shift reference.
-
-Unlike the other 1D routines, `peaktrack1d` measures positions rather than integrals, and
-fits nothing: the shifts are the result.
+`peaktrack1d` follows the chemical shifts of peaks across a series of 1D spectra, such as a
+pH series or a titration. You pick each peak by dragging along its path through a stack of
+the spectra. A peak can be a singlet or a multiplet, and one peak is the chemical shift
+reference. Nothing is fitted: the shifts are the result.
 
 ![The peaktrack1d window: a ¹H pH series aligned on DSS, with maleate selected and a doublet grouped, and the summary panel on the right](../../assets/peaktrack1d-window.png)
 
-## Run the analysis
-
-Call `peaktrack1d` with your experiment numbers:
+## Usage
 
 ```julia
 using NMRAnalysis
 p = peaktrack1d(11:16)
 ```
 
-The window stays open until you close it, and `peaktrack1d` then returns the analysis. A
-line at the foot of the window confirms each thing you do, such as saving or aligning, and
-shows warnings and errors in red, since the REPL is usually hidden behind the window.
+To try it on a ¹⁹F titration of an SH3 domain:
+
+```julia
+p = peaktrack1d(example("1d_19f_titration_sh3"))
+```
+
+When the window closes, `peaktrack1d` returns the analysis. The line at the foot of the
+window reports what you did and shows errors in red.
 
 ### Choose how the spectra are processed
 
@@ -40,7 +39,7 @@ p = peaktrack1d(11:16; process=false)
 You can also pass spectra you have already loaded with NMRTools, either processed or as
 FIDs from `loadfid`.
 
-When processing, `phase` controls the phase correction:
+When processing, `phase` sets the phase correction:
 
 | `phase` | Phases used |
 |---|---|
@@ -49,24 +48,9 @@ When processing, `phase` controls the phase correction:
 | a vector of `(p0, p1)` pairs | the ones you give, in degrees |
 | a path to `processing.csv` | the ones saved by an earlier analysis |
 
-In a series of three or more experiments, `peaktrack1d` checks the phases against each
-other and corrects any that stand out:
-
-- **First-order phase** comes from the acquisition rather than the sample, so it should
-  barely change along a series. One far from the series median usually means one line was
-  phased correctly and another wrongly. It is set to the median and the zero-order phase
-  fitted again (`refit`).
-- **Zero-order phase** varies a little from sample to sample, but one more than 45° from
-  the rest of the series means automatic phasing settled on the wrong answer, which can
-  happen when a spectrum's only line is broadened, near a pKa for example. It takes the
-  zero-order phase of its neighbours in the series (`neighbours`).
-- **No phase at all**, when no line is strong enough for automatic phasing: the zero-order
-  phase is fitted at a lower signal-to-noise threshold (`refit`), or taken from the
-  neighbours.
-
-The REPL reports each experiment it corrects, and the `phasing` column of `processing.csv`
-records how each experiment was phased. Pass the spectra in series order, since neighbours
-are taken from that order.
+In a series of three or more experiments, automatic phases that stand out from the rest of
+the series are corrected, and the REPL reports each correction. The `phasing` column of
+`processing.csv` records how each experiment was phased. Pass the spectra in series order.
 
 ## Pick a peak
 

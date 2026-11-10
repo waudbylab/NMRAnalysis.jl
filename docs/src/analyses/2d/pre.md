@@ -16,7 +16,7 @@ height in every spectrum:
 
 - Γ₂ broadens the ¹H linewidth, and in an HMQC the multiple-quantum linewidth in the
   indirect dimension too.
-- Γ₂ also lowers the peak height by ``\exp(-\Gamma_2 T_\text{relax})`` during the
+- Γ₂ also lowers the peak height by ``\exp(-\Gamma_2 T)`` during the
   coherence transfer delays.
 - For `lpre2d`, the height recovers between scans as
   ``1 - \exp(-(R_1 + \Gamma_1) \tau)``, where ``\tau`` is the recovery time.
@@ -25,7 +25,7 @@ For a single paramagnetic spectrum this gives the familiar intensity ratio
 (Battiste & Wagner, *Biochemistry* **39**, 5355 (2000)):
 
 ```math
-\frac{I_\text{para}}{I_\text{dia}} = \frac{R_2 \exp(-\Gamma_2 T_\text{relax})}{R_2 + \Gamma_2}
+\frac{I_\text{para}}{I_\text{dia}} = \frac{R_2 \exp(-\Gamma_2 T)}{R_2 + \Gamma_2}
 ```
 
 ## Measure Γ₂ from a diamagnetic and a paramagnetic sample
@@ -82,7 +82,7 @@ experiments recorded the same way.
 |-----------|-------------|
 | `type` | `:hsqc` or `:hmqc`. Required. In an HMQC, ¹H is transverse during t₁, so Γ₂ also broadens the indirect dimension. |
 | `concentrations` | Concentration of the paramagnetic agent in each spectrum, `0` for the reference. |
-| `Trelax` | Time (s) for which ¹H is transverse outside acquisition and t₁. The default `:auto` takes 1/¹J: 10.9 ms for ¹⁵N (92 Hz) and 8.0 ms for ¹³C (125 Hz, methyl). |
+| `T` | Time (s) for which ¹H is transverse outside acquisition and t₁. The default `:auto` takes 1/¹J: 10.9 ms for ¹⁵N (92 Hz) and 8.0 ms for ¹³C (125 Hz, methyl). |
 | `recycledelays` | `lpre2d` only. Recovery time (s) of each spectrum, used as given. |
 | `skipplanes` | Spectra to leave out of the fit. At least two concentrations must remain. |
 | `peaklist` | A saved peak list to load as the window opens. |
@@ -90,7 +90,7 @@ experiments recorded the same way.
 The `:auto` transfer time assumes a plain HSQC or HMQC, where ¹H is transverse for two
 delays of 1/(2J). In a sensitivity-enhanced HSQC the time is longer and differs between
 coherence pathways (Iwahara, Tang & Clore, *J. Magn. Reson.* **184**, 185 (2007)), so give
-`Trelax` explicitly, or use a sequence without sensitivity enhancement.
+`T` explicitly, or use a sequence without sensitivity enhancement.
 
 ## Check the fits
 

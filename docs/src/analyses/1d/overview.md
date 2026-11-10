@@ -1,268 +1,114 @@
-# 1D Experiments
+# The 1D analysis window
 
-The 1D routines analyse a series of 1D spectra recorded as a single pseudo-2D experiment:
-a relaxation decay, a diffusion ramp, a nutation calibration, a reaction followed over
-time. Each is a single function that you call from the Julia prompt with the experiment
-folder. Every one of them works the same way:
-
-1. It reads the experiment and asks about anything it needs and cannot work out for
-   itself.
-2. It opens a window showing your spectra, with an integration region you position over
-   the signal you care about.
-3. It fits as you work, so you can see immediately whether the region you have chosen
-   gives a sensible result.
-4. It saves the fit, the numbers and a results file to a folder when you press **Save**.
-
-<!-- TODO screenshot (1): docs/src/assets/analysis1d-window.png
-     The relaxation1d window in a typical state: spectra overlaid on the left with one
-     shaded integration region and the noise marker, the fitted decay below it, and the
-     results panel on the right. This is the page's lead image. -->
-
-## Which routine to use
-
-| Function | Experiment | What you get |
-|---|---|---|
-| [`relaxation1d`](relaxation.md) | T₁ or T₂ decay, inversion recovery | relaxation rate `R` |
-| [`diffusion1d`](diffusion.md) | diffusion (DOSY) gradient ramp | diffusion coefficient `D`, hydrodynamic radius `rH` |
-| [`tract`](tract.md) | TROSY and anti-TROSY pair | rotational correlation time `τc` |
-| [`calibration1d`](calibration.md) | nutation (pulse-length) calibration | 90° pulse length, ν₁, B₁ inhomogeneity |
-| [`kinetics1d`](kinetics.md) | any time series | intensity of each region against time |
-| [`peaktrack1d`](peaktracking.md) | any series in which peaks move | chemical shift of each peak and multiplet in every spectrum |
-
-Chemical exchange experiments have their own routines: see
-[R1ρ Relaxation Dispersion](../r1rho.md) and
-[Exchange Fitting](../exchange1d/overview.md).
-
-## Your first analysis
-
-Start Julia, move to your data, and call the routine for your experiment:
+The 1D routines ([`relaxation1d`](relaxation.md), [`diffusion1d`](diffusion.md),
+[`tract`](tract.md), [`calibration1d`](calibration.md) and [`kinetics1d`](kinetics.md))
+analyse a series of 1D spectra, usually recorded as one pseudo-2D experiment. Each opens the
+same window, in which you integrate one or more regions of the spectrum and see the fit
+update as you go.
 
 ```julia
 using NMRAnalysis
-
-cd("/Users/chris/NMR/my_dataset")
-results = relaxation1d("11")
+reopen(exampleanalysis("relaxation1d_aas"))
 ```
 
-The routine reads experiment 11, asks about anything it needs (see
-[Where the parameters come from](#Where-the-parameters-come-from) below), and opens the
-analysis window. Position the region over your signal, check the fit, press **Save**, and
-close the window. `results` then holds the fitted parameters.
-
-## Where the parameters come from
-
-Every analysis needs to know something beyond the spectra themselves: the relaxation
-delays, the gradient strengths, which model to fit. Each routine looks for each of these
-in the same order and stops at the first one that answers:
-
-| Order | Source | Example |
-|---|---|---|
-| 1 | An argument you passed | `relaxation1d("11"; tau=[0.01, 0.05, 0.1])` |
-| 2 | An annotation in the pulse sequence | `relaxation.duration` |
-| 3 | A Bruker acquisition parameter | the `vdlist`, `p30`, `d20` |
-| 4 | A question, asked before the window opens | *"Enter 8 relaxation delays..."* |
-
-Nothing is required to be annotated. Annotations, where a pulse sequence carries them,
-simply save you from being asked. Anything you pass as an argument is taken as given and
-is not asked about, so a working analysis can always be turned into a script that repeats
-itself without any typing.
-
-!!! note "Confirming what was found"
-    [`diffusion1d`](diffusion.md) is the exception that also offers what it *did* find for
-    confirmation, because its parameters are easy to get wrong and expensive to get wrong
-    silently. Press enter to accept each one, or type a replacement.
-
-In a script, or anywhere else that is not an interactive Julia session, no question is
-ever asked. A value that has a sensible default takes it; one that does not raises an
-error naming the argument to pass instead. Force either behaviour with the `prompt`
-keyword:
-
-```julia
-relaxation1d("11"; prompt=false)   # never ask; error if something is missing
+```@setup window1d
+using NMRAnalysis
+res = NMRAnalysis.screenshot("window1d.png") do
+    reopen(exampleanalysis("relaxation1d_aas"))
+end
 ```
 
-## Using the analysis window
+![The relaxation1d window: the spectra with shaded integration regions and the purple noise marker, the fit for the selected region below, and the controls and fitted values on the right](window1d.png)
 
-The window has three parts. On the left, your spectra are overlaid in grey with the
-current one picked out in colour, and below them the fit for whichever region is selected.
-On the right are the controls and a panel giving the fitted numbers.
+The spectra are overlaid at the top left, with the current one in colour. The shaded bands
+are the integration regions: the selected region is orange, the others blue. The purple
+marker is where the noise is measured. Below the spectra is the fit for the selected
+region, and its fitted values are on the right.
 
-The **shaded regions** are what get integrated. The selected one is orange and the rest
-are blue; whichever the cursor is over becomes the selected one. The **purple marker** is
-where the noise is measured. It always uses the same width as the region being integrated,
-which is what makes it a direct estimate of that region's uncertainty, so put it somewhere
-with no signal in any spectrum.
+## Controls
 
-### Mouse
-
-| To do this | Do that |
+| To | Do this |
 |---|---|
 | Select a region | Move the cursor over it |
 | Move a region | Drag its middle |
-| Resize a region | Drag either edge, or hold shift and scroll |
+| Resize a region | Drag an edge, or hold `Shift` and scroll |
+| Add a region | Press `A` for a default width, or hold `A` and drag |
+| Rename the selected region | `R` |
+| Delete the selected region | `D` |
 | Move the noise marker | Drag it |
-| Zoom in on part of the spectrum | Drag a rectangle, or scroll |
+| Step through the spectra | `←` `→` |
+| Scale the spectra vertically | `↑` `↓` |
+| Zoom | Drag a rectangle, or scroll |
+| Close the window | `Q` |
 
-### Keyboard
+The buttons on the right do the same. **Fitting** turns the fit off, to show the raw
+integrals. **Save** writes the results to the folder named beside it, and **Load** restores
+the regions saved there.
 
-| Key | Action |
-|---|---|
-| `A` | Add a region. Tap for a default width, or press, drag and release to size it |
-| `R` | Rename the selected region |
-| `D` | Delete the selected region |
-| `←` `→` | Step through the spectra |
-| `↑` `↓` | Double or halve the vertical scale |
-| `Q` | Close the window |
+Integrate the whole of a peak, including its wings, and put the noise marker where there's
+no signal in any spectrum.
 
-The background turns yellow while you are dragging out a new region, and blue while you
-are typing a name. Press escape to cancel a rename.
+## Parameters
 
-### Buttons
+Anything the analysis needs beyond the spectra, such as the relaxation delays, is read from
+the pulse-sequence annotations or the acquisition parameters. Whatever can't be found is
+asked for before the window opens. Pass it as a keyword to skip the question:
 
-| Button | Action |
-|---|---|
-| **×2**, **÷2**, **reset zoom** | Vertical scale, and back to the full spectrum |
-| **←**, **→**, slider | Step through the spectra |
-| **(R)ename**, **(D)elete** | The same as the keys, for the selected region |
-| **Fitting** | Turn fitting off to look at the raw integrals alone |
-| **(Q)uit** | Close the window |
-| **Save** | Write every output file to the output folder |
-| **Load** | Restore the regions saved in that folder by an earlier session |
-
-The text box beside **Save** names the output folder, relative to your working directory.
-It defaults to `out`.
-
-## Suggested workflow
-
-1. Step to a spectrum where the signal is clear. For an inversion recovery, that is
-   usually the last one.
-2. Drag the region over the signal you want, and resize it to cover the whole peak.
-3. Drag the noise marker to an empty part of the spectrum.
-4. Check the fit below. The points should sit on the line, and the error bars should look
-   like the scatter.
-5. Add further regions with `A` if you want more than one signal, and name them with `R`.
-6. Press **Save**, then close the window.
-
-!!! tip "Choosing a region"
-    Integrate the whole peak, including its wings, rather than just the top of it. For
-    TRACT, integrate the entire amide envelope, which is what the default 7.5 to 9.5 ppm
-    region does.
-
-## What gets saved
-
-**Save** writes these files into the output folder. An existing folder of the same name is
-moved aside to `<name>_previous` first, so each save starts clean and a region you deleted
-since the last one does not leave its plot behind:
-
+```julia
+relaxation1d("11"; T=[0.01, 0.03, 0.06, 0.1])
 ```
-out/
-  summary.txt
-  analysis.toml
-  peaklist.csv
-  results.csv
-  series.csv
-  fit.pdf
-  regions/
-    signal.csv
-    signal.pdf
-```
+
+Outside an interactive session, or with `prompt=false`, nothing is asked: a missing value
+is an error that names the keyword to pass.
+
+## Uncertainties
+
+The uncertainty of each integral is the standard deviation of integrals of the same width
+at the noise marker, across the series. It assumes a flat baseline under the marker.
+
+## Output
+
+**Save** writes:
 
 | File | Contents |
 |---|---|
-| `summary.txt` | The record to read: where the data came from, the regions, and the results rounded and with units |
-| `analysis.toml` | The analysis, with every parameter as it was resolved: `reopen("out")` repeats it, with the same regions |
-| `peaklist.csv` | The regions you picked, and the noise position. This is what **Load** reads |
-| `results.csv` | One row per region, carrying every parameter reported for it with its uncertainty. Where a region was measured under more than one condition, each condition's fitted parameters are named apart on that same row (TRACT's `R_trosy` and `R_anti`) |
-| `series.csv` | The measurements themselves, one row per region per spectrum |
-| `fit.pdf` | The fit for every region on one set of axes |
-| `regions/<name>.pdf` and `.csv` | Each region's own fit, and the data behind it under the same name |
+| `summary.txt` | The data, the regions and the fitted values, with units |
+| `results.csv` | The fitted values for each region, with uncertainties |
+| `series.csv` | Each region's integral in each spectrum, with the fitted curve |
+| `peaklist.csv` | The regions and the noise position |
+| `analysis.toml` | The call, for `reopen` |
+| `fit.pdf`, `regions/` | Plots of the fits, and each region's data |
 
-Every CSV carries the experiment details as `#` comment lines above an ordinary header row,
-so they open directly in a spreadsheet or `pandas`.
+A folder that already exists is first renamed `<name>_previous`. See
+[Output and interface conventions](../../advanced/conventions.md) for the column formats.
 
-`peaklist.csv` is what you picked, kept apart from what was fitted, so it can be reused on
-another dataset or edited by hand. Pass it, or the folder holding it, as `peaklist` to start
-another analysis from the same regions:
+## Reopen an analysis
 
-```
-label,lo (ppm),hi (ppm)
-signal,7.91,8.51
-noise,-1.30,-0.70
-```
-
-The noise marker travels as a region named `noise`, as wide as the widest signal region;
-only its centre is read back. **Load** restores the regions and the noise position from
-this file, so a session with several named regions can be picked up again later rather than
-picked out by hand.
-
-`series.csv` is the data behind the fit, one row per measurement:
-
-```
-source,label,time (s),I,I_err,I_fit
-11/pdata/1,signal,0.010,9188.2,12.4,9188.9
-11/pdata/1,signal,0.030,8737.1,12.4,8740.3
-11/pdata/1,signal,0.060,8107.6,12.4,8104.0
-```
-
-`I_fit` is the fitted curve at the measured points, so a residual is a subtraction. For a
-kinetics experiment, where nothing is fitted, this file *is* the result. For everything
-else it is the decay or buildup the fitted parameters came from, which is what you want if
-you would rather plot or fit it yourself.
-
-Units appear in the column headers in ASCII (`R (s-1)`, `tauc (ns)`), and an uncertainty
-column repeats the unit of the value it belongs to. Numbers are written at full precision;
-`summary.txt` is where they are rounded. See
-[Output and Interface Conventions](../../advanced/conventions.md) for the full rules.
-
-## Repeating an analysis
-
-Each routine returns a vector of results, one per region and series, whether you used the
-window or not. They print as one line each rather than dumping their contents:
+`reopen` opens a saved analysis again, with the same parameters and regions:
 
 ```julia
-julia> results = relaxation1d("11")
-1-element Vector{RegionResult}:
- signal: A = 9421.0 ± 12.0, R = 0.866 ± 0.025
-
-julia> param(results[1], :R)     # the fitted rate, with its uncertainty
-0.866 ± 0.025
+reopen("out")
 ```
 
-`param` reads both the fitted parameters and anything derived from them, so
-`param(r, :tauc)` and `param(r, :rH)` work the same way.
+## Use the results
 
-To repeat an analysis without the window at all, pass the region you settled on as an
-`integration` triple. This is the same triple the exchange routines use, so a region
-chosen once can serve a whole set of experiments:
+Each routine returns its results when the window closes, one per region:
+
+```@example window1d
+res # hide
+```
+
+`param` gets a fitted value with its uncertainty:
+
+```julia
+param(results[1], :R)
+```
+
+To run an analysis without the window, for example in a script, give the region as
+`integration`:
 
 ```julia
 relaxation1d("11"; integration=(peakppm=8.2, noiseppm=-1.0, ppmwidth=0.5))
 ```
 
-[`pickregion`](@ref) opens the region-picking window on its own, with no fitting, and
-returns that triple.
-
-## Uncertainties
-
-Intensities are divided by the spectrum's own noise level when the data is loaded, so the
-numbers in the window are in units of signal to noise. The uncertainty on an *integrated*
-region is measured separately, and directly: the same width of spectrum is integrated at
-the noise marker in every spectrum of the series, and the standard deviation of those
-integrals is taken. That is why the noise marker matters, and why it tracks the width of
-the region it is estimating noise for.
-
-This assumes a flat baseline under the noise marker. If the fitted uncertainties look
-implausible, that is the first thing to check.
-
-## Automatic dispatch
-
-Where a pulse sequence carries the annotations for it, [`analyse`](../analyse.md) will
-recognise the experiment and call the right routine for you:
-
-```julia
-analyse("11")
-```
-
-This works today for nutation calibrations and for R1 and R2 relaxation experiments.
-Several nutation calibrations selected together are analysed as one calibration curve
-rather than one at a time. Diffusion and TRACT are called directly.
+[`pickregion`](@ref) opens a window to choose this region, without fitting.

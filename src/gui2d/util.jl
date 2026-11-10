@@ -220,21 +220,21 @@ function planevalues(f, specdata)
 end
 
 """
-    relaxationdelays(specdata; relaxationtimes, ncyc, cycletime, prompt) -> Vector{Float64}
+    relaxationdelays(specdata; T, ncyc, cycletime, prompt) -> Vector{Float64}
 
-One relaxation delay per plane, in seconds: `relaxationtimes` if given; else the loop counts
+One relaxation delay per plane, in seconds: `T` if given; else the loop counts
 `ncyc` times the duration of one loop, `cycletime`; else the `relaxation.duration`
 annotation; else the `vdlist`; else the `vclist` times `cycletime`; else asked for. Where a
 loop duration is needed and not given, it is asked for.
 """
-function relaxationdelays(specdata; relaxationtimes=nothing, ncyc=nothing,
+function relaxationdelays(specdata; T=nothing, ncyc=nothing,
                           cycletime=nothing, prompt::Bool=isinteractive())
     n = length(specdata.z)
     looptime() = isnothing(cycletime) ?
                  ask("duration of one loop of the vclist"; unit="s", prompt) :
                  Float64(cycletime)
     loops = isnothing(ncyc) ? nothing : readvalues(ncyc)
-    delays = @something(isnothing(relaxationtimes) ? nothing : readvalues(relaxationtimes),
+    delays = @something(isnothing(T) ? nothing : readvalues(T),
                         isnothing(loops) ? nothing : loops .* looptime(),
                         planevalues(s -> annotation(s, :relaxation, :duration), specdata),
                         planevalues(s -> acqusvalue(s, :vdlist), specdata),

@@ -35,10 +35,11 @@ using ..NMRAnalysis: refpower, ν1ref, linearity, inhomogeneity, powers, fields
 using ..NMRAnalysis: csvcolumn, csvcolumns, csvvalue, safename, sanitizelabel, backupfile,
                      backupfolder, writetable, shortpath, peaklistfile
 # parameter resolution: argument, then annotation/acqus, then ask - see src/prompts.jl
-using ..NMRAnalysis: annotation, acqusvalue, ask, askchoice, askvector, askpath, parsevector
+using ..NMRAnalysis: annotation, acqusvalue, ask, askchoice, askvector, askpath, parsevector,
+                     renamedkeyword
 # the call that produced an analysis - see src/calls.jl
 using ..NMRAnalysis: AnalysisCall, analysiscall, callvalue
-using ..NMRAnalysis: windowname, midsentence
+using ..NMRAnalysis: windowname, midsentence, capturewindow
 using ..NMRAnalysis: writereproduce, outputfolder
 
 # the analysis core: no Makie in the computational path. (An experiment that saves a

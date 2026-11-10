@@ -1,61 +1,52 @@
-# Peak Tracking
+# Peak tracking
 
-**Peak tracking** analyses track how peak positions (and linewidths) change from plane to plane.
-It is the common core for measurements where peaks move: fit a [titration](titration.md) binding
-isotherm, or measure a coupling/RDC (see [Couplings and RDCs](rdc.md)). Use `peaktrack2d`
-directly when you just want the per-plane positions and linewidths without a physical model.
+`peaktrack2d` follows peaks that move from plane to plane, and reports each peak's
+position, linewidths and amplitude in every plane. Each plane is fitted separately. The
+same window is used by [`titration2d`](titration.md) and [`rdc2d`](rdc.md), which fit a
+model to the positions.
+
+## Usage
 
 ```julia
 using NMRAnalysis
-
-# A series of 2D spectra in which peaks move
-peaktrack2d(["11", "12", "13"])
+peaktrack2d(11:13)
 ```
 
-- `inputfilenames`: a single pseudo-3D dataset, or a vector of 2D spectra (one per plane).
-  Bruker experiment numbers work too, individually or as a list/range (e.g. `peaktrack2d(1:3)`),
-  resolved relative to the working directory.
+### Example
 
-Each peak holds an **independent position, linewidth and amplitude in every plane**, and each
-plane is fitted separately. This keeps the fit well-conditioned and decoupled: adjusting one
-plane does not disturb the others.
+The phosphorylation of c-Jun, followed by ¹H,¹⁵N SOFAST-HMQC spectra:
 
-![Screenshot of peak fitting](../../assets/peaktrack-demo.mov)
+```julia
+peaktrack2d(example("kinetics2d_cjun"))
+```
 
-## Adding and positioning peaks
+```@setup peaktrack2d
+using NMRAnalysis
+NMRAnalysis.screenshot("peaktrack2d.png") do
+    peaktrack2d(example("kinetics2d_cjun"))
+end
+```
 
-- **(A) — add a peak.** Adding walks through the planes so you mark the peak in each one:
-  press `A` with the cursor on the peak in the current plane, then for each subsequent plane
-  (stepping forwards and wrapping back to the start) press:
-  - `a` to mark the peak's position in that plane and advance,
-  - `space` to copy the current position into all remaining planes and finish,
-  - `esc` to cancel.
+![The peaktrack2d window, with every plane's contours shown](peaktrack2d.png)
 
-  When at least one peak has already been fitted, new peaks are pre-seeded with the average
-  displacement pattern of the fitted peaks, so they inherit the common motion.
-- **(T) — add and track.** Drops a peak and follows the intensity maximum across the planes
-  automatically (anchored at the current plane, propagated outwards). Best for well-resolved
-  peaks; not available for RDC experiments.
-- **(L) — add along a line.** Press `l` with the cursor at one end of the path a peak follows
-  across the planes. The line then follows the cursor: either keep `l` held, drag to the
-  other end and release, or release it straight away, move to the other end, and click or
-  press `l` again. The status line says which you are doing. The peak is placed in each plane at the most intense point along that line, and the
-  fit then refines it within the radius. `esc` cancels the line.
-  Suited to fast-exchange titrations; not available for RDC experiments.
-- **Drag** a peak's handle to correct its position in the current plane. The handle enlarges
-  when hovered. Dragging re-estimates that plane's amplitude.
-- **(D)** deletes and **(R)** renames the selected peak, as elsewhere.
+![Tracking peaks that move from plane to plane](../../assets/peaktrack-demo.mov)
 
-## Visualisation
+## Add a peak
 
-- Each peak's **trajectory** across the planes is drawn as a coloured polyline (red = needs
-  fitting, blue = fitted, orange = fit unfinished, green = selected).
-- The **(S)how all** toggle (also bound to `s`) overlays every plane's contours faintly, for
-  context when a peak moves a long way.
+| Key | Action |
+|---|---|
+| `T` | Add a peak under the cursor, and follow the intensity maximum through the planes |
+| `L` | Place a peak along a line: hold `L` at one end of its path, drag to the other, and release. Or press `L` at each end |
+| `A` | Mark the peak by hand in each plane: `A` to mark and move on, `Space` to copy the position to the remaining planes, `Esc` to cancel |
+| `S` | Show or hide the other planes' contours |
+
+`T` suits well-resolved peaks, `L` peaks in fast exchange that move in a straight line, and
+`A` crowded regions. After a peak is placed, drag it to correct its position in the current
+plane. `T` and `L` aren't available in `rdc2d`.
+
+Each peak's path is drawn across the planes, in the colours of the peak markers.
 
 ## Output
 
-**Save to folder** writes `results.csv` with each peak's per-plane positions (`x[1]`, `x[2]`,
-…), linewidths and amplitudes, and any model-derived parameters. **Load peak list** restores
-them, including the fitting radii. The default summary plot shows the combined chemical-shift
-perturbation Δδ against residue number, one series per plane.
+`series.csv` holds the position, linewidths and amplitude of each peak in each plane, and
+the summary plot shows the combined shift change against residue number.

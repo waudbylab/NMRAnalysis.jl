@@ -307,6 +307,7 @@ function gui!(expt::Experiment1D; call=nothing)
     setupmouse!(fig, ax, state)
     setupkeyboard!(fig, ax, state)
 
+    capturewindow(fig; ready=() -> autolimits!(gui[:axfit])) && return state
     display(fig)
     autolimits!(gui[:axfit])
     while isopen(fig.scene)
@@ -712,6 +713,7 @@ function pickregion(traces::AbstractVector{Trace}; peakppm=nothing, noiseppm=not
         return Consume(true)
     end
 
+    capturewindow(fig) && return (; peakppm=pk[], noiseppm=nz[], ppmwidth=w[])
     display(fig)
     while isopen(fig.scene) && !done[]
         sleep(0.1)

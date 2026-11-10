@@ -52,18 +52,18 @@ The exported user-facing function. It resolves whatever the analysis needs to kn
 the experiment, and hands off to `run1d`:
 
 ```julia
-function myanalysis1d(spec; tau=nothing, peaklist=nothing, integration=nothing,
+function myanalysis1d(spec; T=nothing, peaklist=nothing, integration=nothing,
                       prompt::Bool=isinteractive())
     given = spec
     spec = loadspec(spec)
-    times = @something(tau,
+    times = @something(T,
                        annotation(spec, :myanalysis, :duration),
                        acqusvalue(spec, :vdlist),
                        askvector("delays", nplanesfromspec(spec); unit="s", prompt))
     regions, noise = picks(peaklist)
     ds = withnoise(datasetfromspec(spec, [(; time=Float64(t)) for t in times]), noise)
     expt = isnothing(regions) ? MyExperiment(ds) : MyExperiment(ds; regions)
-    return run1d(expt; integration, call=analysiscall("myanalysis1d", given; tau=times))
+    return run1d(expt; integration, call=analysiscall("myanalysis1d", given; T=times))
 end
 ```
 

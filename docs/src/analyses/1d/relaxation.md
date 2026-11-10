@@ -1,79 +1,72 @@
 # Relaxation (R₁, R₂)
 
-`relaxation1d` fits a series of 1D spectra recorded with increasing relaxation delay, and
-returns the relaxation rate. It handles both a plain decay, as in a T₂ or a saturation
-experiment, and an inversion recovery.
+`relaxation1d` fits the integral of each region against the relaxation delay, as an
+exponential decay,
 
-## Running the analysis
+```math
+I(T) = A \exp(-RT),
+```
+
+or as an inversion or saturation recovery,
+
+```math
+I(T) = A \left[ 1 - C \exp(-RT) \right],
+```
+
+where ``C`` is 2 for a complete inversion and 1 for saturation.
+
+## Usage
 
 ```julia
 using NMRAnalysis
-
-results = relaxation1d("11")
+relaxation1d("11")
 ```
 
-That reads experiment 11, works out the delays and the model (see below), and opens the
-[analysis window](overview.md#Using-the-analysis-window). Put the region over your signal,
-put the noise marker somewhere empty, check the fit, and press **Save**.
-
-![Screenshot of 1D relaxation analysis](../../assets/relaxation1d.png)
-
-## Delays and model
-
-The delays and the model are found in the usual
-[order of precedence](overview.md#Where-the-parameters-come-from). Nothing has to be
-annotated: if the delays cannot be found you are asked for them, and if the model cannot
-be found you are offered the choice.
-
-| | From an argument | From an annotation | From the acquisition parameters | Otherwise |
-|---|---|---|---|---|
-| Delays | `tau=[0.01, 0.05, …]` | `relaxation.duration` | the `vdlist` | you are asked |
-| Model | `model=:exponential` or `:recovery` | `relaxation.model` | | you choose from a menu |
+The delays are read from the `relaxation.duration` annotation or the `vdlist`, and the model
+from the `relaxation.model` annotation. Anything not found is asked for. To give them
+yourself:
 
 ```julia
-relaxation1d("11"; tau=[0.01, 0.03, 0.06, 0.1])   # delays given explicitly
-relaxation1d("11"; model=:recovery)               # fit a recovery curve
-relaxation1d("11"; tau=collect(0.01:0.01:0.1), model=:exponential)   # nothing asked
+relaxation1d("11"; T=[0.01, 0.03, 0.06, 0.1], model=:recovery)
 ```
 
-Delays are always in seconds.
+| Keyword | Meaning |
+|---|---|
+| `T` | Relaxation delays in seconds, one per spectrum |
+| `model` | `:exponential` or `:recovery` |
+| `peaklist` | Regions to start from: a saved `peaklist.csv`, or the folder holding one |
+| `integration` | A single region, `(peakppm, noiseppm, ppmwidth)`, to fit without the window |
 
-## What is fitted
+For an inversion recovery, step to the last spectrum before you place the regions: the
+signal is largest there.
 
-An exponential decay,
+### Example
 
-```math
-I(t) = A \exp(-Rt),
+A ¹H T₂ series on a mixture of amino acids:
+
+```julia
+reopen(exampleanalysis("relaxation1d_aas"))
 ```
 
-or, for `model = :recovery`, an inversion or saturation recovery,
-
-```math
-I(t) = A \left[ 1 - C \exp(-Rt) \right].
+```@setup relaxation1d
+using NMRAnalysis
+res = NMRAnalysis.screenshot("relaxation1d.png") do
+    reopen(exampleanalysis("relaxation1d_aas"))
+end
 ```
+
+![The relaxation1d window, with a T₂ decay fitted](relaxation1d.png)
+
+## Output
 
 | Parameter | Meaning |
 |---|---|
 | `A` | Amplitude |
 | `R` | Relaxation rate, s⁻¹ |
-| `C` | Recovery factor, for a recovery fit only. Ideally 2 for a complete inversion |
+| `C` | Recovery factor (recovery model only) |
 
-The relaxation time is `1/R`. `param(results[1], :R)` gives the rate with its uncertainty,
-so `1 / param(results[1], :R)` gives the time with the uncertainty propagated.
+The example above returns:
 
-## Automatic dispatch
-
-A pulse sequence annotated with types `"1d"` and `"relaxation"`, and a feature of `"R1"` or
-`"R2"`, is recognised by [`analyse`](../analyse.md):
-
-```julia
-analyse("11")
+```@example relaxation1d
+res # hide
 ```
-
-## Notes
-
-For an inversion recovery, step to the last spectrum before positioning the region: that
-is where the signal has recovered most and is easiest to see.
-
-The uncertainty on each integral comes from the noise marker, so it depends on a flat
-baseline there. See [Uncertainties](overview.md#Uncertainties).

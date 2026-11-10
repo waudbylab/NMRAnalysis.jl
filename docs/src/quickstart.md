@@ -1,84 +1,89 @@
-# Quick Start
+# Quick start
 
-## Installation
+## Install
 
-1. **Install Julia** from [julialang.org](https://julialang.org/install/) if you haven't already.
+Install [Julia](https://julialang.org/install/), then add the package:
 
-2. **Add NMRAnalysis.jl** from the Julia package manager:
-   ```
-   julia> ]
-   pkg> add NMRAnalysis
-   ```
-   Julia will download and compile NMRAnalysis and its dependencies. This takes a few
-   minutes the first time.
+```
+julia> ]
+pkg> add NMRAnalysis
+```
 
-3. **Load the package**:
-   ```julia
-   using NMRAnalysis
-   ```
-   A startup message will list all available analysis functions.
+The first install and load take a few minutes while Julia compiles the package.
 
-## Basic Workflow
+## Analyse a 2D relaxation series
 
-Most analyses follow the same pattern: navigate to your data directory, then call the
-appropriate function.
+This example uses a ¹⁵N R₂ series recorded on α-synuclein. `example` downloads it the first
+time you use it.
 
 ```julia
 using NMRAnalysis
-
-cd("/path/to/your/nmr/data")
+expt = relaxation2d(example("relaxation2d_asyn"); cycletime=0.02809)
 ```
 
-Get help on any function with `?`:
-```julia
-?relaxation1d
-?relaxation2d
-?r1rho
+The relaxation delays come from the experiment's `vclist`, multiplied by `cycletime`, the
+duration of one loop in seconds. Without `cycletime`, you're asked for it.
+
+In the window that opens:
+
+1. Move the cursor over a peak and press `A`. The peak is fitted, and its decay appears on
+   the right.
+2. Press `R` to rename the peak, for example `V40`, so that plots use the residue number.
+3. Add the other peaks you want.
+4. Press **Save**. The results go into the folder named in the box beside it, `out` by
+   default.
+5. Press `Q` to close the window.
+
+```@setup quickstart
+using NMRAnalysis
+expt = NMRAnalysis.screenshot("relaxation2d.png"; peak="V40") do
+    reopen(exampleanalysis("relaxation2d_asyn"))
+end
 ```
 
-## Examples
+![The relaxation2d window with the example's peaks picked](relaxation2d.png)
 
-### 1D Relaxation (R₁ / R₂)
+When the window closes, `relaxation2d` returns the analysis. `results(expt)` gives one row
+per peak:
 
-```julia
-relaxation1d("11")                          # delays from the vdlist or annotations
-relaxation1d("11"; tau=[0.01, 0.05, 0.1])   # or given explicitly
+```@example quickstart
+Main.resultstable(results(expt)) # hide
 ```
 
-You are asked about anything that cannot be read from the experiment, and a window then
-opens in which you position the integration region and watch the fit. The same pattern
-applies to `diffusion1d`, `tract`, `calibration1d` and `kinetics1d`. See
-[1D Experiments](analyses/1d/overview.md).
-
-### ¹⁹F R1ρ Relaxation Dispersion
-
-```julia
-r1rho()                       # select experiment folder interactively
-r1rho("11")                   # specify experiment directly
-r1rho("11"; minvSL=500)       # filter low spin-lock powers
-```
-
-See the [R1ρ Tutorial](tutorials/r1rho.md) for a step-by-step guide.
-
-### 2D Relaxation (T1 / T2)
+To open the analysis shown above, with its peaks already picked, run:
 
 ```julia
-relaxation2d(
-    ["11/pdata/1", "12/pdata/1", "13/pdata/1", "14/pdata/1"],
-    [0.010, 0.030, 0.060, 0.100]   # delays in seconds
-)
+reopen(exampleanalysis("relaxation2d_asyn"))
 ```
 
-An interactive graphical window opens for peak picking and fitting. See
-[Relaxation (T1/T2)](analyses/2d/relaxation.md) for details.
+`reopen("out")` reopens your own analysis in the same way.
 
-## Next Steps
+## Analyse a 1D experiment
 
-- **[1D Experiments](analyses/1d/overview.md)** - the shared analysis window, and a guide for each 1D experiment type
-- **[2D Experiments](analyses/2d/overview.md)** — interactive GUI reference and per-experiment guides
-- **[Tutorials](tutorials/r1rho.md)** — step-by-step worked examples
+1D experiments work in the same way, with integration regions in place of peaks. This
+example measures the rotational correlation time of calreticulin from a TRACT pair:
 
-## Getting Help
+```julia
+trosy, antitrosy = example("tract_calr")
+tract(trosy, antitrosy)
+```
 
-- Use `?function_name` in the Julia REPL for built-in help
-- Report issues and suggest features at [github.com/waudbylab/NMRAnalysis.jl](https://github.com/waudbylab/NMRAnalysis.jl/issues)
+```@setup quickstart
+NMRAnalysis.screenshot("tract.png") do
+    tract(example("tract_calr")...)
+end
+```
+
+![The TRACT window, with the TROSY and anti-TROSY decays fitted](tract.png)
+
+## Use your own data
+
+Change to the folder holding your experiments, and give experiment numbers:
+
+```julia
+cd("/path/to/data")
+relaxation2d(11)
+```
+
+Each function reads what it can from the acquisition parameters and the pulse-sequence
+annotations, and asks for anything else. Type `?relaxation2d` for the options.

@@ -18,12 +18,12 @@ using ..NMRAnalysis: stderrors   # standard errors that survive a singular covar
 using ..NMRAnalysis: csvcolumn, csvcolumns, csvvalue, safename, sanitizelabel, backupfile,
                      backupfolder, writetable, peaklistfile
 # parameter resolution: argument, then annotation/acqus, then ask - see src/prompts.jl
-using ..NMRAnalysis: annotation, acqusvalue, ask, askvector
+using ..NMRAnalysis: annotation, acqusvalue, ask, askvector, renamedkeyword
 using ..NMRAnalysis: B1Calibration
 # the call that produced an analysis, for summary.txt - see src/calls.jl
 using ..NMRAnalysis: AnalysisCall, analysiscall
 import ..NMRAnalysis: writereproduce
-using ..NMRAnalysis: windowname, outputfolder
+using ..NMRAnalysis: windowname, outputfolder, capturewindow, SCREENSHOT, shortpath
 
 include("util.jl")
 include("types.jl")

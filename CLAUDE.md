@@ -166,6 +166,12 @@ User-facing pages under `docs/src/` follow the Google developer documentation st
 second person, present tense, sentence case headings, task-oriented rather than
 feature-oriented. Assume a reader who knows NMR and not this package.
 
+Screenshots of the analysis windows are made while the docs build, not by hand: an
+`@setup` block opens an example analysis inside `NMRAnalysis.screenshot("name.png") do ... end`,
+which saves the window instead of opening it, and the page links `name.png`. Use the example
+datasets (`example`, `exampleanalysis`) wherever one exists, so the pictures and the output
+shown stay in step with the code.
+
 Pages under `docs/src/advanced/` are for people changing the code. `pipeline.md` describes
 the three stages every analysis shares; `conventions.md` specifies the output files and
 column rules. Keep both current with the code in the same commit that changes it.

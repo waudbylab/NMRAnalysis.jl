@@ -152,3 +152,16 @@ function askpath(label::AbstractString)
         println("  No such file or directory: \"$path\". Please try again.")
     end
 end
+
+"""
+    renamedkeyword(value, oldvalue, oldname, newname) -> value
+
+A keyword's value where it may still be given under its former name `oldname`, so that
+older scripts and saved analyses keep working. Giving both is an error.
+"""
+function renamedkeyword(value, oldvalue, oldname::Symbol, newname::Symbol)
+    isnothing(oldvalue) && return value
+    isnothing(value) ||
+        throw(ArgumentError("give `$newname` only: `$oldname` is its former name"))
+    return oldvalue
+end

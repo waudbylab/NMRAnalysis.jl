@@ -1,194 +1,94 @@
 # Titrations
 
-`titration2d` analyses a 2D titration series, fitting a **global binding isotherm** to the
-chemical-shift perturbations. It is a [peak-tracking](peaktracking.md) analysis: each residue's
-peak walks along a binding trajectory across the planes, and the fit recovers a single
-dissociation constant ``K_\text{d}`` (shared by all residues) together with the free and bound
-chemical shifts of every residue in each dimension.
+`titration2d` fits a 1:1 binding isotherm to the chemical shift perturbations in a
+titration series, with one dissociation constant shared by every residue, and the free and
+bound shifts of each residue in each dimension.
 
-When each plane's NMR sample metadata already records its concentrations — the usual case for
-data acquired with sample information filled in — that's all `titration2d` needs. Bruker
-experiment numbers work as the input too, individually or as a list/range, so a whole titration
-series can be as simple as:
-
-```julia
-julia> using NMRAnalysis
-
-julia> titration2d(1:11)
-[ Info: Titration roles from sample metadata: "FIR" (observed), "Nbox" (titrant)
-╭───────┬─────────────┬────────────╮
-│ Plane │ [Nbox] (L0) │ [FIR] (P0) │
-├───────┼─────────────┼────────────┤
-│     1 │         0.0 │       41.0 │
-│     2 │        8.13 │      40.67 │
-│     3 │       16.14 │      40.34 │
-│     4 │       24.01 │      40.02 │
-│     5 │       31.76 │       39.7 │
-│     6 │       46.89 │      39.08 │
-│     7 │       61.56 │      38.48 │
-│     8 │       75.79 │      37.89 │
-│     9 │      109.53 │      36.51 │
-│    10 │      140.89 │      35.22 │
-│    11 │      200.06 │       32.8 │
-╰───────┴─────────────┴────────────╯
-```
-
-`titration2d` has spotted that plane 1's sample defines only "FIR" (so that's the observed
-protein, at zero ligand) and that "Nbox" is the only other molecule named anywhere in the
-series (so that's the titrant), read off `L0` and `P0` accordingly, printed the table above to
-confirm what it found, and opened the GUI — no concentrations typed in by hand. See
-[Concentrations from sample metadata](#Concentrations-from-sample-metadata) below for exactly
-how the roles are inferred, and what happens when they can't be.
-
-![Screenshot of titration analysis](../../assets/titration2d.png)
-
-## Arguments
-
-- `inputfilenames`: a single pseudo-3D dataset, or a vector of 2D spectra (one per plane).
-  Bruker experiment numbers work too, individually or as a list/range (e.g. `1:11`), resolved
-  relative to the working directory.
-- `L0`: total **ligand** concentration in each plane (one value per plane). If omitted, it is
-  read from each plane's NMR sample metadata (see [Concentrations from sample metadata](#Concentrations-from-sample-metadata)
-  below), and if that metadata isn't available either you are asked for it.
-- `P0`: total **protein** concentration in each plane (one value per plane), or omitted. When
-  supplied (explicitly, or found in sample metadata), the exact 1:1 binding equation is used,
-  which accounts for the protein concentration and any dilution during the titration.
-- `weights`: `(wx, wy)`, the per-dimension weighting used to combine the x and y shift changes
-  into the single `|Δδ|` reported in the summary plot (see [Combined CSP](#Combined-CSP)). This
-  affects **only** the combined `|Δδ|` summary; the per-dimension panels and the `Kd` fit do not
-  use it. The default `(1.0, 0.14)` assumes ¹H on the x (F1) axis and ¹⁵N on the y (F2) axis.
-
-!!! note "Concentration units"
-    Use whatever concentration units you like for `L0` and `P0` (µM, mM, …), as long as both are
-    in the **same** units. The fitted ``K_\text{d}`` is reported in those same units.
-
-## Concentrations from sample metadata
-
-If `L0` isn't given, `titration2d` looks for the total concentration of each named molecule in
-every plane's NMR sample metadata — the same sample information `exchange1d` uses (see the
-"Exchange Fitting" page). A plane whose sample defines a single component is taken as the
-zero-ligand (observed molecule) reference point: if exactly two molecules are named across the
-whole series, that plane tells `titration2d` which one is the observed molecule and which is the
-titrant, and `L0` (and `P0`, if every plane's sample gives a protein concentration) are read off
-directly — no explicit `L0`/`P0` keywords needed. If that inference isn't possible — no such
-single-component plane, or more than two named molecules — you are prompted at the terminal to
-assign the two roles. Passing `L0` (or `P0`) explicitly always takes precedence over sample
-metadata.
-
-A molecule missing from *some but not all* planes' sample metadata (as opposed to genuinely
-absent from the sample, like the ligand at the zero-ligand reference point) is a likely
-mismatched or incomplete sample entry, so it's flagged with a warning rather than silently
-treated as zero or dropped. When concentrations are read from sample metadata this way, the
-per-plane values actually used for the fit are printed as a table before the GUI opens, so they
-can be checked at a glance.
-
-## Supplying concentrations directly
-
-Without sample metadata (or to override it), pass `L0` — and, for the exact 1:1 equation,
-`P0` — explicitly:
-
-```julia
-using NMRAnalysis
-
-files = example("titration2d_fir_nbox")   # FIR RRM1-RRM2 titrated with the Nbox peptide
-ligand_concs = [0, 8.13, 16.14, 24.01, 31.76, 46.89, 61.56, 75.79, 109.53, 140.89, 200.06]
-protein_concs = [41, 40.67, 40.34, 40.02, 39.7, 39.08, 38.48, 37.89, 36.51, 35.22, 32.8]
-
-# Ligand concentrations only (hyperbolic, ligand ≈ free):
-titration2d(files; L0=ligand_concs)
-
-# With protein concentrations — exact 1:1 equation, accounts for dilution:
-titration2d(files; L0=ligand_concs, P0=protein_concs)
-```
-
-## Tracking peaks
-
-Peaks are added and positioned exactly as in [peak tracking](peaktracking.md):
-
-- **(T) — add and track** drops a peak and follows the intensity maximum across the planes
-  automatically. Best for well-resolved titrations.
-- **(L) — add along a line** places the peak in every plane at the most intense point along a
-  line you mark: hold **L** at one end of the peak's path, drag to the other and release, or
-  press **L** at one end and click or press **L** at the other. Suited to fast-exchange titrations, where each peak moves along a straight line.
-- **(A) — add** walks through the planes so you mark the peak in each one by hand, for crowded
-  regions.
-- **Drag** a peak's handle to correct its position in the current plane; **(D)** deletes and
-  **(R)** renames the selected peak.
-
-Use assigned peak labels containing a residue number (e.g. `L23`) so the summary plot can place
-each point against residue number.
-
-## The binding model
-
-Binding is treated as a single-site (1:1) interaction ``P + L \rightleftharpoons PL`` with
-dissociation constant
+For ``P + L \rightleftharpoons PL``, the observed shift moves from the free shift towards
+the bound one in proportion to the fraction of protein bound, ``f``:
 
 ```math
-K_\text{d} = \frac{[P][L]}{[PL]}.
+\Delta\delta = f \,(\delta_\text{bound} - \delta_\text{free}).
 ```
 
-In each plane the observed shift is a population-weighted average of the free and bound states,
-so the perturbation relative to the free shift is
-
-```math
-\Delta\delta = f \,(\delta_\text{bound} - \delta_\text{free}),
-```
-
-where ``f = [PL]/P_\text{T}`` is the fraction of protein bound and ``P_\text{T}`` is the total
-protein concentration. How ``f`` is computed depends on whether protein concentrations are
-provided.
-
-**With ligand concentrations only** (`L0`), the free ligand is approximated by the total
-ligand (``[L] \approx L_\text{T}``), giving the hyperbolic isotherm
+Given the ligand concentrations ``L_\text{T}`` alone, the free ligand is taken to be the
+total, and
 
 ```math
 f = \frac{L_\text{T}}{K_\text{d} + L_\text{T}}.
 ```
 
-**With protein concentrations** (`L0` and `P0`), the exact 1:1 quadratic is solved for each
-plane (no free-ligand approximation), which accounts for ligand depletion and for dilution of
-the protein as titrant is added:
+Given the protein concentrations ``P_\text{T}`` as well, the exact solution is used, which
+accounts for ligand depletion and dilution:
 
 ```math
-[PL] = \tfrac{1}{2}\left(P_\text{T} + L_\text{T} + K_\text{d}
-       - \sqrt{(P_\text{T} + L_\text{T} + K_\text{d})^2 - 4\,P_\text{T} L_\text{T}}\right),
-\qquad f = \frac{[PL]}{P_\text{T}}.
+f = \frac{1}{2P_\text{T}}\left(P_\text{T} + L_\text{T} + K_\text{d}
+       - \sqrt{(P_\text{T} + L_\text{T} + K_\text{d})^2 - 4\,P_\text{T} L_\text{T}}\right).
 ```
 
-The two forms agree in the ``P_\text{T} \to 0`` limit.
+## Usage
 
-The fit has a single nonlinear parameter — the shared ``K_\text{d}``. For any trial
-``K_\text{d}`` the per-residue, per-dimension free and bound shifts (``\delta_\text{free}``,
-``\delta_\text{bound}``) follow from a weighted linear regression of the fitted positions on the
-bound fraction ``f`` (variable projection), with weights taken from the per-plane position
-uncertainties. ``K_\text{d}`` is then optimised over this 1-D problem, and its uncertainty is
-obtained by the delta method.
+```julia
+using NMRAnalysis
+titration2d(1:11)
+titration2d(1:11; L0=[0, 10, 20, 40, 80, 160], P0=[50, 49, 48, 46, 43, 38])
+```
 
-## Results
+`L0` and `P0` are the total ligand and protein concentrations in each plane, in any unit, as
+long as it's the same for both. ``K_\text{d}`` comes out in that unit. Without them, they're
+read from the sample metadata of each experiment: the plane whose sample holds only one
+molecule is the free protein, and the other molecule named is the ligand. The
+concentrations found are printed as a table before the window opens. If the roles can't be
+worked out, you're asked.
 
-- The **per-residue panel** shows ΔδX and ΔδN against ligand concentration (referenced to the
-  fitted ``\delta_\text{free}``), with the fitted binding curve overlaid.
-- The global ``K_\text{d}`` (± uncertainty) is reported in the results panel, in the same
-  concentration units as `L0`/`P0`.
-- **Save to folder** writes `results.csv` with each peak's per-plane positions, linewidths and
-  amplitudes, plus the derived ``\delta_\text{free}``/``\delta_\text{bound}`` shifts and the
-  global ``K_\text{d}``. **Load peak list** restores them.
-- The **summary plot** shows ΔδX, ΔδN and the combined `|Δδ|` (saturation CSP =
-  ``\delta_\text{bound} - \delta_\text{free}``) against residue number.
+Peaks move from plane to plane, so they're added as in [Peak tracking](peaktracking.md):
+`T` to add a peak and follow it through the planes, or `L` to place it along a line. Label
+peaks with residue numbers, such as `L23`, for the summary plot.
 
-## Combined CSP
+### Example
 
-The summary plot's combined chemical-shift perturbation merges the saturation shift changes in
-the two dimensions into a single per-residue value, using the weighted Euclidean combination of
-Williamson (2013):
+The FIR RRM1–RRM2 domains titrated with the Nbox peptide. The concentrations are in the
+sample metadata:
+
+```julia
+titration2d(example("titration2d_fir_nbox"))
+```
+
+```@setup titration2d
+using NMRAnalysis
+expt = NMRAnalysis.screenshot("titration2d.png"; peak="X14") do
+    reopen(exampleanalysis("titration2d_fir_nbox"))
+end
+```
+
+![The titration2d window, with the shift changes of the selected peak and the fitted isotherm](titration2d.png)
+
+## Output
+
+The global ``K_\text{d}`` is shown in the window and saved in `global.csv`. For each peak:
+
+| Parameter | Meaning |
+|---|---|
+| `Xfree`, `Yfree` | Free shifts, ppm |
+| `Xbound`, `Ybound` | Bound shifts, ppm |
+| `dX`, `dY` | Shift changes on binding, ppm |
+| `CSP` | Combined shift perturbation, ppm |
+
+For the example above:
+
+```@example titration2d
+Main.resultstable(results(expt)) # hide
+```
+
+Label the peaks with residue numbers, and `summaryplot(expt)` plots these against residue
+number.
+
+The combined perturbation weights the two dimensions (Williamson, *Prog. Nucl. Magn. Reson.
+Spectrosc.* **73**, 1 (2013)):
 
 ```math
-|\Delta\delta| = \sqrt{(w_x\,\Delta\delta_x)^2 + (w_y\,\Delta\delta_y)^2},
+|\Delta\delta| = \sqrt{(w_x\,\Delta\delta_x)^2 + (w_y\,\Delta\delta_y)^2}.
 ```
 
-where ``\Delta\delta_x`` and ``\Delta\delta_y`` are the bound − free shift changes in each
-dimension and ``(w_x, w_y)`` are set by the `weights` argument. The weights put the two nuclei on
-a comparable scale: the much larger ¹⁵N shift range would otherwise dominate a ¹H change of the
-same nominal size. The default `(1.0, 0.14)` is appropriate for a ¹H/¹⁵N spectrum; for ¹H/¹³C
-use roughly `(1.0, 0.25)`. The weighting is applied only here — the per-dimension ΔδX/ΔδN panels
-and the global ``K_\text{d}`` fit are independent of it.
+The `weights` keyword sets ``(w_x, w_y)``: `(1.0, 0.14)` by default, for ¹H and ¹⁵N, or
+about `(1.0, 0.25)` for ¹H and ¹³C. They affect only this combined value, not the fit.

@@ -1,58 +1,51 @@
 # Heteronuclear NOE
 
-The heteronuclear NOE (hetNOE) experiment measures cross-relaxation between ¹H and a
-heteronucleus (typically ¹⁵N or ¹³C). It is widely used as a sensitive reporter of
-fast internal dynamics: rigid residues typically show hetNOE values close to the maximum
-(~0.8 for ¹H–¹⁵N at high field), while flexible regions show reduced or even negative
-values.
-
-The NOE is measured as the ratio of peak intensities in a saturated and a reference
-spectrum:
+The heteronuclear NOE reports on fast internal motion: rigid residues have an ¹H–¹⁵N NOE
+near 0.8 at high field, and flexible ones lower or negative values. `hetnoe2d` measures it
+as the ratio of peak amplitudes with and without ¹H saturation,
 
 ```math
-\text{hetNOE} = \frac{I_\text{sat}}{I_\text{ref}}
+\text{hetNOE} = \frac{I_\text{sat}}{I_\text{ref}}.
 ```
-
-![Screenshot from heteronuclear NOE analysis](../../assets/screenshot-hetnoe2d.png)
 
 ## Usage
 
-Provide paired reference and saturated spectra. `reference` and `saturated` can
-each be a single filename or a list of filenames — Bruker experiment numbers work too,
-individually or as a list/range; when lists are provided, results are averaged across all
-pairs.
+Give the reference spectrum, then the saturated one:
 
 ```julia
 using NMRAnalysis
+hetnoe2d("11/pdata/231", "11/pdata/232")
+```
 
-# Single reference / saturated pair
-hetnoe2d("expno1/pdata/231", "expno1/pdata/232")
+Give lists of each to average over several pairs. Given all the planes in one list,
+`hetnoe2d` reads which are saturated from the `hetnoe.saturated` annotation, or asks:
 
-# Multiple pairs (results are averaged across pairs)
-hetnoe2d(
-    ["expno1/pdata/231", "expno2/pdata/231"],  # references
-    ["expno1/pdata/232", "expno2/pdata/232"],  # saturated
-)
-
-# Bruker experiment numbers
-hetnoe2d(1, 2)
-
-# every plane, saying which are saturated
+```julia
+hetnoe2d(10:13)
 hetnoe2d(10:13; saturation=[false, true, false, true])
 ```
 
-Given the planes alone, `hetnoe2d(planes)` reads which are saturated from each spectrum's
-`hetnoe.saturated` pulse-sequence annotation, and otherwise asks.
+### Example
+
+The hetNOE of the calreticulin C-terminal domain:
+
+```julia
+reference, saturated = example("hetnoe2d_calr")
+hetnoe2d(reference, saturated)
+```
+
+```@setup hetnoe2d
+using NMRAnalysis
+NMRAnalysis.screenshot("hetnoe2d.png") do
+    hetnoe2d(example("hetnoe2d_calr")...)
+end
+```
+
+![The hetnoe2d window, before any peaks are picked](hetnoe2d.png)
 
 ## Output
 
-Clicking **Save to folder** writes all results to `results.csv`. The derived
-columns are:
-
-| Column | Description |
-|--------|-------------|
-| `hetnoe`, `hetnoe_err` | Measured hetNOE = I_sat / I_ref and uncertainty |
-| `amp`, `amp_err` | Reference amplitude and uncertainty |
-
-See [Peak Lists and Output Files](peaklistformats.md) for the full format. Plot the
-hetNOE against residue number with `summaryplot("output-folder/")`.
+| Parameter | Meaning |
+|---|---|
+| `hetnoe` | I_sat / I_ref |
+| `amp` | Amplitude in the reference spectrum |

@@ -26,7 +26,7 @@ using ..NMRAnalysis: csvcolumn, csvvalue, safename, sanitizelabel, backupfolder,
                      shortpath
 # the call that produced an analysis - see src/calls.jl
 using ..NMRAnalysis: AnalysisCall, analysiscall, writereproduce, RECORD
-using ..NMRAnalysis: windowname, outputfolder
+using ..NMRAnalysis: windowname, outputfolder, capturewindow
 # one table row per entity per plane, as for the 2D analyses
 import ..GUI2D: planeresults
 

@@ -1,5 +1,5 @@
 """
-    cest2d(inputfilename; B1, Tsat, offsets, skipplanes=nothing, prompt=isinteractive())
+    cest2d(inputfilename; B1, T, offsets, skipplanes=nothing, prompt=isinteractive())
         -> CESTExperiment
 
 Start interactive GUI for analysing 2D CEST (Chemical Exchange Saturation Transfer) data.
@@ -14,21 +14,23 @@ annotations (`cest.power` with the reference pulse of `cest.channel`, `cest.dura
                    where the first plane is the reference spectrum and subsequent planes
                    are the saturation spectra
 - `B1`: Saturation field strength in Hz
-- `Tsat`: Saturation time in seconds
+- `T`: Saturation time in seconds
 - `offsets`: Saturation offsets in ppm, one per plane including the reference
 - `skipplanes`: Planes (1-based) left out of the fitting. The reference, plane 1, cannot be
   skipped.
 
 # Example:
 ```julia
-cest2d("path/to/expno/pdata/1"; B1=15, Tsat=0.3)
+cest2d("path/to/expno/pdata/1"; B1=15, T=0.3)
 ```
 """
-function cest2d(inputfilename; B1=nothing, Tsat=nothing, offsets=nothing,
-                skipplanes=nothing, peaklist=nothing, prompt::Bool=isinteractive())
+function cest2d(inputfilename; B1=nothing, T=nothing, offsets=nothing,
+                skipplanes=nothing, peaklist=nothing, prompt::Bool=isinteractive(),
+                Tsat=nothing)
+    Tsat = renamedkeyword(T, Tsat, :Tsat, :T)
     expt = CESTExperiment(asexptpath(inputfilename); B1, Tsat, offsets, skipplanes,
                           prompt)
-    call = analysiscall("cest2d", inputfilename; B1=expt.B1, Tsat=expt.Tsat,
+    call = analysiscall("cest2d", inputfilename; B1=expt.B1, T=expt.Tsat,
                         offsets=expt.frequencies, skipplanes=nonempty(expt.skipplanes))
     return gui!(expt; peaklist, call)
 end

@@ -272,7 +272,7 @@ same data, parameters and peaks, and the fit repeats:
 nmranalysis = "0.5.0"
 call = '''
 relaxation2d("../11/pdata/1";
-             relaxationtimes=[0.01, 0.03, 0.06, 0.1, 0.2, 0.4],
+             T=[0.01, 0.03, 0.06, 0.1, 0.2, 0.4],
              peaklist="./peaklist.csv")
 '''
 ```
@@ -314,8 +314,12 @@ numbers, which `asexptpath` turns into paths.
 What the user picked is passed the same way everywhere, as `peaklist`: a `peaklist.csv`, a
 folder holding one, or the entities themselves (`Region`s in 1D).
 
-Keyword names are chosen to be informative rather than to match annotation keys, so
-`relaxationtimes`, `Trelax` and `Tsat` keep the names a spectroscopist would use.
+Keyword names are chosen to be informative rather than to match annotation keys. Every
+time is `T`, in seconds: a list of delays, one per spectrum (`relaxation1d`, `tract`,
+`relaxation2d`, `recovery2d`, `methylccr2d`, `kinetics1d`, the pulse lengths of
+`calibration1d`), or a single period fixed across the series (`ccr2d`, `cpmg2d`, `pre2d`,
+`lpre2d`, the saturation time of `cest2d`). A renamed keyword is still accepted, silently,
+under its former name (`renamedkeyword`), so older scripts and saved analyses still run.
 
 Where a parameter can be resolved rather than typed, it is looked for in a fixed order:
 an explicit argument, then a pulse-sequence annotation, then sample metadata, then a Bruker

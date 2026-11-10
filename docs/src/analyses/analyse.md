@@ -35,10 +35,8 @@ Because matching depends on annotations carried by the pulse sequence, `analyse(
 recognises experiment types whose sequences include them — it isn't inferring the
 experiment type from the raw data itself.
 
-Dispatch is a convenience, not a requirement: every routine can be called directly, and
-none of them needs annotations to run. Where an annotation is missing, the routine asks
-for what it needs instead. See
-[Where the parameters come from](1d/overview.md#Where-the-parameters-come-from).
+Every routine can also be called directly, and none needs annotations: where one is
+missing, the routine asks for what it needs instead.
 
 ## What it currently detects
 

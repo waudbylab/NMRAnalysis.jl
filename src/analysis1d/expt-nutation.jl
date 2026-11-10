@@ -6,7 +6,7 @@
 # ---- 1. entry point -----------------------------------------------------------
 
 """
-    calibration1d(spec; durations=nothing, phase=nothing, power=nothing, peaklist=nothing,
+    calibration1d(spec; T=nothing, phase=nothing, power=nothing, peaklist=nothing,
                   integration=nothing, window=true, prompt=isinteractive())
     calibration1d(specs::AbstractVector; ...)
 
@@ -21,14 +21,14 @@ calibrates, with the linearity assumed ideal. Either way
 takes, so CEST and R₁ρ are simulated with measured field strengths and a measured B₁
 inhomogeneity rather than nominal ones.
 
-Pulse durations are taken from `durations` if given, else from the `calibration.duration`
+Pulse durations are taken from `T` if given, else from the `calibration.duration`
 annotation, and otherwise you are asked for them; the modulation likewise from `phase`,
 else the `calibration.model` annotation, else a question; the power level from `power`, else
 the `calibration.power` annotation, else a question. None of the annotations is required,
 and an unknown power costs only the calibration curve, not the analysis.
 
 # Arguments
-- `durations`: pulse durations, in seconds, one per spectrum of the series. Applies to every
+- `T`: pulse durations, in seconds, one per spectrum of the series. Applies to every
   spectrum given; where they differ, each spectrum's own annotation is what to rely on.
 - `phase`: `:sine` (starting from equilibrium) or `:cosine` (from transverse
   magnetisation).
@@ -62,7 +62,7 @@ function calibration1d(spec; kwargs...)
 end
 
 """
-    nutationexperiment(specs; durations, phase, power, peaklist, prompt)
+    nutationexperiment(specs; T, phase, power, peaklist, prompt)
         -> (expt, dataset, regions, call)
 
 Everything [`calibration1d`](@ref) resolves before it fits: the spectra loaded, their pulse
@@ -73,9 +73,10 @@ Separate from the entry point so that a calibration fitted on behalf of another 
 can be saved afterwards from the same pieces the entry point would have saved - see
 [`calibrationanalysis`](@ref).
 """
-function nutationexperiment(specs::AbstractVector; durations=nothing, phase=nothing,
+function nutationexperiment(specs::AbstractVector; T=nothing, phase=nothing,
                             power=nothing, peaklist=nothing,
-                            prompt::Bool=isinteractive())
+                            prompt::Bool=isinteractive(), durations=nothing)
+    durations = renamedkeyword(T, durations, :durations, :T)
     isempty(specs) && throw(ArgumentError("no calibration experiments given"))
     given = specs                      # the argument as written, for the reproduce line
     specs = loadspec.(specs)
@@ -106,10 +107,10 @@ function nutationexperiment(specs::AbstractVector; durations=nothing, phase=noth
 
     regs = @something(regions, [defaultregion(ds)])
     expt = NutationExperiment(ds; phase, regions=regs)
-    # `durations` applies to every spectrum, so it is only worth recording when the lists
+    # `T` applies to every spectrum, so it is only worth recording when the lists
     # agree; where they differ, each spectrum's own annotation reproduces the analysis.
     call = analysiscall("calibration1d", given;
-                        durations=(allequal(t) ? first(t) : nothing), phase, power=dB)
+                        T=(allequal(t) ? first(t) : nothing), phase, power=dB)
     return expt, ds, regs, call
 end
 

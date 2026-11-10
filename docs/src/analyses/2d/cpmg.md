@@ -1,4 +1,4 @@
-# CPMG Relaxation Dispersion
+# CPMG relaxation dispersion
 
 CPMG (Carr-Purcell-Meiboom-Gill) relaxation dispersion experiments detect conformational
 exchange processes on the microsecond-to-millisecond timescale. The effective transverse
@@ -8,13 +8,11 @@ exchange show elevated R₂,eff at low νCPMG that decreases as νCPMG increases
 The effective relaxation rate is calculated from the intensity ratio:
 
 ```math
-R_{2,\text{eff}}(\nu_\text{CPMG}) = -\frac{1}{T_\text{relax}} \ln\!\frac{I(\nu_\text{CPMG})}{I_\text{ref}}
+R_{2,\text{eff}}(\nu_\text{CPMG}) = -\frac{1}{T} \ln\!\frac{I(\nu_\text{CPMG})}{I_\text{ref}}
 ```
 
-where ``T_\text{relax}`` is the total CPMG relaxation period and ``I_\text{ref}`` is the
+where ``T`` is the total CPMG relaxation period and ``I_\text{ref}`` is the
 reference plane intensity (zero CPMG pulses).
-
-<!-- screenshot: assets/cpmg2d.png -->
 
 ## Usage
 
@@ -25,31 +23,28 @@ and subsequent planes are recorded at increasing CPMG frequencies.
 using NMRAnalysis
 
 # Specify CPMG frequencies directly (Hz); use 0 for the reference plane
-cpmg2d("11"; Trelax=0.04, vCPMG=[0, 25, 50, 75, 100, 200, 500])
+cpmg2d("11"; T=0.04, vCPMG=[0, 25, 50, 75, 100, 200, 500])
 
-# Alternatively, specify the number of CPMG cycles per plane (vCPMG = ncyc / Trelax)
+# Alternatively, specify the number of CPMG cycles per plane (vCPMG = ncyc / T)
 ncyc = [0, 1, 2, 3, 4, 8, 20]
-cpmg2d("11"; Trelax=0.04, ncyc=ncyc)
+cpmg2d("11"; T=0.04, ncyc=ncyc)
 
 # Or read the cycle numbers from the vclist
-cpmg2d("11"; Trelax=0.04)
+cpmg2d("11"; T=0.04)
 ```
 
 If neither `vCPMG` nor `ncyc` is given, the cycle numbers are read from the `vclist`, and
-if `Trelax` or the cycle numbers can't be found you are asked for them. `skipplanes` leaves
+if `T` or the cycle numbers can't be found you are asked for them. `skipplanes` leaves
 planes out of the fit, as long as at least one reference plane remains.
 
 !!! note
-    When using `ncyc`, `vCPMG` is calculated automatically as `ncyc / Trelax`. The
+    When using `ncyc`, `vCPMG` is calculated automatically as `ncyc / T`. The
     reference plane must have `ncyc = 0` (or `vCPMG = 0`).
 
 ## Output
 
-Clicking **Save to folder** writes all results to `results.csv`. Each row is one
-peak, with the per-plane amplitudes (`amp[1]`, `amp[2]`, …) from which the R₂,eff
-dispersion profile is computed, and the derived reference rate `R20`, `R20_err`
-(R₂,₀, s⁻¹). See [Peak Lists and Output Files](peaklistformats.md) for the full
-format.
+`results.csv` holds the reference rate `R20` (s⁻¹) of each peak, and `series.csv` the
+amplitude in each plane, from which the R₂,eff profile follows.
 
 !!! note "Under development"
     `cpmg2d` is currently intended for data exploration and extraction of R₂,eff

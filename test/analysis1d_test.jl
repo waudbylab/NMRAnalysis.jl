@@ -571,14 +571,14 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
         dir = mktempdir()
         mkpath(joinpath(dir, "11"))
         out = mkpath(joinpath(dir, "out"))
-        call = cd(() -> analysiscall("relaxation1d", "11"; tau=[0.01, 0.03],
+        call = cd(() -> analysiscall("relaxation1d", "11"; T=[0.01, 0.03],
                                      model=:exponential), dir)
         # paths are written relative to the folder the record is saved in
         peaks = joinpath(out, "peaklist.csv")
         touch(peaks)
         text = callstring(call, out; peaklist=peaks)
         @test occursin("relaxation1d(\"../11\";", text)
-        @test occursin("tau=[0.01, 0.03]", text)
+        @test occursin("T=[0.01, 0.03]", text)
         @test occursin("model=:exponential", text)
         @test occursin("peaklist=\"./peaklist.csv\"", text)
         # an experiment number given for the data names a folder too

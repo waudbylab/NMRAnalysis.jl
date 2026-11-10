@@ -1,56 +1,58 @@
 """
-    cpmg2d(inputfilename; Trelax, vCPMG, skipplanes=nothing, prompt=isinteractive())
-    cpmg2d(inputfilename; Trelax, ncyc, skipplanes=nothing, prompt=isinteractive())
+    cpmg2d(inputfilename; T, vCPMG, skipplanes=nothing, prompt=isinteractive())
+    cpmg2d(inputfilename; T, ncyc, skipplanes=nothing, prompt=isinteractive())
         -> CPMGExperiment
 
 Start interactive GUI for analysing 2D CPMG relaxation dispersion data. The window blocks
 until it is closed, and the analysis is returned (see [`results`](@ref)).
 
 The CPMG frequencies are taken from `vCPMG`, else from `ncyc`, else from the cycle numbers
-in the `vclist`; `Trelax` is taken from its keyword. Anything missing is asked for.
+in the `vclist`; `T` is taken from its keyword. Anything missing is asked for.
 
 # Arguments
 - `inputfilename`: NMR data file as a processed data directory containing pseudo-3D data
                    where the first plane is the reference spectrum and subsequent planes
                    are the saturation spectra
-- `Trelax`: Relaxation time in seconds
+- `T`: Constant relaxation time in seconds
 - `vCPMG`: list of CPMG frequencies in Hz, use zero for reference spectrum
 - `ncyc`: list of CPMG cycle numbers, use zero for reference spectrum.
-          When provided, vCPMG is calculated as ncyc/Trelax
+          When provided, vCPMG is calculated as ncyc/T
 - `skipplanes`: Planes (1-based) left out of the fitting. At least one reference plane must
   remain.
 
 # Examples:
 ```julia
 # Direct specification of CPMG frequencies
-cpmg2d("path/to/expno"; Trelax=0.04, vCPMG=[0, 25, 50, 75, 100])
+cpmg2d("path/to/expno"; T=0.04, vCPMG=[0, 25, 50, 75, 100])
 
 # Using cycle numbers (vCPMG calculated automatically)
 ncyc = [0, 1, 2, 3, 4]
-cpmg2d("path/to/expno"; Trelax=0.04, ncyc=ncyc)
+cpmg2d("path/to/expno"; T=0.04, ncyc=ncyc)
 
 # Cycle numbers from the vclist
-cpmg2d("path/to/expno"; Trelax=0.04)
+cpmg2d("path/to/expno"; T=0.04)
 ```
 """
-function cpmg2d(inputfilename; Trelax=nothing, vCPMG=nothing, ncyc=nothing,
-                skipplanes=nothing, peaklist=nothing, prompt::Bool=isinteractive())
+function cpmg2d(inputfilename; T=nothing, vCPMG=nothing, ncyc=nothing,
+                skipplanes=nothing, peaklist=nothing, prompt::Bool=isinteractive(),
+                Trelax=nothing)
+    T = renamedkeyword(T, Trelax, :Trelax, :T)
     isnothing(vCPMG) || isnothing(ncyc) ||
         throw(ArgumentError("Cannot specify both vCPMG and ncyc"))
     given = inputfilename
     inputfilename = asexptpath(inputfilename)
     spec = loadnmr(inputfilename)
     n = size(spec, 3)
-    Trelax = @something(Trelax, ask("CPMG relaxation time Trelax"; unit="s", prompt))
+    T = @something(T, ask("CPMG relaxation time T"; unit="s", prompt))
     vCPMG = @something(isnothing(vCPMG) ? nothing : readvalues(vCPMG),
-                       isnothing(ncyc) ? nothing : readvalues(ncyc) ./ Trelax,
+                       isnothing(ncyc) ? nothing : readvalues(ncyc) ./ T,
                        let c = acqusvalue(spec, :vclist)
-                           isnothing(c) ? nothing : collect(Float64, c) ./ Trelax
+                           isnothing(c) ? nothing : collect(Float64, c) ./ T
                        end,
-                       askvector("CPMG cycle numbers", n; prompt) ./ Trelax)
-    expt = CPMGExperiment(inputfilename, Trelax, vCPMG;
+                       askvector("CPMG cycle numbers", n; prompt) ./ T)
+    expt = CPMGExperiment(inputfilename, T, vCPMG;
                           skipplanes=checkskipplanes(skipplanes, n))
-    call = analysiscall("cpmg2d", given; Trelax, vCPMG,
+    call = analysiscall("cpmg2d", given; T, vCPMG,
                         skipplanes=nonempty(expt.skipplanes))
     return gui!(expt; peaklist, call)
 end
@@ -64,7 +66,7 @@ CPMG experiment with reference plane and relaxation planes.
 - `specdata`: Spectral data and metadata
 - `peaks`: Observable list of peaks
 - `vCPMG`: Vector of CPMG frequencies in Hz (zero for reference)
-- `Trelax`: Relaxation time in seconds
+- `T`: Constant relaxation time in seconds
 """
 struct CPMGExperiment <: FixedPeakExperiment
     specdata::Any

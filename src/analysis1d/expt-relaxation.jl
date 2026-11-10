@@ -6,19 +6,19 @@
 # ---- 1. entry point -----------------------------------------------------------
 
 """
-    relaxation1d(spec; tau=nothing, model=nothing, peaklist=nothing, integration=nothing,
+    relaxation1d(spec; T=nothing, model=nothing, peaklist=nothing, integration=nothing,
                  prompt=isinteractive())
 
 Analyse a 1D relaxation experiment (T1/T2, or inversion recovery) from a pseudo-2D `spec`
 (a path or an `NMRData`), then open the analysis window.
 
-Relaxation delays are taken from `tau` if given, else from the `relaxation.duration`
+Relaxation delays are taken from `T` if given, else from the `relaxation.duration`
 annotation, else from the `vdlist`; if none of those is available you are asked for them.
 The model is taken from `model` if given, else from the `relaxation.model` annotation, and
 otherwise you are asked to choose one. Neither annotation is required.
 
 # Arguments
-- `tau`: relaxation delays, in seconds, one per spectrum.
+- `T`: relaxation delays, in seconds, one per spectrum.
 - `model`: `:exponential` for a decay `A exp(-Rt)`, `:recovery` for an
   inversion/saturation recovery `A [1 - C exp(-Rt)]`, or any [`SeriesModel`](@ref).
 - `peaklist`: the regions to start from, instead of one on the tallest peak: a `peaklist.csv`
@@ -31,15 +31,15 @@ otherwise you are asked to choose one. Neither annotation is required.
 # Examples
 ```julia
 relaxation1d("11")                                   # annotations or vdlist, or asks
-relaxation1d("11"; tau=[0.01, 0.05, 0.1, 0.5])       # delays given explicitly
+relaxation1d("11"; T=[0.01, 0.05, 0.1, 0.5])         # delays given explicitly
 relaxation1d("11"; model=:recovery)                  # inversion recovery
 ```
 """
-function relaxation1d(spec; tau=nothing, model=nothing, peaklist=nothing,
-                      integration=nothing, prompt::Bool=isinteractive())
+function relaxation1d(spec; T=nothing, model=nothing, peaklist=nothing,
+                      integration=nothing, prompt::Bool=isinteractive(), tau=nothing)
     given = spec                       # the argument as written, for the reproduce line
     spec = loadspec(spec)
-    times = @something(tau,
+    times = @something(renamedkeyword(T, tau, :tau, :T),
                        annotation(spec, :relaxation, :duration),
                        acqusvalue(spec, :vdlist),
                        askvector("relaxation delays", nplanesfromspec(spec); unit="s",
@@ -52,7 +52,7 @@ function relaxation1d(spec; tau=nothing, model=nothing, peaklist=nothing,
     expt = isnothing(regions) ? RelaxationExperiment(ds; model) :
            RelaxationExperiment(ds; model, regions)
     return run1d(expt; integration,
-                 call=analysiscall("relaxation1d", given; tau=times, model))
+                 call=analysiscall("relaxation1d", given; T=times, model))
 end
 
 """

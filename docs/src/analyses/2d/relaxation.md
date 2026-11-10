@@ -1,91 +1,70 @@
-# Relaxation Analysis (T1 / T2)
+# Relaxation (R₁, R₂)
 
-The `relaxation2d` function measures R1 or R2 relaxation rates from a series of 2D
-spectra recorded with increasing relaxation delays. Peak amplitudes are fitted to a
-mono-exponential decay:
+`relaxation2d` fits the amplitude of each peak against the relaxation delay as an
+exponential decay,
 
 ```math
-I(\tau) = A \exp\!\left(-R\tau\right)
+I(T) = A \exp(-RT).
 ```
 
-where ``R`` is the relaxation rate (s⁻¹) and ``A`` is the peak amplitude. The software
-does not distinguish between R1 and R2 — the appropriate interpretation depends on the
-experiment used to collect the data.
-
-![Screenshot of relaxation fitting](../../assets/relaxation-demo.mov)
+Whether ``R`` is R₁ or R₂ depends on the experiment. For an inversion or saturation
+recovery, use [`recovery2d`](magnetisationrecovery.md).
 
 ## Usage
 
 ```julia
 using NMRAnalysis
-
-# Pseudo3D data (experiment 20) whose delays are in its vdlist or annotations
-relaxation2d("20")
-
-# Pseudo3D data with a list of relaxation times (in seconds)
-relaxation2d("20"; relaxationtimes="20/relaxation-times.txt")
-
-# Or provide a list of 2D planes and associated relaxation times
-relaxation2d(["11", "12", "13", "14", "15"];
-             relaxationtimes=[0.010, 0.030, 0.060, 0.100, 0.200])
-
-# A delay counted in loops of a vclist, each loop 16 ms long
-relaxation2d("21"; cycletime=0.016)
-
-# Or loop counts given directly
-relaxation2d("21"; ncyc=[0, 2, 4, 8, 16], cycletime=0.016)
+relaxation2d("20")                                   # one pseudo-3D experiment
+relaxation2d(11:15; T=[0.01, 0.03, 0.06, 0.1, 0.2])    # one experiment per delay
 ```
 
-The number of input planes must match the number of relaxation delays. The delays are
-looked for in this order:
+The delays are found in this order:
 
-1. `relaxationtimes`, a vector or the path of a file holding one per line
-2. `ncyc` multiplied by `cycletime`, for delays counted in loops
-3. the pulse-sequence annotation `relaxation.duration`
+1. `T`, in seconds, or a file holding one per line
+2. `ncyc` × `cycletime`, for a delay counted in loops of `cycletime` seconds
+3. the `relaxation.duration` annotation
 4. the `vdlist`
-5. the `vclist` multiplied by `cycletime`
-6. a question, before the window opens
+5. the `vclist` × `cycletime`
 
-Where a loop count is used and `cycletime` isn't given, you are asked for it.
+Otherwise, you're asked for them.
 
-## Excluding planes from the fit
+### Example
 
-If one or more planes in the series should not contribute to the fitted rate — pass their 1-based indices via `skipplanes`:
+¹⁵N R₂ of α-synuclein, measured with a CPMG train whose loop lasts 28.09 ms:
 
 ```julia
-relaxation2d(files; relaxationtimes=delays, skipplanes=[1, 5])
+relaxation2d(example("relaxation2d_asyn"); cycletime=0.02809)
 ```
 
-All spectra are still loaded and displayed. Skipped planes appear as open grey markers
-in the peak-fit plot and are labelled **[skipped]** in the slice title; they are not
-used when fitting R or A. The full delay list, including times for the skipped planes,
-must always be supplied.
+```@setup relaxation2d
+using NMRAnalysis
+expt = NMRAnalysis.screenshot("relaxation2d.png"; peak="V40") do
+    reopen(exampleanalysis("relaxation2d_asyn"))
+end
+Main.savepng("relaxation2d-summary.png", summaryplot(expt))
+```
+
+![The relaxation2d window, with the decay of V40](relaxation2d.png)
+
+![Picking and fitting peaks in a relaxation series](../../assets/relaxation-demo.mov)
 
 ## Output
 
-Clicking **Save to folder** writes all results to `results.csv`. Alongside peak
-positions, linewidths and the amplitude for each delay, the derived columns are:
+| Parameter | Meaning |
+|---|---|
+| `R` | Relaxation rate, s⁻¹ |
+| `A` | Amplitude |
 
-| Column | Description |
-|--------|-------------|
-| `R`, `R_err` | Fitted relaxation rate R (s⁻¹) and uncertainty |
-| `A`, `A_err` | Fitted amplitude A and uncertainty |
+For the example above:
 
-The rate is labelled generically as `R`; the software does not distinguish R₁
-from R₂. See [Peak Lists and Output Files](peaklistformats.md) for the full format.
-
-Plot R against residue number with [`summaryplot`](summary.md). Pass an appropriate
-`ylabel` to label the axis for your specific experiment:
-
-```julia
-# T2 / R2 measurement
-fig = summaryplot("results/"; param=:R, ylabel="R₂ / s⁻¹")
-
-# T1 / R1 measurement
-fig = summaryplot("results/"; param=:R, ylabel="R₁ / s⁻¹")
+```@example relaxation2d
+Main.resultstable(results(expt)) # hide
 ```
 
-## Noise Estimation
+![R₂ against residue number](relaxation2d-summary.png)
 
-Peak amplitude uncertainties are estimated from the scatter of the spectral noise across
-the series of experiments.
+Give the summary plot a label for your experiment with `ylabel`:
+
+```julia
+summaryplot("out"; ylabel="R₂ / s⁻¹")
+```

@@ -318,11 +318,15 @@ function gui!(state)
         return Consume(false)
     end
 
+    function ready()
+        optimisewidth!(state) # optimise width at start
+        gui[:text_dx].displayed_string[] = string(round(state[:dx][]; digits=3))
+        autolimits!(ax_fit)
+        return autolimits!(ax_fit_R1rho)
+    end
+    capturewindow(fig; ready) && return nothing
     display(fig)
-    optimisewidth!(state) # optimise width at start
-    gui[:text_dx].displayed_string[] = string(round(state[:dx][]; digits=3))
-    autolimits!(ax_fit)
-    autolimits!(ax_fit_R1rho)
+    ready()
 
     while true #!state["should_close"][]
         sleep(0.1)

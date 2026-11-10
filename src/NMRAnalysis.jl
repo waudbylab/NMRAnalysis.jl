@@ -20,7 +20,7 @@ results when the window closes.
 - `diffusion1d(filename)`: diffusion coefficient and hydrodynamic radius
 - `tract(trosy, antitrosy)`: rotational correlation time from TRACT
 - `calibration1d(filename)`: pulse-length calibration from a nutation experiment
-- `kinetics1d(filename; times)`: intensities of named regions against time
+- `kinetics1d(filename; T)`: intensities of named regions against time
 - `peaktrack1d(filenames)`: positions of peaks and multiplets across a series of spectra
 - `r1rho([directory])`: R₁ρ relaxation dispersion
 - `exchange1d([filenames])`: CEST and R₁ρ fitted by Bloch-McConnell simulation
@@ -56,6 +56,7 @@ saved peak list as the window opens.
 module NMRAnalysis
 
 using LinearAlgebra: LAPACKException, PosDefException, SingularException
+using GLMakie: GLMakie
 using LsqFit
 using Measurements
 using NativeFileDialog

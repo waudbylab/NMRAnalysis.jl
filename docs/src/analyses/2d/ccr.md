@@ -1,70 +1,63 @@
-# Cross-Correlated Relaxation (CCR)
+# Cross-correlated relaxation (CCR)
 
-Cross-correlated relaxation (CCR) experiments measure the interference between two
-relaxation mechanisms — for example, between dipole-dipole coupling and chemical shift
-anisotropy — and are used to determine bond vector orientations, order parameters, and
-rotational correlation times.
-
-The CCR rate η is extracted by comparing the buildup and decay of spin-state-selective
-coherences:
+Cross-correlated relaxation between two mechanisms, such as the ¹H–¹⁵N dipolar coupling and
+the ¹⁵N CSA, reports on bond orientation and dynamics. `ccr2d` measures the CCR rate η from
+spectra in which a coherence decays or builds up over a relaxation period ``T``:
 
 ```math
-\tanh(\eta T) = \frac{I_\text{buildup}}{I_\text{decay}}
+\tanh(\eta T) = \frac{I_\text{buildup}}{I_\text{decay}}.
 ```
 
-For symmetric reconversion experiments, where two buildup and two decay spectra are
-recorded to suppress contributions from auto-relaxation:
+With symmetric reconversion, two buildup and two decay spectra cancel the effect of
+auto-relaxation:
 
 ```math
-\tanh(\eta T) = \sqrt{\frac{I_{\text{bu},1} \cdot I_{\text{bu},2}}{I_{\text{dec},1} \cdot I_{\text{dec},2}}}
+\tanh(\eta T) = \sqrt{\frac{I_{\text{bu},1} \cdot I_{\text{bu},2}}{I_{\text{dec},1} \cdot I_{\text{dec},2}}}.
 ```
-
-![Screenshot from CCR analysis](../../assets/screenshot-ccr2d.png)
 
 ## Usage
 
-### Single decay / buildup pair
+Give the decay spectra, then the buildup, and the relaxation period `T` in seconds:
 
 ```julia
 using NMRAnalysis
-
-ccr2d("decay", "buildup"; T=0.08)
+ccr2d(1, 2; T=0.08)                # one decay, one buildup
+ccr2d([1, 4], [2, 3]; T=0.08)      # symmetric reconversion
 ```
 
-### Symmetric reconversion (two pairs)
+Without `T`, you're asked for it.
 
-```julia
-ccr2d(["decay1", "decay2"],
-      ["buildup1", "buildup2"];
-      T=0.08)
-```
+### Example
 
-`T` is the relaxation time in seconds during which the CCR rate acts; without it, you are
-asked. Experiments can also be given as Bruker experiment numbers, individually or as a
-list/range (e.g. `ccr2d(1, 2; T=0.08)` or `ccr2d(1:2, 3:4; T=0.08)`).
-
-### Example data
-
-`ccr2d_calr` is a symmetric reconversion experiment on the CALR C-terminal domain, recorded
-at 1.2 GHz with a relaxation time of 40 ms. Its two decay and two buildup spectra unpack
-into the two arguments:
+Symmetric reconversion on the calreticulin C-terminal domain at 1.2 GHz, with
+``T = 40`` ms:
 
 ```julia
 decay, buildup = example("ccr2d_calr")
 ccr2d(decay, buildup; T=0.04)
 ```
 
+```@setup ccr2d
+using NMRAnalysis
+expt = NMRAnalysis.screenshot("ccr2d.png") do
+    reopen(exampleanalysis("ccr2d_calr"))
+end
+Main.savepng("ccr2d-summary.png", summaryplot(expt))
+```
+
+![The ccr2d window](ccr2d.png)
+
 ## Output
 
-Clicking **Save to folder** writes all results to `results.csv`. The derived
-columns are:
+| Parameter | Meaning |
+|---|---|
+| `eta` | CCR rate η, s⁻¹ |
+| `amp` | Reference amplitude |
 
-| Column | Description |
-|--------|-------------|
-| `eta`, `eta_err` | Fitted CCR rate η (s⁻¹) and uncertainty |
-| `amp`, `amp_err` | Reference amplitude and uncertainty |
+For the example above:
 
-See [Peak Lists and Output Files](peaklistformats.md) for the full format. Plot η
-against residue number with `summaryplot("output-folder/")`.
+```@example ccr2d
+Main.resultstable(results(expt)) # hide
+```
 
-![Example CCR results](../../assets/screenshot-ccr2d-summary.png)
+![η against residue number](ccr2d-summary.png)

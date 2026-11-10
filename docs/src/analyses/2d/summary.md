@@ -91,19 +91,13 @@ its name as a `Symbol` — the column header in `results.csv` with a colon prefi
 ```julia
 # Parameter :R20 corresponds to the column headed "R20" in results.csv
 fig = summaryplot("cpmg/"; param=:R20)
-
-# Amplitude from the first plane
-fig = summaryplot("fit2d/"; param=Symbol("amp[1]"))
 ```
 
-Symbols in Julia are formed with a leading colon: `:R`, `:hetnoe`, `:eta`, `:PRE`.
-For column names that contain brackets or other special characters (such as `amp[1]`),
-use `Symbol("amp[1]")`. To see which parameters are available from a file or live
-experiment, call `available_params`:
+To list the parameters available from a file or an analysis:
 
 ```julia
-available_params("results/results.csv")   # → [:R, :A, Symbol("amp[1]"), ...]
-available_params(expt)                    # → [:R2, :hetnoe, ...]
+NMRAnalysis.GUI2D.available_params("results/results.csv")   # → [:R, :A]
+NMRAnalysis.GUI2D.available_params(expt)
 ```
 
 For stacked panels, `param` and `ylabel` may each be a vector with one entry per source;

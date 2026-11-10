@@ -1,7 +1,7 @@
 """
-    lpre2d(diamagnetic, paramagnetic; type, recycledelays=nothing, Trelax=:auto,
+    lpre2d(diamagnetic, paramagnetic; type, recycledelays=nothing, T=:auto,
            peaklist=nothing, prompt=isinteractive()) -> LPREExperiment
-    lpre2d(inputfilenames; concentrations, type, recycledelays=nothing, Trelax=:auto,
+    lpre2d(inputfilenames; concentrations, type, recycledelays=nothing, T=:auto,
            skipplanes=nothing, peaklist=nothing, prompt=isinteractive()) -> LPREExperiment
 
 !!! warning "Under development"
@@ -28,7 +28,7 @@ PRE, and they are in s⁻¹ per unit of concentration, in whatever unit you used
 - `recycledelays`: the time (s) the ¹H magnetisation recovers between scans, one per
   spectrum (diamagnetic first), or for two lists one list applied to both. Used exactly as
   given. By default each spectrum's d1 plus its acquisition time.
-- `Trelax`: the transfer time, as for [`pre2d`](@ref).
+- `T`: the transfer time, as for [`pre2d`](@ref).
 
 # Examples
 ```julia
@@ -46,23 +46,25 @@ residue number. The window blocks until it is closed, and the analysis is return
 [`results`](@ref)).
 """
 function lpre2d(diamagnetic::AbstractVector, paramagnetic::AbstractVector; type,
-                recycledelays=nothing, Trelax=:auto, peaklist=nothing,
-                prompt::Bool=isinteractive())
+                recycledelays=nothing, T=:auto, peaklist=nothing,
+                prompt::Bool=isinteractive(), Trelax=nothing)
+    T = something(renamedkeyword(T === :auto ? nothing : T, Trelax, :Trelax, :T), :auto)
     expt = LPREExperiment(asexptpath(diamagnetic), asexptpath(paramagnetic); type,
-                          recycledelays, Trelax, prompt)
+                          recycledelays, Trelax=T, prompt)
     call = analysiscall("lpre2d", diamagnetic, paramagnetic; type,
-                        recycledelays=expt.recoverytimes, Trelax=expt.Trelax)
+                        recycledelays=expt.recoverytimes, T=expt.Trelax)
     return gui!(expt; peaklist, call)
 end
 
 function lpre2d(inputfilenames::AbstractVector; concentrations, type, recycledelays=nothing,
-                Trelax=:auto, skipplanes=nothing, peaklist=nothing,
-                prompt::Bool=isinteractive())
+                T=:auto, skipplanes=nothing, peaklist=nothing,
+                prompt::Bool=isinteractive(), Trelax=nothing)
+    T = something(renamedkeyword(T === :auto ? nothing : T, Trelax, :Trelax, :T), :auto)
     skip = checkskipplanes(skipplanes, length(inputfilenames))
     expt = LPREExperiment(asexptpath(inputfilenames); concentrations, type, recycledelays,
-                          Trelax, skipplanes=skip, prompt)
+                          Trelax=T, skipplanes=skip, prompt)
     call = analysiscall("lpre2d", inputfilenames; concentrations, type,
-                        recycledelays=expt.recoverytimes, Trelax=expt.Trelax,
+                        recycledelays=expt.recoverytimes, T=expt.Trelax,
                         skipplanes=nonempty(skip))
     return gui!(expt; peaklist, call)
 end

@@ -1,233 +1,113 @@
-# 2D Experiment Analysis
+# The 2D analysis window
 
-NMRAnalysis.jl provides interactive GUIs for analysing 2D NMR experiments, including
-relaxation, exchange, and NOE measurements. All functions follow the same pattern: they
-load one or more processed 2D spectra, open an interactive window for peak picking and
-fitting, and export results to a folder of your choice. When you close the window, the
-function returns the analysis, so you can carry on with it in Julia:
+Every 2D routine opens the same window. You pick the peaks, each peak is fitted as a 2D
+lineshape in every plane, and the experiment's model is fitted to the amplitudes.
 
 ```julia
-expt = relaxation2d("11/pdata/1")
-r = results(expt)           # one row per peak, each parameter as value ± error
-[row.R for row in r]
-planeresults(expt)          # one row per peak per plane
+using NMRAnalysis
+reopen(exampleanalysis("relaxation2d_asyn"))
 ```
 
-Any parameter you don't give is read from the pulse-sequence annotations or the acquisition
-parameters where possible, and otherwise you are asked for it before the window opens. Pass
-`prompt=false` to raise an error instead, for example in a script.
+```@setup window2d
+using NMRAnalysis
+expt = NMRAnalysis.screenshot("window2d.png"; peak="V40") do
+    reopen(exampleanalysis("relaxation2d_asyn"))
+end
+```
 
-Every routine except `rdc2d`, which needs all four of its planes, takes `skipplanes`, a
-list of planes to leave out of the fitting. At least one plane must be left. Skipped planes
-are still loaded and displayed, and their amplitudes are still measured, at the lineshapes
-the other planes determine.
+![The relaxation2d window: the spectrum with picked peaks on the left, and the selected peak's fit on the right](window2d.png)
 
-The [experiment-specific pages](fit.md) describe the available functions
-and the theory behind each analysis. This page covers the shared GUI features common to
-all of them.
+The spectrum is on the left, with the fitted lineshapes in red over the selected plane.
+The fitted values of the selected peak are on the right, with its model fit below.
 
-![Screenshot of peak tracking](../../assets/peaktrack-demo.mov)
+![Picking and fitting peaks in a relaxation series](../../assets/relaxation-demo.mov)
 
-![Screenshot of relaxation fitting](../../assets/relaxation-demo.mov)
+![Tracking peaks that move from plane to plane](../../assets/peaktrack-demo.mov)
 
-## Adding and Managing Peaks
+## Controls
 
-Peaks are picked interactively using the mouse and keyboard. Move the cursor over a peak
-in the contour plot to work with it.
+| To | Do this |
+|---|---|
+| Add a peak under the cursor | `A` |
+| Move a peak | Drag it |
+| Rename the selected peak | `R` |
+| Delete the selected peak | `D` |
+| Step through the planes | `←` `→` |
+| Raise or lower the contours | `↑` `↓` |
+| Widen or narrow the selected peak's fitting radius | `Shift` + arrow keys |
+| Return the peak to the default radius | `=` |
+| Continue fits that stopped early | `C`, or `Shift` + `C` to run until they converge |
+| Cancel a fit | `Esc` |
+| Close the window | `Q` |
 
-| Action | Key / Button |
-|--------|--------------|
-| Add peak at cursor position | `A` |
-| Track peak from cursor position (moving-peak experiments) | `T` |
-| Place a peak at the maximum along a line in every plane (moving-peak experiments) | Hold `L` at one end, drag to the other, and release; or press `L` at one end, then click or press `L` at the other |
-| Widen or narrow the selected peak's fitting radii | `Shift` + `←` / `→` (x), `Shift` + `↑` / `↓` (y) |
-| Return the selected peak to the default radii | `=` |
-| Fit waiting peaks, or continue fits stopped at the time or iteration limit | `C` |
-| Fit and continue, without a time limit, until every fit converges | `Shift` + `C` |
-| Cancel the fit in progress | `Esc` |
-| Delete the selected peak | `D` or **Delete peak** button |
-| Rename the selected peak | `R` or **Rename peak** button |
-| Navigate to previous spectrum slice | `←` or **←** button |
-| Navigate to next spectrum slice | `→` or **→** button |
-| Raise contour base level | `↑` or **contour ↑** button |
-| Lower contour base level | `↓` or **contour ↓** button |
-| Reset axis zoom | **reset zoom** button |
-| Show or hide the fitted lineshape overlay | **Fitting** toggle |
-| Show or hide other spectra (moving-peak experiments, e.g. titrations, RDCs) | `S` or **(S)how all** toggle |
-| Open a summary plot of the current results | **Summary plot** button (enabled once peaks are present) |
-| Load the peak list saved in the output folder | **Load peak list** button, or `peaklist=` when you start (see below) |
-| Save all results to a folder | **Save to folder** button |
-| Close the GUI window | `Q` or **(Q)uit** button |
+Experiments in which peaks move, such as [titrations](titration.md), have more ways to add
+a peak: see [Peak tracking](peaktracking.md).
 
-Peak lineshapes are fitted in real time as you add or move peaks. The right panel shows
-cross-sections (or a model fit plot, for relaxation-type experiments) for the currently
-selected peak.
+The buttons do the same, and more: **Summary plot** plots the results against residue
+number, **Fitting** turns fitting off, **Save** writes the results to the folder named
+beside it, and **Load peak list** restores the peaks saved there.
 
-## Visual Feedback
+The X and Y radius sliders set how much of the spectrum around each peak is fitted. Use
+smaller radii in crowded spectra, and larger ones for broad peaks.
 
-The window background changes colour to indicate the current interaction mode:
+Peak markers are blue when fitted, red while waiting to be fitted, orange where the fit
+didn't converge, and green when selected. The status line at the bottom says what the
+window is doing, and lists any peaks that need attention.
 
-| Background | Mode |
-|------------|------|
-| White | Normal |
-| Salmon / orange | Fitting in progress |
-| Light yellow | Adding a peak plane by plane, or marking a line |
-| Light blue | Renaming a peak |
-| Pale green | Moving a peak |
-| Grey | Saving results to folder |
+## Fitting
 
-The status line at the bottom of the window says what the window is doing or waiting for.
-While you rename a peak, add one plane by plane or mark a line, it lists the keys that
-finish or cancel the step. While a fit runs it shows progress through the clusters. It
-reports the outcome of your last command, such as a peak added, a peak list loaded, a peak
-deleted, the results saved or a fit that failed, until you next change the peaks or a new
-fit starts.
-The rest of the time it lists the peaks whose fits are not finished, with the key that
-deals with each (see below).
+Peaks whose fitting regions overlap are fitted together. Each peak has a position and a
+linewidth in each dimension, shared across the planes, and an amplitude in each plane.
+Start Julia with `julia -t auto` to fit clusters in parallel.
 
-Peak markers are colour-coded:
+A fit stops after 30 seconds, leaving the peak orange. Press `C` to continue it. A peak
+whose position or linewidth ends at its limit is also orange: move it, or widen its radius.
 
-| Colour | Meaning |
-|--------|---------|
-| Blue | Fitted peak |
-| Red | Peak waiting to be fitted |
-| Orange | Peak whose last fit didn't converge (see below) |
-| Green | Currently selected peak |
+The uncertainty of each amplitude comes from the residuals of the fit. Errors in the
+lineshape scale every amplitude of a peak equally, so they cancel in a rate or a ratio, and
+are not included.
 
-## How peaks are fitted
+## Common keywords
 
-Overlapping peaks are fitted together, as a cluster. Each peak is a 2D lineshape with a
-position and linewidth in each dimension. The cluster is fitted to the points within the
-fitting radius of where you placed its peaks (the shaded region), and every peak's
-lineshape, tails included, contributes at each of those points. Its amplitude
-in each plane is solved for exactly at every step of the fit, so for a series of fixed
-peaks only the positions and linewidths are optimised, however many planes there are.
-With more than one Julia thread (start Julia with `julia -t auto`), clusters are fitted in
-parallel. The status line at the bottom of the window shows progress through the clusters.
+| Keyword | Meaning |
+|---|---|
+| `peaklist` | Peaks to start from: a saved `peaklist.csv` or the folder holding it, a Sparky list, or a `label x y` text file |
+| `skipplanes` | Planes to leave out of the fit. They're still shown |
+| `prompt` | `false` to raise an error, rather than ask, for anything that can't be found |
 
-In a series of fixed peaks, each amplitude's uncertainty is that of the linear
-least-squares fit of the amplitudes, with the positions and linewidths held at their fitted
-values. It depends on the peak's shape, on its overlap with neighbouring peaks and on the
-residual of the fit, not on the spectrum's noise level alone. An error in those shared
-shapes would scale every amplitude by the same factor, which cancels in a relaxation rate,
-a heteronuclear NOE, a CCR ratio or a CEST profile, so it isn't added to each plane. It
-does affect an absolute amplitude, or a fitted prefactor such as `A`, which can therefore
-be slightly underestimated where a linewidth is poorly determined; a `bound` status on
-the peak shows when that is likely.
+## Output
 
-A fit that doesn't reach a converged optimum is flagged, and its peaks turn orange:
-
-- a fit that runs past 30 seconds is stopped, leaving the previous values in place;
-- a fit that reaches the iteration limit stops where it got to;
-- a fit that ends with a position or linewidth at its limit is reported as such.
-
-The info panel says which applies to the selected peak. Press `C` to continue the stopped
-fits from where they got to, with five minutes each, or `Shift` + `C` to keep continuing
-them, with no time limit, round after round, until they converge or a round no longer moves
-them. `Esc` cancels either. Continuing cannot free a peak at its limit: move it, or widen
-its radius.
-
-The status line counts the peaks awaiting a fit (after you press `Esc`, or while
-**Fitting** is off), the peaks whose fit stopped short and the peaks at a limit, each with
-the key that deals with them. While `Shift` + `C` runs it shows the round, and afterwards
-how it ended.
-
-Positions are bounded to within the peak's radius of where you placed it. Linewidths are
-bounded between 1 s⁻¹ and the broadest line the fitting window can determine, one whose full
-width at half height spans twice the window (four radii), or 100 s⁻¹ if that is larger. For
-a 0.04 ppm ¹H radius at 600 MHz that is about 300 s⁻¹. To fit broader peaks, widen their
-radius. A position at its limit usually means the peak
-needs moving or its radius widening. The status of each peak is saved in the `fitstatus`
-column of `results.csv` and `series.csv`, and `summary.txt` lists any unfinished peaks.
-
-## Recommended Workflow
-
-1. Launch the appropriate analysis function with your input files.
-2. Navigate to a representative spectrum using `←` / `→` or the slice slider.
-3. Adjust contour levels with `↑` / `↓` until peaks are clearly visible.
-4. Add peaks with `A` at each resonance you want to track.
-5. Optionally rename peaks with `R` to match residue assignments.
-6. Navigate through all slices to verify fit quality across the series.
-7. Click **Save to folder** to write all output files to a chosen directory.
-
-!!! tip
-    For large datasets, it is efficient to pick peaks on one representative slice first,
-    then step through remaining slices to check that the fits are good.
-
-## Output Files
-
-Clicking **Save to folder** writes the following files:
+**Save** writes:
 
 | File | Contents |
-|------|---------|
-| `summary.txt` | The record to read: where the data came from, the fitting radii, and the headline parameter for every peak |
-| `peaklist.csv` | The peaks you picked and where you placed them, with the fitting radii. This is what **Load** reads |
-| `results.csv` | One row per peak: its identity and the derived parameters (relaxation rates, NOE values, …), each with an uncertainty. This is the table to plot against residue number |
-| `series.csv` | The measurements, one row per peak per plane: the plane index and its own coordinate, then the amplitude, the fitted amplitude, the position and the linewidths |
-| `global.csv` | Anything fitted once across every peak, such as a titration `Kd`. Absent when there is nothing global |
-| `summary.pdf` | Summary plot of the primary fitted parameter against residue number (or atom for methyl/non-backbone experiments) |
-| `peaks/LABEL.pdf` and `.csv` | Each peak's fit plot, and the data behind it under the same name |
-| `cluster_LABEL.pdf` | Zoomed 2D contour plot (first plane) with fitted lineshapes for each group of overlapping peaks |
+|---|---|
+| `summary.txt` | The data, the fitting radii and the main result for each peak |
+| `results.csv` | One row per peak: the fitted parameters, with uncertainties |
+| `series.csv` | One row per peak per plane: amplitude, position and linewidths |
+| `global.csv` | Parameters shared by all peaks, such as a titration's Kd |
+| `peaklist.csv` | The peaks you picked |
+| `analysis.toml` | The call, for `reopen` |
+| `summary.pdf` | The main result against residue number |
+| `peaks/`, `cluster_*.pdf` | Each peak's fit, and each cluster's lineshapes |
 
-Anything that varies plane by plane is in `series.csv`: the amplitude, the position and
-the linewidths. A peak that does not move simply repeats its position down the rows, so the
-layout is the same whether or not the peaks track. Each row names the plane's own
-coordinate, so a relaxation series records the delay and a titration the concentration,
-rather than an `amp[7]` column whose meaning has to be remembered.
+A folder that already exists is first renamed `<name>_previous`. See
+[Peak lists and output files](peaklistformats.md) for the formats.
 
-`amp_fit` is the model evaluated at that plane's coordinate, so a residual is a
-subtraction. It is `NA` where nothing is fitted through the amplitudes themselves: a
-heteronuclear NOE, a CCR rate and a CEST profile are fitted from ratios or from
-transformed intensities.
-
-Every CSV has experiment metadata in `#`-comment lines above an ordinary header
-row, so it opens directly in spreadsheets and `pandas`. Column headers carry
-units in ASCII (`R (s-1)`, `x (ppm)`), and an uncertainty column repeats the unit
-of the value it belongs to. An existing output folder is moved aside to
-`<name>_previous` before saving, so each save starts clean and a peak you deleted
-since the last one does not leave its plot behind. See
-[Peak Lists and Output Files](peaklistformats.md) for the full column description.
-
-## Loading and Resuming Analysis
-
-The **Load peak list** button restores peak positions and labels from the `peaklist.csv`
-in the output folder named beside it, so you can resume work later. Where peaks were tracked plane
-by plane, the whole trajectory is restored, as are any radii you set for individual peaks.
-A loaded list replaces the current peaks. If the file can't be read, or holds no peaks,
-the current peaks and radii are kept. The whole list is fitted once, after it has loaded.
-See [Peak Lists and Output Files](peaklistformats.md).
-
-The output folder also records the analysis, with every parameter as it was resolved, in
-`analysis.toml`. `reopen` repeats it, opening the window with the same peaks and radii, and
-the fit repeats. Saving then updates the same folder. `summary.txt` ends with the line to
-type:
+## Reopen an analysis
 
 ```julia
 reopen("out")
 ```
 
-To seed an analysis from any other list, pass it as the window opens: a saved
-`peaklist.csv` or the folder holding one, a Sparky peak list, or a simple `label x y` text
-file.
+opens a saved analysis with the same data, parameters and peaks.
 
-```julia
-relaxation2d("11/pdata/1"; peaklist="out")
-relaxation2d("11/pdata/1"; peaklist="hsqc.list")
+## Use the results
+
+When the window closes, the routine returns the analysis. `results(expt)` gives one row
+per peak, and `planeresults(expt)` one row per peak per plane. For the example above:
+
+```@example window2d
+Main.resultstable(results(expt)) # hide
 ```
 
-## Summary plots
-
-[`summaryplot`](summary.md) plots a fitted parameter against residue number,
-from a live experiment or one or more saved `results.csv` files. See the
-[Summary Plots](summary.md) page for full details and examples.
-
-## Adjusting the Fitting Region
-
-The X and Y radius sliders in the peak info panel set the default size of the region
-around each peak used for lineshape fitting. Smaller radii are appropriate for crowded
-spectra; larger radii improve the fit for broad peaks.
-
-To give one peak radii of its own, select it and press `Shift` with the arrow keys:
-left and right narrow and widen the x radius, down and up the y radius. A peak with its own
-radii keeps them when you change the sliders, and the info panel shows them. Press `=` to
-return it to the defaults.
+[`summaryplot`](summary.md) plots a parameter against residue number.

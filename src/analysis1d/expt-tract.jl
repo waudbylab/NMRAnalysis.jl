@@ -6,7 +6,7 @@
 
 """
     tract()
-    tract(trosy, antitrosy; tau=nothing, peaklist=nothing, integration=nothing,
+    tract(trosy, antitrosy; T=nothing, peaklist=nothing, integration=nothing,
           prompt=isinteractive())
 
 Analyse a TRACT pair, deriving τc from the TROSY / anti-TROSY relaxation-rate difference,
@@ -14,11 +14,11 @@ then open the analysis window. The two spectra are combined into one dataset tag
 `which ∈ {:trosy, :anti}`, sharing a single integration region.
 
 Called with no arguments, you are asked for the two experiment folders. Relaxation delays
-are taken from `tau` if given, else from each spectrum's own `vdlist`, and otherwise you
+are taken from `T` if given, else from each spectrum's own `vdlist`, and otherwise you
 are asked for them.
 
 # Arguments
-- `tau`: relaxation delays, in seconds, one per spectrum, used for both experiments.
+- `T`: relaxation delays, in seconds, one per spectrum, used for both experiments.
 - `peaklist`: the regions to start from, instead of the 7.5-9.5 ppm amide window: a
   `peaklist.csv` saved earlier, a folder holding one (such as an earlier output folder), or
   `Region`s.
@@ -27,15 +27,16 @@ are asked for them.
 - `prompt`: whether to ask for anything that could not be determined. Defaults to `false`
   outside an interactive session, where a missing value raises an error instead.
 """
-function tract(trosy, antitrosy; tau=nothing, peaklist=nothing, integration=nothing,
-               prompt::Bool=isinteractive())
+function tract(trosy, antitrosy; T=nothing, peaklist=nothing, integration=nothing,
+               prompt::Bool=isinteractive(), tau=nothing)
+    T = renamedkeyword(T, tau, :tau, :T)
     # the arguments as written, for the reproduce line
     giventrosy, givenanti = trosy, antitrosy
     trosy, antitrosy = loadspec(trosy), loadspec(antitrosy)
-    ttau = @something(tau, acqusvalue(trosy, :vdlist),
+    ttau = @something(T, acqusvalue(trosy, :vdlist),
                       askvector("TROSY relaxation delays", nplanesfromspec(trosy);
                                 unit="s", prompt))
-    atau = @something(tau, acqusvalue(antitrosy, :vdlist),
+    atau = @something(T, acqusvalue(antitrosy, :vdlist),
                       askvector("anti-TROSY relaxation delays",
                                 nplanesfromspec(antitrosy); unit="s", prompt))
 
@@ -56,11 +57,11 @@ function tract(trosy, antitrosy; tau=nothing, peaklist=nothing, integration=noth
                    speclabel(trosy), src)
     expt = isnothing(regions) ? TractExperiment(ds; ωN, f) :
            TractExperiment(ds; ωN, f, regions)
-    # `tau` applies to both experiments, so it is only worth recording when the two lists
+    # `T` applies to both experiments, so it is only worth recording when the two lists
     # agree; where they differ, each spectrum's own vdlist is what reproduces the analysis.
     return run1d(expt; integration,
                  call=analysiscall("tract", giventrosy, givenanti;
-                                   tau=(ttau == atau ? ttau : nothing)))
+                                   T=(ttau == atau ? ttau : nothing)))
 end
 
 function tract(; kwargs...)

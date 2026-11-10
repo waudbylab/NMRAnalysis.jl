@@ -137,6 +137,7 @@ function openwindow(s::SpectrumSeries, processing; labels=String[],
     attach!(p, textbox, fig[1, 2], session; radius, snr)
     colsize!(fig.layout, 2, Relative(0.28))
 
+    capturewindow(fig) && return p
     display(fig)
     while isopen(fig.scene)
         sleep(0.1)

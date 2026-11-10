@@ -1,6 +1,6 @@
 """
-    pre2d(diamagnetic, paramagnetic; type, Trelax=:auto, peaklist=nothing) -> PREExperiment
-    pre2d(inputfilenames; concentrations, type, Trelax=:auto, skipplanes=nothing,
+    pre2d(diamagnetic, paramagnetic; type, T=:auto, peaklist=nothing) -> PREExperiment
+    pre2d(inputfilenames; concentrations, type, T=:auto, skipplanes=nothing,
           peaklist=nothing) -> PREExperiment
 
 !!! warning "Under development"
@@ -24,7 +24,7 @@ and Γ₂ is in s⁻¹ per unit of concentration, in whatever unit you used.
   diamagnetic reference.
 - `type`: `:hsqc` or `:hmqc`. In an HMQC, ¹H is transverse during t₁ as well, so the PRE
   also broadens the indirect dimension.
-- `Trelax`: the time (s) for which ¹H magnetisation is transverse outside the acquisition
+- `T`: the time (s) for which ¹H magnetisation is transverse outside the acquisition
   and t₁, during which the PRE attenuates the signal. `:auto` takes 1/¹J, the total of the
   transfer delays in a plain HSQC or HMQC, with ¹J = 92 Hz for ¹⁵N and 125 Hz (methyl)
   for ¹³C. Give the time explicitly for a sensitivity-enhanced or other sequence.
@@ -35,7 +35,7 @@ and Γ₂ is in s⁻¹ per unit of concentration, in whatever unit you used.
 pre2d("diamagnetic/pdata/1", "paramagnetic/pdata/1"; type=:hsqc)
 
 # Methyl HMQC, with experiment numbers and an explicit transfer time
-pre2d(11, 12; type=:hmqc, Trelax=0.0089)
+pre2d(11, 12; type=:hmqc, T=0.0089)
 
 # Solvent PRE, concentrations in mM
 pre2d([10, 11, 12, 13]; concentrations=[0, 1, 5, 10], type=:hmqc)
@@ -48,19 +48,21 @@ number. The window blocks until it is closed, and the analysis is returned (see
 [`results`](@ref)).
 """
 function pre2d(diamagnetic::Union{AbstractString,Integer},
-               paramagnetic::Union{AbstractString,Integer}; type, Trelax=:auto,
-               peaklist=nothing)
-    expt = PREExperiment(asexptpath(diamagnetic), asexptpath(paramagnetic); type, Trelax)
-    call = analysiscall("pre2d", diamagnetic, paramagnetic; type, Trelax=expt.Trelax)
+               paramagnetic::Union{AbstractString,Integer}; type, T=:auto,
+               peaklist=nothing, Trelax=nothing)
+    T = something(renamedkeyword(T === :auto ? nothing : T, Trelax, :Trelax, :T), :auto)
+    expt = PREExperiment(asexptpath(diamagnetic), asexptpath(paramagnetic); type, Trelax=T)
+    call = analysiscall("pre2d", diamagnetic, paramagnetic; type, T=expt.Trelax)
     return gui!(expt; peaklist, call)
 end
 
-function pre2d(inputfilenames::AbstractVector; concentrations, type, Trelax=:auto,
-               skipplanes=nothing, peaklist=nothing)
+function pre2d(inputfilenames::AbstractVector; concentrations, type, T=:auto,
+               skipplanes=nothing, peaklist=nothing, Trelax=nothing)
+    T = something(renamedkeyword(T === :auto ? nothing : T, Trelax, :Trelax, :T), :auto)
     skip = checkskipplanes(skipplanes, length(inputfilenames))
-    expt = PREExperiment(asexptpath(inputfilenames); concentrations, type, Trelax,
+    expt = PREExperiment(asexptpath(inputfilenames); concentrations, type, Trelax=T,
                          skipplanes=skip)
-    call = analysiscall("pre2d", inputfilenames; concentrations, type, Trelax=expt.Trelax,
+    call = analysiscall("pre2d", inputfilenames; concentrations, type, T=expt.Trelax,
                         skipplanes=nonempty(skip))
     return gui!(expt; peaklist, call)
 end

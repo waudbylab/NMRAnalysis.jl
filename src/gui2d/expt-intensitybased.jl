@@ -94,8 +94,7 @@ function fit2d(inputfilenames; skipplanes=nothing, peaklist=nothing)
 end
 
 """
-    relaxation2d(inputfilenames; relaxationtimes, ncyc, cycletime, skipplanes, prompt)
-    relaxation2d(inputfilenames, relaxationtimes; kwargs...)
+    relaxation2d(inputfilenames; T, ncyc, cycletime, skipplanes, peaklist, prompt)
 
 Start an interactive GUI for measuring R1 or R2 relaxation rates from a series of 2D
 spectra. Peak amplitudes are fitted to a mono-exponential decay:
@@ -108,8 +107,8 @@ where ``R`` is the relaxation rate (s⁻¹) and ``A`` is the peak amplitude. The
 does not distinguish R1 from R2 — the appropriate interpretation depends on the experiment.
 The window blocks until it is closed, and the analysis is returned (see [`results`](@ref)).
 
-The delays are taken from `relaxationtimes` if given; else from the loop counts `ncyc`
-times the loop duration `cycletime`; else from the `relaxation.duration` annotation; else
+The delays are taken from `T` if given; else from the loop counts `ncyc` times the loop
+duration `cycletime`; else from the `relaxation.duration` annotation; else
 from the `vdlist`; else from the `vclist` times `cycletime`; and if none of those is
 available you are asked for them, as you are for a `cycletime` that is needed and not given.
 
@@ -119,25 +118,21 @@ available you are asked for them, as you are for a `cycletime` that is needed an
   numbers work too.
 
 # Keyword Arguments
-- `relaxationtimes`: Delays in seconds, one per plane, or the path of a text file holding
-  one per line (lines beginning with `#` are ignored).
+- `T`: Delays in seconds, one per plane, or the path of a text file holding one per line
+  (lines beginning with `#` are ignored).
 - `ncyc`: Loop counts, one per plane, or the path of a file holding them, for an experiment
   whose delay is a number of loops of fixed duration.
 - `cycletime`: The duration in seconds of one loop, which multiplies `ncyc` or the `vclist`.
-- `xlabel`: the label of the x axis.
-- `skipplanes`: Planes (1-based) to exclude from the fitting.
-- `peaklist`: a peak list to start from, or a folder holding one. All spectra are still loaded
-  and displayed; skipped planes appear as open grey markers in the peak plot and are not
-  used when fitting R or A. The full list of relaxation times must still be provided,
-  including those for skipped planes.
-- `peaklist`: A peak list to load as the window opens, such as a saved `peaklist.csv`.
-  Every 2D routine takes this.
+- `skipplanes`: Planes (1-based) to leave out of the fitting. They're still shown, as open
+  grey markers in the peak plot, and `T` still includes their delays.
+- `peaklist`: A peak list to load as the window opens: a saved `peaklist.csv`, or the folder
+  holding one.
 - `prompt`: Whether to ask for anything that cannot be found (default: when interactive).
 
 # Example
 ```julia
 relaxation2d(["11/pdata/1", "12/pdata/1", "13/pdata/1", "14/pdata/1"];
-             relaxationtimes=[0.010, 0.030, 0.060, 0.100])
+             T=[0.010, 0.030, 0.060, 0.100])
 
 # A pseudo-3D dataset whose delays are in its vdlist or annotations
 relaxation2d("11/pdata/1")
@@ -149,23 +144,23 @@ relaxation2d("12/pdata/1"; cycletime=0.016)
 relaxation2d("11/pdata/1"; skipplanes=[3])
 ```
 """
-function relaxation2d(inputfilenames; relaxationtimes=nothing, ncyc=nothing,
+function relaxation2d(inputfilenames; T=nothing, ncyc=nothing,
                       cycletime=nothing, skipplanes=nothing, peaklist=nothing,
-                      prompt::Bool=isinteractive())
+                      prompt::Bool=isinteractive(), relaxationtimes=nothing)
+    T = renamedkeyword(T, relaxationtimes, :relaxationtimes, :T)
     specdata = preparespecdata(asexptpath(inputfilenames), IntensityExperiment)
-    tau = relaxationdelays(specdata; relaxationtimes, ncyc, cycletime, prompt)
+    tau = relaxationdelays(specdata; T, ncyc, cycletime, prompt)
     skip = checkskipplanes(skipplanes, length(tau))
     model = ExponentialModel()
     expt = IntensityExperiment(specdata, Observable(Vector{Peak}()), model, tau,
                                ModelFitVisualisation(); skipplanes=skip)
-    call = analysiscall("relaxation2d", inputfilenames; relaxationtimes=tau,
+    call = analysiscall("relaxation2d", inputfilenames; T=tau,
                         skipplanes=nonempty(skip))
     return gui!(expt; peaklist, call)
 end
 
 """
-    recovery2d(inputfilenames; relaxationtimes, ncyc, cycletime, skipplanes, prompt)
-    recovery2d(inputfilenames, relaxationtimes; kwargs...)
+    recovery2d(inputfilenames; T, ncyc, cycletime, skipplanes, peaklist, prompt)
 
 Start an interactive GUI for measuring longitudinal relaxation from an inversion recovery
 or saturation recovery experiment. Peak amplitudes are fitted to a magnetisation recovery
@@ -185,21 +180,22 @@ The delays are resolved as for [`relaxation2d`](@ref), whose keyword arguments t
 # Example
 ```julia
 t = [0.1, 0.2, 0.4, 0.7, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0]
-recovery2d("33/pdata/1"; relaxationtimes=t)
+recovery2d("33/pdata/1"; T=t)
 
 # Reading delays from a file
-recovery2d("33/pdata/1"; relaxationtimes="vdlist.txt")
+recovery2d("33/pdata/1"; T="vdlist.txt")
 ```
 """
-function recovery2d(inputfilenames; relaxationtimes=nothing, ncyc=nothing,
+function recovery2d(inputfilenames; T=nothing, ncyc=nothing,
                     cycletime=nothing, skipplanes=nothing, peaklist=nothing,
-                    prompt::Bool=isinteractive())
+                    prompt::Bool=isinteractive(), relaxationtimes=nothing)
+    T = renamedkeyword(T, relaxationtimes, :relaxationtimes, :T)
     specdata = preparespecdata(asexptpath(inputfilenames), IntensityExperiment)
-    tau = relaxationdelays(specdata; relaxationtimes, ncyc, cycletime, prompt)
+    tau = relaxationdelays(specdata; T, ncyc, cycletime, prompt)
     skip = checkskipplanes(skipplanes, length(tau))
     expt = IntensityExperiment(specdata, Observable(Vector{Peak}()), RecoveryModel(), tau,
                                ModelFitVisualisation(); skipplanes=skip)
-    call = analysiscall("recovery2d", inputfilenames; relaxationtimes=tau,
+    call = analysiscall("recovery2d", inputfilenames; T=tau,
                         skipplanes=nonempty(skip))
     return gui!(expt; peaklist, call)
 end

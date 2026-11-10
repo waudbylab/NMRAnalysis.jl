@@ -7,6 +7,9 @@ Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 DocumenterTools = "35a29f4d-8980-5a13-9543-d66fff28ecb8"
 NMRAnalysis = "e8f11e50-668f-4bdf-b40b-95f76662da30"
 
+[sources]
+NMRAnalysis = {path = ".."}
+
 [compat]
 Documenter = "1.14"
 DocumenterTools = "0.1.20"

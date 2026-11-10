@@ -125,7 +125,7 @@ function gui!(expt::Experiment; peaklist=nothing, call=nothing)
     add_moving_overlays!(g, state, expt)
 
     # peak info
-    Label(g[:panelinfo][1, 1:2], "Working directory:\n$(pwd())"; word_wrap=true,
+    Label(g[:panelinfo][1, 1:2], "Working directory:\n$(shortpath(pwd()))"; word_wrap=true,
           tellwidth=false, halign=:left)
     g[:cmdload] = Button(g[:panelinfo][2, 1]; label="Load peak list")
     # Output folder typed rather than chosen from a native dialog: the dialog cannot create
@@ -166,11 +166,27 @@ function gui!(expt::Experiment; peaklist=nothing, call=nothing)
     set_close_to!(g[:sliderslice], initialslice(expt))
     isnothing(peaklist) || loadpeaks!(expt, peaklist)
 
+    capturewindow(g[:fig]; ready=() -> settle!(expt)) && return expt
     display(g[:fig])
     while isopen(g[:fig].scene)
         sleep(0.1)
     end
     return expt
+end
+
+"For a screenshot: wait for the fit in progress, then select the peak it asks for."
+function settle!(expt)
+    state = expt.state[]
+    while (task = state[:fit_task][]; !isnothing(task) && !istaskdone(task))
+        wait(task)
+    end
+    peaks = expt.peaks[]
+    isempty(peaks) && return nothing
+    label = SCREENSHOT[].peak
+    i = isnothing(label) ? 1 : findfirst(p -> p.label[] == label, peaks)
+    isnothing(i) && throw(ArgumentError("no peak labelled $label"))
+    state[:current_peak_idx][] = i
+    return nothing
 end
 
 """
