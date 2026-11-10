@@ -606,14 +606,17 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
         @test resolve("signal", out) == "signal"
         # data are always recorded relative to the output folder, even a plane template
         # that names no single file
-        text = callstring(cd(() -> analysiscall("relaxation2d", "ft/test%03d.ft2"), dir), out)
+        text = callstring(cd(() -> analysiscall("relaxation2d", "ft/test%03d.ft2"), dir),
+                          out)
         @test occursin("\"../ft/test%03d.ft2\"", text)
         # a keyword string that is not a path is left as it is
-        text = callstring(cd(() -> analysiscall("relaxation1d", "11"; model="exponential"), dir), out)
+        text = callstring(cd(() -> analysiscall("relaxation1d", "11"; model="exponential"),
+                             dir), out)
         @test occursin("model=\"exponential\"", text)
         # a recorded path that is no longer there says so, rather than failing later
         @test_throws ArgumentError resolve("../moved", out)
-        @test resolve("../ft/test%03d.ft2", out) == normpath(joinpath(dir, "ft", "test%03d.ft2"))
+        @test resolve("../ft/test%03d.ft2", out) ==
+              normpath(joinpath(dir, "ft", "test%03d.ft2"))
 
         # summary.txt says how to reopen the analysis, recorded beside it
         times = [0.0, 0.1, 0.2, 0.4]
@@ -641,7 +644,8 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
         # a window saves to out, or back into the folder reopened, but never into an
         # example's saved analysis, inside a downloaded artifact
         @test NMRAnalysis.outputfolder() == "out"
-        @test NMRAnalysis.inartifact(joinpath(first(DEPOT_PATH), "artifacts", "0a1b", "analysis"))
+        @test NMRAnalysis.inartifact(joinpath(first(DEPOT_PATH), "artifacts", "0a1b",
+                                              "analysis"))
         @test !NMRAnalysis.inartifact(out)
         write(joinpath(out, "analysis.toml"), "call = '''\nviscosity(:h2o, 298.0)\n'''\n")
         reopen(out)
@@ -674,8 +678,10 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
         @test acqusvalue(nothing, :vdlist) === nothing
         # an unset list, such as `VDLIST= <>`, is absent too
         spec = NMRTools.NMRData(zeros(3), (NMRTools.X1Dim(1:3),);
-                                metadata=Dict{Symbol,Any}(:acqus => Dict{Any,Any}(:vdlist => "",
-                                                                                  :vclist => [0, 1, 2])))
+                                metadata=Dict{Symbol,Any}(:acqus =>
+                                                              Dict{Any,Any}(:vdlist => "",
+                                                                            :vclist =>
+                                                                                [0, 1, 2])))
         @test acqusvalue(spec, :vdlist) === nothing
         @test acqusvalue(spec, :vclist) == [0, 1, 2]
     end

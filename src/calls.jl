@@ -117,7 +117,10 @@ const OUTPUT = Ref("out")
 outputfolder() = OUTPUT[]
 
 # An example's saved analysis is inside a downloaded artifact, which must not be changed.
-inartifact(path) = any(d -> startswith(abspath(path), joinpath(abspath(d), "artifacts")), DEPOT_PATH)
+function inartifact(path)
+    return any(d -> startswith(abspath(path), joinpath(abspath(d), "artifacts")),
+               DEPOT_PATH)
+end
 
 """The file an output folder records its analysis in, which [`reopen`](@ref) reads."""
 const RECORD = "analysis.toml"

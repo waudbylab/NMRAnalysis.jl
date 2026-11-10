@@ -293,8 +293,9 @@ function gui!(expt::Experiment1D; call=nothing)
     r += 1
     resultsrow = r
     panel = right[r, 1] = Box(fig; visible=false)
-    text!(fig.scene, lift(bb -> Point2f(minimum(bb)[1], maximum(bb)[2]),
-                          panel.layoutobservables.computedbbox);
+    text!(fig.scene,
+          lift(bb -> Point2f(minimum(bb)[1], maximum(bb)[2]),
+               panel.layoutobservables.computedbbox);
           text=state[:resultspanel], align=(:left, :top), justification=:left)
     on(rt -> rowsize!(right, resultsrow,
                       Fixed(PANEL_LINE_HEIGHT * (count('\n', String(rt)) + 1) + 10)),
