@@ -141,7 +141,7 @@ function pick_expt_folders(directory_path; experiment_type_filter="")
     folder_paths = folder_paths[perm]
 
     # Create and display the multi-select menu
-    menu = MultiSelectMenu(options)
+    menu = MultiSelectMenu(menulines(options))
     choices = request("Select experiments to analyse:", menu)
 
     # Convert Set to Vector for indexing and return the full paths
@@ -168,4 +168,24 @@ function short_expt_path(directory)
     parent_folder = basename(dirname(directory))
     folder_num = basename(directory)
     return joinpath(parent_folder, folder_num)
+end
+
+"""
+    menulines(options) -> Vector{String}
+
+Menu options cut to fit the terminal on one line each, ending in `…` where cut. A
+`TerminalMenus` menu redraws by moving the cursor up one row per option, so an option that
+wraps onto a second row leaves the old lines on screen at every keypress.
+"""
+function menulines(options)
+    width = displaysize(stdout)[2] - 8   # the menu's cursor and checkbox, and a margin
+    return map(collect(String, options)) do s
+        textwidth(s) <= width && return s
+        cut = ""
+        for c in s
+            textwidth(cut) + textwidth(c) < width || break
+            cut *= c
+        end
+        return cut * "…"
+    end
 end

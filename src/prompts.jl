@@ -90,7 +90,7 @@ function askchoice(question::AbstractString, options; default::Integer=1,
                    prompt::Bool=true)
     prompt || return default
     println(question)
-    choice = request(RadioMenu(collect(String, options)))
+    choice = request(RadioMenu(menulines(options)))
     return choice < 1 ? default : choice
 end
 

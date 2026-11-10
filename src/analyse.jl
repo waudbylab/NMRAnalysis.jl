@@ -10,6 +10,7 @@ A registry-based dispatch system for NMR analysis routines. This module provides
 module AnalysisDispatch
 
 using REPL.TerminalMenus
+using ..NMRAnalysis: menulines
 
 export analyse, register_analysis!, MultiFileRule
 
@@ -314,7 +315,7 @@ function analyse(filenames::AbstractVector{<:AbstractString};
 
     # Multiple options: present menu
     menu_items = [opt.description for opt in options]
-    menu = MultiSelectMenu(menu_items)
+    menu = MultiSelectMenu(menulines(menu_items))
     println()
     choices = request("Select analyses to run:", menu)
 
