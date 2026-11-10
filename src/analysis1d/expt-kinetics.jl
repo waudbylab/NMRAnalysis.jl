@@ -28,7 +28,9 @@ function kinetics1d(spec; times::AbstractVector, run=nothing, peaklist=nothing,
     ds = withnoise(datasetfromspec(spec, vars), noise)
     expt = isnothing(regions) ? KineticsExperiment(ds; model) :
            KineticsExperiment(ds; regions, model)
-    return run1d(expt; integration, call=analysiscall("kinetics1d", given; times, run))
+    return run1d(expt; integration,
+                 call=analysiscall("kinetics1d", given; times, run,
+                                   model=model isa NoFitting ? nothing : model))
 end
 
 # ---- 2. type ------------------------------------------------------------------

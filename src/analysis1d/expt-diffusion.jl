@@ -85,7 +85,8 @@ function diffusion1d(spec; gradients=nothing, coherence=SQ(H1), δ=nothing, Δ=n
     expt = isnothing(regions) ? DiffusionExperiment(ds; kw...) :
            DiffusionExperiment(ds; kw..., regions)
     return run1d(expt; integration,
-                 call=analysiscall("diffusion1d", given; gradients, δ, Δ, σ, Gmax))
+                 call=analysiscall("diffusion1d", given; gradients, δ, Δ, σ, Gmax,
+                                   coherence=coherence == SQ(H1) ? nothing : coherence))
 end
 
 diffusion1d(; kwargs...) = diffusion1d(askpath("diffusion experiment"); kwargs...)

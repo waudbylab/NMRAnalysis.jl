@@ -294,8 +294,9 @@ values (numbers, strings, symbols, `nothing`, and vectors, tuples, named tuples 
 them) and only a function this package exports. Keywords passed to `reopen` replace those
 recorded: `reopen("out"; peaklist=nothing)` repeats the analysis without its peaks.
 
-A call has no record where its data were passed as `NMRData` rather than as paths, since
-there is then nothing to point at.
+A call has no record where it was given something that cannot be written down: data passed
+as `NMRData` rather than as paths, or an object such as a `SeriesModel`, a `B1Calibration`
+or a coherence other than the default. Leaving it out would reopen a different analysis.
 
 `AnalysisCall`, `analysiscall`, `writereproduce` and `reopen` live in `src/calls.jl`, shared
 by every module.

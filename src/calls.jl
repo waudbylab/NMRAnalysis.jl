@@ -18,19 +18,23 @@ end
 """
     analysiscall(func, args...; kwargs...) -> AnalysisCall
 
-Record a call. Keyword arguments whose values have no literal (a `SeriesModel` object, say)
-are left out, since the point of the record is that it can be read back.
+Record a call. Keywords left as `nothing` are left out. A value with no literal (a
+`SeriesModel` object, say) cannot be read back, so the call is then not
+[`reproducible`](@ref): leaving it out would reopen a different analysis.
 """
 function analysiscall(func::AbstractString, args...; kwargs...)
-    kws = Pair{Symbol,Any}[k => v for (k, v) in pairs(kwargs) if !isnothing(callvalue(v))]
+    kws = Pair{Symbol,Any}[k => v for (k, v) in pairs(kwargs) if !isnothing(v)]
     return AnalysisCall(String(func), collect(Any, args), kws, pwd())
 end
 
 """
-`false` where a positional argument has no literal - a spectrum passed as an `NMRData`
-rather than as a path - so that nothing misleading is written.
+`false` where an argument has no literal - a spectrum passed as an `NMRData` rather than as
+a path, or a model object - so that nothing misleading is written.
 """
-reproducible(call::AnalysisCall) = all(a -> !isnothing(callvalue(a)), call.args)
+function reproducible(call::AnalysisCall)
+    return all(a -> !isnothing(callvalue(a)), call.args) &&
+           all(kv -> !isnothing(callvalue(kv.second)), call.kwargs)
+end
 
 """
     callvalue(x) -> String or nothing
@@ -135,7 +139,11 @@ Nothing is written for a call with no literal form, or for no call.
 writereproduce(io, folder, ::Nothing; extra...) = nothing
 function writereproduce(io, folder, call::AnalysisCall; extra...)
     text = callstring(call, abspath(folder); extra...)
-    isnothing(text) && return nothing
+    if isnothing(text)
+        @info "No $RECORD written: the analysis was given a value that cannot be written " *
+              "down, such as a spectrum or a model object, so reopen cannot repeat it"
+        return nothing
+    end
     open(joinpath(folder, RECORD), "w") do f
         println(f, "# The analysis that wrote this folder, with paths relative to it.")
         println(f, "# reopen(\"<this folder>\") in NMRAnalysis.jl repeats it.")

@@ -585,9 +585,11 @@ nutation(A, ν, σ, t) = A * sin(2π * ν * t) * exp(-0.5 * (2π * σ * ν * t)^
         @test occursin("relaxation1d(\"../11\")",
                        callstring(cd(() -> analysiscall("relaxation1d", 11), dir), out))
 
-        # values with no literal are left out rather than written misleadingly
-        @test isempty(analysiscall("kinetics1d", "21"; model=NoFitting()).kwargs)
+        # a keyword left as nothing is left out, but a value with no literal makes the call
+        # unreproducible: leaving it out would reopen a different analysis
+        @test isempty(analysiscall("kinetics1d", "21"; model=nothing).kwargs)
         @test callvalue(NoFitting()) === nothing
+        @test isnothing(callstring(analysiscall("kinetics1d", "21"; model=NoFitting())))
         @test callvalue(0.05:0.05:0.15) == "[0.05, 0.1, 0.15]"
         @test callvalue((peakppm=8.2, noiseppm=-1.0)) == "(peakppm=8.2, noiseppm=-1.0)"
         # a spectrum passed as an object has no literal either, so nothing is recorded
