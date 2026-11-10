@@ -180,7 +180,7 @@ on the peak it asks for.
 """
 function settle!(expt)
     state = expt.state[]
-    g = state[:gui]
+    g = state[:gui][]
     shot = SCREENSHOT[]
     while (task = state[:fit_task][]; !isnothing(task) && !istaskdone(task))
         wait(task)
