@@ -53,14 +53,17 @@ end
 
 ## Output
 
+**Save** writes these parameters to `results.csv`, and plots of the two decays to
+`fit.pdf`. See [Output](overview.md#Output) for the other files.
+
 | Parameter | Meaning |
 |---|---|
 | `A`, `R` | Amplitude and relaxation rate (s⁻¹) of each component |
 | `etaxy` | Cross-correlated relaxation rate, s⁻¹ |
 | `tauc` | Rotational correlation time, ns |
 
-`etaxy` and `tauc` are reported with the TROSY result. The example above returns:
+For the example:
 
 ```@example tract
-res # hide
+Main.resultstable(res) # hide
 ```

@@ -42,15 +42,16 @@ signal is largest there.
 
 ### Example
 
-A ¹H T₂ series on a mixture of amino acids:
+A ¹H T₂ series on a mixture of amino acids. The experiment doesn't record its delays, so
+you're asked for them:
 
 ```julia
-reopen(exampleanalysis("relaxation1d_aas"))
+relaxation1d(example("relaxation1d_aas"))
 ```
 
 ```@setup relaxation1d
 using NMRAnalysis
-res = NMRAnalysis.screenshot("relaxation1d.png") do
+res = NMRAnalysis.screenshot("relaxation1d.png"; xlims=(0, 5)) do
     reopen(exampleanalysis("relaxation1d_aas"))
 end
 ```
@@ -59,14 +60,17 @@ end
 
 ## Output
 
+**Save** writes these parameters for each region to `results.csv`, and plots of the fits to
+`fit.pdf`. See [Output](overview.md#Output) for the other files.
+
 | Parameter | Meaning |
 |---|---|
 | `A` | Amplitude |
 | `R` | Relaxation rate, s⁻¹ |
 | `C` | Recovery factor (recovery model only) |
 
-The example above returns:
+For the example:
 
 ```@example relaxation1d
-res # hide
+Main.resultstable(res; n=9) # hide
 ```

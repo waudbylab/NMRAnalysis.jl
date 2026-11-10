@@ -50,12 +50,16 @@ Main.savepng("relaxation2d-summary.png", summaryplot(expt))
 
 ## Output
 
+**Save** writes these parameters for each peak to `results.csv`, the summary plot below to
+`summary.pdf`, and a plot of each peak's fit to `peaks/`. See [Output](overview.md#Output)
+for the other files.
+
 | Parameter | Meaning |
 |---|---|
 | `R` | Relaxation rate, s⁻¹ |
 | `A` | Amplitude |
 
-For the example above:
+For the example:
 
 ```@example relaxation2d
 Main.resultstable(results(expt)) # hide

@@ -70,6 +70,9 @@ end
 
 ## Output
 
+**Save** writes these parameters for each region to `results.csv`, and plots of the fits to
+`fit.pdf`. See [Output](overview.md#Output) for the other files.
+
 | Parameter | Meaning |
 |---|---|
 | `A` | Amplitude |
@@ -77,8 +80,8 @@ end
 | `viscosity` | Solvent viscosity, mPa s |
 | `rH` | Hydrodynamic radius, Å |
 
-The example above returns:
+For the example:
 
 ```@example diffusion1d
-res # hide
+Main.resultstable(res) # hide
 ```

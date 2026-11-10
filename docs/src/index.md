@@ -9,7 +9,6 @@ using NMRAnalysis
 relaxation2d(example("relaxation2d_asyn"); cycletime=0.02809)
 ```
 
-<!-- relaxation2d.png is made by the example on quickstart.md -->
 ![The relaxation2d window: an ¹H,¹⁵N spectrum with picked peaks, and the fitted decay of the selected peak](relaxation2d.png)
 
 To install the package and run your first analysis, see the [Quick start](quickstart.md).

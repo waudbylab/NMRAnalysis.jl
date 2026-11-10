@@ -307,7 +307,12 @@ function gui!(expt::Experiment1D; call=nothing)
     setupmouse!(fig, ax, state)
     setupkeyboard!(fig, ax, state)
 
-    capturewindow(fig; ready=() -> autolimits!(gui[:axfit])) && return state
+    function ready()
+        autolimits!(gui[:axfit])
+        lims = SCREENSHOT[].xlims
+        return isnothing(lims) || xlims!(ax, extrema(lims)...)
+    end
+    capturewindow(fig; ready) && return state
     display(fig)
     autolimits!(gui[:axfit])
     while isopen(fig.scene)

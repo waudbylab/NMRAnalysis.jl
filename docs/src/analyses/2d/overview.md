@@ -1,16 +1,17 @@
 # The 2D analysis window
 
 Every 2D routine opens the same window. You pick the peaks, each peak is fitted as a 2D
-lineshape in every plane, and the experiment's model is fitted to the amplitudes.
+lineshape in every plane, and the experiment's model is fitted to the amplitudes. This is
+[`relaxation2d`](relaxation.md) on a ¹⁵N R₂ series:
 
 ```julia
 using NMRAnalysis
-reopen(exampleanalysis("relaxation2d_asyn"))
+relaxation2d(example("relaxation2d_asyn"); cycletime=0.02809)
 ```
 
 ```@setup window2d
 using NMRAnalysis
-expt = NMRAnalysis.screenshot("window2d.png"; peak="V40") do
+NMRAnalysis.screenshot("window2d.png"; peak="V40") do
     reopen(exampleanalysis("relaxation2d_asyn"))
 end
 ```
@@ -101,13 +102,8 @@ reopen("out")
 
 opens a saved analysis with the same data, parameters and peaks.
 
-## Use the results
+## Scripting
 
-When the window closes, the routine returns the analysis. `results(expt)` gives one row
-per peak, and `planeresults(expt)` one row per peak per plane. For the example above:
-
-```@example window2d
-Main.resultstable(results(expt)) # hide
-```
-
-[`summaryplot`](summary.md) plots a parameter against residue number.
+Each routine also returns the analysis when the window closes. `results(expt)` gives the
+contents of `results.csv`, one row per peak, and `planeresults(expt)` those of
+`series.csv`. [`summaryplot`](summary.md) plots a parameter against residue number.

@@ -59,6 +59,8 @@ using NMRAnalysis
 res = NMRAnalysis.screenshot("calibration1d.png") do
     calibration1d(example("calibration1d_19f"))
 end
+Main.savepng("calibration-curve.png",
+             NMRAnalysis.Analysis1D.calibrationplot(B1Calibration(res)))
 ```
 
 ![The calibration window, with nutation curves at two power levels](calibration1d.png)
@@ -99,10 +101,12 @@ When that analysis is saved, the calibration is saved with it, in `calibration/`
 | `inhomogeneity` | The smallest `sigma`, % |
 | `powerref`, `nu1ref`, `linearity` | The calibration curve, for several powers |
 
-With several powers, each one's values carry the power as a suffix, as in `nu_11.11`.
-**Save** also writes `calibration.pdf`, the field against power with the residuals of the
-fit. The example above returns:
+**Save** writes these to `results.csv`, the nutation curves to `fit.pdf`, and, with several
+powers, the calibration curve to `calibration.pdf`. Each power's values carry the power as a
+suffix, as in `nu_11.11`. For the example:
 
 ```@example calibration1d
-res # hide
+Main.resultstable(res) # hide
 ```
+
+![The calibration curve: the field against power, with the residuals of the fit below](calibration-curve.png)

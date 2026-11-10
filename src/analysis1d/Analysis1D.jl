@@ -39,7 +39,7 @@ using ..NMRAnalysis: annotation, acqusvalue, ask, askchoice, askvector, askpath,
                      renamedkeyword
 # the call that produced an analysis - see src/calls.jl
 using ..NMRAnalysis: AnalysisCall, analysiscall, callvalue
-using ..NMRAnalysis: windowname, midsentence, capturewindow
+using ..NMRAnalysis: windowname, midsentence, capturewindow, SCREENSHOT
 using ..NMRAnalysis: writereproduce, outputfolder
 
 # the analysis core: no Makie in the computational path. (An experiment that saves a

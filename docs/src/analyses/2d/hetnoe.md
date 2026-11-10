@@ -36,16 +36,30 @@ hetnoe2d(reference, saturated)
 
 ```@setup hetnoe2d
 using NMRAnalysis
-NMRAnalysis.screenshot("hetnoe2d.png") do
-    hetnoe2d(example("hetnoe2d_calr")...)
+expt = NMRAnalysis.screenshot("hetnoe2d.png") do
+    hetnoe2d(example("hetnoe2d_calr")...; peaklist=Main.savedanalysis("hetnoe2d_calr"))
 end
+picked = !isempty(results(expt))
+picked && Main.savepng("hetnoe2d-summary.png", summaryplot(expt))
 ```
 
-![The hetnoe2d window, before any peaks are picked](hetnoe2d.png)
+![The hetnoe2d window](hetnoe2d.png)
 
 ## Output
+
+**Save** writes these parameters for each peak to `results.csv`, the summary plot below to
+`summary.pdf`, and a plot of each peak's fit to `peaks/`. See [Output](overview.md#Output)
+for the other files.
 
 | Parameter | Meaning |
 |---|---|
 | `hetnoe` | I_sat / I_ref |
 | `amp` | Amplitude in the reference spectrum |
+
+For the example:
+
+```@example hetnoe2d
+picked ? Main.resultstable(results(expt); cols=[:label, :hetnoe, :amp]) : nothing # hide
+```
+
+![The hetNOE against residue number](hetnoe2d-summary.png)

@@ -18,7 +18,7 @@ time you use it.
 
 ```julia
 using NMRAnalysis
-expt = relaxation2d(example("relaxation2d_asyn"); cycletime=0.02809)
+relaxation2d(example("relaxation2d_asyn"); cycletime=0.02809)
 ```
 
 The relaxation delays come from the experiment's `vclist`, multiplied by `cycletime`, the
@@ -30,8 +30,7 @@ In the window that opens:
    the right.
 2. Press `R` to rename the peak, for example `V40`, so that plots use the residue number.
 3. Add the other peaks you want.
-4. Press **Save**. The results go into the folder named in the box beside it, `out` by
-   default.
+4. Press **Save**.
 5. Press `Q` to close the window.
 
 ```@setup quickstart
@@ -39,24 +38,22 @@ using NMRAnalysis
 expt = NMRAnalysis.screenshot("relaxation2d.png"; peak="V40") do
     reopen(exampleanalysis("relaxation2d_asyn"))
 end
+Main.savepng("relaxation2d-summary.png", summaryplot(expt))
 ```
 
 ![The relaxation2d window with the example's peaks picked](relaxation2d.png)
 
-When the window closes, `relaxation2d` returns the analysis. `results(expt)` gives one row
-per peak:
+**Save** writes the results to the folder named beside it, `out` by default:
+`results.csv` with the fitted rates, `summary.pdf` plotting them against residue number,
+and a plot of each peak's fit. The rates for the example begin:
 
 ```@example quickstart
-Main.resultstable(results(expt)) # hide
+Main.resultstable(results(expt); cols=[:label, :R, :A]) # hide
 ```
 
-To open the analysis shown above, with its peaks already picked, run:
+![R₂ against residue number, from summary.pdf](relaxation2d-summary.png)
 
-```julia
-reopen(exampleanalysis("relaxation2d_asyn"))
-```
-
-`reopen("out")` reopens your own analysis in the same way.
+`reopen("out")` opens the analysis again, with its peaks.
 
 ## Analyse a 1D experiment
 

@@ -56,7 +56,7 @@ titration2d(example("titration2d_fir_nbox"))
 
 ```@setup titration2d
 using NMRAnalysis
-expt = NMRAnalysis.screenshot("titration2d.png"; peak="X14") do
+expt = NMRAnalysis.screenshot("titration2d.png"; peak="X14", zoom=3, contour=-1) do
     reopen(exampleanalysis("titration2d_fir_nbox"))
 end
 ```
@@ -65,7 +65,9 @@ end
 
 ## Output
 
-The global ``K_\text{d}`` is shown in the window and saved in `global.csv`. For each peak:
+**Save** writes the global ``K_\text{d}`` to `global.csv`, these parameters for each peak to
+`results.csv`, and a plot of each peak's shifts and fitted isotherm to `peaks/`. See
+[Output](overview.md#Output) for the other files.
 
 | Parameter | Meaning |
 |---|---|
@@ -74,14 +76,20 @@ The global ``K_\text{d}`` is shown in the window and saved in `global.csv`. For 
 | `dX`, `dY` | Shift changes on binding, ppm |
 | `CSP` | Combined shift perturbation, ppm |
 
-For the example above:
+For the example, ``K_\text{d}`` is
 
 ```@example titration2d
-Main.resultstable(results(expt)) # hide
+first(results(expt)).Kd # hide
 ```
 
-Label the peaks with residue numbers, and `summaryplot(expt)` plots these against residue
-number.
+and the shift changes begin:
+
+```@example titration2d
+Main.resultstable(results(expt); cols=[:label, :dX, :dY, :CSP]) # hide
+```
+
+With residue numbers in the peak labels, such as `L23`, `summary.pdf` plots the shift
+changes against residue number.
 
 The combined perturbation weights the two dimensions (Williamson, *Prog. Nucl. Magn. Reson.
 Spectrosc.* **73**, 1 (2013)):

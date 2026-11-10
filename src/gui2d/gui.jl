@@ -174,18 +174,30 @@ function gui!(expt::Experiment; peaklist=nothing, call=nothing)
     return expt
 end
 
-"For a screenshot: wait for the fit in progress, then select the peak it asks for."
+"""
+For a screenshot: wait for the fit in progress, set the contours, then select and zoom in
+on the peak it asks for.
+"""
 function settle!(expt)
     state = expt.state[]
+    g = state[:gui]
+    shot = SCREENSHOT[]
     while (task = state[:fit_task][]; !isnothing(task) && !istaskdone(task))
         wait(task)
     end
+    g[:basecontour][] *= g[:contourscale][]^shot.contour
     peaks = expt.peaks[]
     isempty(peaks) && return nothing
-    label = SCREENSHOT[].peak
-    i = isnothing(label) ? 1 : findfirst(p -> p.label[] == label, peaks)
-    isnothing(i) && throw(ArgumentError("no peak labelled $label"))
+    i = isnothing(shot.peak) ? 1 : findfirst(p -> p.label[] == shot.peak, peaks)
+    isnothing(i) && throw(ArgumentError("no peak labelled $(shot.peak)"))
     state[:current_peak_idx][] = i
+    if shot.zoom != 1
+        x, y = state[:positions][][i]
+        xlo, xhi = extrema(state[:current_spec_x][])
+        ylo, yhi = extrema(state[:current_spec_y][])
+        hx, hy = (xhi - xlo) / 2shot.zoom, (yhi - ylo) / 2shot.zoom
+        limits!(g[:axcontour], x - hx, x + hx, y - hy, y + hy)
+    end
     return nothing
 end
 

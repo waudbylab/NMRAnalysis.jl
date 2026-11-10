@@ -4,16 +4,16 @@ The 1D routines ([`relaxation1d`](relaxation.md), [`diffusion1d`](diffusion.md),
 [`tract`](tract.md), [`calibration1d`](calibration.md) and [`kinetics1d`](kinetics.md))
 analyse a series of 1D spectra, usually recorded as one pseudo-2D experiment. Each opens the
 same window, in which you integrate one or more regions of the spectrum and see the fit
-update as you go.
+update as you go. This is [`relaxation1d`](relaxation.md) on a ¹H T₂ series:
 
 ```julia
 using NMRAnalysis
-reopen(exampleanalysis("relaxation1d_aas"))
+relaxation1d(example("relaxation1d_aas"))
 ```
 
 ```@setup window1d
 using NMRAnalysis
-res = NMRAnalysis.screenshot("window1d.png") do
+NMRAnalysis.screenshot("window1d.png"; xlims=(0, 5)) do
     reopen(exampleanalysis("relaxation1d_aas"))
 end
 ```
@@ -90,22 +90,10 @@ A folder that already exists is first renamed `<name>_previous`. See
 reopen("out")
 ```
 
-## Use the results
+## Scripting
 
-Each routine returns its results when the window closes, one per region:
-
-```@example window1d
-res # hide
-```
-
-`param` gets a fitted value with its uncertainty:
-
-```julia
-param(results[1], :R)
-```
-
-To run an analysis without the window, for example in a script, give the region as
-`integration`:
+Each routine also returns its results, one per region, when the window closes. To run an
+analysis without the window, give the region as `integration`:
 
 ```julia
 relaxation1d("11"; integration=(peakppm=8.2, noiseppm=-1.0, ppmwidth=0.5))

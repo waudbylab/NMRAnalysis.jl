@@ -15,16 +15,38 @@ ENV["GKSwstype"] = "100" # https://github.com/jheinen/GR.jl/issues/278
 savepng(file, fig) = NMRAnalysis.GLMakie.save(file, fig; backend=NMRAnalysis.GLMakie,
                                               px_per_unit=1)
 
-"The first `n` rows of `results(expt)`, as a table."
-function resultstable(rows; n=6)
-    cell(x) = x isa AbstractFloat ? string(round(x; sigdigits=4)) : string(x)
-    cols = keys(first(rows))
+"""
+The first `n` rows of an analysis's results, as a table: `results(expt)` for a 2D analysis,
+or the `RegionResult`s of a 1D one. `cols` picks the columns.
+"""
+function resultstable(rows; n=6, cols=nothing)
+    rows = map(asrow, rows)
+    cols = something(cols, unique(reduce(vcat, [collect(keys(r)) for r in rows])))
+    cell(row, c) = haskey(row, c) ? format(row[c]) : ""
     lines = ["| " * join(cols, " | ") * " |", "|" * repeat("---|", length(cols))]
     for row in first(rows, n)
-        push!(lines, "| " * join(map(cell, values(row)), " | ") * " |")
+        push!(lines, "| " * join([cell(row, c) for c in cols], " | ") * " |")
     end
     length(rows) > n && push!(lines, "| … |" * repeat(" |", length(cols) - 1))
     return Markdown.parse(join(lines, "\n"))
+end
+
+asrow(r::NamedTuple) = r
+asrow(r::NMRAnalysis.RegionResult) = (; region=r.region, r.parameters...)
+
+const Measurement = NMRAnalysis.Measurements.Measurement
+format(x) = string(x)
+format(x::AbstractFloat) = string(round(x; sigdigits=4))
+# an uncertainty that was never estimated is Inf, and says nothing
+format(x::Measurement) = isfinite(x.err) ? string(x) : format(x.val)
+
+"An example's saved analysis, or `nothing` where the released data has none yet."
+function savedanalysis(name)
+    try
+        return exampleanalysis(name)
+    catch
+        return nothing
+    end
 end
 
 # DocMeta.setdocmeta!(NMRTools, :DocTestSetup, :(using NMRAnalysis); recursive=true)

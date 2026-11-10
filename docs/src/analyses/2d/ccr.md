@@ -49,12 +49,16 @@ Main.savepng("ccr2d-summary.png", summaryplot(expt))
 
 ## Output
 
+**Save** writes these parameters for each peak to `results.csv`, the summary plot below to
+`summary.pdf`, and a plot of each peak's fit to `peaks/`. See [Output](overview.md#Output)
+for the other files.
+
 | Parameter | Meaning |
 |---|---|
 | `eta` | CCR rate η, s⁻¹ |
 | `amp` | Reference amplitude |
 
-For the example above:
+For the example:
 
 ```@example ccr2d
 Main.resultstable(results(expt)) # hide

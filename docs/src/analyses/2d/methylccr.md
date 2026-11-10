@@ -47,7 +47,7 @@ methylccr2d(decay, buildup)
 
 ```@setup methylccr2d
 using NMRAnalysis
-expt = NMRAnalysis.screenshot("methylccr2d.png") do
+expt = NMRAnalysis.screenshot("methylccr2d.png"; zoom=2, contour=-1) do
     reopen(exampleanalysis("methylccr2d_fln5"))
 end
 Main.savepng("methylccr2d-summary.png", summaryplot(expt))
@@ -57,13 +57,17 @@ Main.savepng("methylccr2d-summary.png", summaryplot(expt))
 
 ## Output
 
+**Save** writes these parameters for each peak to `results.csv`, the summary plot below to
+`summary.pdf`, and a plot of each peak's fit to `peaks/`. See [Output](overview.md#Output)
+for the other files.
+
 | Parameter | Meaning |
 |---|---|
 | `S2tc` | ``S^2\tau_c``, ns |
 | `eta` | CCR rate η, s⁻¹ |
 | `delta` | Coupling term δ, s⁻¹ |
 
-For the example above:
+For the example:
 
 ```@example methylccr2d
 Main.resultstable(results(expt)) # hide

@@ -38,6 +38,10 @@ swap both pairs.
 
 ## Output
 
+**Save** writes these parameters for each peak to `results.csv`, a plot of each peak's fit
+to `peaks/`, and a summary plot against residue number to `summary.pdf`. See
+[Output](overview.md#Output) for the other files.
+
 | Parameter | Meaning |
 |---|---|
 | `J` | Scalar coupling, Hz |
