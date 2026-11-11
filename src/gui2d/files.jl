@@ -40,6 +40,20 @@ function loadpeaks!(expt, path::AbstractString)
                    "Loaded $(counted(n, "peak")) from $name")
 end
 
+"""
+Write every output file into `folder`. An existing folder is moved aside to
+`<name>_previous` rather than written into, so a peak deleted since the last save leaves
+nothing behind.
+"""
+function writeoutput(expt, folder)
+    backupfolder(folder)
+    writeresults!(expt, folder)
+    writesummary(joinpath(folder, "summary.txt"), expt)
+    save_peak_plots!(expt, folder)
+    save_cluster_plots!(expt, folder)
+    return save_summary_plot!(expt, folder)
+end
+
 function saveresults!(expt)
     folder = joinpath(pwd(), expt.state[][:outputdir][])
 
@@ -55,15 +69,7 @@ function saveresults!(expt)
     @async begin # do saving in a separate task
         sleep(0.2) # allow time for mode change to be processed
         try
-            # An existing folder is moved aside to <name>_previous rather than written
-            # into, so a peak deleted since the last save leaves nothing behind - which is
-            # what the stale-PDF sweep here used to be for.
-            backupfolder(folder)
-            writeresults!(expt, folder)
-            writesummary(joinpath(folder, "summary.txt"), expt)
-            save_peak_plots!(expt, folder)
-            save_cluster_plots!(expt, folder)
-            save_summary_plot!(expt, folder)
+            writeoutput(expt, folder)
             name = expt.state[][:outputdir][]
             notice!(expt,
                     unfinished == 0 ? "Saved to $name" :

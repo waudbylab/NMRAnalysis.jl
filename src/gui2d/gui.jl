@@ -166,7 +166,9 @@ function gui!(expt::Experiment; peaklist=nothing, call=nothing)
     set_close_to!(g[:sliderslice], initialslice(expt))
     isnothing(peaklist) || loadpeaks!(expt, peaklist)
 
-    capturewindow(g[:fig]; ready=() -> settle!(expt)) && return expt
+    capturewindow(g[:fig]; ready=() -> settle!(expt),
+                  save=() -> writeoutput(expt, joinpath(pwd(), state[:outputdir][]))) &&
+        return expt
     display(g[:fig])
     while isopen(g[:fig].scene)
         sleep(0.1)

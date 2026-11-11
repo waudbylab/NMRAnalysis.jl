@@ -16,17 +16,18 @@ end
 
 """
 Where [`screenshot`](@ref) is saving the next analysis window, and how to show it, as
-`(; file, peak, zoom, contour, xlims)`, or `nothing` while windows open as usual.
+`(; file, peak, zoom, contour, xlims, save)`, or `nothing` while windows open as usual.
 """
 const SCREENSHOT = Ref{Any}(nothing)
 
 """
-    screenshot(f, file; peak=nothing, zoom=1, contour=0, xlims=nothing) -> f()
+    screenshot(f, file; peak=nothing, zoom=1, contour=0, xlims=nothing, save=false) -> f()
 
 Run `f`, saving the analysis window it opens to the image `file` instead of opening it. The
 window is drawn once the fit of the peaks or regions it starts with has finished, and the
 analysis then returns as if the window had been closed straight away. The documentation's
-screenshots are made this way.
+screenshots are made this way. With `file = nothing` the window is built but no image is
+drawn, which needs no display. `save=true` then presses **Save**, writing the output folder.
 
 A 2D window shows the peak labelled `peak`, or the first peak, magnified `zoom` times about
 it, with the contours raised (positive) or lowered (negative) by `contour` steps of the ↑
@@ -39,10 +40,11 @@ NMRAnalysis.screenshot("relaxation1d.png"; xlims=(0, 5)) do
 end
 ```
 """
-function screenshot(f, file::AbstractString; peak=nothing, zoom=1, contour=0,
-                    xlims=nothing)
+function screenshot(f, file::Union{AbstractString,Nothing}; peak=nothing, zoom=1,
+                    contour=0, xlims=nothing, save::Bool=false)
     previous = SCREENSHOT[]
-    SCREENSHOT[] = (; file=abspath(file), peak, zoom, contour, xlims)
+    file = isnothing(file) ? nothing : abspath(file)
+    SCREENSHOT[] = (; file, peak, zoom, contour, xlims, save)
     try
         return f()
     finally
@@ -51,16 +53,20 @@ function screenshot(f, file::AbstractString; peak=nothing, zoom=1, contour=0,
 end
 
 """
-    capturewindow(fig; ready=() -> nothing) -> Bool
+    capturewindow(fig; ready=() -> nothing, save=() -> nothing) -> Bool
 
-Where [`screenshot`](@ref) asked for it, run `ready()`, save `fig` and return true, so the
-caller returns without opening the window. Otherwise false.
+Where [`screenshot`](@ref) asked for it, run `ready()`, draw `fig` to its file if it names
+one, run `save()` if it asked for the output too, and return true, so the caller returns
+without opening the window. Otherwise false.
 """
-function capturewindow(fig; ready=() -> nothing)
+function capturewindow(fig; ready=() -> nothing, save=() -> nothing)
     shot = SCREENSHOT[]
     isnothing(shot) && return false
     ready()
-    mkpath(dirname(shot.file))
-    GLMakie.save(shot.file, fig; backend=GLMakie, px_per_unit=1)
+    if !isnothing(shot.file)
+        mkpath(dirname(shot.file))
+        GLMakie.save(shot.file, fig; backend=GLMakie, px_per_unit=1)
+    end
+    shot.save && save()
     return true
 end

@@ -87,8 +87,6 @@ include("analysis1d/Analysis1D.jl")
 # collide with the registry-based `analyse` above. Names are brought in by the selective
 # `@reexport using .Analysis1D: …` below instead.
 
-using PrecompileTools
-include("precompile.jl")
 
 export analyse, register_analysis!, MultiFileRule
 export viscosity
@@ -138,6 +136,10 @@ using .PeakTrack1D
 # results, and the series models a caller can choose between
 @reexport using .Analysis1D: RegionResult, param
 @reexport using .Analysis1D: SeriesModel, CurveFitModel, NoFitting, ExponentialModel
+
+using Base.CoreLogging: NullLogger, with_logger
+using PrecompileTools
+include("precompile.jl")   # after everything it runs has been defined
 
 @info "NMRAnalysis.jl v$(pkgversion(NMRAnalysis)): type ?NMRAnalysis for a list of analyses"
 
